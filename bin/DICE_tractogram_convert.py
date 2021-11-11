@@ -21,6 +21,9 @@ def input_parser():
                         "reference for the input tractogram")
     parser.add_argument("-f", "--force", action="store_true",
                         help="Force overwriting of the output")
+    if len(sys.argv)==1:
+        parser.print_help()
+        sys.exit(1)
     return parser
 
 
