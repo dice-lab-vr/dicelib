@@ -2,10 +2,6 @@ from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
 from glob import glob
 
-PACKAGE_NAME = 'dicelib'
-PACKAGE_VERSION = '1.0.0'
-PACKAGE_DESCRIPTION = 'Software library of the Diffusion Imaging and Connectivity Estimation (DICE) lab'
-
 def get_extensions():
     # ext1 = Extension(name='commit.trk2dictionary',
     #                  sources=['commit/trk2dictionary/trk2dictionary.pyx'],
@@ -43,14 +39,14 @@ class CustomBuildExtCommand(build_ext):
         build_ext.finalize_options(self)
         build_ext.run(self)
 
-
+import dicelib.info as info
 setup(
-    name=PACKAGE_NAME,
-    version=PACKAGE_VERSION,
-    description=PACKAGE_DESCRIPTION,
-    long_description=PACKAGE_DESCRIPTION,
-    author='Alessandro Daducci',
-    author_email='alessandro.daducci@univr.it',
+    name=info.NAME,
+    version=info.VERSION,
+    description=info.DESCRIPTION,
+    long_description=info.LONG_DESCRIPTION,
+    author=info.AUTHOR,
+    author_email=info.AUTHOR_EMAIL,
     packages=find_packages(),
     cmdclass={'build_ext': CustomBuildExtCommand},
     ext_modules=get_extensions(),
