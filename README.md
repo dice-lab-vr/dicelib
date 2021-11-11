@@ -13,5 +13,5 @@ pip install . -U
 The library is now available in your Python interpreter and can be imported as:
 
 ```python
-import dice
+import dicelib
 ```
