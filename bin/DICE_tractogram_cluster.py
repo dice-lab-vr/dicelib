@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import argparse, os, sys
-from dicelib.clustering import tractogram_cluster
+from dicelib.tractogram.clustering import cluster
 
 DESCRIPTION = """Cluster a tractogram with QuickBundles"""
 
@@ -10,7 +10,9 @@ def input_parser():
     parser.add_argument("input_tractogram", help="Input tractogram")
     parser.add_argument("output_tractogram", help="Output tractogram")
     parser.add_argument("threshold", type=float, help="Threshold [in mm]")
+    parser.add_argument("--n_pts", type=int, dest="n_pts", default=12, help="Number of points for the resampling of a streamline")
     parser.add_argument("-r", action="store", dest="reference", help="Space attributes used as reference for the input tractogram")
+    parser.add_argument("--replace_centroids", action="store_true", dest="replace_centroids", help="Replace centroids with closer streamline in a cluster")
     parser.add_argument("-f", "--force", action="store_true", help="Force overwriting of the output")
     if len(sys.argv)==1:
         parser.print_help()
@@ -47,12 +49,13 @@ def main():
     check_path(p_args, parser)
     check_extension(p_args.input_tractogram, p_args.output_tractogram, p_args.reference, parser)
 
-    tractogram_cluster(
+    cluster(
         p_args.input_tractogram,
         p_args.reference,
         p_args.output_tractogram,
         [p_args.threshold],
-        n_pts=20,
+        n_pts=p_args.n_pts,
+        replace_centroids=p_args.replace_centroids,
         random=True,
         verbose=False
     )
