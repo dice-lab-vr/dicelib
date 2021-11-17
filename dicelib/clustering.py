@@ -38,7 +38,7 @@ def get_streamlines_close_to_centroids( clusters, streamlines, n_pts ):
     return centroids_out
 
 
-def tractogram_cluster( filename_in, filename_reference, filename_out, thresholds, n_pts=12, random=True, verbose=False ) :
+def tractogram_cluster( filename_in, filename_reference, filename_out, thresholds, n_pts=12, replace_centroids=False, random=True, verbose=False ) :
     """ Cluster streamlines in a tractogram.
     """
     if verbose :
@@ -65,11 +65,14 @@ def tractogram_cluster( filename_in, filename_reference, filename_out, threshold
     if verbose :
         print( f'  * {len(clusters.leaves)} clusters in lowest level'  )
 
-    if verbose :
-        print( '- Replace centroids with closest streamline in input tractogram' )
-    centroids = get_streamlines_close_to_centroids( clusters.leaves, tractogram.streamlines, n_pts )
-    if verbose :
-        print( f'  * {len(centroids)} centroids' )
+    if replace_centroids :
+        if verbose :
+            print( '- Replace centroids with closest streamline in input tractogram' )
+        centroids = get_streamlines_close_to_centroids( clusters.leaves, tractogram.streamlines, n_pts )
+    else :
+        if verbose :
+            print( '- Keeping original centroids' )
+        centroids = [ leave.centroid for leave in clusters.leaves ]
 
     if verbose :
         print( f'- Save to "{filename_out}"' )
