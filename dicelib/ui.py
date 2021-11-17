@@ -14,21 +14,17 @@ def WARNING( str ):
 	print( "\033[7;33m[ %s ]\033[0;33m  %s \033[0m" % ( datetime.now().strftime("%H:%M:%S"), str ) )
 
 
-def CHECK_FILE( filename, errorStr="" ):
+def CHECK_FILE( filename, raise_error=False ):
 	if isfile( filename ):
 		return True
-	if errorStr=="":
-		ERROR( "Unable to locate file '%s'!" % filename )
-	else:
-		ERROR( errorStr  )
+	if raise_error:
+		raise FileNotFoundError( f'Unable to locate file "{filename}"' )
 	return False
 
 
-def CHECK_DIR( dirname, errorStr="" ):
+def CHECK_DIR( dirname, raise_error=False ):
 	if isdir( dirname ):
 		return True
-	if errorStr=="":
-		ERROR( "Unable to locate folder '%s'!" % dirname )
-	else:
-		ERROR( errorStr  )
+	if raise_error:
+   		raise FileNotFoundError( f'Unable to locate folder "{dirname}"' )
 	return False

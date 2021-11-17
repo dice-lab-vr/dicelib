@@ -38,7 +38,7 @@ def get_streamlines_close_to_centroids( clusters, streamlines, n_pts ):
     return centroids_out
 
 
-def tractogram_cluster( filename_in, filename_reference, filename_out, thresholds, n_pts=20, random=True, verbose=False ) :
+def tractogram_cluster( filename_in, filename_reference, filename_out, thresholds, n_pts=12, random=True, verbose=False ) :
     """ Cluster streamlines in a tractogram.
     """
     if verbose :
