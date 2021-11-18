@@ -3,8 +3,9 @@
 import argparse, os, sys
 from dicelib.tractogram.processing import spline_smoothing
 
+DESCRIPTION = """Smooth the streamlines in a tractogram using Catmull-Rom splines"""
+
 def input_parser():
-    DESCRIPTION = """Smooth the streamlines in a tractogram using Catmull-Rom splines"""
     parser = argparse.ArgumentParser(description=DESCRIPTION)
     parser.add_argument("input_tractogram", help="Input tractogram")
     parser.add_argument("output_tractogram", help="Output tractogram")
