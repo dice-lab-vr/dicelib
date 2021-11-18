@@ -6,14 +6,14 @@ from dicelib.tractogram.clustering import cluster
 DESCRIPTION = """Cluster a tractogram with QuickBundles"""
 
 def input_parser():
-    parser = argparse.ArgumentParser(usage="%(prog)s <input_tractogram> <output_tractogram> <threshold> -r <reference>", description=DESCRIPTION)
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
     parser.add_argument("input_tractogram", help="Input tractogram")
     parser.add_argument("output_tractogram", help="Output tractogram")
     parser.add_argument("threshold", type=float, help="Threshold [in mm]")
-    parser.add_argument("--n_pts", type=int, dest="n_pts", default=12, help="Number of points for the resampling of a streamline")
-    parser.add_argument("-r", action="store", dest="reference", help="Space attributes used as reference for the input tractogram")
-    parser.add_argument("--replace_centroids", action="store_true", dest="replace_centroids", help="Replace centroids with closer streamline in a cluster")
-    parser.add_argument("-f", "--force", action="store_true", help="Force overwriting of the output")
+    parser.add_argument("--n_pts", type=int, default=12, help="Number of points for the resampling of a streamline")
+    parser.add_argument("--reference", "-r", action="store", help="Space attributes used as reference for the input tractogram")
+    parser.add_argument("--replace_centroids", action="store_true", help="Replace centroids with closer streamline in a cluster")
+    parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
     if len(sys.argv)==1:
         parser.print_help()
         sys.exit(1)
