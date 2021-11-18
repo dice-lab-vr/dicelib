@@ -13,6 +13,8 @@ def input_parser():
     parser.add_argument("--n_pts", type=int, default=12, help="Number of points for the resampling of a streamline")
     parser.add_argument("--reference", "-r", action="store", help="Space attributes used as reference for the input tractogram")
     parser.add_argument("--replace_centroids", action="store_true", help="Replace centroids with closer streamline in a cluster")
+    parser.add_argument("--random", action="store_true", help="Random shuffling of input streamlines")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
     parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
     if len(sys.argv)==1:
         parser.print_help()
@@ -29,35 +31,30 @@ def check_extension(in_arg, out_arg, ref_arg, parser):
         parser.error("Invalid reference format")
 
 
-def check_path(args, parser):
-    in_file = args.input_tractogram
-    out_file = args.output_tractogram
-    in_ref = args.reference
-
-    if not os.path.isfile(in_file):
-        parser.error("No such file {}".format(in_file))
-    if os.path.isfile(out_file) and not args.force:
-        parser.error("Output tractogram already exists, use -f to overwrite")
-    if in_ref is not None:
-        if not os.path.isfile(args.reference):
-            parser.error("No such file {}".format(args.reference))
-
-
 def main():
     parser = input_parser()
-    p_args = parser.parse_args()
-    check_path(p_args, parser)
-    check_extension(p_args.input_tractogram, p_args.output_tractogram, p_args.reference, parser)
+    options = parser.parse_args()
+    
+    # check input
+    if not os.path.isfile(options.input_tractogram):
+        parser.error( f'File "{options.input_tractogram}" not found' )
+    if os.path.isfile(options.output_tractogram) and not options.force:
+        parser.error("Output tractogram already exists, use -f to overwrite")
+    if options.reference is not None:
+        if not os.path.isfile(options.reference):
+            parser.error( f'File "{options.reference}" not found' )
+    check_extension(options.input_tractogram, options.output_tractogram, options.reference, parser)
 
+    # run code
     cluster(
-        p_args.input_tractogram,
-        p_args.reference,
-        p_args.output_tractogram,
-        [p_args.threshold],
-        n_pts=p_args.n_pts,
-        replace_centroids=p_args.replace_centroids,
-        random=True,
-        verbose=False
+        options.input_tractogram,
+        options.reference,
+        options.output_tractogram,
+        [options.threshold],
+        n_pts=options.n_pts,
+        replace_centroids=options.replace_centroids,
+        random=options.random,
+        verbose=options.verbose
     )
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ cdef extern from "processing_c.cpp":
     ) nogil
 
 
-cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, control_point_ratio=0.25, segment_len=1.0, verbose=True ) :
+cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, control_point_ratio=0.25, segment_len=1.0, verbose=False ) :
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
        More info at http://algorithmist.net/docs/catmullrom.pdf.
 
@@ -34,7 +34,7 @@ cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, contr
         Sampling resolution of the final streamline after interpolation (default : 1.0).
 
     verbose : boolean
-        Print information and progess (default : True).
+        Print information and progess (default : False).
     """
 
     try :
@@ -57,7 +57,7 @@ cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, contr
     if verbose :
         print( '* input tractogram :' )
         print( f'\t- {filename_tractogram}' )
-        print( f'\t- {n_count} fibers' )
+        print( f'\t- {n_count} streamlines' )
         
         mb = getsize( filename_tractogram )/1.0E6
         if mb >= 1E3:
@@ -88,8 +88,9 @@ cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, contr
     tractogram_out = nibabel.streamlines.Tractogram(streamlines_out, affine_to_rasmm=tractogram_in.tractogram.affine_to_rasmm)
     nibabel.streamlines.save(tractogram_out, filename_tractogram_out)
 
-    mb = getsize( filename_tractogram_out )/1.0E6
-    if mb >= 1E3:
-        print( f'\t- {mb/1.0E3:.2f} GB' )
-    else:            
-        print( f'\t- {mb:.2f} MB' )
+    if verbose :
+        mb = getsize( filename_tractogram_out )/1.0E6
+        if mb >= 1E3:
+            print( f'\t- {mb/1.0E3:.2f} GB' )
+        else:            
+            print( f'\t- {mb:.2f} MB' )

@@ -11,16 +11,11 @@ DESCRIPTION = """Tractogram conversion from and to '.tck', '.trk', '.fib',
 
 
 def input_parser():
-    parser = argparse.ArgumentParser(usage="%(prog)s Input_tractogram "
-                                     "Output_tractogram -r Reference",
-                                     description=DESCRIPTION)
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
     parser.add_argument("input_tractogram", help="Input tractogram")
     parser.add_argument("output_tractogram", help="Output tractogram")
-    parser.add_argument("-r", action="store", dest="reference",
-                        help="Space attributes used as \n"
-                        "reference for the input tractogram")
-    parser.add_argument("-f", "--force", action="store_true",
-                        help="Force overwriting of the output")
+    parser.add_argument("--reference", "-r", action="store", help="Space attributes used as reference for the input tractogram")
+    parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
     if len(sys.argv)==1:
         parser.print_help()
         sys.exit(1)
@@ -75,26 +70,26 @@ def load_inp(in_arg, ref=None):
 
 def main():
     parser = input_parser()
-    p_args = parser.parse_args()
-    check_path(p_args, parser)
-    check_extension(p_args.input_tractogram, p_args.output_tractogram,
-                    p_args.reference, parser)
+    options = parser.parse_args()
+    check_path(options, parser)
+    check_extension(options.input_tractogram, options.output_tractogram,
+                    options.reference, parser)
 
-    if p_args.reference is None:
-        if p_args.input_tractogram.endswith(".trk"):
+    if options.reference is None:
+        if options.input_tractogram.endswith(".trk"):
             try:
-                sft_in = load_inp(p_args.input_tractogram)
+                sft_in = load_inp(options.input_tractogram)
             except Exception:
                 raise
         else:
             parser.error("reference is required if the input format is '.tck'")
     else:
         try:
-            sft_in = load_inp(p_args.input_tractogram, ref=p_args.reference)
+            sft_in = load_inp(options.input_tractogram, ref=options.reference)
         except Exception:
             raise
     try:
-        save_tractogram(sft_in, p_args.output_tractogram)
+        save_tractogram(sft_in, options.output_tractogram)
     except (OSError, TypeError) as e:
         parser.error("Output not valid: {}".format(e))
 
