@@ -8,8 +8,8 @@ def input_parser():
     parser = argparse.ArgumentParser(description=DESCRIPTION)
     parser.add_argument("input_tractogram", help="Input tractogram")
     parser.add_argument("output_tractogram", help="Output tractogram")
-    parser.add_argument("--ratio", "-r", type=float, help="Ratio of points to be kept/used as control points")
-    parser.add_argument("--step", "-s", type=float, help="Sampling step for the output streamlines [in mm]")
+    parser.add_argument("--ratio", "-r", type=float, default=0.25, help="Ratio of points to be kept/used as control points")
+    parser.add_argument("--step", "-s", type=float, default=1.0, help="Sampling step for the output streamlines [in mm]")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
     parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
     if len(sys.argv)==1:
