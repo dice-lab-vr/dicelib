@@ -35,8 +35,6 @@ def main():
     parser = input_parser()
     options = parser.parse_args()
     
-    print( options.thresholds )
-
     # check input
     if not os.path.isfile(options.input_tractogram):
         parser.error( f'File "{options.input_tractogram}" not found' )

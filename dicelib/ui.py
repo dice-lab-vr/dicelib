@@ -14,7 +14,7 @@ def WARNING( str ):
 
 
 def CHECK_FILE( filename, raise_error=False ):
-    from os.path import isfile
+	from os.path import isfile
 	if isfile( filename ):
 		return True
 	if raise_error:
@@ -23,9 +23,9 @@ def CHECK_FILE( filename, raise_error=False ):
 
 
 def CHECK_DIR( dirname, raise_error=False ):
-    from os.path import isdir
+	from os.path import isdir
 	if isdir( dirname ):
 		return True
 	if raise_error:
-   		raise FileNotFoundError( f'Unable to locate folder "{dirname}"' )
+		raise FileNotFoundError( f'Unable to locate folder "{dirname}"' )
 	return False
