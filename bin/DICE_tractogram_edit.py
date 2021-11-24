@@ -28,9 +28,11 @@ def main():
 
     # check input
     if not os.path.isfile(options.input_tractogram):
-        parser.error( f'File "{options.input_tractogram}" not found' )
+        ui.ERROR( f'File "{options.input_tractogram}" not found' )
+        sys.exit(1)
     if os.path.isfile(options.output_tractogram) and not options.force:
-        parser.error("Output tractogram already exists, use -f to overwrite")
+        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+        sys.exit(1)
     
     #----- actual code -----
 
