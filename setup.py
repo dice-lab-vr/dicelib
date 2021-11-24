@@ -5,15 +5,22 @@ from numpy import get_include
 
 
 def get_extensions():
-    ext1 = Extension(
+    processing = Extension(
         name='dicelib.tractogram.processing',
         sources=['dicelib/tractogram/processing.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
-        extra_link_args=[],
         language='c++',
     )
-    return [ ext1 ]
+    lazytck = Extension(
+        name='dicelib.tractogram.lazytck',
+        sources=['dicelib/tractogram/lazytck.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language="c++"
+    ) 
+
+    return [ processing, lazytck ]
 
 
 class CustomBuildExtCommand(build_ext):
