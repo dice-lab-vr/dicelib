@@ -9,4 +9,5 @@ All notable changes will be documented in this file.
 ## [1.1.0] - 2021-24-11
 
 ### Added
-- Added lazytck module for lazy reading/writing streamlines to/from .TCK tractograms
+- lazytck module for lazy reading/writing streamlines to/from .TCK tractograms
+- DICE_tractogram_edit.py script
