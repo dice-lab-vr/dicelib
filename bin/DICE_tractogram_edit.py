@@ -45,8 +45,13 @@ def main():
             ui.ERROR( '"minlength" must be >= 0' )
         if options.maxlength is not None and options.minlength>options.maxlength:
             ui.ERROR( '"minlength" must be <= "maxlength"' )
-    if options.maxlength is not None and options.maxlength<0:
-        ui.ERROR( '"maxlength" must be >= 0' )
+        if options.verbose:
+            ui.LOG( f'Discard streamlines with length < {options.minlength}' )
+    if options.maxlength is not None:
+        if options.maxlength<0:
+            ui.ERROR( '"maxlength" must be >= 0' )
+        if options.verbose:
+            ui.LOG( f'Discard streamlines with length > {options.maxlength}' )
 
     # read the streamline weights (if any)
     if options.weights_in is not None:
@@ -83,15 +88,15 @@ def main():
             # filter by length
             if options.minlength is not None or options.maxlength is not None:
                 length = streamline_length(TCK_in.streamline, TCK_in.n_pts)
-                if length<options.minlength :
+                if options.minlength is not None and length<options.minlength :
                     kept[i] = False
                     continue
-                if length>options.maxlength :
+                if options.maxlength is not None and length>options.maxlength :
                     kept[i] = False
                     continue
             
             # filter out by weight
-            if options.weights_in  is not None and (
+            if options.weights_in is not None and (
                 (options.minweight and weights[i]<options.minweight) or
                 (options.maxweight and weights[i]>options.maxweight)
             ):

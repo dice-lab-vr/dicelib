@@ -10,8 +10,9 @@ import dicelib.ui as ui
 from tqdm import trange
 from libc.math cimport sqrt
 
+
 # Interface to actual C code
-cdef extern from "processing_c.cpp":
+cdef extern from "processing.hpp":
     int do_spline_smoothing(
         float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, float segment_len
     ) nogil
