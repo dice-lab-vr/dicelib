@@ -8,6 +8,7 @@ from os.path import splitext, getsize
 from dicelib.tractogram.lazytck import LazyTCK
 import dicelib.ui as ui
 from tqdm import trange
+from libc.math cimport sqrt
 
 # Interface to actual C code
 cdef extern from "processing_c.cpp":
@@ -16,7 +17,28 @@ cdef extern from "processing_c.cpp":
     ) nogil
 
 
-cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, control_point_ratio=0.25, segment_len=1.0, verbose=False ) :
+cpdef streamline_length( float [:,:] streamline, int n=0 ):
+    """Compute the length of a streamline.
+
+    Parameters
+    ----------
+    streamline : Nx3 numpy array
+        The streamline data
+    n : int
+        Writes first n points of the streamline. If n<=0 (default), writes all points.
+    """
+    if n<0:
+        n = streamline.shape[0]
+    cdef float* ptr     = &streamline[0,0]
+    cdef float* ptr_end = ptr+n*3-3
+    cdef float length = 0.0
+    while ptr<ptr_end:
+        length += sqrt( (ptr[3]-ptr[0])**2 + (ptr[4]-ptr[1])**2 + (ptr[5]-ptr[2])**2 )
+        ptr += 3
+    return length
+
+
+cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, control_point_ratio=0.25, segment_len=1.0, verbose=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
        More info at http://algorithmist.net/docs/catmullrom.pdf.
 
