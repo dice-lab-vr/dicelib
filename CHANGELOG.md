@@ -11,3 +11,6 @@ All notable changes will be documented in this file.
 ### Added
 - lazytck module for lazy reading/writing streamlines to/from .TCK tractograms
 - DICE_tractogram_edit.py script
+
+### Fixed
+- spline_smoothing(): error when n_points < 3

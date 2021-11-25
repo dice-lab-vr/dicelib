@@ -3,9 +3,11 @@
 import cython
 import numpy as np
 cimport numpy as np
-import nibabel
+import sys, os
 from os.path import splitext, getsize
-
+from dicelib.tractogram.lazytck import LazyTCK
+import dicelib.ui as ui
+from tqdm import tqdm
 
 # Interface to actual C code
 cdef extern from "processing_c.cpp":
@@ -36,61 +38,67 @@ cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, contr
     verbose : boolean
         Print information and progess (default : False).
     """
+    cdef float [:,:] npaFiberI
+    cdef float [:,:] npaFiberO
 
-    try :
-        basename, extension = splitext(filename_tractogram)
-        tractogram_in = nibabel.streamlines.load( filename_tractogram, lazy_load=True )
-        hdr = tractogram_in.header
-        if extension == ".trk":
-            n_count = int( hdr['nb_streamlines'] )
-        else:
-            n_count = int( hdr['count'] )
-    except :
-        raise IOError( 'Track file not found' )
-
-    if control_point_ratio < 0 or control_point_ratio > 1 :
-        raise ValueError( "'control_point_ratio' parameter must be in [0..1]" )
+    if control_point_ratio <= 0 or control_point_ratio > 1 :
+        ui.ERROR( "'control_point_ratio' parameter must be in (0..1]" )
     
     if filename_tractogram_out is None :
+        basename, extension = splitext(filename_tractogram)
         filename_tractogram_out = basename+'_smooth'+extension
 
-    if verbose :
-        print( '* input tractogram :' )
-        print( f'\t- {filename_tractogram}' )
-        print( f'\t- {n_count} streamlines' )
-        
-        mb = getsize( filename_tractogram )/1.0E6
-        if mb >= 1E3:
-            print( f'\t- {mb/1.0E3:.2f} GB' )
-        else:            
-            print( f'\t- {mb:.2f} MB' )
-        
-        print( '* output tractogram :' )
-        print( f'\t- {filename_tractogram_out}' )
-        print( f'\t- control points : {control_point_ratio*100.0:.1f}%')
-        print( f'\t- segment length : {segment_len:.2f}' )
+    try:
+        TCK_in  = LazyTCK( filename_tractogram, read_mode=True )
+        if 'count' in TCK_in.header.keys():
+            n_streamlines = int( TCK_in.header['count'] )
+        else:
+            # TODO: allow the possibility to wotk also in this case
+            ui.ERROR( '"count" field not found in header' )
+            sys.exit(1)
 
-    # create the structure for the input and output polyline
-    cdef float [:, ::1] npaFiberI
-    cdef float* ptr_npaFiberI
-    cdef float [:, ::1] npaFiberO = np.ascontiguousarray( np.zeros( (3*10000,1) ).astype(np.float32) )
-    cdef float* ptr_npaFiberO = &npaFiberO[0,0]
+        TCK_out = LazyTCK( filename_tractogram_out, read_mode=False, header=TCK_in.header )
 
-    streamlines_out = []
-    for f in tractogram_in.streamlines:
-        npaFiberI = np.ascontiguousarray( f.copy() )
-        ptr_npaFiberI = &npaFiberI[0,0]
+        if verbose :
+            ui.LOG( 'Input tractogram :' )
+            ui.LOG( f'\t- {filename_tractogram}' )
+            ui.LOG( f'\t- {n_streamlines} streamlines' )
+            
+            mb = getsize( filename_tractogram )/1.0E6
+            if mb >= 1E3:
+                ui.LOG( f'\t- {mb/1.0E3:.2f} GB' )
+            else:            
+                ui.LOG( f'\t- {mb:.2f} MB' )
+            
+            ui.LOG( 'Output tractogram :' )
+            ui.LOG( f'\t- {filename_tractogram_out}' )
+            ui.LOG( f'\t- control points : {control_point_ratio*100.0:.1f}%')
+            ui.LOG( f'\t- segment length : {segment_len:.2f}' )
 
-        n = do_spline_smoothing( ptr_npaFiberI, f.shape[0], ptr_npaFiberO, control_point_ratio, segment_len )
+        # process each streamline
+        npaFiberI = TCK_in.streamline
+        npaFiberO = np.empty( (30000,3), dtype=np.float32 )
+        for i in tqdm( range(n_streamlines), bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
+            TCK_in.read_streamline()
+            if TCK_in.n_pts==0:
+                break # no more data, stop reading
+            n = do_spline_smoothing( &npaFiberI[0,0], TCK_in.n_pts, &npaFiberO[0,0], control_point_ratio, segment_len )
+            TCK_out.write_streamline( npaFiberO, n )
 
-        streamlines_out.append( np.reshape( npaFiberO[:3*n].copy(), (n,3) ) )
+    except:
+        TCK_out.close()
+        if os.path.exists( filename_tractogram_out ):
+            os.remove( filename_tractogram_out )
+        ui.ERROR( 'Unable to smooth streamlines in the tractogram' )
 
-    tractogram_out = nibabel.streamlines.Tractogram(streamlines_out, affine_to_rasmm=tractogram_in.tractogram.affine_to_rasmm)
-    nibabel.streamlines.save(tractogram_out, filename_tractogram_out)
+    finally:
+        TCK_in.close()
+        TCK_out.close()
+
 
     if verbose :
         mb = getsize( filename_tractogram_out )/1.0E6
         if mb >= 1E3:
-            print( f'\t- {mb/1.0E3:.2f} GB' )
+            ui.LOG( f'\t- {mb/1.0E3:.2f} GB' )
         else:            
-            print( f'\t- {mb:.2f} MB' )
+            ui.LOG( f'\t- {mb:.2f} MB' )

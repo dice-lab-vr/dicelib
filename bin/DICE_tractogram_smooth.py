@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import argparse, os, sys
 from dicelib.tractogram.processing import spline_smoothing
+import dicelib.ui as ui
 
 DESCRIPTION = """Smooth the streamlines in a tractogram using Catmull-Rom splines"""
 
@@ -24,9 +25,9 @@ def main():
 
     # check input
     if not os.path.isfile(options.input_tractogram):
-        parser.error( f'File "{options.input_tractogram}" not found' )
+        ui.ERROR( f'File "{options.input_tractogram}" not found' )
     if os.path.isfile(options.output_tractogram) and not options.force:
-        parser.error("Output tractogram already exists, use -f to overwrite")
+        ui.WARNING( 'Output tractogram already exists, use -f to overwrite', stop=True )
 
     # run code
     spline_smoothing(

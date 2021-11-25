@@ -53,5 +53,6 @@ setup(
     packages=find_packages(),
     setup_requires=['Cython>=0.29', 'numpy>=1.12'],
     install_requires=['wheel', 'setuptools>=46.1', 'numpy>=1.12', 'scipy>=1.0', 'Cython>=0.29', 'dipy>=1.0'],
-    scripts=glob('bin/*.py')
+    scripts=glob('bin/*.py'),
+    zip_safe=False
 )

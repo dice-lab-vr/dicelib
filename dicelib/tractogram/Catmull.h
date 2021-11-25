@@ -176,10 +176,10 @@ void Catmull::arcLengthReparametrization( float SEGMENT_len )
     P.resize( N2 );
     dP.resize( N2 );
     ddP.resize( N2 );
+
     //Redefine the points
     int index = 0, found;
     float s, k1, k2, k3;
-
     for(int i = 0; i< P.size(); i++)
     {
         s = delta * ii;

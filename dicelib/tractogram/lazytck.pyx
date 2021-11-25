@@ -49,7 +49,7 @@ cdef class LazyTCK:
         if max_points<=0:
             raise ValueError( '"max_points" should be positive' )
         self.max_points = max_points
-        self.streamline = np.empty( (3*max_points, 3), dtype=np.float32 )
+        self.streamline = np.empty( (max_points, 3), dtype=np.float32 )
         self.n_pts = 0
 
         self.buffer_ptr = NULL
