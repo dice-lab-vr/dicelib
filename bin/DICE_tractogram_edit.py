@@ -29,10 +29,8 @@ def main():
     # check input
     if not os.path.isfile(options.input_tractogram):
         ui.ERROR( f'File "{options.input_tractogram}" not found' )
-        sys.exit(1)
     if os.path.isfile(options.output_tractogram) and not options.force:
         ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
-        sys.exit(1)
     
     #----- actual code -----
 
@@ -57,7 +55,6 @@ def main():
     else:
         # TODO: allow the possibility to wotk also in this case
         ui.ERROR( '"count" field not found in header' )
-        sys.exit(1)
 
     kept = np.ones( n_streamlines, dtype=bool )
     for i in range(n_streamlines):

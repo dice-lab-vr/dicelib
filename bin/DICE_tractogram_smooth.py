@@ -27,7 +27,7 @@ def main():
     if not os.path.isfile(options.input_tractogram):
         ui.ERROR( f'File "{options.input_tractogram}" not found' )
     if os.path.isfile(options.output_tractogram) and not options.force:
-        ui.WARNING( 'Output tractogram already exists, use -f to overwrite', stop=True )
+        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
 
     # run code
     spline_smoothing(

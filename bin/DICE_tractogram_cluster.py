@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import argparse, os, sys
 from dicelib.tractogram.clustering import cluster
+import dicelib.ui as ui
 
 DESCRIPTION = """Cluster a tractogram with QuickBundles"""
 
@@ -24,11 +25,11 @@ def input_parser():
 
 def check_extension(in_arg, out_arg, ref_arg, parser):
     if not in_arg.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
-        parser.error("Invalid input tractogram format")
+        ui.ERROR( 'Invalid input tractogram format' )
     elif not out_arg.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
-        parser.error("Invalid input tractogram format")
+        ui.ERROR( 'Invalid input tractogram format' )
     elif ref_arg is not None and not ref_arg.endswith(('.nii', 'nii.gz')):
-        parser.error("Invalid reference format")
+        ui.ERROR( 'Invalid reference format' )
 
 
 def main():
@@ -37,12 +38,12 @@ def main():
     
     # check input
     if not os.path.isfile(options.input_tractogram):
-        parser.error( f'File "{options.input_tractogram}" not found' )
+        ui.ERROR( f'File "{options.input_tractogram}" not found' )
     if os.path.isfile(options.output_tractogram) and not options.force:
-        parser.error("Output tractogram already exists, use -f to overwrite")
+        ui.ERROR("Output tractogram already exists, use -f to overwrite")
     if options.reference is not None:
         if not os.path.isfile(options.reference):
-            parser.error( f'File "{options.reference}" not found' )
+            ui.ERROR( f'File "{options.reference}" not found' )
     check_extension(options.input_tractogram, options.output_tractogram, options.reference, parser)
 
     # run code
