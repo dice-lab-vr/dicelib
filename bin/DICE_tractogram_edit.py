@@ -43,44 +43,55 @@ def main():
     else:
         weights = np.array( [] )
 
-    # open the files
-    TCK_in  = LazyTCK( options.input_tractogram, read_mode=True )
-    TCK_out = LazyTCK( options.output_tractogram, read_mode=False, header=TCK_in.header )
+    try:
+        # open the files
+        TCK_in  = LazyTCK( options.input_tractogram, read_mode=True )
+        if 'count' in TCK_in.header.keys():
+            n_streamlines = int( TCK_in.header['count'] )
+            if options.verbose:
+                ui.LOG( f'{n_streamlines} streamlines in input tractogram' )
+        else:
+            # TODO: allow the possibility to wotk also in this case
+            ui.ERROR( '"count" field not found in header' )
 
-    if 'count' in TCK_in.header.keys():
-        n_streamlines = int( TCK_in.header['count'] )
+        TCK_out = LazyTCK( options.output_tractogram, read_mode=False, header=TCK_in.header )
+
+        kept = np.ones( n_streamlines, dtype=bool )
+        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
+            TCK_in.read_streamline()
+            if TCK_in.n_pts==0:
+                break # no more data, stop reading
+            
+            # filter out by weight
+            if weights.size>0:
+                if options.minweight and weights[i]<options.minweight:
+                    kept[i] = False
+                    continue
+                if options.maxweight and weights[i]>options.maxweight:
+                    kept[i] = False
+                    continue
+            TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
+        n_wrote = np.count_nonzero( kept )
+
+        if weights.size>0 and options.weights_out is not None:
+            print( weights[kept==True].size )
+            np.savetxt( options.weights_out, weights[kept==True], fmt='%.5e' )
+
         if options.verbose:
-            ui.LOG( f'{n_streamlines} streamlines in input tractogram' )
-    else:
-        # TODO: allow the possibility to wotk also in this case
-        ui.ERROR( '"count" field not found in header' )
+            ui.LOG( f'{n_wrote} streamlines in output tractogram' )
 
-    kept = np.ones( n_streamlines, dtype=bool )
-    for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
-        TCK_in.read_streamline()
-        if TCK_in.n_pts==0:
-            break # no more data, stop reading
-        
-        # filter out by weight
-        if weights.size>0:
-            if options.minweight and weights[i]<options.minweight:
-                kept[i] = False
-                continue
-            if options.maxweight and weights[i]>options.maxweight:
-                kept[i] = False
-                continue
-        TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
-    
-    n_wrote = np.count_nonzero( kept )
-    TCK_in.close()
-    TCK_out.close( n_wrote )
-    
-    if weights.size>0 and options.weights_out is not None:
-        print( weights[kept==True].size )
-        np.savetxt( options.weights_out, weights[kept==True], fmt='%.5e' )
+    except:
+        n_wrote = 0
+        TCK_out.close()
+        if os.path.exists( options.output_tractogram ):
+            os.remove( options.output_tractogram )
+        if options.weights_out is not None and os.path.exists( options.weights_out ):
+            os.remove( options.weights_out )
+        ui.ERROR( 'Unable to process streamlines in the tractogram' )
 
-    if options.verbose:
-        ui.LOG( f'{n_wrote} streamlines in output tractogram' )
+    finally:
+        TCK_in.close()
+        TCK_out.close( n_wrote )
 
 if __name__ == "__main__":
     main()
