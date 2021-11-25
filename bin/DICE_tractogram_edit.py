@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import argparse, os, sys
 import numpy as np
+from tqdm import trange
 from dicelib.tractogram.lazytck import LazyTCK
 import dicelib.ui as ui
 
@@ -41,8 +42,6 @@ def main():
             ui.LOG( 'Using streamline weights from text file' )
     else:
         weights = np.array( [] )
-        if options.verbose:
-            ui.LOG( 'Not using streamline weights' )
 
     # open the files
     TCK_in  = LazyTCK( options.input_tractogram, read_mode=True )
@@ -57,7 +56,7 @@ def main():
         ui.ERROR( '"count" field not found in header' )
 
     kept = np.ones( n_streamlines, dtype=bool )
-    for i in range(n_streamlines):
+    for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
         TCK_in.read_streamline()
         if TCK_in.n_pts==0:
             break # no more data, stop reading

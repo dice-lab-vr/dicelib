@@ -7,7 +7,7 @@ import sys, os
 from os.path import splitext, getsize
 from dicelib.tractogram.lazytck import LazyTCK
 import dicelib.ui as ui
-from tqdm import tqdm
+from tqdm import trange
 
 # Interface to actual C code
 cdef extern from "processing_c.cpp":
@@ -78,7 +78,7 @@ cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, contr
         # process each streamline
         npaFiberI = TCK_in.streamline
         npaFiberO = np.empty( (30000,3), dtype=np.float32 )
-        for i in tqdm( range(n_streamlines), bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
+        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
             TCK_in.read_streamline()
             if TCK_in.n_pts==0:
                 break # no more data, stop reading
