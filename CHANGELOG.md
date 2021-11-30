@@ -1,10 +1,10 @@
 # Change Log
 All notable changes will be documented in this file.
 
-## [1.0.0] - 2021-11-11
+## [1.1.2] - 2021-30-11
 
-### Added
-- Created first scaffold of the library
+### Fixed
+- lazytck: bug when updating file size
 
 ## [1.1.0] - 2021-24-11
 
@@ -14,3 +14,8 @@ All notable changes will be documented in this file.
 
 ### Fixed
 - spline_smoothing(): error when n_points < 3
+
+## [1.0.0] - 2021-11-11
+
+### Added
+- Created first scaffold of the library

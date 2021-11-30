@@ -76,7 +76,7 @@ cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, contr
         if 'count' in TCK_in.header.keys():
             n_streamlines = int( TCK_in.header['count'] )
         else:
-            # TODO: allow the possibility to wotk also in this case
+            # TODO: allow the possibility to work also in this case
             ui.ERROR( '"count" field not found in header' )
             sys.exit(1)
 

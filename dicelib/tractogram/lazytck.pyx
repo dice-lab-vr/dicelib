@@ -147,7 +147,8 @@ cdef class LazyTCK:
         for key in header:
             if key == 'file':
                 continue
-            # print( f'Writing "{key}: {header[key]}"' )
+            if key == 'count':
+                header['count'] = header['count'].zfill(10) # ensure 10 digits are written
             line = f'{key}: {header[key]}\n'
             fwrite( line.c_str(), 1, line.size(), self.fp )
             offset += line.size()
@@ -260,7 +261,7 @@ cdef class LazyTCK:
             fwrite( &inf, 4, 1, self.fp )
 
             if count>=0 and self.header.find(b'count') != self.header.end():
-                self.header[b'count'] = f'{count:010}'
+                self.header[b'count'] = '%0*d' % (len(self.header[b'count']), count)
                 self._write_header( self.header )
 
         self.is_open = False

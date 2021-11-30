@@ -95,7 +95,7 @@ def main():
                     kept[i] = False
                     continue
             
-            # filter out by weight
+            # # filter out by weight
             if options.weights_in is not None and (
                 (options.minweight and weights[i]<options.minweight) or
                 (options.maxweight and weights[i]>options.maxweight)
