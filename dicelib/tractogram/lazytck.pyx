@@ -6,6 +6,7 @@ cimport numpy as np
 cimport cython
 from libc.stdio cimport fopen, fclose, FILE, fseek, SEEK_END, SEEK_SET, SEEK_CUR
 from libc.stdio cimport fgets, fread, fwrite
+from libc.stdlib cimport malloc, free
 from libc.string cimport strcmp, strncmp, strchr, strlen
 from libcpp.unordered_map cimport unordered_map
 from libcpp.string cimport string
@@ -24,7 +25,7 @@ cdef class LazyTCK:
     cdef public     float[:,:]                      streamline
     cdef public     unsigned int                    n_pts
     cdef            FILE*                           fp
-    cdef            float[3*1000000]                buffer
+    cdef            float*                          buffer
     cdef            float*                          buffer_ptr
     cdef            float*                          buffer_end
     
@@ -52,6 +53,10 @@ cdef class LazyTCK:
         self.streamline = np.empty( (max_points, 3), dtype=np.float32 )
         self.n_pts = 0
 
+        if read_mode:
+            self.buffer = <float*> malloc( 3*1000000*sizeof(float) )
+        else:
+            self.buffer = NULL
         self.buffer_ptr = NULL
         self.buffer_end = NULL
         self.is_open = False
@@ -270,4 +275,6 @@ cdef class LazyTCK:
     
 
     def __dealloc__( self ):
+        if self.read_mode:
+            free( self.buffer )
         self.close()

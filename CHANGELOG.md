@@ -5,6 +5,7 @@ All notable changes will be documented in this file.
 
 ### Fixed
 - lazytck: bug when updating file size
+- lazytck: avoid creating buffer when tractogram is open for writing
 
 ## [1.1.0] - 2021-24-11
 
