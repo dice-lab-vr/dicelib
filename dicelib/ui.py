@@ -1,46 +1,48 @@
 from datetime import datetime as _datetime
 from sys import exit as _exit
 
-__UI_IS_VERBOSE__ = True
+
+# verbosity level of logging functions
+__UI_VERBOSE_LEVEL__ = 2
+
 
 def set_verbose( verbose ):
-	if type(verbose) != bool:
-		raise TypeError( '"verbose" must be boolean' )
-	__UI_IS_VERBOSE__ = verbose
+	"""Set the verbosity of logging functions.
+
+	Parameters
+	----------
+	verbose : int
+		0=show nothing, 1=show only warnings/errors, 2=show all
+	"""
+	global __UI_VERBOSE_LEVEL__
+	if type(verbose) != int or verbose not in [0,1,2]:
+		raise TypeError( '"verbose" must be either 0, 1 or 2' )
+	__UI_VERBOSE_LEVEL__ = verbose
+
+
+def INFO( str ):
+	global __UI_VERBOSE_LEVEL__
+	if __UI_VERBOSE_LEVEL__ == 2:
+		print( "\033[7;36m[ INFO ]\033[0;36m %s \033[0m" % str )
 
 
 def LOG( str ):
-	if __UI_IS_VERBOSE__:
-		print( "\033[7;36m[ %s ]\033[0;36m  %s \033[0m" % ( _datetime.now().strftime("%H:%M:%S"), str ) )
+	global __UI_VERBOSE_LEVEL__
+	if __UI_VERBOSE_LEVEL__ == 2:
+		print( "\033[7;32m[ %s ]\033[0;32m %s \033[0m" % ( _datetime.now().strftime("%H:%M:%S"), str ) )
 
 
 def WARNING( str, stop=False ):
-	if __UI_IS_VERBOSE__:
-		print( "\033[7;33m[ %s ]\033[0;33m  %s \033[0m" % ( _datetime.now().strftime("%H:%M:%S"), str ) )
+	global __UI_VERBOSE_LEVEL__
+	if __UI_VERBOSE_LEVEL__ >= 1:
+		print( "\033[7;33m[ WARNING ]\033[0;33m %s \033[0m" % str )
 	if stop:
 		_exit(1)
 
 
 def ERROR( str, stop=True ):
-	if __UI_IS_VERBOSE__:
-		print( "\033[7;31m[ %s ]\033[0;31m  %s \033[0m" % ( _datetime.now().strftime("%H:%M:%S"), str ) )
+	global __UI_VERBOSE_LEVEL__
+	if __UI_VERBOSE_LEVEL__ >= 1:
+		print( "\033[7;31m[ ERROR ]\033[0;31m %s \033[0m" % str )
 	if stop:
 		_exit(1)
-
-
-def CHECK_FILE( filename, raise_error=False ):
-	from os.path import isfile
-	if isfile( filename ):
-		return True
-	if raise_error:
-		raise FileNotFoundError( f'Unable to locate file "{filename}"' )
-	return False
-
-
-def CHECK_DIR( dirname, raise_error=False ):
-	from os.path import isdir
-	if isdir( dirname ):
-		return True
-	if raise_error:
-		raise FileNotFoundError( f'Unable to locate folder "{dirname}"' )
-	return False
