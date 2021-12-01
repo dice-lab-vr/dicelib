@@ -69,13 +69,9 @@ def main():
         # open the input file
         TCK_in = LazyTCK( options.input_tractogram, mode='r' )
         
-        if 'count' in TCK_in.header.keys():
-            n_streamlines = int( TCK_in.header['count'] )
-            if options.verbose:
-                ui.LOG( f'{n_streamlines} streamlines in input tractogram' )
-        else:
-            # TODO: allow the possibility to wotk also in this case
-            ui.ERROR( '"count" field not found in header' )
+        n_streamlines = int( TCK_in.header['count'] )
+        if options.verbose:
+            ui.LOG( f'{n_streamlines} streamlines in input tractogram' )
 
         # check if #(weights)==n_streamlines 
         if options.weights_in and n_streamlines!=weights.size:

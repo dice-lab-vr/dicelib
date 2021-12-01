@@ -119,6 +119,10 @@ cdef class LazyTCK:
             self.header[ line[:pos] ] = ptr+2
             nLines += 1
 
+        # check if the 'count' field is present TODO: fix this, allow working even without it
+        if self.header.count( b'count' ) == 0:
+            raise RuntimeError( 'Problem parsing the header; field "count" not found' )
+
         # check if datatype is 'Float32LE'
         if self.header.count( b'datatype' ) == 0:
             raise RuntimeError( 'Problem parsing the header; field "datatype" not found' )
@@ -133,7 +137,7 @@ cdef class LazyTCK:
 
     cpdef _write_header( self, header ):
         """Write the header to file.
-        After the writing, the file pointer is located at the end of it, i.e., beginning of
+        After writing the header, the file pointer is located at the end of it, i.e., beginning of
         the binary data part of the file, ready to write streamlines.
 
         Parameters
@@ -146,6 +150,10 @@ cdef class LazyTCK:
 
         if header is None or type(header) != dict:
             raise RuntimeError( 'File is open for writing: need to provide a header' )
+
+        # check if the 'count' field is present TODO: fix this, allow working even without it
+        if 'count' not in header:
+            raise RuntimeError( 'Problem parsing the header; field "count" not found' )
 
         fseek( self.fp, 0, SEEK_SET )
         line = b'mrtrix tracks\n'
@@ -265,7 +273,7 @@ cdef class LazyTCK:
             fwrite( &inf, 4, 1, self.fp )
             fwrite( &inf, 4, 1, self.fp )
 
-            if count>=0 and self.header.find(b'count') != self.header.end():
+            if count>=0:# and self.header.count(b'count')>0 :
                 self.header[b'count'] = '%0*d' % (len(self.header[b'count']), count) # NB: use same number of characters
                 self._write_header( self.header )
 

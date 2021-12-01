@@ -37,13 +37,9 @@ def main():
         # open the input file
         TCK_in = LazyTCK( options.input_tractogram, mode='r' )
         
-        if 'count' in TCK_in.header.keys():
-            n_streamlines = int( TCK_in.header['count'] )
-            if options.verbose:
-                ui.LOG( f'{n_streamlines} streamlines in input tractogram' )
-        else:
-            # TODO: allow the possibility to work also in this case
-            ui.ERROR( '"count" field not found in header' )
+        n_streamlines = int( TCK_in.header['count'] )
+        if options.verbose:
+            ui.LOG( f'{n_streamlines} streamlines in input tractogram' )
 
         lengths = np.empty( n_streamlines, dtype=np.double )
         for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
@@ -52,7 +48,7 @@ def main():
                 break # no more data, stop reading
 
             lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
-        np.savetxt( options.output_scalar_file, lengths, fmt='%.3f' )
+        np.savetxt( options.output_scalar_file, lengths, fmt='%.4f' )
 
         if options.verbose:
             ui.LOG( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
