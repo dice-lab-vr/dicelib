@@ -31,13 +31,18 @@ def main():
         ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
 
     # run code
-    spline_smoothing(
-        options.input_tractogram,
-        filename_tractogram_out=options.output_tractogram,
-        control_point_ratio=options.ratio,
-        segment_len=options.step,
-        verbose=options.verbose
-    )
+    try:
+        spline_smoothing(
+            options.input_tractogram,
+            filename_tractogram_out=options.output_tractogram,
+            control_point_ratio=options.ratio,
+            segment_len=options.step,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        if os.path.isfile( options.output_tractogram ):
+            os.remove( options.output_tractogram )
+        ui.ERROR( e.__str__() )
 
 
 if __name__ == "__main__":
