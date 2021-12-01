@@ -26,13 +26,18 @@ cpdef streamline_length( float [:,:] streamline, int n=0 ):
     streamline : Nx3 numpy array
         The streamline data
     n : int
-        Writes first n points of the streamline. If n<=0 (default), writes all points.
+        Writes first n points of the streamline. If n<=0 (default), writes all points
+
+    Returns
+    -------
+    length : double
+        Length of the streamline in mm
     """
     if n<0:
         n = streamline.shape[0]
     cdef float* ptr     = &streamline[0,0]
     cdef float* ptr_end = ptr+n*3-3
-    cdef float length = 0.0
+    cdef double length = 0.0
     while ptr<ptr_end:
         length += sqrt( (ptr[3]-ptr[0])**2 + (ptr[4]-ptr[1])**2 + (ptr[5]-ptr[2])**2 )
         ptr += 3

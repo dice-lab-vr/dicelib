@@ -19,6 +19,7 @@ def input_parser():
         sys.exit(1)
     return parser
 
+
 def main():
     parser = input_parser()
     options = parser.parse_args()
@@ -37,6 +38,7 @@ def main():
         segment_len=options.step,
         verbose=options.verbose
     )
+
 
 if __name__ == "__main__":
     main()

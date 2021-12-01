@@ -3,6 +3,9 @@ All notable changes will be documented in this file.
 
 ## [1.1.2] - 2021-30-11
 
+### Added
+- DICE_tractogram_lenghts.py: compute streamline lengths
+
 ### Fixed
 - lazytck: bug when updating file size
 - lazytck: avoid creating buffer when tractogram is open for writing

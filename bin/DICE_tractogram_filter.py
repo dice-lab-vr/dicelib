@@ -26,6 +26,7 @@ def input_parser():
         sys.exit(1)
     return parser
 
+
 def main():
     parser = input_parser()
     options = parser.parse_args()
@@ -65,8 +66,9 @@ def main():
 
     #----- iterate over input streamlines -----
     try:
-        # open the files
-        TCK_in = LazyTCK( options.input_tractogram, read_mode=True )
+        # open the input file
+        TCK_in = LazyTCK( options.input_tractogram, mode='r' )
+        
         if 'count' in TCK_in.header.keys():
             n_streamlines = int( TCK_in.header['count'] )
             if options.verbose:
@@ -74,10 +76,13 @@ def main():
         else:
             # TODO: allow the possibility to wotk also in this case
             ui.ERROR( '"count" field not found in header' )
+
+        # check if #(weights)==n_streamlines 
         if options.weights_in and n_streamlines!=weights.size:
             ui.ERROR( f'# of weights {weights.size} is different from # of streamlines ({n_streamlines}) ' )
 
-        TCK_out = LazyTCK( options.output_tractogram, read_mode=False, header=TCK_in.header )
+        # open the outut file
+        TCK_out = LazyTCK( options.output_tractogram, mode='w', header=TCK_in.header )
 
         kept = np.ones( n_streamlines, dtype=bool )
         for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
@@ -95,37 +100,39 @@ def main():
                     kept[i] = False
                     continue
             
-            # # filter out by weight
+            # filter by weight
             if options.weights_in is not None and (
                 (options.minweight and weights[i]<options.minweight) or
                 (options.maxweight and weights[i]>options.maxweight)
             ):
-                    kept[i] = False
-                    continue
+                kept[i] = False
+                continue
+            
+            # write streamline to output file
             TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
 
         if weights.size>0 and options.weights_out is not None:
-            print( weights[kept==True].size )
             np.savetxt( options.weights_out, weights[kept==True], fmt='%.5e' )
 
         n_wrote = np.count_nonzero( kept )
         if options.verbose:
             ui.LOG( f'{n_wrote} streamlines in output tractogram' )
 
-    except:
+    except Exception as e:
         if TCK_out is not None:
             TCK_out.close()
         if os.path.isfile( options.output_tractogram ):
             os.remove( options.output_tractogram )
         if options.weights_out and os.path.isfile( options.weights_out ):
             os.remove( options.weights_out )
-        ui.ERROR( 'Unable to process streamlines in the tractogram' )
+        ui.ERROR( e.__str__() )
 
     finally:
         if TCK_in is not None:
             TCK_in.close()
         if TCK_out is not None:
             TCK_out.close( n_wrote )
+
 
 if __name__ == "__main__":
     main()

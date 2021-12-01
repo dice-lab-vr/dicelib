@@ -20,7 +20,7 @@ cdef class LazyTCK:
     cdef public     char*                           filename
     cdef public     unordered_map[string, string]   header
     cdef            bint                            is_open
-    cdef            bint                            read_mode
+    cdef            char*                           mode
     cdef            int                             max_points
     cdef public     float[:,:]                      streamline
     cdef public     unsigned int                    n_pts
@@ -30,15 +30,15 @@ cdef class LazyTCK:
     cdef            float*                          buffer_end
     
 
-    def __init__( self, char *filename, bint read_mode=True, header=None, unsigned int max_points=3000 ):
+    def __init__( self, char *filename, char* mode, header=None, unsigned int max_points=3000 ):
         """Initialize the class.
 
         Parameters
         ----------
         filename : string
             File name of the tractogram to open.
-        read_mode : bool
-            If True, the tractogram is open for reading sreamlines; if False, it is open for writing (default : True).
+        mode : string
+            Opens the tractogram for reading ('r'), writing ('w') or appending ('a') streamlines.
         header : dictionary
             A dictionary of 'key: value' pairs that define the items in the header; this parameter is only required
             when writing streamlines to disk (default : None).
@@ -53,7 +53,11 @@ cdef class LazyTCK:
         self.streamline = np.empty( (max_points, 3), dtype=np.float32 )
         self.n_pts = 0
 
-        if read_mode:
+        if mode not in ['r', 'w', 'a']:
+            raise ValueError( '"mode" must be either "r", "w" or "a"' )
+        self.mode = mode
+
+        if self.mode == 'r':
             self.buffer = <float*> malloc( 3*1000000*sizeof(float) )
         else:
             self.buffer = NULL
@@ -61,21 +65,21 @@ cdef class LazyTCK:
         self.buffer_end = NULL
         self.is_open = False
 
-        self.read_mode = read_mode
-        if self.read_mode:
-            self.fp = fopen(self.filename, "rb")
-        else:
-            self.fp = fopen(self.filename, "wb")
+        # open the file        
+        self.fp = fopen( self.filename, self.mode+'b' )
         if self.fp == NULL:
             raise FileNotFoundError( f'No such file or directory: "{self.filename}"' )
 
         self.header.clear()
-        if self.read_mode == True:
+        if self.mode == 'r':
             # file is open for reading => need to read the header from disk
             self._read_header()
-        else:
+        elif self.mode == 'w':
             # file is open for writing => need to write a header to disk
             self._write_header( header )
+        else:
+            # file is open for appending =>NOW WHAT?!
+            raise RuntimeError( 'NOT YET IMPLEMENTED' )
 
         self.is_open = True
 
@@ -89,8 +93,6 @@ cdef class LazyTCK:
         cdef char*      ptr
         cdef int        nLines = 0
 
-        if self.read_mode==False:
-            raise RuntimeError( 'File is open for writing' )
         if self.header.size() > 0:
             raise RuntimeError( 'Header already read' )
         
@@ -186,10 +188,10 @@ cdef class LazyTCK:
         """
         cdef float*         ptr = &self.streamline[0,0]
         cdef int            n_read
-        if self.is_open==False:
+        if self.is_open == False:
             raise RuntimeError( 'File is not open' )
-        if self.read_mode==False:
-            raise RuntimeError( 'File is open for writing' )
+        if self.mode != 'r':
+            raise RuntimeError( 'File is not open for reading' )
 
         self.n_pts = 0
         while True:
@@ -233,16 +235,15 @@ cdef class LazyTCK:
         if n<=0:
             n = streamline.shape[0]
 
-        if self.is_open==False:
+        if self.is_open == False:
             raise RuntimeError( 'File is not open' )
-        if self.read_mode==True:
-            raise RuntimeError( 'File is open for reading' )
-        # if self.header.size() == 0:
-            # raise RuntimeError( 'Unable to write streamlines without saving first a header' )
+        if self.mode != 'w':
+            raise RuntimeError( 'File is not open for writing' )
 
+        # write streamline data
         if fwrite( &streamline[0,0], 4, 3*n, self.fp ) != 3*n:
             raise IOError( 'Problems writing streamline data to file' )
-        # write end-of-streamline
+        # write end-of-streamline signature
         fwrite( NAN3, 4, 3, self.fp )
 
 
@@ -256,17 +257,16 @@ cdef class LazyTCK:
         """
         cdef float inf = float('inf')
 
-        if self.is_open==False:
+        if self.is_open == False:
             return
-        
-        if self.read_mode==False:
-            # write end-of-streamline
+        if self.mode == 'w':
+            # write end-of-file signature
             fwrite( &inf, 4, 1, self.fp )
             fwrite( &inf, 4, 1, self.fp )
             fwrite( &inf, 4, 1, self.fp )
 
             if count>=0 and self.header.find(b'count') != self.header.end():
-                self.header[b'count'] = '%0*d' % (len(self.header[b'count']), count)
+                self.header[b'count'] = '%0*d' % (len(self.header[b'count']), count) # NB: use same number of characters
                 self._write_header( self.header )
 
         self.is_open = False
@@ -275,6 +275,6 @@ cdef class LazyTCK:
     
 
     def __dealloc__( self ):
-        if self.read_mode:
+        if self.mode == 'r':
             free( self.buffer )
         self.close()
