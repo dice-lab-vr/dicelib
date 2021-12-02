@@ -6,6 +6,7 @@ All notable changes will be documented in this file.
 ### Added
 - DICE_tractogram_info.py: print details about a tractogram
 - DICE_tractogram_lenghts.py: compute streamline lengths
+- ui: added more ANSI color codes
 
 ### Fixed
 - lazytck: bug when updating file size
