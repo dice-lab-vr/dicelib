@@ -47,12 +47,12 @@ def main():
         if options.maxlength is not None and options.minlength>options.maxlength:
             ui.ERROR( '"minlength" must be <= "maxlength"' )
         if options.verbose:
-            ui.LOG( f'Discard streamlines with length < {options.minlength}' )
+            ui.INFO( f'Discard streamlines with length < {options.minlength}' )
     if options.maxlength is not None:
         if options.maxlength<0:
             ui.ERROR( '"maxlength" must be >= 0' )
         if options.verbose:
-            ui.LOG( f'Discard streamlines with length > {options.maxlength}' )
+            ui.INFO( f'Discard streamlines with length > {options.maxlength}' )
 
     # read the streamline weights (if any)
     if options.weights_in is not None:
@@ -60,7 +60,7 @@ def main():
             ui.ERROR( f'File "{options.weights_in}" not found' )
         weights = np.loadtxt( options.weights_in )
         if options.verbose:
-            ui.LOG( 'Using streamline weights from text file' )
+            ui.INFO( 'Using streamline weights from text file' )
     else:
         weights = np.array( [] )
 
@@ -71,7 +71,7 @@ def main():
         
         n_streamlines = int( TCK_in.header['count'] )
         if options.verbose:
-            ui.LOG( f'{n_streamlines} streamlines in input tractogram' )
+            ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
 
         # check if #(weights)==n_streamlines 
         if options.weights_in and n_streamlines!=weights.size:
@@ -112,7 +112,7 @@ def main():
 
         n_wrote = np.count_nonzero( kept )
         if options.verbose:
-            ui.LOG( f'{n_wrote} streamlines in output tractogram' )
+            ui.INFO( f'{n_wrote} streamlines in output tractogram' )
 
     except Exception as e:
         if TCK_out is not None:

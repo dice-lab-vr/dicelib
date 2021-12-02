@@ -78,30 +78,25 @@ cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, contr
 
     try:
         TCK_in  = LazyTCK( filename_tractogram, read_mode=True )
-        if 'count' in TCK_in.header.keys():
-            n_streamlines = int( TCK_in.header['count'] )
-        else:
-            # TODO: allow the possibility to work also in this case
-            ui.ERROR( '"count" field not found in header' )
-            sys.exit(1)
+        n_streamlines = int( TCK_in.header['count'] )
 
         TCK_out = LazyTCK( filename_tractogram_out, read_mode=False, header=TCK_in.header )
 
         if verbose :
-            ui.LOG( 'Input tractogram :' )
-            ui.LOG( f'\t- {filename_tractogram}' )
-            ui.LOG( f'\t- {n_streamlines} streamlines' )
+            ui.INFO( 'Input tractogram :' )
+            ui.INFO( f'\t- {filename_tractogram}' )
+            ui.INFO( f'\t- {n_streamlines} streamlines' )
             
             mb = getsize( filename_tractogram )/1.0E6
             if mb >= 1E3:
-                ui.LOG( f'\t- {mb/1.0E3:.2f} GB' )
+                ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
             else:            
-                ui.LOG( f'\t- {mb:.2f} MB' )
+                ui.INFO( f'\t- {mb:.2f} MB' )
             
-            ui.LOG( 'Output tractogram :' )
-            ui.LOG( f'\t- {filename_tractogram_out}' )
-            ui.LOG( f'\t- control points : {control_point_ratio*100.0:.1f}%')
-            ui.LOG( f'\t- segment length : {segment_len:.2f}' )
+            ui.INFO( 'Output tractogram :' )
+            ui.INFO( f'\t- {filename_tractogram_out}' )
+            ui.INFO( f'\t- control points : {control_point_ratio*100.0:.1f}%')
+            ui.INFO( f'\t- segment length : {segment_len:.2f}' )
 
         # process each streamline
         npaFiberI = TCK_in.streamline
@@ -127,6 +122,6 @@ cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, contr
     if verbose :
         mb = getsize( filename_tractogram_out )/1.0E6
         if mb >= 1E3:
-            ui.LOG( f'\t- {mb/1.0E3:.2f} GB' )
+            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
         else:            
-            ui.LOG( f'\t- {mb:.2f} MB' )
+            ui.INFO( f'\t- {mb:.2f} MB' )

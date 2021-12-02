@@ -39,7 +39,7 @@ def main():
         
         n_streamlines = int( TCK_in.header['count'] )
         if options.verbose:
-            ui.LOG( f'{n_streamlines} streamlines in input tractogram' )
+            ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
 
         lengths = np.empty( n_streamlines, dtype=np.double )
         for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
@@ -51,7 +51,7 @@ def main():
         np.savetxt( options.output_scalar_file, lengths, fmt='%.4f' )
 
         if options.verbose:
-            ui.LOG( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
+            ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
 
     except Exception as e:
         if os.path.isfile( options.output_scalar_file ):
