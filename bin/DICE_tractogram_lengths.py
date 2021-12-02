@@ -21,18 +21,16 @@ def input_parser():
     return parser
 
 def main():
+    #----- check input -----
     parser = input_parser()
     options = parser.parse_args()
-    
-    TCK_in  = None
-
-    # check input
     if not os.path.isfile(options.input_tractogram):
         ui.ERROR( f'File "{options.input_tractogram}" not found' )
     if os.path.isfile(options.output_scalar_file) and not options.force:
         ui.ERROR( 'Output scalar file already exists, use -f to overwrite' )
     
     #----- iterate over input streamlines -----
+    TCK_in = None
     try:
         # open the input file
         TCK_in = LazyTCK( options.input_tractogram, mode='r' )

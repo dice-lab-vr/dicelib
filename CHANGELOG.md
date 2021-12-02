@@ -1,9 +1,10 @@
 # Change Log
 All notable changes will be documented in this file.
 
-## [1.1.2] - 2021-30-11
+## [1.1.2] - 2021-02-12
 
 ### Added
+- DICE_tractogram_info.py: print details about a tractogram
 - DICE_tractogram_lenghts.py: compute streamline lengths
 
 ### Fixed
