@@ -34,7 +34,7 @@ def main():
         ui.INFO( 'HEADER content')
         max_len = max([len(k) for k in TCK_in.header.keys()])
         for k, v in TCK_in.header.items():
-            print( '\033[1;37m%0*s\033[0;37m:  %s\033[0m'%(max_len,k,v) )
+            print( ui.hWhite+ '%0*s'%(max_len,k) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
         print( '' )
 
         # print stats on lengths
@@ -46,7 +46,7 @@ def main():
             if TCK_in.n_pts==0:
                 break # no more data, stop reading
             lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
-        print( f'\t\033[1;37mmin\033[0;37m={lengths.min():.3f}   \033[1;37mmax=\033[0;37m{lengths.max():.3f}   \033[1;37mmean=\033[0;37m{lengths.mean():.3f}   \033[1;37mstd=\033[0;37m{lengths.std():.3f}\033[0m' )
+        print( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
 
     except Exception as e:
         ui.ERROR( e.__str__() )
