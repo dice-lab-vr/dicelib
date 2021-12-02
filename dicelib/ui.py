@@ -1,9 +1,46 @@
 from datetime import datetime as _datetime
 from sys import exit as _exit
 
-
 # verbosity level of logging functions
 __UI_VERBOSE_LEVEL__ = 2
+
+# foreground colors
+fBlack   = '\x1b[30m'
+fRed     = '\x1b[31m'
+fGreen   = '\x1b[32m'
+fYellow  = '\x1b[33m'
+fBlue    = '\x1b[34m'
+fMagenta = '\x1b[35m'
+fCyan    = '\x1b[36m'
+fWhite   = '\x1b[37m'
+fDefault = '\x1b[39m'
+
+# foreground highlight colors (i.e. bold/bright)
+hBlack   = '\x1b[30;1m'
+hRed     = '\x1b[31;1m'
+hGreen   = '\x1b[32;1m'
+hYellow  = '\x1b[33;1m'
+hBlue    = '\x1b[34;1m'
+hMagenta = '\x1b[35;1m'
+hCyan    = '\x1b[36;1m'
+hWhite   = '\x1b[37;1m'
+
+# background
+bBlack   = '\x1b[40m'
+bRed     = '\x1b[41m'
+bGreen   = '\x1b[42m'
+bYellow  = '\x1b[43m'
+bBlue    = '\x1b[44m'
+bMagenta = '\x1b[45m'
+bCyan    = '\x1b[46m'
+bWhite   = '\x1b[47m'
+bDefault = '\x1b[49m'
+
+# decorations
+Reset     = '\x1b[0m'
+Bold      = '\x1b[1m'
+Underline = '\x1b[4m'
+Reverse   = '\x1b[7m'
 
 
 def set_verbose( verbose ):
@@ -21,28 +58,24 @@ def set_verbose( verbose ):
 
 
 def INFO( str ):
-	global __UI_VERBOSE_LEVEL__
 	if __UI_VERBOSE_LEVEL__ == 2:
-		print( "\033[7;36m[ INFO ]\033[0;36m %s \033[0m" % str )
+		print( fBlack+bCyan+"[ INFO ]"+fCyan+bDefault+" "+str+Reset )
 
 
 def LOG( str ):
-	global __UI_VERBOSE_LEVEL__
 	if __UI_VERBOSE_LEVEL__ == 2:
-		print( "\033[7;32m[ %s ]\033[0;32m %s \033[0m" % ( _datetime.now().strftime("%H:%M:%S"), str ) )
+		print( fBlack+bGreen+"[ "+_datetime.now().strftime("%H:%M:%S")+" ]"+fGreen+bDefault+" "+str+Reset )
 
 
 def WARNING( str, stop=False ):
-	global __UI_VERBOSE_LEVEL__
 	if __UI_VERBOSE_LEVEL__ >= 1:
-		print( "\033[7;33m[ WARNING ]\033[0;33m %s \033[0m" % str )
+		print( fBlack+bYellow+"[ WARNING ]"+fYellow+bDefault+" "+str+Reset )
 	if stop:
 		_exit(1)
 
 
 def ERROR( str, stop=True ):
-	global __UI_VERBOSE_LEVEL__
 	if __UI_VERBOSE_LEVEL__ >= 1:
-		print( "\033[7;31m[ ERROR ]\033[0;31m %s \033[0m" % str )
+		print( fBlack+bRed+"[ ERROR ]"+fRed+bDefault+" "+str+Reset )
 	if stop:
 		_exit(1)
