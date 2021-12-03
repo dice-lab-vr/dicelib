@@ -42,16 +42,19 @@ def main():
         if options.lenghts:
             ui.INFO( 'Streamline lenghts')
             n_streamlines = int( TCK_in.header['count'] )
-            lengths = np.empty( n_streamlines, dtype=np.double )
-            for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
-                TCK_in.read_streamline()
-                if TCK_in.n_pts==0:
-                    break # no more data, stop reading
-                lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
-            print( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
+            if n_streamlines>0:
+                lengths = np.empty( n_streamlines, dtype=np.double )
+                for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
+                    TCK_in.read_streamline()
+                    if TCK_in.n_pts==0:
+                        break # no more data, stop reading
+                    lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
+                print( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
+            else:
+                ui.WARNING( 'The tractogram is empty' )
 
-    except Exception as e:
-        ui.ERROR( e.__str__() )
+    except BaseException as e:
+        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:
         if TCK_in is not None:

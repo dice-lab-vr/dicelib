@@ -37,24 +37,29 @@ def main():
         
         n_streamlines = int( TCK_in.header['count'] )
         if options.verbose:
-            ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+            if n_streamlines>0:
+                ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+            else:
+                ui.WARNING( 'The tractogram is empty' )
 
         lengths = np.empty( n_streamlines, dtype=np.double )
-        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
-            TCK_in.read_streamline()
-            if TCK_in.n_pts==0:
-                break # no more data, stop reading
+        if n_streamlines>0:
+            for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
+                TCK_in.read_streamline()
+                if TCK_in.n_pts==0:
+                    break # no more data, stop reading
 
-            lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
+                lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
         np.savetxt( options.output_scalar_file, lengths, fmt='%.4f' )
 
-        if options.verbose:
+        if options.verbose and n_streamlines>0:
             ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
+                
 
-    except Exception as e:
+    except BaseException as e:
         if os.path.isfile( options.output_scalar_file ):
             os.remove( options.output_scalar_file )
-        ui.ERROR( e.__str__() )
+        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:
         if TCK_in is not None:

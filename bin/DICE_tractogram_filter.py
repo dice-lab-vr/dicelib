@@ -114,14 +114,14 @@ def main():
         if options.verbose:
             ui.INFO( f'{n_wrote} streamlines in output tractogram' )
 
-    except Exception as e:
+    except BaseException as e:
         if TCK_out is not None:
             TCK_out.close()
         if os.path.isfile( options.output_tractogram ):
             os.remove( options.output_tractogram )
         if options.weights_out and os.path.isfile( options.weights_out ):
             os.remove( options.weights_out )
-        ui.ERROR( e.__str__() )
+        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:
         if TCK_in is not None:

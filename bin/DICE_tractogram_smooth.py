@@ -39,10 +39,10 @@ def main():
             segment_len=options.step,
             verbose=options.verbose
         )
-    except Exception as e:
+    except BaseException as e:
         if os.path.isfile( options.output_tractogram ):
             os.remove( options.output_tractogram )
-        ui.ERROR( e.__str__() )
+        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
 
 if __name__ == "__main__":
