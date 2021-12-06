@@ -83,7 +83,7 @@ def LOG( message: str ):
 		print( fBlack+bGreen+"[ "+_datetime.now().strftime("%H:%M:%S")+" ]"+fGreen+bDefault+" "+message+Reset )
 
 
-def WARNING( message: str, stop=False ):
+def WARNING( message: str, stop: bool=False ):
 	"""Print a WARNING message in yellow.
 	Only shown if __UI_VERBOSE_LEVEL__ >= 1.
 
@@ -100,7 +100,7 @@ def WARNING( message: str, stop=False ):
 		_exit(1)
 
 
-def ERROR( message: str, stop=True ):
+def ERROR( message: str, stop: bool=True ):
 	"""Print an ERROR message in red.
 	Only shown if __UI_VERBOSE_LEVEL__ >= 1.
 
