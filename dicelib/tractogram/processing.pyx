@@ -70,17 +70,17 @@ cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, contr
     cdef float [:,:] npaFiberO
 
     if control_point_ratio <= 0 or control_point_ratio > 1 :
-        ui.ERROR( "'control_point_ratio' parameter must be in (0..1]" )
+        raise ValueError( "'control_point_ratio' parameter must be in (0..1]" )
     
     if filename_tractogram_out is None :
         basename, extension = splitext(filename_tractogram)
         filename_tractogram_out = basename+'_smooth'+extension
 
     try:
-        TCK_in  = LazyTCK( filename_tractogram, read_mode=True )
+        TCK_in = LazyTCK( filename_tractogram, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
 
-        TCK_out = LazyTCK( filename_tractogram_out, read_mode=False, header=TCK_in.header )
+        TCK_out = LazyTCK( filename_tractogram_out, mode='w', header=TCK_in.header )
 
         if verbose :
             ui.INFO( 'Input tractogram :' )
@@ -112,7 +112,7 @@ cpdef spline_smoothing( filename_tractogram, filename_tractogram_out=None, contr
         TCK_out.close()
         if os.path.exists( filename_tractogram_out ):
             os.remove( filename_tractogram_out )
-        ui.ERROR( 'Unable to smooth streamlines in the tractogram' )
+        raise RuntimeError( 'Unable to smooth streamlines in the tractogram' )
 
     finally:
         TCK_in.close()

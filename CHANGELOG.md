@@ -1,7 +1,12 @@
 # Change Log
 All notable changes will be documented in this file.
 
-## [1.1.2] - 2021-02-12
+## [1.1.3] - 2021-12-06
+
+### Fixed
+- several uses of LazyTCK
+
+## [1.1.2] - 2021-12-02
 
 ### Added
 - DICE_tractogram_info.py: print details about a tractogram
@@ -12,7 +17,7 @@ All notable changes will be documented in this file.
 - lazytck: bug when updating file size
 - lazytck: avoid creating buffer when tractogram is open for writing
 
-## [1.1.0] - 2021-24-11
+## [1.1.0] - 2021-11-24
 
 ### Added
 - lazytck module for lazy reading/writing streamlines to/from .TCK tractograms
