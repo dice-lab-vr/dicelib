@@ -43,7 +43,7 @@ Underline = '\x1b[4m'
 Reverse   = '\x1b[7m'
 
 
-def set_verbose( verbose ):
+def set_verbose( verbose: int ):
 	"""Set the verbosity of logging functions.
 
 	Parameters
@@ -57,25 +57,61 @@ def set_verbose( verbose ):
 	__UI_VERBOSE_LEVEL__ = verbose
 
 
-def INFO( str ):
+def INFO( message: str ):
+	"""Print a INFO message in blue.
+	Only shown if __UI_VERBOSE_LEVEL__ == 2.
+
+	Parameters
+	----------
+	message : string
+		Message to display.
+	"""
 	if __UI_VERBOSE_LEVEL__ == 2:
-		print( fBlack+bCyan+"[ INFO ]"+fCyan+bDefault+" "+str+Reset )
+		print( fBlack+bCyan+"[ INFO ]"+fCyan+bDefault+" "+message+Reset )
 
 
-def LOG( str ):
+def LOG( message: str ):
+	"""Print a INFO message in green, reporting the time as well.
+	Only shown if __UI_VERBOSE_LEVEL__ == 2.
+
+	Parameters
+	----------
+	message : string
+		Message to display.
+	"""
 	if __UI_VERBOSE_LEVEL__ == 2:
-		print( fBlack+bGreen+"[ "+_datetime.now().strftime("%H:%M:%S")+" ]"+fGreen+bDefault+" "+str+Reset )
+		print( fBlack+bGreen+"[ "+_datetime.now().strftime("%H:%M:%S")+" ]"+fGreen+bDefault+" "+message+Reset )
 
 
-def WARNING( str, stop=False ):
+def WARNING( message: str, stop=False ):
+	"""Print a WARNING message in yellow.
+	Only shown if __UI_VERBOSE_LEVEL__ >= 1.
+
+	Parameters
+	----------
+	message : string
+		Message to display.
+	stop : boolean
+		If True, it stops the execution (default : False).
+	"""
 	if __UI_VERBOSE_LEVEL__ >= 1:
-		print( fBlack+bYellow+"[ WARNING ]"+fYellow+bDefault+" "+str+Reset )
+		print( fBlack+bYellow+"[ WARNING ]"+fYellow+bDefault+" "+message+Reset )
 	if stop:
 		_exit(1)
 
 
-def ERROR( str, stop=True ):
+def ERROR( message: str, stop=True ):
+	"""Print an ERROR message in red.
+	Only shown if __UI_VERBOSE_LEVEL__ >= 1.
+
+	Parameters
+	----------
+	message : string
+		Message to display.
+	stop : boolean
+		If True, it stops the execution (default : True).
+	"""
 	if __UI_VERBOSE_LEVEL__ >= 1:
-		print( fBlack+bRed+"[ ERROR ]"+fRed+bDefault+" "+str+Reset )
+		print( fBlack+bRed+"[ ERROR ]"+fRed+bDefault+" "+message+Reset )
 	if stop:
 		_exit(1)
