@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import argparse, sys
-from numpy import inf
 from dicelib.tractogram import filter
 
 # parse the input parameters
