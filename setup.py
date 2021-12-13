@@ -6,19 +6,19 @@ from numpy import get_include
 
 def get_extensions():
     processing = Extension(
-        name='dicelib.tractogram.processing',
-        sources=['dicelib/tractogram/processing.pyx'],
+        name='dicelib.tractogram',
+        sources=['dicelib/tractogram.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
     lazytck = Extension(
-        name='dicelib.tractogram.lazytck',
-        sources=['dicelib/tractogram/lazytck.pyx'],
+        name='dicelib.lazytck',
+        sources=['dicelib/lazytck.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language="c++"
-    ) 
+    )
 
     return [ processing, lazytck ]
 

@@ -4,7 +4,8 @@ All notable changes will be documented in this file.
 ## [1.1.3] - 2021-12-06
 
 ### Fixed
-- several uses of LazyTCK
+- lazytck: small bugs
+- Code restructuring
 
 ## [1.1.2] - 2021-12-02
 

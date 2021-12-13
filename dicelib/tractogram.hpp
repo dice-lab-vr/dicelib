@@ -1,6 +1,6 @@
-#include "../include/Catmull.h"
-#include "../include/psimpl_v7_src/psimpl.h"
-#include "../include/Vector.h"
+#include "include/Catmull.h"
+#include "include/psimpl_v7_src/psimpl.h"
+#include "include/Vector.h"
 #include <vector>
 
 
