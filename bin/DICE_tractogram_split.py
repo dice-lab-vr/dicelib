@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import argparse, sys
+import sys
 from dicelib.tractogram import split
+from dicelib.ui import ColoredArgParser
 
 # parse the input parameters
-parser = argparse.ArgumentParser(
-    description="Split the streamlines in a tractogram according to a (precomputed) assignment file",
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter
-)
+parser = ColoredArgParser( description="Split the streamlines in a tractogram according to a (precomputed) assignment file." )
 parser.add_argument("tractogram", help="Input tractogram")
 parser.add_argument("assignments", help="Text file with the streamline assignments")
 parser.add_argument("output_folder", nargs='?', default='bundles', help="Output folder for the splitted tractograms")

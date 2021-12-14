@@ -1,7 +1,10 @@
 # Change Log
 All notable changes will be documented in this file.
 
-## [1.1.3] - 2021-12-06
+## [1.1.3] - 2021-12-14
+
+### Added
+- ColoredArgParser to provide colored usage/help messages in scripts
 
 ### Fixed
 - lazytck: small bugs

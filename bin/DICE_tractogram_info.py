@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import argparse, sys
+import sys
 from dicelib.tractogram import info
+from dicelib.ui import ColoredArgParser
 
 # parse the input parameters
-parser = argparse.ArgumentParser(
-    description="Print some information about a tractogram",
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter
-)
+parser = ColoredArgParser( description="Print some information about a tractogram." )
 parser.add_argument("tractogram", help="Input tractogram")
 parser.add_argument("--lenghts", "-l", action="store_true", help="Show stats on streamline lenghts")
 if len(sys.argv)==1:

@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import argparse, sys
+import sys
 from dicelib.tractogram import filter
+from dicelib.ui import ColoredArgParser
 
 # parse the input parameters
-parser = argparse.ArgumentParser(
-    description="Filter out the streamlines in a tractogram according to some criteria",
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter
-)
+parser = ColoredArgParser( description="Filter out the streamlines in a tractogram according to some criteria." )
 parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("output_tractogram", help="Output tractogram")
 parser.add_argument("--minlength", type=float, help="Keep streamlines with length [in mm] >= this value")

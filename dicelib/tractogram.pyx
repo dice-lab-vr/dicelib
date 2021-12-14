@@ -278,7 +278,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.close( n_wrote )
 
 
-def split( input_tractogram: str, filename_assignments: str, output_folder: str='bundles', max_open: int=int( os.sysconf('SC_OPEN_MAX')*0.95 ), verbose: bool=False, force: bool=False ):
+def split( input_tractogram: str, filename_assignments: str, output_folder: str='bundles', max_open: int=None, verbose: bool=False, force: bool=False ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -293,7 +293,7 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
         Output folder for the splitted tractograms.
 
     max_open : integer
-        Maximum number of files opened at the same time (default : 95% of SC_OPEN_MAX system variable).
+        Maximum number of files opened at the same time (default : 50% of SC_OPEN_MAX system variable).
 
     verbose : boolean
         Print information messages (default : False).
@@ -317,6 +317,8 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
             ui.ERROR( 'Output folder already exists, use -f to overwrite' )
     ui.INFO( f'Writing output tractograms to "{output_folder}"' )
 
+    if max_open is None:
+        max_open = int( os.sysconf('SC_OPEN_MAX')*0.5 )
     ui.INFO( f'Using {max_open} files open simultaneously' )
 
     #----- iterate over input streamlines -----

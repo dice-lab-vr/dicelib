@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import argparse, sys
+import sys
 from dicelib.tractogram import spline_smoothing
+from dicelib.ui import ColoredArgParser
 
 # parse the input parameters
-parser = argparse.ArgumentParser(
-    description="Smooth the streamlines in a tractogram using Catmull-Rom splines",
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter
-)
+parser = ColoredArgParser( description="Smooth the streamlines in a tractogram using Catmull-Rom splines." )
 parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("output_tractogram", help="Output tractogram")
 parser.add_argument("--ratio", "-r", type=float, default=0.25, help="Ratio of points to be kept/used as control points")
