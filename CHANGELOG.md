@@ -5,6 +5,7 @@ All notable changes will be documented in this file.
 
 ### Added
 - ColoredArgParser to provide colored usage/help messages in scripts
+- DICE_tractogram_split.py: now saves unassigned streamlines in a separate file
 
 ### Fixed
 - lazytck: small bugs

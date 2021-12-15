@@ -287,7 +287,8 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
         Path to the file (.tck) containing the streamlines to split.
 
     filename_assignments : string
-        Text file with the streamline assignments.
+        File containing the streamline assignments (two numbers/row); these can be stored as
+        either a simple .txt file or according to the NUMPY format (.npy), which is faster.
 
     output_folder : string
         Output folder for the splitted tractograms.
@@ -334,10 +335,15 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
         ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
 
         # open the assignments
-        assignments = np.loadtxt( filename_assignments, dtype=int )
+        if os.path.splitext(filename_assignments)[1]=='.txt':
+            assignments = np.loadtxt( filename_assignments, dtype=np.int32 )
+        elif os.path.splitext(filename_assignments)[1]=='.npy':
+            assignments = np.load( filename_assignments, allow_pickle=False ).astype(np.int32)
+        else:
+            ui.ERROR( 'Not a valid extension for the assignments file' )
         if assignments.ndim!=2 or assignments.shape[1]!=2:
             ui.ERROR( 'Unable to open assignments file' )
-        ui.INFO( f'{assignments.shape[0]} assignments in input text file' )
+        ui.INFO( f'{assignments.shape[0]} assignments in input file' )
 
         # check if #(assignments)==n_streamlines
         if n_streamlines!=assignments.shape[0]:
@@ -356,7 +362,14 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
             TCK_outs_size[key] = 0
             tmp = LazyTCK( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
             tmp.close( write_eof=False, count=0 )
-        # TCK_outs['nc'] = None # add key for non-connecting streamlines
+
+        # add key for non-connecting streamlines
+        key = 'unassigned'
+        TCK_outs[key] = None
+        TCK_outs_size[key] = 0
+        tmp = LazyTCK( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
+        tmp.close( write_eof=False, count=0 )
+
         ui.INFO( f'Created {len(TCK_outs)} empty files for output tractograms' )
 
         #----  iterate over input streamlines  -----
@@ -390,7 +403,7 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
             TCK_outs_size[key] += 1
             n_wrote += 1
 
-        ui.INFO( f'{n_wrote} streamlines written in total' )
+        ui.INFO( f'{n_wrote-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
 
     except BaseException as e:
         ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
