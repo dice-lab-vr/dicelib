@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import sys
-from dicelib.tractogram import spline_smoothing
 from dicelib.ui import ColoredArgParser
+from dicelib.tractogram import spline_smoothing
 
 # parse the input parameters
 parser = ColoredArgParser( description="Smooth the streamlines in a tractogram using Catmull-Rom splines." )
@@ -12,9 +11,6 @@ parser.add_argument("--ratio", "-r", type=float, default=0.25, help="Ratio of po
 parser.add_argument("--step", "-s", type=float, default=1.0, help="Sampling step for the output streamlines [in mm]")
 parser.add_argument("--verbose", "-v", action="store_true", help="Print information messages")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
-if len(sys.argv)==1:
-    parser.print_help()
-    sys.exit(1)
 options = parser.parse_args()
 
 # call actual function

@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import sys
-from dicelib.tractogram import filter
 from dicelib.ui import ColoredArgParser
+from dicelib.tractogram import filter
 
 # parse the input parameters
 parser = ColoredArgParser( description="Filter out the streamlines in a tractogram according to some criteria." )
@@ -16,9 +15,6 @@ parser.add_argument("--weights_in",  help="Text file with the input streamline w
 parser.add_argument("--weights_out", help="Text file for the output streamline weights")
 parser.add_argument("--verbose", "-v", action="store_true", help="Print information messages")
 parser.add_argument("--force", "-f",   action="store_true", help="Force overwriting of the output")
-if len(sys.argv)==1:
-    parser.print_help()
-    sys.exit(1)
 options = parser.parse_args()
 
 # call actual function

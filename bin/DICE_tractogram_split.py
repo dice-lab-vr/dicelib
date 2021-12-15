@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import sys
-from dicelib.tractogram import split
 from dicelib.ui import ColoredArgParser
+from dicelib.tractogram import split
 
 # parse the input parameters
 parser = ColoredArgParser( description="Split the streamlines in a tractogram according to a (precomputed) assignment file." )
@@ -12,9 +11,6 @@ parser.add_argument("output_folder", nargs='?', default='bundles', help="Output 
 parser.add_argument("--max_open", "-m", type=int, help="Maximum number of files opened at the same time")
 parser.add_argument("--verbose", "-v", action="store_true", help="Print information messages")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
-if len(sys.argv)==1:
-    parser.print_help()
-    sys.exit(1)
 options = parser.parse_args()
 
 # call actual function

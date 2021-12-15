@@ -1,5 +1,5 @@
 from datetime import datetime as _datetime
-from sys import exit as _exit
+import sys as _sys
 from argparse import ArgumentParser as _ArgumentParser, ArgumentDefaultsHelpFormatter as _ArgumentDefaultsHelpFormatter
 
 # verbosity level of logging functions
@@ -98,7 +98,7 @@ def WARNING( message: str, stop: bool=False ):
 	if __UI_VERBOSE_LEVEL__ >= 1:
 		print( fBlack+bYellow+"[ WARNING ]"+fYellow+bDefault+" "+message+Reset )
 	if stop:
-		_exit(1)
+		_sys.exit(1)
 
 
 def ERROR( message: str, stop: bool=True ):
@@ -115,7 +115,7 @@ def ERROR( message: str, stop: bool=True ):
 	if __UI_VERBOSE_LEVEL__ >= 1:
 		print( fBlack+bRed+"[ ERROR ]"+fRed+bDefault+" "+message+Reset )
 	if stop:
-		_exit(1)
+		_sys.exit(1)
 
 
 class ColoredArgParser( _ArgumentParser ):
@@ -185,3 +185,19 @@ class ColoredArgParser( _ArgumentParser ):
 
 	def __init__( self, *args, **kwargs ):
 		super().__init__( formatter_class=self._ColoredFormatter, *args, **kwargs )
+
+
+	def parse_known_args(self, args=None, namespace=None):
+		if args is None:
+			args = _sys.argv[1:]
+		else:
+			args = list(args)
+		if len(args)==0:
+			self.print_help()
+			_sys.exit(1)
+		return super().parse_known_args(args, namespace)
+
+
+	def error( self, message ):
+		self.print_usage()
+		ERROR( message )
