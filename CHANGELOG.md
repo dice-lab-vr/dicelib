@@ -1,21 +1,24 @@
 # Change Log
 All notable changes will be documented in this file.
 
-## [1.1.3] - 2021-12-14
+## [1.1.3] - 2021-12-20
 
 ### Added
 - ColoredArgParser to provide colored usage/help messages in scripts
-- DICE_tractogram_split.py: now saves unassigned streamlines in a separate file
+- dice_tractogram_split.py: now saves unassigned streamlines in a separate file
 
 ### Fixed
 - lazytck: small bugs
 - Code restructuring
 
+### Changed
+- Scripts in bin/ are not all lowercase
+
 ## [1.1.2] - 2021-12-02
 
 ### Added
-- DICE_tractogram_info.py: print details about a tractogram
-- DICE_tractogram_lenghts.py: compute streamline lengths
+- dice_tractogram_info.py: print details about a tractogram
+- dice_tractogram_lenghts.py: compute streamline lengths
 - ui: added more ANSI color codes
 
 ### Fixed
@@ -26,7 +29,7 @@ All notable changes will be documented in this file.
 
 ### Added
 - lazytck module for lazy reading/writing streamlines to/from .TCK tractograms
-- DICE_tractogram_edit.py script
+- dice_tractogram_edit.py script
 
 ### Fixed
 - spline_smoothing(): error when n_points < 3
