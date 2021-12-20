@@ -15,3 +15,5 @@ The library is now available in your Python interpreter and can be imported as:
 ```python
 import dicelib
 ```
+
+Also, all the `dice_*.py` scripts in the `bin/` folder will be available in your system path.
