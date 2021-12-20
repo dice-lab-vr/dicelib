@@ -44,7 +44,21 @@ cpdef streamline_length( float [:,:] streamline, int n=0 ):
 
 
 def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bool=False, force: bool=False ):
-    """TODO
+    """Compute the lenghts os the streamlines in a tractogram.
+
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to process.
+
+    output_scalar_file : string
+        Path to the file where to store the computed streamline lenghts.
+
+    verbose : boolean
+        Print information messages (default : False).
+
+    force : boolean
+        Force overwriting of the output (default : False).
     """
     ui.set_verbose( 2 if verbose else 1 )
     if not os.path.isfile(input_tractogram):
