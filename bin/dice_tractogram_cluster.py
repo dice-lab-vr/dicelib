@@ -1,17 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import os
 from dicelib.ui import ColoredArgParser
 from dicelib.clustering import cluster
-import dicelib.ui as ui
-
-# def check_extension(in_arg, out_arg, ref_arg, parser):
-#     if not in_arg.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
-#         ui.ERROR( 'Invalid input tractogram format' )
-#     elif not out_arg.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
-#         ui.ERROR( 'Invalid input tractogram format' )
-#     elif ref_arg is not None and not ref_arg.endswith(('.nii', 'nii.gz')):
-#         ui.ERROR( 'Invalid reference format' )
 
 # parse the input parameters
 parser = ColoredArgParser( description=cluster.__doc__.split('\n')[0] )
@@ -25,8 +15,6 @@ parser.add_argument("--random", action="store_true", help="Random shuffling of i
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 options = parser.parse_args()
-
-# check_extension(options.input_tractogram, options.output_tractogram, options.reference, parser)
 
 # call actual function
 cluster(
