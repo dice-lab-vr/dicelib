@@ -52,7 +52,7 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bo
         Path to the file (.tck) containing the streamlines to process.
 
     output_scalar_file : string
-        Path to the file where to store the computed streamline lenghts.
+        Path to the file (.txt or .npy) where to store the computed streamline lenghts.
 
     verbose : boolean
         Print information messages (default : False).
@@ -63,8 +63,12 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bo
     ui.set_verbose( 2 if verbose else 1 )
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
+    output_scalar_file_ext = os.path.splitext(output_scalar_file)[1]
+    if output_scalar_file_ext not in ['.txt', '.npy']:
+        ui.ERROR( 'Invalid extension for the output scalar file' )
     if os.path.isfile(output_scalar_file) and not force:
         ui.ERROR( 'Output scalar file already exists, use -f to overwrite' )
+
 
     #----- iterate over input streamlines -----
     TCK_in = None
@@ -79,7 +83,7 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bo
             else:
                 ui.WARNING( 'The tractogram is empty' )
 
-        lengths = np.empty( n_streamlines, dtype=np.double )
+        lengths = np.empty( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
             for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
                 TCK_in.read_streamline()
@@ -87,7 +91,10 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bo
                     break # no more data, stop reading
 
                 lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
-        np.savetxt( output_scalar_file, lengths, fmt='%.4f' )
+        if output_scalar_file_ext=='.txt':
+            np.savetxt( output_scalar_file, lengths, fmt='%.4f' )
+        else:
+            np.save( output_scalar_file, lengths, allow_pickle=False )
 
         if verbose and n_streamlines>0:
             ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
@@ -177,10 +184,10 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         Keep streamlines with weight <= this value.
 
     weights_in : str
-        Text file with the input streamline w.
+        Scalar file (.txt or .npy) with the input streamline weights.
 
     weights_out : str
-        Text file with the output streamline w.
+        Scalar file (.txt or .npy) for the output streamline weights.
 
     verbose : boolean
         Print information messages (default : False).
@@ -215,7 +222,14 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     if weights_in is not None:
         if not os.path.isfile( weights_in ):
             ui.ERROR( f'File "{weights_in}" not found' )
-        w = np.loadtxt( weights_in )
+        weights_in_ext = os.path.splitext(weights_in)[1]
+        if weights_in_ext=='.txt':
+            w = np.loadtxt( weights_in ).astype(np.float64)
+        elif weights_in_ext=='.npy':
+            w = np.load( weights_in, allow_pickle=False ).astype(np.float64)
+        else:
+            ui.ERROR( 'Invalid extension for the weights file' )
+
         ui.INFO( 'Using streamline weights from text file' )
         if minweight is not None and minweight<0:
             ui.ERROR( '"minweight" must be >= 0' )
@@ -271,7 +285,10 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
 
         if weights_out is not None and w.size>0:
-            np.savetxt( weights_out, w[kept==True], fmt='%.5e' )
+            if weights_in_ext=='.txt':
+                np.savetxt( weights_out, w[kept==True].astype(np.float32), fmt='%.5e' )
+            else:
+                np.save( weights_out, w[kept==True].astype(np.float32), allow_pickle=False )
 
         n_wrote = np.count_nonzero( kept )
         ui.INFO( f'{n_wrote} streamlines in output tractogram' )
@@ -281,7 +298,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.close()
         if os.path.isfile( output_tractogram ):
             os.remove( output_tractogram )
-        if weights_out and os.path.isfile( weights_out ):
+        if weights_out is not None and os.path.isfile( weights_out ):
             os.remove( weights_out )
         ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
@@ -344,9 +361,9 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         if weights_in_ext=='.txt':
             w = np.loadtxt( weights_in ).astype(np.float32)
         elif weights_in_ext=='.npy':
-            w = np.load( weights_in, allow_pickle=False ).astype(np.float32)
+            w = np.load( weights_in, allow_pickle=False ).astype(np.float64)
         else:
-            ui.ERROR( 'Not a valid extension for the weights file' )
+            ui.ERROR( 'Invalid extension for the weights file' )
         w_idx = np.zeros_like( w, dtype=np.int32 )
         ui.INFO( f'Loaded {w.size} streamline weights' )
 
@@ -374,7 +391,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         elif os.path.splitext(input_assignments)[1]=='.npy':
             assignments = np.load( input_assignments, allow_pickle=False ).astype(np.int32)
         else:
-            ui.ERROR( 'Not a valid extension for the assignments file' )
+            ui.ERROR( 'Invalid extension for the assignments file' )
         if assignments.ndim!=2 or assignments.shape[1]!=2:
             ui.ERROR( 'Unable to open assignments file' )
         ui.INFO( f'{assignments.shape[0]} assignments in input file' )
@@ -452,11 +469,11 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         if weights_in is not None:
             ui.INFO( f'Saving one weights file per bundle' )
             for key in WEIGHTS_out_idx.keys():
-                w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ]
+                w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ].astype(np.float32)
                 if weights_in_ext=='.txt':
                     np.savetxt( os.path.join(output_folder,f'{key}.txt'), w_bundle, fmt='%.5e' )
                 else:
-                    np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle )
+                    np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle, allow_pickle=False )
 
         ui.INFO( f'{n_wrote-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
 
