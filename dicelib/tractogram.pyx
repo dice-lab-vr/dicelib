@@ -292,7 +292,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.close( n_wrote )
 
 
-def split( input_tractogram: str, filename_assignments: str, output_folder: str='bundles', max_open: int=None, verbose: bool=False, force: bool=False ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: bool=False, force: bool=False ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -300,15 +300,19 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to split.
 
-    filename_assignments : string
+    input_assignments : string
         File containing the streamline assignments (two numbers/row); these can be stored as
         either a simple .txt file or according to the NUMPY format (.npy), which is faster.
 
     output_folder : string
         Output folder for the splitted tractograms.
 
+    weights_in : string
+        Text file with the input streamline weights (one row/streamline). If not None, one individual
+        file will be created for each splitted tractogram, using the same filename prefix.
+
     max_open : integer
-        Maximum number of files opened at the same time (default : 50% of SC_OPEN_MAX system variable).
+        Maximum number of files opened at the same time (default : 90% of SC_OPEN_MAX system variable).
 
     verbose : boolean
         Print information messages (default : False).
@@ -320,8 +324,8 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
 
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
-    if not os.path.isfile(filename_assignments):
-        ui.ERROR( f'File "{filename_assignments}" not found' )
+    if not os.path.isfile(input_assignments):
+        ui.ERROR( f'File "{input_assignments}" not found' )
     if not os.path.isdir(output_folder):
         os.mkdir( output_folder )
     else:
@@ -332,16 +336,32 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
             ui.ERROR( 'Output folder already exists, use -f to overwrite' )
     ui.INFO( f'Writing output tractograms to "{output_folder}"' )
 
+    weights_in_ext = None
+    if weights_in is not None:
+        if not os.path.isfile( weights_in ):
+            ui.ERROR( f'File "{weights_in}" not found' )
+        weights_in_ext = os.path.splitext(weights_in)[1]
+        if weights_in_ext=='.txt':
+            w = np.loadtxt( weights_in ).astype(np.float32)
+        elif weights_in_ext=='.npy':
+            w = np.load( weights_in, allow_pickle=False ).astype(np.float32)
+        else:
+            ui.ERROR( 'Not a valid extension for the weights file' )
+        w_idx = np.zeros_like( w, dtype=np.int32 )
+        ui.INFO( f'Loaded {w.size} streamline weights' )
+
     if max_open is None:
-        max_open = int( os.sysconf('SC_OPEN_MAX')*0.5 )
+        max_open = int( os.sysconf('SC_OPEN_MAX')*0.9 )
     ui.INFO( f'Using {max_open} files open simultaneously' )
 
     #----- iterate over input streamlines -----
-    TCK_in        = None
-    TCK_out       = None
-    TCK_outs      = {}
-    TCK_outs_size = {}
-    n_wrote       = 0
+    TCK_in          = None
+    TCK_out         = None
+    TCK_outs        = {}
+    TCK_outs_size   = {}
+    if weights_in is not None:
+        WEIGHTS_out_idx = {}
+    n_wrote         = 0
     try:
         # open the tractogram
         TCK_in = LazyTCK( input_tractogram, mode='r' )
@@ -349,10 +369,10 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
         ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
 
         # open the assignments
-        if os.path.splitext(filename_assignments)[1]=='.txt':
-            assignments = np.loadtxt( filename_assignments, dtype=np.int32 )
-        elif os.path.splitext(filename_assignments)[1]=='.npy':
-            assignments = np.load( filename_assignments, allow_pickle=False ).astype(np.int32)
+        if os.path.splitext(input_assignments)[1]=='.txt':
+            assignments = np.loadtxt( input_assignments, dtype=np.int32 )
+        elif os.path.splitext(input_assignments)[1]=='.npy':
+            assignments = np.load( input_assignments, allow_pickle=False ).astype(np.int32)
         else:
             ui.ERROR( 'Not a valid extension for the assignments file' )
         if assignments.ndim!=2 or assignments.shape[1]!=2:
@@ -362,6 +382,9 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
         # check if #(assignments)==n_streamlines
         if n_streamlines!=assignments.shape[0]:
             ui.ERROR( f'# of assignments ({assignments.shape[0]}) is different from # of streamlines ({n_streamlines}) ' )
+        # check if #(weights)==n_streamlines
+        if weights_in is not None and n_streamlines!=w.size:
+            ui.ERROR( f'# of weights ({w.size}) is different from # of streamlines ({n_streamlines}) ' )
 
         # create empty tractograms for unique assignments
         unique_assignments = np.unique(assignments, axis=0)
@@ -376,6 +399,8 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
             TCK_outs_size[key] = 0
             tmp = LazyTCK( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
             tmp.close( write_eof=False, count=0 )
+            if weights_in is not None:
+                WEIGHTS_out_idx[key] = i+1
 
         # add key for non-connecting streamlines
         key = 'unassigned'
@@ -383,6 +408,8 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
         TCK_outs_size[key] = 0
         tmp = LazyTCK( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
         tmp.close( write_eof=False, count=0 )
+        if weights_in is not None:
+            WEIGHTS_out_idx[key] = 0
 
         ui.INFO( f'Created {len(TCK_outs)} empty files for output tractograms' )
 
@@ -416,6 +443,20 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
             TCK_outs[key].write_streamline( TCK_in.streamline, TCK_in.n_pts )
             TCK_outs_size[key] += 1
             n_wrote += 1
+
+            # store the index of the corresponding weight
+            if weights_in is not None:
+                w_idx[i] = WEIGHTS_out_idx[key]
+
+        # create individual weight files for each splitted tractogram
+        if weights_in is not None:
+            ui.INFO( f'Saving one weights file per bundle' )
+            for key in WEIGHTS_out_idx.keys():
+                w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ]
+                if weights_in_ext=='.txt':
+                    np.savetxt( os.path.join(output_folder,f'{key}.txt'), w_bundle, fmt='%.5e' )
+                else:
+                    np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle )
 
         ui.INFO( f'{n_wrote-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
 

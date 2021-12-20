@@ -40,7 +40,7 @@ def get_streamlines_close_to_centroids( clusters, streamlines, n_pts ):
     return centroids_out
 
 
-def cluster( filename_in, filename_out, thresholds, filename_reference=None, n_pts=12, replace_centroids=False, random=True, verbose=False, force=False  ) :
+def cluster( filename_in, filename_reference, filename_out, thresholds, n_pts=12, replace_centroids=False, random=True, verbose=False, force=False  ) :
     """ Cluster streamlines in a tractogram using QuickBundles.
 
     TODO: DOCUMENTATION
@@ -50,34 +50,36 @@ def cluster( filename_in, filename_out, thresholds, filename_reference=None, n_p
         ui.ERROR( f'File "{filename_in}" not found' )
     if os.path.isfile(filename_out) and not force:
         ui.ERROR("Output tractogram already exists, use -f to overwrite")
-    if filename_reference is not None:
-        if not os.path.isfile(filename_reference):
-            ui.ERROR( f'File "{filename_reference}" not found' )
-    ui.INFO( f'-> Clustering "{filename_in}":' )
+    if not os.path.isfile(filename_reference):
+        ui.ERROR( f'File "{filename_reference}" not found' )
+    ui.INFO( f'Input tractogram: "{filename_in}"' )
 
     tractogram = load_tractogram( filename_in, reference=filename_reference, bbox_valid_check=False )
-    ui.INFO( f'- {len(tractogram.streamlines)} streamlines found' )
+    ui.INFO( f'  - {len(tractogram.streamlines)} streamlines found' )
 
     if np.isscalar( thresholds ) :
         thresholds = [ thresholds ]
 
     metric   = AveragePointwiseEuclideanMetric( ResampleFeature( nb_points=n_pts ) )
 
-    ui.INFO( '- Running QuickBundlesX...' )
-    if random == False :
-        clusters = QuickBundlesX( thresholds, metric ).cluster( tractogram.streamlines )
-    else:
+    if random:
+        ui.INFO('Streamlines are shuffled before clustering')
         rng = np.random.RandomState()
         ordering = np.arange(len(tractogram.streamlines))
         rng.shuffle(ordering)
-        clusters = QuickBundlesX( thresholds, metric ).cluster( tractogram.streamlines, ordering=ordering )
-    ui.INFO( f'  * {len(clusters.leaves)} clusters in lowest level'  )
+    else:
+        ui.INFO('Streamlines in kept unaltered for clustering')
+        ordering=None
+
+    ui.INFO( 'Running QuickBundlesX...' )
+    clusters = QuickBundlesX( thresholds, metric ).cluster( tractogram.streamlines, ordering=ordering )
+    ui.INFO( f'  - {len(clusters.leaves)} clusters in lowest level'  )
 
     if replace_centroids :
-        ui.INFO( '- Replace centroids with closest streamline in input tractogram' )
+        ui.INFO( 'Replace centroids with closest streamline in input tractogram' )
         centroids = get_streamlines_close_to_centroids( clusters.leaves, tractogram.streamlines, n_pts )
     else :
-        ui.INFO( '- Keeping original centroids' )
+        ui.INFO( 'Keeping original centroids' )
         centroids = [ leave.centroid for leave in clusters.leaves ]
 
     ui.INFO( f'- Save to "{filename_out}"' )
