@@ -4,7 +4,7 @@ from dicelib.ui import ColoredArgParser
 from dicelib.tractogram import filter
 
 # parse the input parameters
-parser = ColoredArgParser( description="Filter out the streamlines in a tractogram according to some criteria." )
+parser = ColoredArgParser( description=filter.__doc__.split('\n')[0] )
 parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("output_tractogram", help="Output tractogram")
 parser.add_argument("--minlength", type=float, help="Keep streamlines with length [in mm] >= this value")

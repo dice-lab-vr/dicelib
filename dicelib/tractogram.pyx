@@ -44,7 +44,7 @@ cpdef streamline_length( float [:,:] streamline, int n=0 ):
 
 
 def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bool=False, force: bool=False ):
-    """Compute the lenghts os the streamlines in a tractogram.
+    """Compute the lenghts of the streamlines in a tractogram.
 
     Parameters
     ----------
@@ -436,7 +436,7 @@ def split( input_tractogram: str, filename_assignments: str, output_folder: str=
 
 cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=False, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
-       More info at http://algorithmist.net/docs/catmullrom.pdf.
+    More info at http://algorithmist.net/docs/catmullrom.pdf.
 
     Parameters
     ----------

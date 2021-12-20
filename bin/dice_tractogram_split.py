@@ -4,7 +4,7 @@ from dicelib.ui import ColoredArgParser
 from dicelib.tractogram import split
 
 # parse the input parameters
-parser = ColoredArgParser( description="Split the streamlines in a tractogram according to a (precomputed) assignment file." )
+parser = ColoredArgParser( description=split.__doc__.split('\n')[0] )
 parser.add_argument("tractogram", help="Input tractogram")
 parser.add_argument("assignments", help="Text file with the streamline assignments")
 parser.add_argument("output_folder", nargs='?', default='bundles', help="Output folder for the splitted tractograms")

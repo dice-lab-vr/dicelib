@@ -4,7 +4,7 @@ from dicelib.ui import ColoredArgParser
 from dicelib.tractogram import spline_smoothing
 
 # parse the input parameters
-parser = ColoredArgParser( description="Smooth the streamlines in a tractogram using Catmull-Rom splines." )
+parser = ColoredArgParser( description=spline_smoothing.__doc__.split('\n')[0] )
 parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("output_tractogram", help="Output tractogram")
 parser.add_argument("--ratio", "-r", type=float, default=0.25, help="Ratio of points to be kept/used as control points")
