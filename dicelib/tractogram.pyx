@@ -133,8 +133,11 @@ def info( input_tractogram: str, compute_lengts: bool=False ):
         # print the header
         ui.INFO( 'HEADER content')
         max_len = max([len(k) for k in TCK_in.header.keys()])
+        if 'count' in TCK_in.header.keys():
+            print( ui.hWhite+ '%0*s'%(max_len,'count') +ui.Reset+ui.fWhite+ ':  ' + TCK_in.header['count'] +ui.Reset )
         for k, v in TCK_in.header.items():
-            print( ui.hWhite+ '%0*s'%(max_len,k) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
+            if k != 'count':
+                print( ui.hWhite+ '%0*s'%(max_len,k) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
         print( '' )
 
         # print stats on lengths
