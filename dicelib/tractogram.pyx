@@ -352,6 +352,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         if force:
             for f in glob.glob( os.path.join(output_folder,'*.tck') ):
                 os.remove(f)
+            for f in glob.glob( os.path.join(output_folder,'*.txt') ):
+                os.remove(f)
+            for f in glob.glob( os.path.join(output_folder,'*.npy') ):
+                os.remove(f)
         else:
             ui.ERROR( 'Output folder already exists, use -f to overwrite' )
     ui.INFO( f'Writing output tractograms to "{output_folder}"' )
@@ -481,17 +485,28 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         ui.INFO( f'{n_wrote-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
 
     except BaseException as e:
+        if os.path.isdir(output_folder):
+            for key in TCK_outs.keys():
+                basename = os.path.join(output_folder,key)
+                if os.path.isfile(basename+'.tck'):
+                    os.remove(basename+'.tck')
+                if weights_in is not None and os.path.isfile(basename+weights_in_ext):
+                    os.remove(basename+weights_in_ext)
+
         ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:
-        ui.INFO( 'Closing files and update totals' )
+        ui.INFO( 'Closing files' )
         if TCK_in is not None:
             TCK_in.close()
         for key in TCK_outs.keys():
+            f = os.path.join(output_folder,f'{key}.tck')
+            if not os.path.isfile(f):
+                continue
             if TCK_outs[key] is not None:
                 TCK_outs[key].close( write_eof=False )
             # Update 'count' and write EOF marker
-            tmp = LazyTCK( os.path.join(output_folder,f'{key}.tck'), mode='a' )
+            tmp = LazyTCK( f, mode='a' )
             tmp.close( write_eof=True, count=TCK_outs_size[key] )
 
 
