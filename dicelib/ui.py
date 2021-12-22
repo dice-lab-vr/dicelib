@@ -122,7 +122,7 @@ class ColoredArgParser( _ArgumentParser ):
 	"""Modification of 'argparse.ArgumentParser' to allow colored output.
 	"""
 	class _ColoredFormatter( _ArgumentDefaultsHelpFormatter ):
-		COLOR = fBlue
+		COLOR = fMagenta
 
 		def start_section(self, heading):
 			super().start_section( Underline+heading.capitalize()+Reset )
