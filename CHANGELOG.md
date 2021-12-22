@@ -1,6 +1,11 @@
 # Change Log
 All notable changes will be documented in this file.
 
+## [1.1.4] - 2021-12-22
+
+### Fixed
+- Handling multiple values in header fields
+
 ## [1.1.3] - 2021-12-20
 
 ### Added

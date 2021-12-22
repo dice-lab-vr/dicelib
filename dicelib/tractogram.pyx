@@ -135,9 +135,13 @@ def info( input_tractogram: str, compute_lengts: bool=False ):
         max_len = max([len(k) for k in TCK_in.header.keys()])
         if 'count' in TCK_in.header.keys():
             print( ui.hWhite+ '%0*s'%(max_len,'count') +ui.Reset+ui.fWhite+ ':  ' + TCK_in.header['count'] +ui.Reset )
-        for k, v in TCK_in.header.items():
-            if k != 'count':
-                print( ui.hWhite+ '%0*s'%(max_len,k) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
+        for key, val in TCK_in.header.items():
+            if key=='count':
+                continue
+            if type(val)==str:
+                val = [val]
+            for v in val:
+                print( ui.hWhite+ '%0*s'%(max_len,key) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
         print( '' )
 
         # print stats on lengths

@@ -25,7 +25,7 @@ cdef class LazyTCK:
     TODO: complete this description
     """
     cdef public     str                             filename
-    cdef public     unordered_map[string, string]   header
+    cdef public     dict                            header
     cdef            bint                            is_open
     cdef            str                             mode
     cdef            int                             max_points
@@ -35,7 +35,6 @@ cdef class LazyTCK:
     cdef            float*                          buffer
     cdef            float*                          buffer_ptr
     cdef            float*                          buffer_end
-
 
     def __init__( self, char *filename, char* mode, header=None, unsigned int max_points=3000 ):
         """Initialize the class.
@@ -77,7 +76,7 @@ cdef class LazyTCK:
         if self.fp==NULL:
             raise FileNotFoundError( f'Unable to open file: "{self.filename}"' )
 
-        # print( f'-----> Open {self.filename} as "{self.mode}"' )
+        self.header = {}
         if self.mode=='r':
             # file is open for reading => need to read the header from disk
             self.header.clear()
@@ -196,7 +195,7 @@ cdef class LazyTCK:
                     # in append mode the header is not read by default
                     self.header.clear()
                     self._read_header()
-                self.header[b'count'] = '%0*d' % (len(self.header[b'count']), count) # NB: use same number of characters
+                self.header['count'] = '%0*d' % (len(self.header['count']), count) # NB: use same number of characters
                 self._write_header( self.header )
 
         self.is_open = False
@@ -213,16 +212,13 @@ cdef class LazyTCK:
         cdef char*      ptr
         cdef int        nLines = 0
 
-        # print( f'[_read_header()] Reading header from "{self.filename}"' )
-
-        if self.header.size() > 0:
+        if len(self.header) > 0:
             raise RuntimeError( 'Header already read' )
 
         fseek( self.fp, 0, SEEK_SET )
 
         # check if it's a valid TCK file
         if fgets( line, sizeof(line), self.fp )==NULL:
-            print( self.mode )
             raise IOError( 'Problems reading header from file FIRST LINE' )
         line[strlen(line)-1] = 0
         if strncmp( line,'mrtrix tracks', 13)!=0:
@@ -240,24 +236,36 @@ cdef class LazyTCK:
             ptr = strchr(line, ord(':'))
             if ptr==NULL:
                 raise RuntimeError( 'Problem parsing the header; format not valid' )
-            pos = ptr-line
-            self.header[ line[:pos] ] = ptr+2
+            key = str(line[:(ptr-line)])
+            val = ptr+2
+            if key not in self.header:
+                self.header[key] = val
+            else:
+                if type(self.header[key])!=list:
+                    self.header[key] = [ self.header[key] ]
+                self.header[key].append( val )
             nLines += 1
 
         # check if the 'count' field is present TODO: fix this, allow working even without it
-        if self.header.count( b'count' )==0:
+        if 'count' not in self.header:
             raise RuntimeError( 'Problem parsing the header; field "count" not found' )
+        if type(self.header['count'])==list:
+            raise RuntimeError( 'Problem parsing the header; field "count" has multiple values' )
 
         # check if datatype is 'Float32LE'
-        if self.header.count( b'datatype' )==0:
+        if 'datatype' not in self.header:
             raise RuntimeError( 'Problem parsing the header; field "datatype" not found' )
-        if self.header[b'datatype']!=b'Float32LE':
+        if type(self.header['datatype'])==list:
+            raise RuntimeError( 'Problem parsing the header; field "datatype" has multiple values' )
+        if self.header['datatype']!='Float32LE':
             raise RuntimeError( 'Unable to process file, as datatype "Float32LE" is not yet handled' )
 
         # move file pointer to beginning of binary data
-        if self.header.count( b'file' )==0:
+        if 'file' not in self.header:
             raise RuntimeError( 'Problem parsing the header; field "file" not found' )
-        fseek(self.fp, int( self.header[b'file'].substr(2) ), SEEK_SET)
+        if type(self.header['file'])==list:
+            raise RuntimeError( 'Problem parsing the header; field "file" has multiple values' )
+        fseek(self.fp, int( self.header['file'][2:] ), SEEK_SET)
 
 
     cpdef _write_header( self, header ):
@@ -279,19 +287,25 @@ cdef class LazyTCK:
         # check if the 'count' field is present TODO: fix this, allow working even without it
         if 'count' not in header:
             raise RuntimeError( 'Problem parsing the header; field "count" not found' )
+        if type(header['count'])==list:
+            raise RuntimeError( 'Problem parsing the header; field "count" has multiple values' )
 
         fseek( self.fp, 0, SEEK_SET )
         line = b'mrtrix tracks\n'
         fwrite( line.c_str(), 1, line.size(), self.fp )
 
-        for key in header:
+        for key, val in header.items():
             if key=='file':
                 continue
             if key=='count':
                 header['count'] = header['count'].zfill(10) # ensure 10 digits are written
-            line = f'{key}: {header[key]}\n'
-            fwrite( line.c_str(), 1, line.size(), self.fp )
-            offset += line.size()
+
+            if type(val)==str:
+                val = [val]
+            for v in val:
+                line = f'{key}: {v}\n'
+                fwrite( line.c_str(), 1, line.size(), self.fp )
+                offset += line.size()
 
         line = f'{offset+9:.0f}'
         line = f'file: . {offset+9+line.size():.0f}\n'
