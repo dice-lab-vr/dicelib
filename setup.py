@@ -6,14 +6,14 @@ from numpy import get_include
 
 def get_extensions():
     processing = Extension(
-        name='dicelib.tractogram',
+        name='tractogram',
         sources=['dicelib/tractogram.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
     lazytck = Extension(
-        name='dicelib.lazytck',
+        name='lazytck',
         sources=['dicelib/lazytck.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
@@ -52,7 +52,7 @@ setup(
     ext_modules=get_extensions(),
     packages=find_packages(),
     setup_requires=['Cython>=0.29', 'numpy>=1.12'],
-    install_requires=['wheel', 'setuptools>=46.1', 'numpy>=1.12', 'scipy>=1.0', 'Cython>=0.29', 'dipy>=1.0'],
+    install_requires=['wheel', 'setuptools>=46.1', 'numpy>=1.12', 'scipy>=1.0', 'cython>=0.29', 'dipy>=1.0', 'tqdm>=4.62'],
     scripts=glob('bin/*.py'),
     zip_safe=False
 )
