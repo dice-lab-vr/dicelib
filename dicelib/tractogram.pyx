@@ -4,8 +4,8 @@ import cython
 import numpy as np
 cimport numpy as np
 import sys, os, glob, random
-from lazytck import LazyTCK
-import ui
+from .lazytck import LazyTCK
+from . import ui
 from tqdm import trange
 from libc.math cimport sqrt
 

@@ -8,7 +8,7 @@ from dipy.segment.clustering import QuickBundlesX
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
 from dipy.segment.metric import ResampleFeature
 from dipy.tracking.streamline import set_number_of_points
-import dicelib.ui as ui
+from . import ui
 
 
 def get_streamlines_close_to_centroids( clusters, streamlines, n_pts ):
