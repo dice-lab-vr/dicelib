@@ -5,7 +5,7 @@ from numpy import get_include
 
 
 def get_extensions():
-    processing = Extension(
+    tractogram = Extension(
         name='tractogram',
         sources=['dicelib/tractogram.pyx'],
         include_dirs=[get_include()],
@@ -20,7 +20,7 @@ def get_extensions():
         language="c++"
     )
 
-    return [ processing, lazytck ]
+    return [ tractogram, lazytck ]
 
 
 class CustomBuildExtCommand(build_ext):
@@ -49,6 +49,7 @@ setup(
     author=info.AUTHOR,
     author_email=info.AUTHOR_EMAIL,
     cmdclass={'build_ext': CustomBuildExtCommand},
+    ext_package='dicelib',
     ext_modules=get_extensions(),
     packages=find_packages(),
     setup_requires=['Cython>=0.29', 'numpy>=1.12'],
