@@ -1,6 +1,11 @@
 # Change Log
 All notable changes will be documented in this file.
 
+## [1.2.0] - 2022-04-13
+
+### Changed
+- Restructuring of files/folders
+
 ## [1.1.4] - 2021-12-22
 
 ### Fixed

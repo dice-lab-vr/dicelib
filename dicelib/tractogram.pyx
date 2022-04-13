@@ -5,42 +5,17 @@ import numpy as np
 cimport numpy as np
 import sys, os, glob, random
 from .lazytck import LazyTCK
+from .streamline import length as streamline_length
 from . import ui
 from tqdm import trange
 from libc.math cimport sqrt
 
 
-# Interface to actual C code
-cdef extern from "tractogram.hpp":
-    int do_spline_smoothing(
+# # Interface to actual C code
+cdef extern from "streamline.hpp":
+    int smooth(
         float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, float segment_len
     ) nogil
-
-
-cpdef streamline_length( float [:,:] streamline, int n=0 ):
-    """Compute the length of a streamline.
-
-    Parameters
-    ----------
-    streamline : Nx3 numpy array
-        The streamline data
-    n : int
-        Writes first n points of the streamline. If n<=0 (default), writes all points
-
-    Returns
-    -------
-    length : double
-        Length of the streamline in mm
-    """
-    if n<0:
-        n = streamline.shape[0]
-    cdef float* ptr     = &streamline[0,0]
-    cdef float* ptr_end = ptr+n*3-3
-    cdef double length = 0.0
-    while ptr<ptr_end:
-        length += sqrt( (ptr[3]-ptr[0])**2 + (ptr[4]-ptr[1])**2 + (ptr[5]-ptr[2])**2 )
-        ptr += 3
-    return length
 
 
 def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bool=False, force: bool=False ):
@@ -583,7 +558,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
             TCK_in.read_streamline()
             if TCK_in.n_pts==0:
                 break # no more data, stop reading
-            n = do_spline_smoothing( &npaFiberI[0,0], TCK_in.n_pts, &npaFiberO[0,0], control_point_ratio, segment_len )
+            n = smooth( &npaFiberI[0,0], TCK_in.n_pts, &npaFiberO[0,0], control_point_ratio, segment_len )
             TCK_out.write_streamline( npaFiberO, n )
 
     except BaseException as e:
