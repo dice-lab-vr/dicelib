@@ -109,15 +109,15 @@ def info( input_tractogram: str, compute_lengts: bool=False ):
         ui.INFO( 'HEADER content')
         max_len = max([len(k) for k in TCK_in.header.keys()])
         if 'count' in TCK_in.header.keys():
-            print( ui.hWhite+ '%0*s'%(max_len,'count') +ui.Reset+ui.fWhite+ ':  ' + TCK_in.header['count'] +ui.Reset )
+            ui.PRINT( ui.hWhite+ '%0*s'%(max_len,'count') +ui.Reset+ui.fWhite+ ':  ' + TCK_in.header['count'] +ui.Reset )
         for key, val in TCK_in.header.items():
             if key=='count':
                 continue
             if type(val)==str:
                 val = [val]
             for v in val:
-                print( ui.hWhite+ '%0*s'%(max_len,key) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
-        print( '' )
+                ui.PRINT( ui.hWhite+ '%0*s'%(max_len,key) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
+        ui.PRINT( '' )
 
         # print stats on lengths
         if compute_lengts:
@@ -130,7 +130,7 @@ def info( input_tractogram: str, compute_lengts: bool=False ):
                     if TCK_in.n_pts==0:
                         break # no more data, stop reading
                     lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
-                print( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
+                ui.PRINT( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
             else:
                 ui.WARNING( 'The tractogram is empty' )
 
