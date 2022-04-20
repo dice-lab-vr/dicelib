@@ -3,7 +3,7 @@ import sys as _sys
 from argparse import ArgumentParser as _ArgumentParser, ArgumentDefaultsHelpFormatter as _ArgumentDefaultsHelpFormatter
 
 # verbosity level of logging functions
-__UI_VERBOSE_LEVEL__ = 2
+__UI_VERBOSE_LEVEL__ = 3
 
 # foreground colors
 fBlack   = '\x1b[30m'
@@ -45,42 +45,53 @@ Reverse   = '\x1b[7m'
 
 
 def set_verbose( verbose: int ):
-	"""Set the verbosity of logging functions.
+	"""Set the verbosity of all functions.
 
 	Parameters
 	----------
 	verbose : int
-		0=show nothing, 1=show only warnings/errors, 2=show all
+        3 = show everything
+		2 = show messages but no progress bars
+        1 = show only warnings/errors
+        0 = hide everything
 	"""
 	global __UI_VERBOSE_LEVEL__
-	if type(verbose) != int or verbose not in [0,1,2]:
-		raise TypeError( '"verbose" must be either 0, 1 or 2' )
+	if type(verbose) != int or verbose not in [0,1,2,3]:
+		raise TypeError( '"verbose" must be either 0, 1, 2 or 3' )
 	__UI_VERBOSE_LEVEL__ = verbose
 
 
+def get_verbose():
+    return __UI_VERBOSE_LEVEL__
+
+
+def PRINT( *args, **kwargs ):
+    if __UI_VERBOSE_LEVEL__ >= 2:
+        print( *args, **kwargs )
+
 def INFO( message: str ):
 	"""Print a INFO message in blue.
-	Only shown if __UI_VERBOSE_LEVEL__ == 2.
+	Only shown if __UI_VERBOSE_LEVEL__ >= 2.
 
 	Parameters
 	----------
 	message : string
 		Message to display.
 	"""
-	if __UI_VERBOSE_LEVEL__ == 2:
+	if __UI_VERBOSE_LEVEL__ >= 2:
 		print( fBlack+bCyan+"[ INFO ]"+fCyan+bDefault+" "+message+Reset )
 
 
 def LOG( message: str ):
 	"""Print a INFO message in green, reporting the time as well.
-	Only shown if __UI_VERBOSE_LEVEL__ == 2.
+	Only shown if __UI_VERBOSE_LEVEL__ >= 2.
 
 	Parameters
 	----------
 	message : string
 		Message to display.
 	"""
-	if __UI_VERBOSE_LEVEL__ == 2:
+	if __UI_VERBOSE_LEVEL__ >= 2:
 		print( fBlack+bGreen+"[ "+_datetime.now().strftime("%H:%M:%S")+" ]"+fGreen+bDefault+" "+message+Reset )
 
 

@@ -7,7 +7,7 @@
 // =========================
 // Function called by CYTHON
 // =========================
-int do_spline_smoothing( float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, float segment_len )
+int smooth( float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, float segment_len )
 {
     std::vector<float>          polyline_simplified;
     std::vector<Vector<float>>  CPs;
