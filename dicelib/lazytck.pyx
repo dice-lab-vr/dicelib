@@ -208,9 +208,9 @@ cdef class LazyTCK:
         After the reading, the file pointer is located at the end of it, i.e., beginning of
         the binary data part of the file, ready to read streamlines.
         """
-        cdef char[1000] line
-        cdef char*      ptr
-        cdef int        nLines = 0
+        cdef char[5000000] line # a field can be max 5MB long
+        cdef char*         ptr
+        cdef int           nLines = 0
 
         if len(self.header) > 0:
             raise RuntimeError( 'Header already read' )

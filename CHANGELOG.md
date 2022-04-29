@@ -1,6 +1,11 @@
 # Change Log
 All notable changes will be documented in this file.
 
+## [1.2.1] - 2022-04-29
+
+### Fixed
+- Crash when reading long headers
+
 ## [1.2.0] - 2022-04-13
 
 ### Changed
