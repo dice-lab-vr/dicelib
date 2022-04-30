@@ -3,7 +3,7 @@
 import cython
 import numpy as np
 cimport numpy as np
-import sys, os, glob, random
+import os, glob, random
 from .lazytck import LazyTCK
 from .streamline import length as streamline_length
 from . import ui
@@ -75,7 +75,7 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bo
             ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
 
 
-    except BaseException as e:
+    except Exception as e:
         if os.path.isfile( output_scalar_file ):
             os.remove( output_scalar_file )
         ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
@@ -134,7 +134,7 @@ def info( input_tractogram: str, compute_lengts: bool=False ):
             else:
                 ui.WARNING( 'The tractogram is empty' )
 
-    except BaseException as e:
+    except Exception as e:
         ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:
@@ -275,7 +275,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         n_wrote = np.count_nonzero( kept )
         ui.INFO( f'{n_wrote} streamlines in output tractogram' )
 
-    except BaseException as e:
+    except Exception as e:
         if TCK_out is not None:
             TCK_out.close()
         if os.path.isfile( output_tractogram ):
@@ -463,7 +463,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
         ui.INFO( f'{n_wrote-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
 
-    except BaseException as e:
+    except Exception as e:
         if os.path.isdir(output_folder):
             for key in TCK_outs.keys():
                 basename = os.path.join(output_folder,key)
@@ -561,7 +561,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
             n = smooth( &npaFiberI[0,0], TCK_in.n_pts, &npaFiberO[0,0], control_point_ratio, segment_len )
             TCK_out.write_streamline( npaFiberO, n )
 
-    except BaseException as e:
+    except Exception as e:
         TCK_out.close()
         if os.path.exists( output_tractogram ):
             os.remove( output_tractogram )

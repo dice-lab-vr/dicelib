@@ -5,6 +5,13 @@ from numpy import get_include
 
 
 def get_extensions():
+    dwi = Extension(
+        name='dwi',
+        sources=['dicelib/dwi.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
     streamline = Extension(
         name='streamline',
         sources=['dicelib/streamline.pyx'],
@@ -27,7 +34,7 @@ def get_extensions():
         language="c++"
     )
 
-    return [ streamline, tractogram, lazytck ]
+    return [ dwi, streamline, tractogram, lazytck ]
 
 
 class CustomBuildExtCommand(build_ext):

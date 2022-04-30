@@ -3,8 +3,13 @@ All notable changes will be documented in this file.
 
 ## [1.2.1] - 2022-04-29
 
+### Added
+- dwi.pyx module
+- dice_dwi_extract.py script
+
 ### Fixed
 - Crash when reading long headers
+- Few minor bugs
 
 ## [1.2.0] - 2022-04-13
 

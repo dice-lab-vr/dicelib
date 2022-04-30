@@ -109,7 +109,7 @@ def WARNING( message: str, stop: bool=False ):
 	if __UI_VERBOSE_LEVEL__ >= 1:
 		print( fBlack+bYellow+"[ WARNING ]"+fYellow+bDefault+" "+message+Reset )
 	if stop:
-		_sys.exit(1)
+		_sys.exit()
 
 
 def ERROR( message: str, stop: bool=True ):
@@ -126,7 +126,7 @@ def ERROR( message: str, stop: bool=True ):
 	if __UI_VERBOSE_LEVEL__ >= 1:
 		print( fBlack+bRed+"[ ERROR ]"+fRed+bDefault+" "+message+Reset )
 	if stop:
-		_sys.exit(1)
+		_sys.exit()
 
 
 class ColoredArgParser( _ArgumentParser ):
@@ -205,7 +205,7 @@ class ColoredArgParser( _ArgumentParser ):
 			args = list(args)
 		if len(args)==0:
 			self.print_help()
-			_sys.exit(1)
+			_sys.exit()
 		return super().parse_known_args(args, namespace)
 
 
