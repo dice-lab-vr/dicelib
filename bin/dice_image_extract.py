@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from dicelib.ui import ColoredArgParser
-from dicelib.dwi import extract
+from dicelib.image import extract
 
 # parse the input parameters
 parser = ColoredArgParser( description=extract.__doc__.split('\n')[0] )

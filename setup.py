@@ -5,9 +5,9 @@ from numpy import get_include
 
 
 def get_extensions():
-    dwi = Extension(
-        name='dwi',
-        sources=['dicelib/dwi.pyx'],
+    image = Extension(
+        name='image',
+        sources=['dicelib/image.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
@@ -34,7 +34,7 @@ def get_extensions():
         language="c++"
     )
 
-    return [ dwi, streamline, tractogram, lazytck ]
+    return [ image, streamline, tractogram, lazytck ]
 
 
 class CustomBuildExtCommand(build_ext):

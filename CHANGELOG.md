@@ -1,11 +1,11 @@
 # Change Log
 All notable changes will be documented in this file.
 
-## [1.2.1] - 2022-04-29
+## [1.2.1] - 2022-05-02
 
 ### Added
-- dwi.pyx module
-- dice_dwi_extract.py script
+- image.pyx module
+- dice_image_extract.py script
 
 ### Fixed
 - Crash when reading long headers
