@@ -88,7 +88,7 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: in
             TCK_in.close()
 
 
-def info( input_tractogram: str, compute_lengths: bool=False, verbose: int=2 ):
+def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=2 ):
     """Print some information about a tractogram.
 
     Parameters
@@ -99,12 +99,18 @@ def info( input_tractogram: str, compute_lengths: bool=False, verbose: int=2 ):
     compute_lengths : boolean
         Show stats on streamline lenghts (default : False).
 
+    max_field_length : int
+        Maximum length allowed for printing a field value (default : all chars)
+
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
     """
-    if type(verbose) != int or verbose not in [0,1,2,3,4]:
+    if verbose not in [0,1,2,3,4]:
         ui.ERROR( '"verbose" must be in [0...4]' )
     ui.set_verbose( verbose )
+
+    if max_field_length is not None and max_field_length<25:
+        ui.ERROR( '"max_field_length" must be >=25')
 
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
@@ -124,6 +130,8 @@ def info( input_tractogram: str, compute_lengths: bool=False, verbose: int=2 ):
             if type(val)==str:
                 val = [val]
             for v in val:
+                if max_field_length is not None and len(v)>max_field_length:
+                    v = v[:max_field_length]+ui.hRed+'...'+ui.Reset
                 ui.PRINT( ui.hWhite+ '%0*s'%(max_len,key) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
         if 'count' in TCK_in.header.keys():
             ui.PRINT( ui.hWhite+ '%0*s'%(max_len,'count') +ui.Reset+ui.fWhite+ ':  ' + TCK_in.header['count'] +ui.Reset )
