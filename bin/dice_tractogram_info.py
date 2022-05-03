@@ -7,10 +7,12 @@ from dicelib.tractogram import info
 parser = ColoredArgParser( description=info.__doc__.split('\n')[0] )
 parser.add_argument("tractogram", help="Input tractogram")
 parser.add_argument("--lenghts", "-l", action="store_true", help="Show stats on streamline lenghts")
+parser.add_argument("--verbose", "-v", type=int, default=4, help="What information to print (must be in [0...4] as defined in ui)")
 options = parser.parse_args()
 
 # call actual function
 info(
     options.tractogram,
-    options.lenghts
+    options.lenghts,
+    options.verbose
 )

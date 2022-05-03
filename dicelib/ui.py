@@ -2,9 +2,6 @@ from datetime import datetime as _datetime
 import sys as _sys
 from argparse import ArgumentParser as _ArgumentParser, ArgumentDefaultsHelpFormatter as _ArgumentDefaultsHelpFormatter
 
-# verbosity level of logging functions
-__UI_VERBOSE_LEVEL__ = 3
-
 # foreground colors
 fBlack   = '\x1b[30m'
 fRed     = '\x1b[31m'
@@ -44,20 +41,25 @@ Underline = '\x1b[4m'
 Reverse   = '\x1b[7m'
 
 
+# verbosity level of logging functions
+__UI_VERBOSE_LEVEL__ = 4
+
+
 def set_verbose( verbose: int ):
 	"""Set the verbosity of all functions.
 
 	Parameters
 	----------
 	verbose : int
-        3 = show everything
-		2 = show messages but no progress bars
-        1 = show only warnings/errors
+        4 = show everything
+		3 = show all messages but no progress
+		2 = show warnings/errors and progress
+        1 = show warnings/errors but no progress
         0 = hide everything
 	"""
 	global __UI_VERBOSE_LEVEL__
-	if type(verbose) != int or verbose not in [0,1,2,3]:
-		raise TypeError( '"verbose" must be either 0, 1, 2 or 3' )
+	if type(verbose) != int or verbose not in [0,1,2,3,4]:
+		raise TypeError( '"verbose" must be either 0, 1, 2, 3 or 4' )
 	__UI_VERBOSE_LEVEL__ = verbose
 
 
@@ -66,32 +68,32 @@ def get_verbose():
 
 
 def PRINT( *args, **kwargs ):
-    if __UI_VERBOSE_LEVEL__ >= 2:
+    if __UI_VERBOSE_LEVEL__ >= 3:
         print( *args, **kwargs )
 
 def INFO( message: str ):
 	"""Print a INFO message in blue.
-	Only shown if __UI_VERBOSE_LEVEL__ >= 2.
+	Only shown if __UI_VERBOSE_LEVEL__ >= 3.
 
 	Parameters
 	----------
 	message : string
 		Message to display.
 	"""
-	if __UI_VERBOSE_LEVEL__ >= 2:
+	if __UI_VERBOSE_LEVEL__ >= 3:
 		print( fBlack+bCyan+"[ INFO ]"+fCyan+bDefault+" "+message+Reset )
 
 
 def LOG( message: str ):
 	"""Print a INFO message in green, reporting the time as well.
-	Only shown if __UI_VERBOSE_LEVEL__ >= 2.
+	Only shown if __UI_VERBOSE_LEVEL__ >= 3.
 
 	Parameters
 	----------
 	message : string
 		Message to display.
 	"""
-	if __UI_VERBOSE_LEVEL__ >= 2:
+	if __UI_VERBOSE_LEVEL__ >= 3:
 		print( fBlack+bGreen+"[ "+_datetime.now().strftime("%H:%M:%S")+" ]"+fGreen+bDefault+" "+message+Reset )
 
 

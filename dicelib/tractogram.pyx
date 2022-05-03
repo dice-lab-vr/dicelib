@@ -3,7 +3,7 @@
 import cython
 import numpy as np
 cimport numpy as np
-import os, glob, random
+import os, glob, random as rnd
 from .lazytck import LazyTCK
 from .streamline import length as streamline_length
 from . import ui
@@ -18,7 +18,7 @@ cdef extern from "streamline.hpp":
     ) nogil
 
 
-def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bool=False, force: bool=False ):
+def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: int=2, force: bool=False ):
     """Compute the lenghts of the streamlines in a tractogram.
 
     Parameters
@@ -29,13 +29,16 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bo
     output_scalar_file : string
         Path to the file (.txt or .npy) where to store the computed streamline lenghts.
 
-    verbose : boolean
-        Print information messages (default : False).
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
 
     force : boolean
         Force overwriting of the output (default : False).
     """
-    ui.set_verbose( 2 if verbose else 1 )
+    if type(verbose) != int or verbose not in [0,1,2,3,4]:
+        ui.ERROR( '"verbose" must be in [0...4]' )
+    ui.set_verbose( verbose )
+
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
     output_scalar_file_ext = os.path.splitext(output_scalar_file)[1]
@@ -60,7 +63,7 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bo
 
         lengths = np.empty( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
-            for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
+            for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
                     break # no more data, stop reading
@@ -85,7 +88,7 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: bo
             TCK_in.close()
 
 
-def info( input_tractogram: str, compute_lengts: bool=False ):
+def info( input_tractogram: str, compute_lengths: bool=False, verbose: int=2 ):
     """Print some information about a tractogram.
 
     Parameters
@@ -93,9 +96,16 @@ def info( input_tractogram: str, compute_lengts: bool=False ):
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
 
-    compute_lengts : boolean
+    compute_lengths : boolean
         Show stats on streamline lenghts (default : False).
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
     """
+    if type(verbose) != int or verbose not in [0,1,2,3,4]:
+        ui.ERROR( '"verbose" must be in [0...4]' )
+    ui.set_verbose( verbose )
+
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
 
@@ -108,8 +118,6 @@ def info( input_tractogram: str, compute_lengts: bool=False ):
         # print the header
         ui.INFO( 'HEADER content')
         max_len = max([len(k) for k in TCK_in.header.keys()])
-        if 'count' in TCK_in.header.keys():
-            ui.PRINT( ui.hWhite+ '%0*s'%(max_len,'count') +ui.Reset+ui.fWhite+ ':  ' + TCK_in.header['count'] +ui.Reset )
         for key, val in TCK_in.header.items():
             if key=='count':
                 continue
@@ -117,15 +125,17 @@ def info( input_tractogram: str, compute_lengts: bool=False ):
                 val = [val]
             for v in val:
                 ui.PRINT( ui.hWhite+ '%0*s'%(max_len,key) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
+        if 'count' in TCK_in.header.keys():
+            ui.PRINT( ui.hWhite+ '%0*s'%(max_len,'count') +ui.Reset+ui.fWhite+ ':  ' + TCK_in.header['count'] +ui.Reset )
         ui.PRINT( '' )
 
         # print stats on lengths
-        if compute_lengts:
+        if compute_lengths:
             ui.INFO( 'Streamline lenghts')
             n_streamlines = int( TCK_in.header['count'] )
             if n_streamlines>0:
                 lengths = np.empty( n_streamlines, dtype=np.double )
-                for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
+                for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(ui.get_verbose() in [0,1,3]) ):
                     TCK_in.read_streamline()
                     if TCK_in.n_pts==0:
                         break # no more data, stop reading
@@ -142,7 +152,7 @@ def info( input_tractogram: str, compute_lengts: bool=False ):
             TCK_in.close()
 
 
-def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random_ratio: float=1.0, verbose: bool=False, force: bool=False ):
+def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random: float=1.0, verbose: int=2, force: bool=False ):
     """Filter out the streamlines in a tractogram according to some criteria.
 
     Parameters
@@ -171,18 +181,20 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     weights_out : str
         Scalar file (.txt or .npy) for the output streamline weights.
 
-    random_ratio : float
+    random : float
         Probability to keep (randomly) each streamline; this filter is applied after all others (default : 1.0)
 
-    verbose : boolean
-        Print information messages (default : False).
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
 
     force : boolean
         Force overwriting of the output (default : False).
     """
-    ui.set_verbose( 2 if verbose else 1 )
+    if type(verbose) != int or verbose not in [0,1,2,3,4]:
+        ui.ERROR( '"verbose" must be in [0...4]' )
+    ui.set_verbose( verbose )
 
-    n_wrote = 0
+    n_written = 0
     TCK_in  = None
     TCK_out = None
 
@@ -203,8 +215,8 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             ui.ERROR( '"minlength" must be <= "maxlength"' )
         ui.INFO( f'Keep streamlines with length <= {maxlength} mm' )
 
-    if random_ratio<=0 or random_ratio>1:
-        ui.ERROR( '"random_ratio" must be in (0,1]' )
+    if random<=0 or random>1:
+        ui.ERROR( '"random" must be in (0,1]' )
 
     # read the streamline weights (if any)
     if weights_in is not None:
@@ -246,7 +258,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         TCK_out = LazyTCK( output_tractogram, mode='w', header=TCK_in.header )
 
         kept = np.ones( n_streamlines, dtype=bool )
-        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
+        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
             TCK_in.read_streamline()
             if TCK_in.n_pts==0:
                 break # no more data, stop reading
@@ -270,7 +282,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
                 continue
 
             # filter randomly
-            if random_ratio<1 and random.random()>=random_ratio:
+            if random<1 and rnd.random()>=random:
                 kept[i] = False
                 continue
 
@@ -283,8 +295,8 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             else:
                 np.save( weights_out, w[kept==True].astype(np.float32), allow_pickle=False )
 
-        n_wrote = np.count_nonzero( kept )
-        ui.INFO( f'{n_wrote} streamlines in output tractogram' )
+        n_written = np.count_nonzero( kept )
+        (ui.INFO if n_written>0 else ui.WARNING)( f'{n_written} streamlines in output tractogram' )
 
     except Exception as e:
         if TCK_out is not None:
@@ -299,10 +311,10 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         if TCK_in is not None:
             TCK_in.close()
         if TCK_out is not None:
-            TCK_out.close( n_wrote )
+            TCK_out.close( n_written )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: bool=False, force: bool=False ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: int=2, force: bool=False ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -324,13 +336,15 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
     max_open : integer
         Maximum number of files opened at the same time (default : 90% of SC_OPEN_MAX system variable).
 
-    verbose : boolean
-        Print information messages (default : False).
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
 
     force : boolean
         Force overwriting of the output (default : False).
     """
-    ui.set_verbose( 2 if verbose else 1 )
+    if type(verbose) != int or verbose not in [0,1,2,3,4]:
+        ui.ERROR( '"verbose" must be in [0...4]' )
+    ui.set_verbose( verbose )
 
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
@@ -375,7 +389,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
     TCK_outs_size   = {}
     if weights_in is not None:
         WEIGHTS_out_idx = {}
-    n_wrote         = 0
+    n_written         = 0
     try:
         # open the tractogram
         TCK_in = LazyTCK( input_tractogram, mode='r' )
@@ -429,7 +443,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
-        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
+        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
             TCK_in.read_streamline()
             if TCK_in.n_pts==0:
                 break # no more data, stop reading
@@ -445,7 +459,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             if TCK_outs[key] is None:
                 fname = os.path.join(output_folder,f'{key}.tck')
                 if n_file_open==max_open:
-                    key_to_close = random.choice( [k for k,v in TCK_outs.items() if v!=None] )
+                    key_to_close = rnd.choice( [k for k,v in TCK_outs.items() if v!=None] )
                     TCK_outs[key_to_close].close( write_eof=False )
                     TCK_outs[key_to_close] = None
                 else:
@@ -456,7 +470,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             # write input streamline to correct output file
             TCK_outs[key].write_streamline( TCK_in.streamline, TCK_in.n_pts )
             TCK_outs_size[key] += 1
-            n_wrote += 1
+            n_written += 1
 
             # store the index of the corresponding weight
             if weights_in is not None:
@@ -472,7 +486,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 else:
                     np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle, allow_pickle=False )
 
-        ui.INFO( f'{n_wrote-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
+        ui.INFO( f'{n_written-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
 
     except Exception as e:
         if os.path.isdir(output_folder):
@@ -500,7 +514,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             tmp.close( write_eof=True, count=TCK_outs_size[key] )
 
 
-cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=False, force=False ):
+cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=2, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
     More info at http://algorithmist.net/docs/catmullrom.pdf.
 
@@ -519,14 +533,18 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
     segment_len : float
         Sampling resolution of the final streamline after interpolation (default : 1.0).
 
-    verbose : boolean
-        Print information messages (default : False).
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
 
     force : boolean
         Force overwriting of the output (default : False).
     """
     cdef float [:,:] npaFiberI
     cdef float [:,:] npaFiberO
+
+    if type(verbose) != int or verbose not in [0,1,2,3,4]:
+        ui.ERROR( '"verbose" must be in [0...4]' )
+    ui.set_verbose( verbose )
 
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
@@ -565,7 +583,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         # process each streamline
         npaFiberI = TCK_in.streamline
         npaFiberO = np.empty( (3000,3), dtype=np.float32 )
-        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False ):
+        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
             TCK_in.read_streamline()
             if TCK_in.n_pts==0:
                 break # no more data, stop reading
