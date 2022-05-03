@@ -6,6 +6,7 @@ All notable changes will be documented in this file.
 ### Added
 - image.pyx module
 - dice_image_extract.py script
+- dice_tractogram_filter.py: possibility to remove streamlines randomly
 
 ### Fixed
 - Crash when reading long headers

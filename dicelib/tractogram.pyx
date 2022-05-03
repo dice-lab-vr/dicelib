@@ -142,7 +142,7 @@ def info( input_tractogram: str, compute_lengts: bool=False ):
             TCK_in.close()
 
 
-def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, verbose: bool=False, force: bool=False ):
+def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random_ratio: float=1.0, verbose: bool=False, force: bool=False ):
     """Filter out the streamlines in a tractogram according to some criteria.
 
     Parameters
@@ -170,6 +170,9 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
 
     weights_out : str
         Scalar file (.txt or .npy) for the output streamline weights.
+
+    random_ratio : float
+        Probability to keep (randomly) each streamline; this filter is applied after all others (default : 1.0)
 
     verbose : boolean
         Print information messages (default : False).
@@ -199,6 +202,9 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         if minlength and minlength>maxlength:
             ui.ERROR( '"minlength" must be <= "maxlength"' )
         ui.INFO( f'Keep streamlines with length <= {maxlength} mm' )
+
+    if random_ratio<=0 or random_ratio>1:
+        ui.ERROR( '"random_ratio" must be in (0,1]' )
 
     # read the streamline weights (if any)
     if weights_in is not None:
@@ -260,6 +266,11 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
                 (minweight is not None and w[i]<minweight) or
                 (maxweight is not None and w[i]>maxweight)
             ):
+                kept[i] = False
+                continue
+
+            # filter randomly
+            if random_ratio<1 and random.random()>=random_ratio:
                 kept[i] = False
                 continue
 
