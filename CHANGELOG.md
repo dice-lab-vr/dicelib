@@ -12,6 +12,9 @@ All notable changes will be documented in this file.
 - Crash when reading long headers
 - Few minor bugs
 
+### Changed
+- Added 4th verbosity value
+
 ## [1.2.0] - 2022-04-13
 
 ### Changed
