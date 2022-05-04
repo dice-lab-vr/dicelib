@@ -223,9 +223,6 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             ui.ERROR( '"minlength" must be <= "maxlength"' )
         ui.INFO( f'Keep streamlines with length <= {maxlength} mm' )
 
-    if random<=0 or random>1:
-        ui.ERROR( '"random" must be in (0,1]' )
-
     # read the streamline weights (if any)
     if weights_in is not None:
         if not os.path.isfile( weights_in ):
@@ -249,6 +246,11 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         ui.INFO( f'Keep streamlines with weight <= {maxweight} mm' )
     else:
         w = np.array( [] )
+
+    if random<=0 or random>1:
+        ui.ERROR( '"random" must be in (0,1]' )
+    if random!=1:
+        ui.INFO( f'Keep streamlines with {random*100:.2f}% probability ' )
 
     #----- iterate over input streamlines -----
     try:
@@ -319,7 +321,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         if TCK_in is not None:
             TCK_in.close()
         if TCK_out is not None:
-            TCK_out.close( n_written )
+            TCK_out.close( count=n_written )
 
 
 def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: int=2, force: bool=False ):
