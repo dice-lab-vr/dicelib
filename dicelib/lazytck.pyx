@@ -298,7 +298,7 @@ cdef class LazyTCK:
             if key=='file':
                 continue
             if key=='count':
-                header['count'] = header['count'].zfill(10) # ensure 10 digits are written
+                val = header['count'] = header['count'].zfill(10) # ensure 10 digits are written
 
             if type(val)==str:
                 val = [val]
