@@ -321,7 +321,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         if TCK_in is not None:
             TCK_in.close()
         if TCK_out is not None:
-            TCK_out.close( count=n_written )
+            TCK_out.close( write_eof=True, count=n_written )
 
 
 def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: int=2, force: bool=False ):

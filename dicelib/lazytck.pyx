@@ -220,8 +220,8 @@ cdef class LazyTCK:
         # check if it's a valid TCK file
         if fgets( line, sizeof(line), self.fp )==NULL:
             raise IOError( 'Problems reading header from file FIRST LINE' )
-        line[strlen(line)-1] = 0
-        if strncmp( line,'mrtrix tracks', 13)!=0:
+        # line[strlen(line)-1] = 0
+        if strncmp( line, 'mrtrix tracks', 13)!=0:
             raise IOError( f'"{self.filename}" is not a valid TCK file' )
 
         # parse one line at a time
@@ -231,7 +231,7 @@ cdef class LazyTCK:
             if fgets( line, sizeof(line), self.fp )==NULL:
                 raise IOError( 'Problems reading header from file' )
             line[strlen(line)-1] = 0
-            if strcmp(line,'END')==0:
+            if strncmp(line,'END',3)==0:
                 break
             ptr = strchr(line, ord(':'))
             if ptr==NULL:
