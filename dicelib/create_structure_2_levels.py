@@ -4,10 +4,10 @@ from . import ui
 
 from nibabel.streamlines import load, save, Tractogram
 
-from dipy.segment.clustering import QuickBundles, qbx_and_merge
+from dipy.segment.clustering import QuickBundles# , qbx_and_merge
 from dipy.segment.metric import ResampleFeature
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
-from dipy.tracking.streamline import Streamlines
+# from dipy.tracking.streamline import Streamlines
 
 def load_connectome(filename_cm):
     try:
@@ -16,29 +16,24 @@ def load_connectome(filename_cm):
         connectome = np.loadtxt( filename_cm, delimiter=' ' )
     return connectome
 
-        
-
-def create_structure_2_levels(filename_trk, filename_cm, filename_fs, output_folder, QB_threshold=10, sufix='', metric=None, verbose=0, force=False  ):
+def create_structure_2_levels(filename_trk, filename_cm, filename_fs, output_folder, QB_threshold=10, suffix='', metric=None, verbose=0, force=False  ):
     ''' Creates a hierarchical structure with 2 levels to use in COMMIT2 
     Input:
         filename_trk: Path to the tractogram  
         filename_cm: Path to the connectome 
-        filename_fs: Path to the assigments file of the streamlines  
+        filename_fs: Path to the assignments file of the streamlines  
         output_folder: Output path 
-        QB_threshold: Threstold to use in QuickBundles 
-        sufix: Sufix to name the output files 
+        QB_threshold: Threshold to use in QuickBundles 
+        suffix: Sufix to name the output files 
         metric: Metric to use in QuickBundles   
         verbose: What information to print (must be in [0...4] as defined in ui)
-        forse: Force overwriting of the output
+        force: Force overwriting of the output
 
     Output:
         In the output_folder it will create the files:
             structureIC_level1: First level of the structure 
             structureIC_level2: Second level of the structure
             structureIC_level1_level2: Hierarchical structure 
-
-             
-    
     '''
 
     ui.set_verbose( verbose )
@@ -47,21 +42,17 @@ def create_structure_2_levels(filename_trk, filename_cm, filename_fs, output_fol
     if metric==None:
         feature = ResampleFeature(nb_points=20)
         metric = AveragePointwiseEuclideanMetric(feature)
-
     
     output_l1 = os.path.join( output_folder , 'structureIC_level1.npy')
-    output_l2 = os.path.join( output_folder , 'structureIC_level2.npy'+sufix)
-    output_l1_l1 = os.path.join( output_folder , 'structureIC_level1_level2.npy'+sufix)
-
+    output_l2 = os.path.join( output_folder , 'structureIC_level2.npy'+suffix)
+    output_l1_l1 = os.path.join( output_folder , 'structureIC_level1_level2.npy'+suffix)
 
     # Structures for streamlines 
-    connStr_p_isVB = []
     connStr_p = []      # Parcellation (bundles)
     connStr_c = []      # Clusters (of bundles)
     connStr_pc = []     # Parcellation and clusters
     clusterCentroids = []
     
-
     # 0. Check files 
     ui.INFO( f'Checking files' )
 
@@ -80,11 +71,10 @@ def create_structure_2_levels(filename_trk, filename_cm, filename_fs, output_fol
     streamlines_input   = load( filename_trk )
     n1, n2 = connectome.shape
 
-
     connStrMat          = [[{'indxFibeAssignment':[],'numClusters':0, 'numIndxPerCluster':[], 'indxPerCluster':[], 'isVB':0, 'isVB_gt':0} for j in range(n2+1)] for i in range(n1+1)] # connectivityStructure
 
-    # 2. kept only streamlines conected to ROIs
-    ui.INFO( f'Loking for streamlines conected to ROIs' )
+    # 2. Kept only streamlines connected to ROIs
+    ui.INFO( f'Looking for streamlines connected to ROIs' )
     numFibersToDiscard = 0
     streams = []
     for r in range(fibers_assignment.shape[0]):            
@@ -99,10 +89,11 @@ def create_structure_2_levels(filename_trk, filename_cm, filename_fs, output_fol
         else:
             numFibersToDiscard += 1
 
+    # TODO: The non-connected streamlines will not be consider in the groups, how we should handle them
     if numFibersToDiscard > 0:
-        ui.INFO(" --------  Number streamlines discarded: %d"%numFibersToDiscard)
+        ui.WARNING(f'Number streamlines discarded: {numFibersToDiscard}')
     else:
-        ui.WARNING(" --------  Number streamlines discarded: %d"%numFibersToDiscard)
+        ui.INFO(f'Number streamlines discarded: {numFibersToDiscard}')
 
     # 3. Cluster the streamlines in each connection 
     ui.INFO( f'Creating clusters' )
@@ -110,7 +101,6 @@ def create_structure_2_levels(filename_trk, filename_cm, filename_fs, output_fol
     lst_numStreamlines          = []
     lst_numClusters             = []
     lst_streamlinesPerCluster   = []
-
 
     tot = 0
 
@@ -150,7 +140,6 @@ def create_structure_2_levels(filename_trk, filename_cm, filename_fs, output_fol
                     clusterCentroids.append(ff)
 
                 connStr_pc.append(np.array(connStrMat[i+1][j+1]['indxFibeAssignment']))
-                    
 
                 connStrMat[i+1][j+1]['numIndxPerCluster'] = numIndxPerCluster
                 connStrMat[i+1][j+1]['indxPerCluster'] = indxPerCluster
@@ -158,23 +147,7 @@ def create_structure_2_levels(filename_trk, filename_cm, filename_fs, output_fol
 
                 connStr_p.append(np.array(connStrMat[i+1][j+1]['indxFibeAssignment']))
 
-
-
     np.save( output_l1, np.array( connStr_p, dtype=object))
     np.save( output_l2, np.array( connStr_c, dtype=object ))
     np.save( output_l1_l1, np.array( connStr_pc, dtype=object ))
-
-
-
-# QB_threshold        = 10.0
-# sufix        = 'th10_nPoints20'
-# feature = ResampleFeature(nb_points=20)
-# metric = AveragePointwiseEuclideanMetric(feature)
-
-# work_path = '/home/ocampo/UNIVR/DatiBasilea/Analisi/INsIDER_C016'
-# filename_trk  = os.path.join(work_path,'Tractography_upsampling', '1M_iFOD_ACT_connecting_3.tck')
-# filename_cm  = os.path.join(work_path,'Connectome_upsampl', '1M_iFOD_ACT_3_connectome.csv')
-# filename_fs  = os.path.join(work_path,'Connectome_upsampl', '1M_iFOD_ACT_3_assignment.txt')
-
-# create_structure_2_levels(filename_trk=filename_trk, filename_cm=filename_cm, filename_fs=filename_fs, output_folder=work_path, verbose=True)
     
