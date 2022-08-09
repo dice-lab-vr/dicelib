@@ -1,6 +1,12 @@
 # Change Log
 All notable changes will be documented in this file.
 
+## [1.2.2] - 2022-08-09
+
+### Added
+- dice_structure_2_levels.py script
+- create_structure_2_levels.py: Creates the structure used by COMMIT2_tree
+
 ## [1.2.1] - 2022-05-02
 
 ### Added
