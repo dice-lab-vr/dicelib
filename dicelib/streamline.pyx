@@ -34,10 +34,10 @@ cpdef length( float [:,:] streamline, int n=0 ):
 
 
 
-def sampling(float[:,:] streamline, int n = 0,float[:,:,:] img):
-    cdef float [:,:] a = streamline 
+def sampling(float [:,:] streamline, int n = 0,float [:,:,:] img):
+     
   
-    return a[0]
+    return None 
 
     
 #if n<0:

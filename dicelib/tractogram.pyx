@@ -344,7 +344,7 @@ def sample(input_tractogram: str, input_image: str, output_values: str, measure:
         streamline = TCK_in.streamline 
         
         #sample strealine values along the image 
-        sampling(streamline,TCK_in.n_pts,Img)
+        #sampling(streamline,TCK_in.n_pts,Img)
 
 
         
