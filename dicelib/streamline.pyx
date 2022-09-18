@@ -30,3 +30,24 @@ cpdef length( float [:,:] streamline, int n=0 ):
         length += sqrt( (ptr[3]-ptr[0])**2 + (ptr[4]-ptr[1])**2 + (ptr[5]-ptr[2])**2 )
         ptr += 3
     return length
+
+
+
+
+cdef sampling( float [:,:] streamline, int n = 0, float [:,:,:] img):
+    cdef float[:,:] a = streamline 
+  
+    return a[0]
+
+    
+#if n<0:
+#        n = streamline.shape[0]
+#    cdef float* ptr     = &streamline[0,0]
+ 
+    #cdef float* ptr_end = ptr+n*3-3
+    #cdef double value = 0.0
+    #while ptr<ptr_end:
+        #TOcomplete value = np.append(value,img[ptr[0]/res)
+        #value = np.append(value,"nan")
+        #ptr += 3
+    #eturn value

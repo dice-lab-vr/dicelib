@@ -6,6 +6,7 @@ cimport numpy as np
 import os, glob, random as rnd
 from .lazytck import LazyTCK
 from .streamline import length as streamline_length
+from .streamline import sampling
 from . import ui
 from tqdm import trange
 from libc.math cimport sqrt
@@ -322,6 +323,31 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_in.close()
         if TCK_out is not None:
             TCK_out.close( write_eof=True, count=n_written )
+
+
+
+def sample(input_tractogram: str, input_image: str, output_values: str, measure: str):
+    try:
+
+        # open the input file
+        TCK_in = LazyTCK( input_tractogram, mode='r' )
+
+        #open the image
+        Img = nib.load(input_image)
+
+        n_streamlines = int( TCK_in.header['count'] )
+        ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+
+        pixdim = int( Img.header['pixdim'] )
+        ui.INFO( f'{pixdim[0:3]} Image resolution' )
+        
+        streamline = TCK_in.streamline 
+        
+        #sample strealine values along the image 
+        sampling(streamline,TCK_in.n_pts,Img)
+
+
+        
 
 
 def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: int=2, force: bool=False ):
