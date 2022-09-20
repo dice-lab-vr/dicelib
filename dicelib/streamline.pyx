@@ -34,10 +34,17 @@ cpdef length( float [:,:] streamline, int n=0 ):
 
 
 
-def sampling(float [:,:] streamline, float [:,:,:] img, int n = 0):
-     
-  
-    return None 
+def sampling(float [:,:] streamline, double [:,:,:] img, int npoints = 0):
+    cdef int end = streamline.shape
+    cdef float [:] buffer 
+    cdef float value 
+    cdef size_t ii , yy 
+    for ii in range(npoints):    
+        for yy in range(streamline.shape[1]):
+            buffer[yy] = streamline[ii,yy]
+        value = img[buffer[0].round()][buffer[1].round()][buffer[2].round()]    
+
+    return value 
 
     
 #if n<0:
