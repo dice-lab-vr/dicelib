@@ -35,13 +35,13 @@ cpdef length( float [:,:] streamline, int n=0 ):
 
 
 def sampling(float [:,:] streamline, double [:,:,:] img, int npoints = 0):
-    buffer = np.empty([1,3], dtype= float)
+    v = np.empty([1,3], dtype= float)
     cdef float value 
     cdef size_t ii , yy 
     for ii in range(npoints):    
         for yy in range(streamline.shape[1]):
-            buffer[yy] = streamline[ii,yy]
-        value = img[buffer[0].round()][buffer[1].round()][buffer[2].round()]    
+            v[yy] = streamline[ii][yy]
+        value = img[vv[0].round()][vv[1].round()][vv[2].round()]    
 
     return value 
 
