@@ -41,7 +41,7 @@ def sampling(float [:,:] streamline, double [:,:,:] img, int npoints = 0):
     for ii in range(npoints):    
         for yy in range(streamline.shape[1]):
             v[yy] = streamline[ii][yy]
-        value = img[vv[0].round()][vv[1].round()][vv[2].round()]    
+        value = img[v[0].round()][v[1].round()][v[2].round()]    
 
     return value 
 
