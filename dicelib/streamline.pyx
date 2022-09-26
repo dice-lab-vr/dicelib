@@ -44,7 +44,7 @@ def sampling(float [:,:] streamline, float [:,:,:] img, int npoints = 0):
     
     value[ii] = img[v[0].astype(int)][v[1].astype(int)][v[2].astype(int)]    
 
-    return print(value) 
+    return value
 
     
 #if n<0:
