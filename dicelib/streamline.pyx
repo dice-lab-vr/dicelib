@@ -42,7 +42,7 @@ cpdef sampling(float [:,:] streamline, double [:,:,:] img, int npoints = 0):
         for yy in range(streamline.shape[1]):
             v[yy] = streamline[ii][yy]
         value[ii] = img[v[0].astype(int)][v[1].astype(int)][v[2].astype(int)] 
-        print("ok")   
+    print("ok")
 
     return value
 
