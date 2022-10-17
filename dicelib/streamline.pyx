@@ -3,6 +3,7 @@
 import cython
 import numpy as np
 cimport numpy as np
+cimport cython 
 from libc.math cimport sqrt
 
 
@@ -33,16 +34,17 @@ cpdef length( float [:,:] streamline, int n=0 ):
 
 
 
-
-cpdef sampling(float [:,:] streamline, double [:,:,:] img, int npoints = 0):
+#@cython.boundscheck(False)
+cpdef sampling(float [:,:] streamline, img, int npoints):
+    print("npoints:", npoints)
+    #img.shape
     v = np.empty([3,], dtype= float)
     value = np.empty([npoints,], dtype= float) 
     cdef size_t ii , yy 
-    for ii in range(npoints):    
+    for ii in range(npoints):   
         for yy in range(streamline.shape[1]):
-            v[yy] = streamline[ii][yy]
-        value[ii] = img[v[0].astype(int)][v[1].astype(int)][v[2].astype(int)] 
-    print("ok")
+            v[yy] = streamline[ii][yy]   
+        value[ii] = img[v[0].astype(int),v[1].astype(int),v[2].astype(int)] 
 
     return value
 
