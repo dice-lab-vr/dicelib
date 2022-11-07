@@ -3,10 +3,12 @@
 import cython
 import numpy as np
 cimport numpy as np
+import nibabel as nib 
 import os, glob, random as rnd
 from .lazytck import LazyTCK
 from .streamline import length as streamline_length
 from .streamline import sampling
+from .space_trans import space_tovox 
 from . import ui
 from tqdm import trange
 from libc.math cimport sqrt
@@ -326,25 +328,89 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
 
 
 
-#def sample(input_tractogram: str, input_image: str, output_values: str, measure: str):
-    #try:
+def sample(input_tractogram: str, input_image: str, output_file: str, space: str = None , option : str="No_opt", force : bool=False):
+    """dicelib.tractogram.sample 
+    Sample underlying values of a tractogram along its points from the corresponding image:
+    (ATTENTION: this method does not use interpolation during sampling)
 
-        # open the input file
-        #TCK_in = LazyTCK( input_tractogram, mode='r' )
+    Parameters:
+
+    -----------
+
+    input_tractogram : string 
+        Path to the file (.tck) containing the streamlines to process.
+    input image : string 
+        Path to the image where the method has to sample values.
+    output_file : string 
+        Path to the file (.txt in needed) where the method saves values
+    space : string (default rasmm)
+        space reference of streamline coordinates
+    option : string ( default None)
+        apply some operation on values 
+
+    ------------
+
+    Return:
+
+    Txt file with values of input tractogram in the referred input image. 
+
+
+    """
+    
+    TCK_in  = None
+
+    # check input and output 
+    if not os.path.isfile(input_tractogram):
+        ui.ERROR( f'File "{input_tractogram}" not found' )
+    if not os.path.isfile(input_image):
+        ui.ERROR( f'File "{input_image}" not found' )
+    if os.path.isfile(output_file) and not force:
+        ui.ERROR( 'Output file {} already exists, use -f to overwrite'.format(output_file) )
+    if option not in ["min","max","median","No_opt","mean"]:
+        ui.ERROR( 'The selected option {} is not present!'.format(option))
+    
+    try:
+
+        #open the input file
+        TCK_in = LazyTCK( input_tractogram, mode='r' )
 
         #open the image
-        #Img = nib.load(input_image)
-
-        #n_streamlines = int( TCK_in.header['count'] )
-        #ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
-
-        #pixdim = int( Img.header['pixdim'] )
-        #ui.INFO( f'{pixdim[0:3]} Image resolution' )
+        Img = nib.load(input_image)
+        Img_data = Img.get_fdata()
         
-        #streamline = TCK_in.streamline 
+
+        n_streamlines = int( TCK_in.header['count'] )
+        ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+
+        pixdim = Img.header['pixdim'] [1:4] 
+        ui.INFO( 'Image resolution : {}'.format(pixdim) )
+        ui.INFO("**Applying --> vox transformation**")
+        with open(output_file,'w') as file:
+            file.write("# dicelib.tractogram.sample option={} {} {} {}**\n".format(option,input_tractogram,input_image,output_file))
+            print(space)
+            for i in range(n_streamlines):
+                TCK_in.read_streamline()
+                if TCK_in.n_pts == 0:
+                    break
+                
+                if space != "vox":
+                    #calling space tranformation to retrieve new coordinates 
+                    trans_streamline = space_tovox(TCK_in.streamline,Img.header,space)
+
+                #calling sampling method to sample underlyng value
+                sample_streamline = sampling(trans_streamline,Img_data,TCK_in.n_pts,option)
+                np.savetxt(file,sample_streamline, newline= " ", fmt= "%3.3f")
+                if option == "No_opt":
+                    file.write("\n")
+                
+    finally:
+        if TCK_in is not None:
+            TCK_in.close()
+            ui.INFO( 'Closing files' )
+        file.close()
         
-        #sample strealine values along the image 
-        #sampling(streamline,TCK_in.n_pts,Img)
+
+
 
 
         

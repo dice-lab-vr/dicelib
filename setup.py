@@ -31,10 +31,17 @@ def get_extensions():
         sources=['dicelib/lazytck.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
+        language="c++",
+    )
+    space_trans = Extension(
+        name='space_trans',
+        sources=['dicelib/space_trans.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
         language="c++"
     )
 
-    return [ image, streamline, tractogram, lazytck ]
+    return [ image, streamline, tractogram, lazytck, space_trans]
 
 
 class CustomBuildExtCommand(build_ext):
