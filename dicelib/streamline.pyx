@@ -4,7 +4,7 @@ import cython
 import numpy as np
 cimport numpy as np
 cimport cython 
-from libc.math cimport sqrt
+from libc.math cimport sqrt , round , floor 
 
 
 cpdef length( float [:,:] streamline, int n=0 ):
@@ -53,12 +53,12 @@ cpdef sampling(double [:,::1] streamline_view, img, int npoints,option = None):
     if not img.flags['C_CONTIGUOUS']: # check img is c contiguous 
         img = np.ascontiguousarray(img)
     
-    cdef double [:,:,::1] img_view = img 
+    cdef double [:,:,::1] img_view = img #def cython memoryview , c_contiguous 
     value = np.empty([npoints,], dtype= float) 
     opt_value = np.empty([1,], dtype= float)
     cdef size_t ii 
     for ii in range(npoints):      
-        value[ii] = img_view[<int>streamline_view[ii,0],<int>streamline_view[ii,1],<int>streamline_view[ii,2]] #cast int values 
+        value[ii] = img_view[<int>round(streamline_view[ii,0]),<int>round(streamline_view[ii,1]),<int>round(streamline_view[ii,2])] #cast int values 
          
         
     if option == "mean":

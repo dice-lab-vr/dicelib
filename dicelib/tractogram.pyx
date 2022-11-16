@@ -394,7 +394,7 @@ def sample(input_tractogram: str, input_image: str, output_file: str, space: str
                     break
                 
                 if space != "vox":
-                    #calling space tranformation to retrieve new coordinates 
+                    #calling space tranformation to retrieve new coordinates in vox space 
                     trans_streamline = space_tovox(TCK_in.streamline,Img.header,space)
 
                 #calling sampling method to sample underlyng value
