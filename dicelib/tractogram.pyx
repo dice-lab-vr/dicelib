@@ -18,7 +18,7 @@ cdef extern from "streamline.hpp":
     ) nogil
 
 
-def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: int=2, force: bool=False ):
+def compute_lenghts( input_tractogram: str, verbose: int=2 ):
     """Compute the lenghts of the streamlines in a tractogram.
 
     Parameters
@@ -26,14 +26,13 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: in
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
 
-    output_scalar_file : string
-        Path to the file (.txt or .npy) where to store the computed streamline lenghts.
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
 
-    force : boolean
-        Force overwriting of the output (default : False).
+    Returns
+    -------
+    lengths : array of double
+        Lengths of all streamlines in the tractogram [in mm]
     """
     if type(verbose) != int or verbose not in [0,1,2,3,4]:
         ui.ERROR( '"verbose" must be in [0...4]' )
@@ -41,15 +40,10 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: in
 
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
-    output_scalar_file_ext = os.path.splitext(output_scalar_file)[1]
-    if output_scalar_file_ext not in ['.txt', '.npy']:
-        ui.ERROR( 'Invalid extension for the output scalar file' )
-    if os.path.isfile(output_scalar_file) and not force:
-        ui.ERROR( 'Output scalar file already exists, use -f to overwrite' )
-
 
     #----- iterate over input streamlines -----
     TCK_in = None
+    lengths = None
     try:
         # open the input file
         TCK_in = LazyTCK( input_tractogram, mode='r' )
@@ -69,18 +63,13 @@ def compute_lenghts( input_tractogram: str, output_scalar_file: str, verbose: in
                     break # no more data, stop reading
 
                 lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
-        if output_scalar_file_ext=='.txt':
-            np.savetxt( output_scalar_file, lengths, fmt='%.4f' )
-        else:
-            np.save( output_scalar_file, lengths, allow_pickle=False )
 
         if verbose and n_streamlines>0:
             ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
 
+        return lengths
 
     except Exception as e:
-        if os.path.isfile( output_scalar_file ):
-            os.remove( output_scalar_file )
         ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:

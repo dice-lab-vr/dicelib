@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import os, numpy as np
+import dicelib.ui as ui
 from dicelib.ui import ColoredArgParser
 from dicelib.tractogram import compute_lenghts
 
@@ -11,10 +13,27 @@ parser.add_argument("--verbose", "-v", type=int, default=4, help="What informati
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 options = parser.parse_args()
 
-# call actual function
-compute_lenghts(
-    options.input_tractogram,
-    options.output_scalar_file,
-    options.verbose,
-    options.force
-)
+# check for errors
+output_scalar_file_ext = os.path.splitext(options.output_scalar_file)[1]
+if output_scalar_file_ext not in ['.txt', '.npy']:
+    ui.ERROR( 'Invalid extension for the output scalar file' )
+if os.path.isfile(options.output_scalar_file) and not options.force:
+    ui.ERROR( 'Output scalar file already exists, use -f to overwrite' )
+
+try:
+    # call the actual function
+    lengths = compute_lenghts(
+        options.input_tractogram,
+        options.verbose,
+    )
+    # save the lengths to file
+    if output_scalar_file_ext=='.txt':
+        np.savetxt( options.output_scalar_file, lengths, fmt='%.4f' )
+    else:
+        np.save( options.output_scalar_file, lengths, allow_pickle=False )
+
+except Exception as e:
+    if os.path.isfile( options.output_scalar_file ):
+        os.remove( options.output_scalar_file )
+    ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+
