@@ -18,7 +18,7 @@ cdef extern from "streamline.hpp":
     ) nogil
 
 
-def compute_lenghts( input_tractogram: str, verbose: int=2 ):
+def compute_lenghts( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
     """Compute the lenghts of the streamlines in a tractogram.
 
     Parameters
