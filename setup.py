@@ -64,7 +64,7 @@ setup(
     ext_modules=get_extensions(),
     packages=find_packages(),
     setup_requires=['Cython>=0.29', 'numpy>=1.12'],
-    install_requires=['wheel', 'setuptools>=46.1', 'numpy>=1.12', 'scipy>=1.0', 'cython>=0.29', 'dipy>=1.0', 'tqdm>=4.62', 'dmri-lazy-tractogram'],
+    install_requires=['wheel', 'setuptools>=46.1', 'numpy>=1.12', 'scipy>=1.0', 'cython>=0.29', 'dipy>=1.0', 'tqdm>=4.62', 'dmri-lazy-tractogram @ git+https://github.com/dice-lab-vr/lazytractogram.git@main'],
     scripts=glob('bin/*.py'),
     zip_safe=False
 )
