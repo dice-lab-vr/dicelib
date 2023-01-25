@@ -4,7 +4,7 @@ import cython
 import numpy as np
 cimport numpy as np
 import os, glob, random as rnd
-from .lazytck import LazyTCK
+from lazytractogram import LazyTractogram
 from .streamline import length as streamline_length
 from . import ui
 from tqdm import trange
@@ -46,7 +46,7 @@ def compute_lenghts( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
     lengths = None
     try:
         # open the input file
-        TCK_in = LazyTCK( input_tractogram, mode='r' )
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
 
         n_streamlines = int( TCK_in.header['count'] )
         if verbose:
@@ -108,7 +108,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
     TCK_in  = None
     try:
         # open the input file
-        TCK_in = LazyTCK( input_tractogram, mode='r' )
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
 
         # print the header
         ui.INFO( 'HEADER content')
@@ -244,7 +244,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     #----- iterate over input streamlines -----
     try:
         # open the input file
-        TCK_in = LazyTCK( input_tractogram, mode='r' )
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
 
         n_streamlines = int( TCK_in.header['count'] )
         ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
@@ -254,7 +254,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             ui.ERROR( f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) ' )
 
         # open the outut file
-        TCK_out = LazyTCK( output_tractogram, mode='w', header=TCK_in.header )
+        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         kept = np.ones( n_streamlines, dtype=bool )
         for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
@@ -391,7 +391,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
     n_written         = 0
     try:
         # open the tractogram
-        TCK_in = LazyTCK( input_tractogram, mode='r' )
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
         ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
 
@@ -424,7 +424,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 key = f'{unique_assignments[i,1]}-{unique_assignments[i,0]}'
             TCK_outs[key] = None
             TCK_outs_size[key] = 0
-            tmp = LazyTCK( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
+            tmp = LazyTractogram( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
             tmp.close( write_eof=False, count=0 )
             if weights_in is not None:
                 WEIGHTS_out_idx[key] = i+1
@@ -433,7 +433,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         key = 'unassigned'
         TCK_outs[key] = None
         TCK_outs_size[key] = 0
-        tmp = LazyTCK( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
+        tmp = LazyTractogram( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
         tmp.close( write_eof=False, count=0 )
         if weights_in is not None:
             WEIGHTS_out_idx[key] = 0
@@ -464,7 +464,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 else:
                     n_file_open += 1
 
-                TCK_outs[key] = LazyTCK( fname, mode='a' )
+                TCK_outs[key] = LazyTractogram( fname, mode='a' )
 
             # write input streamline to correct output file
             TCK_outs[key].write_streamline( TCK_in.streamline, TCK_in.n_pts )
@@ -509,7 +509,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             if TCK_outs[key] is not None:
                 TCK_outs[key].close( write_eof=False )
             # Update 'count' and write EOF marker
-            tmp = LazyTCK( f, mode='a' )
+            tmp = LazyTractogram( f, mode='a' )
             tmp.close( write_eof=True, count=TCK_outs_size[key] )
 
 
@@ -558,10 +558,10 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         output_tractogram = basename+'_smooth'+extension
 
     try:
-        TCK_in = LazyTCK( input_tractogram, mode='r' )
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
 
-        TCK_out = LazyTCK( output_tractogram, mode='w', header=TCK_in.header )
+        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         if verbose :
             ui.INFO( 'Input tractogram :' )
