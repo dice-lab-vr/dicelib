@@ -3,25 +3,27 @@ from setuptools.command.build_ext import build_ext
 from glob import glob
 from numpy import get_include
 
+# name of the package
+package_name = 'dicelib'
 
 def get_extensions():
     image = Extension(
         name='image',
-        sources=['dicelib/image.pyx'],
+        sources=[f'{package_name}/image.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
     streamline = Extension(
         name='streamline',
-        sources=['dicelib/streamline.pyx'],
+        sources=[f'{package_name}/streamline.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
     tractogram = Extension(
         name='tractogram',
-        sources=['dicelib/tractogram.pyx'],
+        sources=[f'{package_name}/tractogram.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
@@ -47,9 +49,9 @@ class CustomBuildExtCommand(build_ext):
         build_ext.finalize_options(self)
         build_ext.run(self)
 
-# import details from dicelib/info.py
+# import details from {package_name}/info.py
 import sys
-sys.path.insert(0, './dicelib/')
+sys.path.insert(0, f'./{package_name}/')
 import info
 
 setup(
@@ -60,7 +62,7 @@ setup(
     author=info.AUTHOR,
     author_email=info.AUTHOR_EMAIL,
     cmdclass={'build_ext': CustomBuildExtCommand},
-    ext_package='dicelib',
+    ext_package=package_name,
     ext_modules=get_extensions(),
     packages=find_packages(),
     setup_requires=['Cython>=0.29', 'numpy>=1.12'],
