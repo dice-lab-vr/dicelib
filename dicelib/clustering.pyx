@@ -9,7 +9,7 @@ import numpy as np
 cimport numpy as np
 import nibabel as nib
 from libc.math cimport sqrt
-from dipy.tracking.streamline import set_number_of_points
+# from dipy.tracking.streamline import set_number_of_points
 import time
 from tqdm import tqdm
 from . import ui
@@ -20,7 +20,8 @@ def get_streamlines_close_to_centroids( clusters, streamlines, n_pts ):
 
     As first step, the streamlines of the input tractogram are resampled to n_pts points.
     """
-    sample_streamlines = set_number_of_points(streamlines, n_pts)
+    cdef float[:,:] resampled_fib = np.zeros((n_pts,3), dtype=np.float32)
+    sample_streamlines = set_number_of_points(streamlines, n_pts, resampled_fib)
 
     centroids_out = []
     for cluster in clusters:
@@ -42,6 +43,44 @@ def get_streamlines_close_to_centroids( clusters, streamlines, n_pts ):
         centroids_out.append( streamlines[minDis_idx] )
 
     return centroids_out
+
+cdef float[:] tot_lenght(float[:,:] fib_in) :
+    cdef float[:] length = np.zeros(fib_in.shape[0], dtype=np.float32)
+    cdef size_t i = 0
+
+    for i in xrange(fib_in.shape[0]-1):
+        length[i] = sqrt( (fib_in[i+1][0]-fib_in[i][0])**2 + (fib_in[i+1][1]-fib_in[i][1])**2 + (fib_in[i+1][2]-fib_in[i][2])**2 )
+    return length
+
+cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] resampled_fib) :
+    cdef float[:] start = fib_in[0]
+    cdef float[:] end = fib_in[fib_in.shape[0]]
+    cdef float [:] vers = np.zeros(3, dtype=np.float32)
+    resampled_fib[0] = start
+    resampled_fib[nb_pts] = end
+    cdef size_t i, j = 0
+    cdef float sum_step = 0
+    cdef float[:] lenghts = tot_lenght(fib_in)
+    cdef float step_size = 0.0
+    cdef float sum_len = 0 
+    for i in xrange(lenghts.shape[0]):
+        sum_len += lenghts[i]
+    step_size = sum_len/nb_pts
+ 
+
+    for i in xrange(1, lenghts.shape[0]-1):
+        sum_step += lenghts[i]
+        if sum_step>step_size:
+            vers[0] = fib_in[i][0] - fib_in[i-1][0]
+            vers[1] = fib_in[i][1] - fib_in[i-1][1]
+            vers[2] = fib_in[i][2] - fib_in[i-1][2]
+            resampled_fib[j][0] = fib_in[i][0] + step_size * vers[0]
+            resampled_fib[j][1] = fib_in[i][1] + step_size * vers[1]
+            resampled_fib[j][2] = fib_in[i][2] + step_size * vers[2]
+            j += 1
+            sum_step = 0
+
+    return resampled_fib
 
 
 cdef (int, int) compute_dist(float[:,:] fib_in, float[:,:,:] target, int thr) nogil:
@@ -93,29 +132,34 @@ cdef (int, int) compute_dist(float[:,:] fib_in, float[:,:,:] target, int thr) no
     return (num_c, flipped)#, -1, flipped)
 
 
-cpdef cluster(filename_in, filename_out=None, filename_reference=None, thresholds=10, n_pts=10, replace_centroids=False,
-             force=False, verbose=2):
-    # TODO: DOCUMENTATION
+cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold=10, n_pts=10, replace_centroids=False,
+             force=False, verbose=False):
+    """ Cluster streamlines in a tractogram.
+    TODO: DOCUMENTATION
+    """
 
     ui.set_verbose( 2 if verbose else 1 )
     if not os.path.isfile(filename_in):
         ui.ERROR( f'File "{filename_in}" not found' )
     if os.path.isfile(filename_out) and not force:
         ui.ERROR("Output tractogram already exists, use -f to overwrite")
-    if not os.path.isfile(filename_reference):
-        ui.ERROR( f'File "{filename_reference}" not found' )
-    ui.INFO( f'Input tractogram: "{filename_in}"' )
+    
+    if filename_reference:
+        if not os.path.isfile(filename_reference):
+            ui.ERROR( f'File "{filename_reference}" not found' )
+        ui.INFO( f'Input tractogram: "{filename_in}"' )
 
-    if np.isscalar( thresholds ) :
-        thresholds = [ thresholds ]
+    if np.isscalar( threshold ) :
+        threshold = threshold
 
     tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
     n_streamlines = int(tractogram_gen.header["count"])
     ui.INFO( f'  - {n_streamlines} streamlines found' )
 
     cdef int nb_pts = n_pts
+    cdef float[:,::] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
-    cdef float [:,::] s0 = np.array(set_number_of_points(next(tractogram_gen.streamlines), nb_pts), dtype=np.float32)
+    cdef float [:,::] s0 = np.array(set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib), dtype=np.float32)
     cdef float [:,::] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
     cdef int[:] c_w = np.ones(n_streamlines, dtype=np.int32)
@@ -123,7 +167,7 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
     cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
     cdef size_t  i, j = 0
-    cdef int thr = thresholds
+    cdef int thr = threshold
     cdef int t = 0
     cdef int new_c = 1
     cdef int flipped = 0
@@ -135,7 +179,7 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
 
     for i, s in enumerate(tractogram_gen.streamlines):
         # print(f"i:{i}, # clusters:{new_c}", end="\r")
-        streamline_in = set_number_of_points(s, nb_pts)
+        streamline_in = set_number_of_points(s, nb_pts, resampled_fib)
         t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr)
         clust_idx[i]= t
         weight_centr = c_w[t]
@@ -162,7 +206,8 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
 
         set_centroids[t] = new_centroid
 
-    ui.INFO(f"time required: {np.round((time.time()-t1)/60, 3)} minutes")
-    ui.INFO(f"number of clusters {len(np.unique(clust_idx))}")
+    print(f"time required: {np.round((time.time()-t1)/60, 3)} minutes")
+    print(f"total_number of streamlines: {len(clust_idx)}")
+    print(f"number of clusters {len(np.unique(clust_idx))}")
 
     return clust_idx
