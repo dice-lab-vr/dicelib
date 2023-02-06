@@ -24,7 +24,6 @@ cluster(
     options.thresholds,
     n_pts=options.n_pts,
     replace_centroids=options.replace_centroids,
-    random=options.random,
     verbose=options.verbose,
     force=options.force
 )

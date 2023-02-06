@@ -4,6 +4,7 @@
 """Functions to perform clustering of tractograms"""
 
 import cython
+import os
 import numpy as np
 cimport numpy as np
 import nibabel as nib
@@ -92,7 +93,8 @@ cdef (int, int) compute_dist(float[:,:] fib_in, float[:,:,:] target, int thr) no
     return (num_c, flipped)#, -1, flipped)
 
 
-cpdef cluster(filename_in, filename_out=None, filename_reference=None, thresholds = 10, force=False, verbose=2):
+cpdef cluster(filename_in, filename_out=None, filename_reference=None, thresholds=10, n_pts=10, replace_centroids=False,
+             force=False, verbose=2):
     # TODO: DOCUMENTATION
 
     ui.set_verbose( 2 if verbose else 1 )
@@ -111,9 +113,9 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     n_streamlines = int(tractogram_gen.header["count"])
     ui.INFO( f'  - {n_streamlines} streamlines found' )
 
-    cdef int nb_pts = 10
+    cdef int nb_pts = n_pts
     cdef float[:,:,::] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
-    cdef float [:,::] s0 = np.array(set_number_of_points(next(CST.streamlines), nb_pts), dtype=np.float32)
+    cdef float [:,::] s0 = np.array(set_number_of_points(next(tractogram_gen.streamlines), nb_pts), dtype=np.float32)
     cdef float [:,::] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
     cdef int[:] c_w = np.ones(n_streamlines, dtype=np.int32)
@@ -131,7 +133,7 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     clust_idx = np.zeros(n_streamlines, dtype=np.int32)
     t1 = time.time()
 
-    for i, s in enumerate(CST.streamlines):
+    for i, s in enumerate(tractogram_gen.streamlines):
         # print(f"i:{i}, # clusters:{new_c}", end="\r")
         streamline_in = set_number_of_points(s, nb_pts)
         t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr)
