@@ -28,6 +28,14 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
+    clustering = Extension(
+        name='clustering',
+        sources=[f'{package_name}/clustering.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        extra_link_args=['-fopenmp'],
+        language='c++',
+    )
 
     return [ image, streamline, tractogram ]
 

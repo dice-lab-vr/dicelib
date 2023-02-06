@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import argparse, os
+import argparse, os, sys
 from dipy.io.streamline import save_tractogram, load_tractogram
 from dipy.io.stateful_tractogram import set_sft_logger_level
 set_sft_logger_level("CRITICAL")
