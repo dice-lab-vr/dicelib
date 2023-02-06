@@ -83,10 +83,12 @@ cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] r
     return resampled_fib
 
 
-cdef (int, int) compute_dist(float[:,:] fib_in, float[:,:,:] target, int thr) nogil:
+cdef (int, int) compute_dist(float[:,:] fib_in, float[:,:,:] target, int thr,
+                            float d1_x, float d1_y, float d1_z, float d2_x, float d2_y, float d2_z, float d3_x, float d3_y, floatd3_z,
+                            float dt, float dm1_d, float dm1_i, float dm2, float dm3, int num_c, int num_pt) nogil:
     """Compute the distance between a fiber and a set of centroids"""
-    cdef float d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z
-    cdef float dt, dm1_d, dm1_i, dm2, dm3
+    # cdef float d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z
+    # cdef float dt, dm1_d, dm1_i, dm2, dm3
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
     cdef float maxdist_pt_i = 0
@@ -95,8 +97,8 @@ cdef (int, int) compute_dist(float[:,:] fib_in, float[:,:,:] target, int thr) no
     cdef int fib_idx = 0
     cdef int idx_ret = 0
     cdef int flipped = 0
-    cdef int num_c = target.shape[0]
-    cdef int num_pt = target.shape[1]
+    # cdef int num_c = target.shape[0]
+    # cdef int num_pt = target.shape[1]
 
     for i in xrange(num_c):
         maxdist_pt_d = 0
@@ -173,6 +175,10 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     cdef int flipped = 0
     cdef int weight_centr = 0
 
+    cdef float d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z
+    cdef float dt, dm1_d, dm1_i, dm2, dm3
+
+
     set_centroids[0] = s0
     clust_idx = np.zeros(n_streamlines, dtype=np.int32)
     t1 = time.time()
@@ -180,7 +186,8 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     for i, s in enumerate(tractogram_gen.streamlines):
         # print(f"i:{i}, # clusters:{new_c}", end="\r")
         streamline_in = set_number_of_points(s, nb_pts, resampled_fib)
-        t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr)
+        t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z,
+                                  dt, dm1_d, dm1_i, dm2, dm3, set_centroids[:new_c].shape[0], nb_pts)
         clust_idx[i]= t
         weight_centr = c_w[t]
         if t < new_c:
