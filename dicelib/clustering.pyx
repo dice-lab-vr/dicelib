@@ -9,7 +9,7 @@ import numpy as np
 cimport numpy as np
 import nibabel as nib
 from libc.math cimport sqrt
-# from dipy.tracking.streamline import set_number_of_points
+from dipy.tracking.streamline import set_number_of_points as stp
 import time
 from tqdm import tqdm
 from . import ui
@@ -53,6 +53,16 @@ cdef float[:] tot_lenght(float[:,:] fib_in) :
         length[i] = length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 )
     return length
 
+cdef float[:] tot_lenght_test(float[:,:] fib_in) :
+    cdef float[:] length = np.zeros(fib_in.shape[0], dtype=np.float32)
+    cdef size_t i = 0
+
+    length[0] = 0.0
+    for i in xrange(1,fib_in.shape[0]):
+        length[i] = sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 )
+        print(length[i])
+    return length
+
 cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] resampled_fib) :
     cdef float[:] start = fib_in[0]
     cdef int nb_pts_in = fib_in.shape[0]
@@ -62,7 +72,7 @@ cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] r
     cdef size_t j = 0
     cdef float sum_step = 0
     cdef float[:] lenghts = tot_lenght(fib_in)
-    cdef float step_size = lenghts[nb_pts_in-1]/nb_pts
+    cdef float step_size = lenghts[nb_pts_in-1]/(nb_pts-1)
     cdef float sum_len = 0 
 
     # for i in xrange(1, lenghts.shape[0]-1):
@@ -174,7 +184,8 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     cdef int nb_pts = n_pts
     cdef float[:,::] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
-    cdef float [:,::] s0 = np.array(set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib), dtype=np.float32)
+    cdef float [:,::] s0 = set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
+    # s0 = np.array(stp(next(tractogram_gen.streamlines), nb_pts), dtype=np.float32)
     cdef float [:,::] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
     cdef int[:] c_w = np.ones(n_streamlines, dtype=np.int32)
@@ -198,7 +209,8 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
 
     for i, s in enumerate(tractogram_gen.streamlines):
         print(f"i:{i}, # clusters:{new_c}", end="\r")
-        streamline_in = set_number_of_points(s, nb_pts, resampled_fib)
+        # streamline_in = set_number_of_points(s, nb_pts, resampled_fib)
+        streamline_in = stp(s, nb_pts)
         t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z,
                                   dt, dm1_d, dm1_i, dm2, dm3, set_centroids[:new_c].shape[0], nb_pts)
         clust_idx[i]= t
