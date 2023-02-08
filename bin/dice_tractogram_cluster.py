@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from dicelib.ui import ColoredArgParser
-from dicelib.clustering import cluster, run_cluster_parallel
+from dicelib.clustering import cluster#, run_cluster_parallel
 from geom_clustering import split_clusters
 import numpy as np
 
@@ -18,17 +18,7 @@ parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 options = parser.parse_args()
 
 # call actual function
-# cluster_idx = cluster(options.input_tractogram,
-#                     options.output_tractogram,
-#                     options.reference,
-#                     options.threshold,
-#                     n_pts=options.n_pts,
-#                     replace_centroids=options.replace_centroids,
-#                     force=options.force,
-#                     verbose=options.verbose
-# )
-
-cluster_idx = run_cluster_parallel(options.input_tractogram,
+cluster_idx = cluster(options.input_tractogram,
                     options.output_tractogram,
                     options.reference,
                     options.threshold,
@@ -38,7 +28,17 @@ cluster_idx = run_cluster_parallel(options.input_tractogram,
                     verbose=options.verbose
 )
 
-output_folder = "/home/matteo/Dataset/HCP_100307/Tractography/bundles"
+# cluster_idx = run_cluster_parallel(options.input_tractogram,
+#                     options.output_tractogram,
+#                     options.reference,
+#                     options.threshold,
+#                     n_pts=options.n_pts,
+#                     replace_centroids=options.replace_centroids,
+#                     force=options.force,
+#                     verbose=options.verbose
+# )
+
+output_folder = "/media/full/DATA/PhD_Data/Real_Data/103818_baseline/bundles"
 
 split_clusters(options.input_tractogram, np.array(cluster_idx), output_folder)
 # import numpy as np
