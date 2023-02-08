@@ -12,6 +12,7 @@ from libc.math cimport sqrt
 from dipy.tracking.streamline import set_number_of_points as stp
 import time
 from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor as tdp
 from . import ui
 
 
@@ -162,7 +163,7 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     """ Cluster streamlines in a tractogram.
     TODO: DOCUMENTATION
     """
-
+    print(f"\n\nQB v2.0 clustering thr: {threshold}, pts: {n_pts}")
     ui.set_verbose( 2 if verbose else 1 )
     if not os.path.isfile(filename_in):
         ui.ERROR( f'File "{filename_in}" not found' )
@@ -209,8 +210,8 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
 
     for i, s in enumerate(tractogram_gen.streamlines):
         print(f"i:{i}, # clusters:{new_c}", end="\r")
-        # streamline_in = set_number_of_points(s, nb_pts, resampled_fib)
-        streamline_in = stp(s, nb_pts)
+        streamline_in = set_number_of_points(s, nb_pts, resampled_fib)
+        # streamline_in = stp(s, nb_pts)
         t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z,
                                   dt, dm1_d, dm1_i, dm2, dm3, set_centroids[:new_c].shape[0], nb_pts)
         clust_idx[i]= t
@@ -241,5 +242,116 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     print(f"time required: {np.round((time.time()-t1)/60, 3)} minutes")
     print(f"total_number of streamlines: {len(clust_idx)}")
     print(f"number of clusters {len(np.unique(clust_idx))}")
+
+    return clust_idx
+
+cpdef run_cluster_parallel(filename_in, filename_out=None, filename_reference=None, threshold=10, n_pts=10, replace_centroids=False,
+             force=False, verbose=False):
+
+    print(f"\n\nQB v2.0 clustering thr: {threshold}, pts: {n_pts}")
+    ui.set_verbose( 2 if verbose else 1 )
+    if not os.path.isfile(filename_in):
+        ui.ERROR( f'File "{filename_in}" not found' )
+    if os.path.isfile(filename_out) and not force:
+        ui.ERROR("Output tractogram already exists, use -f to overwrite")
+    
+    if filename_reference:
+        if not os.path.isfile(filename_reference):
+            ui.ERROR( f'File "{filename_reference}" not found' )
+        ui.INFO( f'Input tractogram: "{filename_in}"' )
+
+    if np.isscalar( threshold ) :
+        threshold = threshold
+
+    tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
+    n_streamlines = int(tractogram_gen.header["count"])
+    ui.INFO( f'  - {n_streamlines} streamlines found' )
+
+    cdef int nb_pts = n_pts
+    cdef float[:,::] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
+    cdef float[:,:,::] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
+    cdef float [:,::] s0 = set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
+    cdef float [:,::] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
+
+    set_centroids[0] = s0
+    # print(n_streamlines.shape)
+
+    clust_idx = np.zeros(n_streamlines, dtype=np.int32)
+    cdef size_t  i, j = 0
+    cdef int thr = threshold
+    cdef int t = 0
+    cdef float[:,::] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
+    cdef int[:] c_w = np.ones(n_streamlines, dtype=np.int32)
+    cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
+    cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
+    cdef int new_c = 1
+    cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
+    count_centr = 0
+    clust_idx[0] = 1
+    cdef int flipped = 0
+    cdef int N_THREAD = 1
+    cdef int MAX_THREAD = 2
+    chunks = [(0,1)]
+    cdef int weight_centr = 0
+    t1 = time.time()
+    executor = tdp(max_workers=MAX_THREAD)
+    
+
+    if MAX_THREAD>0:
+        print("\n\n RUNNING QB v2.0 multi thread")
+
+    for i, s in enumerate(tractogram_gen.streamlines):
+        print(f"i:{i}, # clusters:{new_c}", end="\r")
+        streamline_in = set_number_of_points(s, nb_pts, resampled_fib)
+
+        future = [executor.submit(compute_dist, streamline_in, set_centroids[i_c:c], thr) for i_c,c in chunks]
+        res_paral = [f.result() for f in future]
+        valid_idx = [r for r in res_paral if len(r)>1]
+
+        if len(valid_idx)>0:
+            i_t = np.argmin([k[1] for k in valid_idx])
+            t = valid_idx[i_t][0]
+            flipped = valid_idx[i_t][2]
+        else:
+            t = new_c
+        clust_idx[i]= t
+        weight_centr = c_w[t]
+        if t < new_c:
+
+            for p in xrange(nb_pts):
+                pt_centr = set_centroids[t][p]
+                
+                if flipped:
+                    pt_stream_in = streamline_in[nb_pts-p-1]
+                    # print((t, flipped))
+                    new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
+                    new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
+                    new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
+                else:
+                    pt_stream_in = streamline_in[p]
+                    new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
+                    new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
+                    new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
+                new_centroid[p] = new_p_centr
+                c_w[t] += 1
+
+        else:
+            new_centroid = streamline_in
+            new_c += 1
+            if N_THREAD < MAX_THREAD:
+                N_THREAD += 1
+            c = new_c // N_THREAD
+            chunks = []
+            for i_d, j_d in zip(range(0, new_c-1, c), range(c, new_c+1, c)):
+                chunks.append((i_d, j_d))
+            if chunks[len(chunks)-1][1] != new_c:
+                chunks[len(chunks)-1] = (chunks[len(chunks)-1][0], new_c)
+
+        set_centroids[t] = new_centroid
+
+
+    print(f"time required: {np.round((time.time()-t1)/60, 3)} minutes")
+    print(f"number of clusters {len(np.unique(clust_idx))}")
+    
 
     return clust_idx
