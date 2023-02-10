@@ -34,12 +34,13 @@ cluster_idx = cluster(options.input_tractogram,
                     verbose=options.verbose
 )
 
-output_folder = "/media/full/DATA/PhD_Data/Real_Data/103818_baseline/bundles"
+output_folder = "/home/matteo/Dataset/HCP_100307/Tractography/bundles"
 
 split_clusters(options.input_tractogram, np.array(cluster_idx), output_folder)
 
-# output_folder_quickbund = "/media/full/DATA/PhD_Data/Real_Data/103818_baseline/quick_bundles"
-# ref = "/media/full/DATA/PhD_Data/Real_Data/103818_baseline/T1_wm_mask.nii.gz" 
+# print("Clustering with Quickbundle")
+# output_folder_quickbund = "/home/matteo/Dataset/HCP_100307/Tractography/bundles_quickbund"
+# ref = "/home/matteo/Dataset/HCP_100307/wm.nii.gz" 
 # tractogram = options.input_tractogram
 
 # t1 = time.time()
@@ -59,17 +60,4 @@ split_clusters(options.input_tractogram, np.array(cluster_idx), output_folder)
 #     for v in clusters[i].indices:
 #         clust_ass[v] = i
 
-# split_clusters(tractogram, clust_ass, output_folder_quickbund) 
-
-# cluster_idx = run_cluster_parallel(options.input_tractogram,
-#                     options.output_tractogram,
-#                     options.reference,
-#                     options.threshold,
-#                     n_pts=options.n_pts,
-#                     replace_centroids=options.replace_centroids,
-#                     force=options.force,
-#                     verbose=options.verbose
-# )
-
-# import numpy as np
-# np.savetxt("/home/matteo/Dataset/HCP_100307/Tractography/cluster_by_colot.txt", np.array(cluster_idx))
+# split_clusters(tractogram, clust_ass, output_folder_quickbund)

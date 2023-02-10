@@ -45,40 +45,39 @@ def get_streamlines_close_to_centroids( clusters, streamlines, n_pts ):
 
     return centroids_out
 
-cdef float[:] tot_lenght(float[:,:] fib_in) :
-    cdef float[:] length = np.zeros(fib_in.shape[0], dtype=np.float32)
+# cdef float[:] tot_lenght(float[:,:] fib_in) :
+#     cdef float[:] length = np.zeros(fib_in.shape[0], dtype=np.float32)
+#     cdef size_t i = 0
+
+#     length[0] = 0.0
+#     for i in xrange(1,fib_in.shape[0]):
+#         length[i] = length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 )
+#     return length
+
+cdef float[:] tot_lenght(float* ptr, int n) :
+    cdef float[:] length_l = np.zeros(n, dtype=np.float32)
     cdef size_t i = 0
-
-    length[0] = 0.0
-    for i in xrange(1,fib_in.shape[0]):
-        length[i] = length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 )
-    return length
-
-cdef float[:] tot_lenght_pointers(float[:,:] streamline) :
-    cdef int n = streamline.shape[0]
-    cdef float[:] length = np.zeros(n, dtype=np.float32)
-    cdef size_t i = 0
-
-    cdef float* ptr     = &streamline[0,0]
+    
+    # length[0] = 0.0
     cdef float* ptr_end = ptr+n*3-3
-    length[i] = 0.0
-    i+=1
+    length_l[0] = 0.0
+    i += 1
     while ptr<ptr_end:
-        length[i] += length[i-1]+ sqrt( (ptr[3]-ptr[0])**2 + (ptr[4]-ptr[1])**2 + (ptr[5]-ptr[2])**2 )
+        length_l[i] = length_l[i-1] + sqrt( (ptr[3]-ptr[0])**2 + (ptr[4]-ptr[1])**2 + (ptr[5]-ptr[2])**2 )
         ptr += 3
-        i += 1
-    return length
+        i+=1
+    return length_l
 
 
-cdef float[:] tot_lenght_test(float[:,:] fib_in) :
-    cdef float[:] length = np.zeros(fib_in.shape[0], dtype=np.float32)
-    cdef size_t i = 0
+# cdef float[:] tot_lenght_test(float[:,:] fib_in) :
+#     cdef float[:] length = np.zeros(fib_in.shape[0], dtype=np.float32)
+#     cdef size_t i = 0
 
-    length[0] = 0.0
-    for i in xrange(1,fib_in.shape[0]):
-        length[i] = sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 )
-        print(length[i])
-    return length
+#     length[0] = 0.0
+#     for i in xrange(1,fib_in.shape[0]):
+#         length[i] = sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 )
+#         print(length[i])
+#     return length
 
 
 cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] resampled_fib) :
@@ -89,7 +88,7 @@ cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] r
     cdef size_t i = 0
     cdef size_t j = 0
     cdef float sum_step = 0
-    cdef float[:] lenghts = tot_lenght(fib_in)
+    cdef float[:] lenghts = tot_lenght(&fib_in[0,0], fib_in.shape[0])
     cdef float step_size = lenghts[nb_pts_in-1]/(nb_pts-1)
     cdef float sum_len = 0
 
@@ -98,7 +97,7 @@ cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] r
     resampled_fib[0][1] = fib_in[0][1]
     resampled_fib[0][2] = fib_in[0][2]
     while sum_step < lenghts[nb_pts_in-1]:
-        print((resampled_fib[j][0],resampled_fib[j][1], resampled_fib[j][2]))
+        if i>10:break
         # if i>0:
             # print((fib_in[i-1][0], fib_in[i][0]))
             # print("")
@@ -126,64 +125,56 @@ cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] r
 
     return resampled_fib
 
-# cdef float[:,:] set_number_of_points_test(float* ptr_fib_in, int nb_pts, float* ptr_resampled_fib) :
-#     cdef float[:] start = fib_in[0]
-#     cdef int nb_pts_in = fib_in.shape[0]
-#     cdef float[:] end = fib_in[nb_pts_in-1]
-#     cdef float [:] vers = np.zeros(3, dtype=np.float32)
-#     cdef size_t i = 0
-#     # cdef size_t j = 0
-#     cdef float sum_step = 0
-#     cdef float[:] lenghts = tot_lenght(fib_in)
-#     cdef float step_size = lenghts[nb_pts_in-1]/(nb_pts-1)
-#     cdef float sum_len = 0
+cdef set_number_of_points_test(float[:,:]fib_in, int fib_in_shape, int nb_pts, float* ptr_resampled_fib) :
+    cdef float [:] vers = np.zeros(3, dtype=np.float32)
+    cdef size_t i = 0
+    cdef float* ptr_fib_in = &fib_in[0,0]
+    cdef float sum_step = 0
+    cdef float[:] lenghts = tot_lenght(ptr_fib_in, fib_in_shape)
+    cdef float step_size = lenghts[fib_in_shape-1]/(nb_pts-1)
+    cdef float sum_len = 0
+    cdef float* ptr_fib_in_prev = ptr_fib_in
 
-#     cdef float* ptr_fib_in_prev = &fib_in[0,0]
-#     cdef float* ptr_fib_in = &fib_in[0,0]
-#     # cdef float* ptr_fib_in_end = &ptr_fib_in[3*nb_pts-1-3]
-#     cdef float* ptr_resampled_fib = &resampled_fib[0,0]
-#     # cdef float* ptr_resampled_fib_end = &ptr_resampled_fib[3*nb_pts-3]
+    # print((ptr_fib_in_prev[0]))
+    # print((ptr_fib_in[0]))
+    # print(f"last point:{fib_in[nb_pts_in-1][0], fib_in[nb_pts_in-1][1], fib_in[nb_pts_in-1][2]}")
 
-#     # print((ptr_fib_in_prev[0]))
-#     # print((ptr_fib_in[0]))
-#     # print(f"last point:{fib_in[nb_pts_in-1][0], fib_in[nb_pts_in-1][1], fib_in[nb_pts_in-1][2]}")
+    # for i in xrange(1, lenghts.shape[0]-1):
+    ptr_resampled_fib[0] = ptr_fib_in[0]
+    ptr_resampled_fib[1] = ptr_fib_in[1]
+    ptr_resampled_fib[2] = ptr_fib_in[2]
 
-#     # for i in xrange(1, lenghts.shape[0]-1):
-#     ptr_resampled_fib[0] = ptr_fib_in[0]
-#     ptr_resampled_fib[1] = ptr_fib_in[1]
-#     ptr_resampled_fib[2] = ptr_fib_in[2]
-#     resampled_fib[nb_pts-1][0] = fib_in[nb_pts_in-1][0]
-#     resampled_fib[nb_pts-1][1] = fib_in[nb_pts_in-1][1]
-#     resampled_fib[nb_pts-1][2] = fib_in[nb_pts_in-1][2]
+    while sum_step < lenghts[nb_pts-1]:
+        # print((ptr_resampled_fib[0], ptr_resampled_fib[1],ptr_resampled_fib[2]))
+        # print("")
+        if sum_step == lenghts[i]:
+            ptr_resampled_fib[0] = ptr_fib_in[0] 
+            ptr_resampled_fib[1] = ptr_fib_in[1]
+            ptr_resampled_fib[2] = ptr_fib_in[2]
+            ptr_resampled_fib += 3
+            # j += 1
+            sum_step += step_size
+        elif sum_step < lenghts[i]:
+            ratio = 1 - ((lenghts[i]- sum_step)/(lenghts[i]-lenghts[i-1]))
+            vers[0] = ptr_fib_in[0] - ptr_fib_in_prev[0]
+            vers[1] = ptr_fib_in[1] - ptr_fib_in_prev[1]
+            vers[2] = ptr_fib_in[2] - ptr_fib_in_prev[2]
+            ptr_resampled_fib[0] = ptr_fib_in_prev[0] + ratio * vers[0]
+            ptr_resampled_fib[1] = ptr_fib_in_prev[1] + ratio * vers[1]
+            ptr_resampled_fib[2] = ptr_fib_in_prev[2] + ratio * vers[2]
+            ptr_resampled_fib += 3
+            # j += 1
+            sum_step += step_size
+        else:
+            ptr_fib_in_prev = ptr_fib_in
+            ptr_fib_in += 3
+            i+=1
+    ptr_resampled_fib += 3
+    ptr_fib_in += 3
+    ptr_resampled_fib[0] = ptr_fib_in[0]
+    ptr_resampled_fib[1] = ptr_fib_in[1]
+    ptr_resampled_fib[2] = ptr_fib_in[2]
 
-#     while sum_step < lenghts[nb_pts_in-1]:
-#         # print(sum_step)
-#         # print((ptr_resampled_fib[0], ptr_resampled_fib[1],ptr_resampled_fib[2]))
-#         # print("")
-#         if sum_step == lenghts[i]:
-#             ptr_resampled_fib[0] = ptr_fib_in[0] 
-#             ptr_resampled_fib[1] = ptr_fib_in[1]
-#             ptr_resampled_fib[2] = ptr_fib_in[2]
-#             ptr_resampled_fib += 3
-#             # j += 1
-#             sum_step += step_size
-#         elif sum_step < lenghts[i]:
-#             ratio = 1 - ((lenghts[i]- sum_step)/(lenghts[i]-lenghts[i-1]))
-#             vers[0] = ptr_fib_in[0] - ptr_fib_in_prev[0]
-#             vers[1] = ptr_fib_in[1] - ptr_fib_in_prev[1]
-#             vers[2] = ptr_fib_in[2] - ptr_fib_in_prev[2]
-#             ptr_resampled_fib[0] = ptr_fib_in_prev[0] + ratio * vers[0]
-#             ptr_resampled_fib[1] = ptr_fib_in_prev[1] + ratio * vers[1]
-#             ptr_resampled_fib[2] = ptr_fib_in_prev[2] + ratio * vers[2]
-#             ptr_resampled_fib += 3
-#             # j += 1
-#             sum_step += step_size
-#         else:
-#             ptr_fib_in_prev = ptr_fib_in
-#             ptr_fib_in += 3
-#             i+=1
-
-#     return resampled_fib
 
 
 cdef (int, int) compute_dist(float* fib_in, float* target, int new_c, int thr,
@@ -213,17 +204,17 @@ cdef (int, int) compute_dist(float* fib_in, float* target, int new_c, int thr,
         d1_y = pow(target[1] - fib_in[1],2)
         d1_z = pow(target[2] - fib_in[2],2)
 
-        maxdist_pt_d_test_1 = d1_x + d1_y + d1_z
+        maxdist_pt_d = d1_x + d1_y + d1_z
 
         d1_x = pow(target[0] - fib_in[i_c],2)
         d1_y = pow(target[1] - fib_in[i_c+1],2)
         d1_z = pow(target[2] - fib_in[i_c+2],2)
 
-        maxdist_pt_d_test_2 = d1_x + d1_y + d1_z
+        maxdist_pt_i = d1_x + d1_y + d1_z
 
-        if maxdist_pt_d_test_1 < maxdist_pt_d_test_2:
+        if maxdist_pt_d < maxdist_pt_i:
             flipped = 0
-            maxdist_pt_d = 0
+            # maxdist_pt_d = 0
 
             for j in xrange(1,num_pt):
                 target += 3
@@ -231,7 +222,8 @@ cdef (int, int) compute_dist(float* fib_in, float* target, int new_c, int thr,
                 d1_x = pow(target[0] - fib_in[0],2)
                 d1_y = pow(target[1] - fib_in[1],2)
                 d1_z = pow(target[2] - fib_in[2],2)
-                maxdist_pt_d += d1_x + d1_y + d1_z
+
+                maxdist_pt_d +=  d1_x + d1_y + d1_z 
             
             fib_in = start
 
@@ -240,7 +232,7 @@ cdef (int, int) compute_dist(float* fib_in, float* target, int new_c, int thr,
                 idx_ret = i
         else:
             flipped = 1
-            maxdist_pt_i = 0
+            # maxdist_pt_i = 0
             for j in xrange(1,num_pt):
                 i_c -= 3
                 target += 3
@@ -289,18 +281,20 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     ui.INFO( f'  - {n_streamlines} streamlines found' )
 
     cdef int nb_pts = n_pts
-    cdef float[:,::] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
-    cdef float[:,:,::] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
-    # cdef float [:,::] s0 = set_number_of_points_test(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
-    cdef float [:,::] s0 = np.array(stp(next(tractogram_gen.streamlines), nb_pts), dtype=np.float32)
+    cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
+    cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
+    s0 = next(tractogram_gen.streamlines)
+    set_number_of_points_test(s0, s0.shape[0], nb_pts, &resampled_fib[0,0])
+
+    # cdef float [:,::] s0 = np.array(stp(next(tractogram_gen.streamlines), nb_pts), dtype=np.float32)
     # for ii in range(s0.shape[0]):
     #         print(f"{s0[ii][0]},{s0[ii][1]},{s0[ii][2]}")
     # s0 = np.array(stp(next(tractogram_gen.streamlines), nb_pts), dtype=np.float32)
     # for ii in range(s0.shape[0]):
     #     print(f"\n{s0[ii][0]},{s0[ii][1]},{s0[ii][2]}")
     # return
-    cdef float [:,::] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
-    cdef float[:,::] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
+    cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
+    cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
     cdef int[:] c_w = np.ones(n_streamlines, dtype=np.int32)
     cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
@@ -318,15 +312,15 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     cdef float* ptr_fib_in
 
 
-    set_centroids[0] = s0
+    set_centroids[0] = resampled_fib
     clust_idx = np.zeros(n_streamlines, dtype=np.int32)
     t1 = time.time()
 
     for i, s in enumerate(tractogram_gen.streamlines):
         print(f"i:{i}, # clusters:{new_c}", end="\r")
-        # streamline_in = set_number_of_points_test(&s[0,0], nb_pts, &resampled_fib[0,0])
+        streamline_in = set_number_of_points_test(s, s.shape[0], nb_pts, &resampled_fib[0,0])
 
-        streamline_in = stp(s, nb_pts)
+        # streamline_in = stp(s, nb_pts)
 
         t, flipped = compute_dist(&streamline_in[0,0], &set_centroids[0,0,0], new_c, thr, d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z,
                                   dt, dm1_d, dm1_i, dm2, dm3, set_centroids[:new_c].shape[0], nb_pts)
