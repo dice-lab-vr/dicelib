@@ -80,6 +80,16 @@ cdef float[:] tot_lenght_test(float[:,:] fib_in) :
         print(length[i])
     return length
 
+cdef float[:,::1] extract_ending_pts(float[:,::1] fib_in, float[:,::1] resampled_fib) :
+    cdef int nb_pts_in = fib_in.shape[0]
+    resampled_fib[0][0] = fib_in[0][0]
+    resampled_fib[0][1] = fib_in[0][1]
+    resampled_fib[0][2] = fib_in[0][2]
+    resampled_fib[1][0] = fib_in[nb_pts_in-1][0]
+    resampled_fib[1][1] = fib_in[nb_pts_in-1][1]
+    resampled_fib[1][2] = fib_in[nb_pts_in-1][2]
+
+    return resampled_fib
 
 cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] resampled_fib) :
     cdef float[:] start = fib_in[0]
@@ -98,7 +108,6 @@ cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] r
     resampled_fib[0][1] = fib_in[0][1]
     resampled_fib[0][2] = fib_in[0][2]
     while sum_step < lenghts[nb_pts_in-1]:
-        print((resampled_fib[j][0],resampled_fib[j][1], resampled_fib[j][2]))
         # if i>0:
             # print((fib_in[i-1][0], fib_in[i][0]))
             # print("")
@@ -186,7 +195,7 @@ cdef float[:,:] set_number_of_points_test(float[:,:] fib_in, int nb_pts, float[:
     return resampled_fib
 
 
-cdef (int, int) compute_dist(float[:,:] fib_in, float[:,:,:] target, int thr,
+cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, int thr,
                             float d1_x, float d1_y, float d1_z, float d2_x, float d2_y, float d2_z, float d3_x, float d3_y, floatd3_z,
                             int num_c, int num_pt) nogil:
     """Compute the distance between a fiber and a set of centroids"""
@@ -222,17 +231,17 @@ cdef (int, int) compute_dist(float[:,:] fib_in, float[:,:,:] target, int thr,
             maxdist_pt_i += sqrt(d1_x + d1_y + d1_z)
 
         if maxdist_pt_d < maxdist_pt_i:
-            maxdist_pt = maxdist_pt_d
+            maxdist_pt = maxdist_pt_d/num_pt
             flipped = 0
         else:
-            maxdist_pt = maxdist_pt_i
+            maxdist_pt = maxdist_pt_i/num_pt
             flipped = 1
         
         if maxdist_pt < maxdist_fib:
             maxdist_fib = maxdist_pt
             idx_ret = i
-
-    if maxdist_fib/num_pt < thr:
+    
+    if maxdist_fib < thr:
         return (idx_ret, flipped)
 
     return (num_c, flipped)
@@ -263,17 +272,25 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     ui.INFO( f'  - {n_streamlines} streamlines found' )
 
     cdef int nb_pts = n_pts
-    cdef float[:,::] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
-    cdef float[:,:,::] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
-    cdef float [:,::] s0 = set_number_of_points_test(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
-    # cdef float [:,::] s0 = np.array(stp(next(tractogram_gen.streamlines), nb_pts), dtype=np.float32)
-    cdef float [:,::] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
-    cdef float[:,::] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
+    cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
+    cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
+    # cdef float [:,::] s0
+    # if n_pts==2:
+    #     s0 = extract_ending_pts(next(tractogram_gen.streamlines), resampled_fib)
+    # else:
+    #     s0 = set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
+    cdef float [:,::1] s0 = extract_ending_pts(next(tractogram_gen.streamlines), resampled_fib)
+    # cdef float [:,::1] s0 = stp(next(tractogram_gen.streamlines), nb_pts)
+    cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
+    cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
+    cdef float[:,::1] streamline_in_stp = np.zeros((nb_pts, 3), dtype=np.float32)
     cdef int[:] c_w = np.ones(n_streamlines, dtype=np.int32)
     cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
     cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
-    cdef size_t  i, j = 0
+    cdef size_t  i = 0
+    cdef size_t  j = 0
+    cdef size_t  p = 0
     cdef int thr = threshold
     cdef int t = 0
     cdef int new_c = 1
@@ -290,19 +307,17 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
 
     for i, s in enumerate(tractogram_gen.streamlines):
         print(f"i:{i}, # clusters:{new_c}", end="\r")
-        # if i==2:return
-        streamline_in = set_number_of_points_test(s, nb_pts, resampled_fib)
-        # for ii in range(streamline_in.shape[0]):
-        #     print(f"{streamline_in[ii][0]},{streamline_in[ii][1]},{streamline_in[ii][2]}")
-        # streamline_in = stp(s, nb_pts)
+        # if i==5:return
+        streamline_in[:] = extract_ending_pts(s, resampled_fib)
+
         t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z,
                                 new_c, nb_pts)
+
         clust_idx[i]= t
         weight_centr = c_w[t]
         if t < new_c:
             for p in xrange(nb_pts):
                 pt_centr = set_centroids[t][p]
-                
                 if flipped:
                     pt_stream_in = streamline_in[nb_pts-p-1]
                     new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
@@ -317,10 +332,12 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
                 c_w[t] += 1
 
         else:
-            new_centroid = streamline_in
+            new_centroid = streamline_in.copy()
             new_c += 1
 
         set_centroids[t] = new_centroid
+        # for ii in range(new_centroid.shape[0]):
+        #     print(f"{new_centroid[ii][0]},{new_centroid[ii][1]},{new_centroid[ii][2]}")
 
     print(f"time required: {np.round((time.time()-t1)/60, 3)} minutes")
     print(f"total_number of streamlines: {len(clust_idx)}")
