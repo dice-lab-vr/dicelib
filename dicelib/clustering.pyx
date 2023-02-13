@@ -296,7 +296,7 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
         #     print(f"{streamline_in[ii][0]},{streamline_in[ii][1]},{streamline_in[ii][2]}")
         # streamline_in = stp(s, nb_pts)
         t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z,
-                                  dt, dm1_d, dm1_i, dm2, dm3, set_centroids[:new_c].shape[0], nb_pts)
+                                new_c, nb_pts)
         clust_idx[i]= t
         weight_centr = c_w[t]
         if t < new_c:
