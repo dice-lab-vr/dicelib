@@ -188,7 +188,7 @@ cdef float[:,:] set_number_of_points_test(float[:,:] fib_in, int nb_pts, float[:
 
 cdef (int, int) compute_dist(float[:,:] fib_in, float[:,:,:] target, int thr,
                             float d1_x, float d1_y, float d1_z, float d2_x, float d2_y, float d2_z, float d3_x, float d3_y, floatd3_z,
-                            float dt, float dm1_d, float dm1_i, float dm2, float dm3, int num_c, int num_pt) nogil:
+                            int num_c, int num_pt) nogil:
     """Compute the distance between a fiber and a set of centroids"""
     # cdef float d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z
     # cdef float dt, dm1_d, dm1_i, dm2, dm3
