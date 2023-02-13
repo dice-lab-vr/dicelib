@@ -35,24 +35,6 @@ cluster_idx = cluster(options.input_tractogram,
                     verbose=options.verbose
 )
 
-t1 = time.time()
-sft_tractogram = load_tractogram(options.input_tractogram, options.reference, bbox_valid_check=False)
-feature = ResampleFeature(nb_points=options.n_pts)
-metric = AveragePointwiseEuclideanMetric(feature)
-streamlines = sft_tractogram.streamlines
-
-print(f"time required for loading: {np.round((time.time()-t1)/60, 3)} minutes")
-
-qb = QuickBundles(threshold=thr_t, metric=metric)
-clusters = qb.cluster(streamlines)
-print(f"time required Quickbundles: {np.round((time.time()-t1)/60, 3)} minutes")
-print(f"number of clusters Quickbundles {len(clusters)}")
-clust_ass = np.zeros(len(sft_tractogram.streamlines))
-# qb_clust_inds =[np.repeat(i, l) for i, l in enumerate(map(len, clusters))]
-for i in range(len(clusters)):
-    for v in clusters[i].indices:
-        clust_ass[v] = i
-
 # split_clusters(tractogram, clust_ass, output_folder_quickbund)
 
 # cluster_idx = run_cluster_parallel(options.input_tractogram,
