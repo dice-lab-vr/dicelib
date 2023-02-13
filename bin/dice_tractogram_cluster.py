@@ -4,6 +4,13 @@ from dicelib.ui import ColoredArgParser
 from dicelib.clustering import cluster#, run_cluster_parallel
 from geom_clustering import split_clusters
 import numpy as np
+import time
+from dipy.segment.clustering import QuickBundles
+from dipy.segment.metric import AveragePointwiseEuclideanMetric
+from dipy.segment.featurespeed import ResampleFeature
+from sklearn import metrics
+from dipy.io.streamline import load_tractogram, save_tractogram, Space
+from dipy.io.stateful_tractogram import StatefulTractogram as sft
 
 # parse the input parameters
 parser = ColoredArgParser( description=cluster.__doc__.split('\n')[0] )
@@ -28,6 +35,26 @@ cluster_idx = cluster(options.input_tractogram,
                     verbose=options.verbose
 )
 
+t1 = time.time()
+sft_tractogram = load_tractogram(options.input_tractogram, ref, bbox_valid_check=False)
+feature = ResampleFeature(nb_points=options.n_pts)
+metric = AveragePointwiseEuclideanMetric(feature)
+streamlines = sft_tractogram.streamlines
+
+print(f"time required for loading: {np.round((time.time()-t1)/60, 3)} minutes")
+
+qb = QuickBundles(threshold=thr_t, metric=metric)
+clusters = qb.cluster(streamlines)
+print(f"time required Quickbundles: {np.round((time.time()-t1)/60, 3)} minutes")
+print(f"number of clusters Quickbundles {len(clusters)}")
+clust_ass = np.zeros(len(sft_tractogram.streamlines))
+# qb_clust_inds =[np.repeat(i, l) for i, l in enumerate(map(len, clusters))]
+for i in range(len(clusters)):
+    for v in clusters[i].indices:
+        clust_ass[v] = i
+
+# split_clusters(tractogram, clust_ass, output_folder_quickbund)
+
 # cluster_idx = run_cluster_parallel(options.input_tractogram,
 #                     options.output_tractogram,
 #                     options.reference,
@@ -40,6 +67,6 @@ cluster_idx = cluster(options.input_tractogram,
 
 output_folder = "/media/full/DATA/PhD_Data/Real_Data/103818_baseline/bundles"
 
-split_clusters(options.input_tractogram, np.array(cluster_idx), output_folder)
+# split_clusters(options.input_tractogram, np.array(cluster_idx), output_folder)
 # import numpy as np
 # np.savetxt("/home/matteo/Dataset/HCP_100307/Tractography/cluster_by_colot.txt", np.array(cluster_idx))
