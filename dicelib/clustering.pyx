@@ -274,12 +274,12 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     cdef int nb_pts = n_pts
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
-    # cdef float [:,::] s0
-    # if n_pts==2:
-    #     s0 = extract_ending_pts(next(tractogram_gen.streamlines), resampled_fib)
-    # else:
-    #     s0 = set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
-    cdef float [:,::1] s0 = extract_ending_pts(next(tractogram_gen.streamlines), resampled_fib)
+    cdef float [:,::] s0
+    if n_pts==2:
+        s0 = extract_ending_pts(next(tractogram_gen.streamlines), resampled_fib)
+    else:
+        s0 = set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
+    # cdef float [:,::1] s0 = extract_ending_pts(next(tractogram_gen.streamlines), resampled_fib)
     # cdef float [:,::1] s0 = stp(next(tractogram_gen.streamlines), nb_pts)
     cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
@@ -308,7 +308,8 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     for i, s in enumerate(tractogram_gen.streamlines):
         print(f"i:{i}, # clusters:{new_c}", end="\r")
         # if i==5:return
-        streamline_in[:] = extract_ending_pts(s, resampled_fib)
+        # streamline_in[:] = extract_ending_pts(s, resampled_fib)
+        streamline_in[:] = set_number_of_points(s, nb_pts, resampled_fib)
 
         t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z,
                                 new_c, nb_pts)
