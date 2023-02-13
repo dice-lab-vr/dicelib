@@ -36,7 +36,7 @@ cluster_idx = cluster(options.input_tractogram,
 )
 
 t1 = time.time()
-sft_tractogram = load_tractogram(options.input_tractogram, ref, bbox_valid_check=False)
+sft_tractogram = load_tractogram(options.input_tractogram, options.reference, bbox_valid_check=False)
 feature = ResampleFeature(nb_points=options.n_pts)
 metric = AveragePointwiseEuclideanMetric(feature)
 streamlines = sft_tractogram.streamlines
