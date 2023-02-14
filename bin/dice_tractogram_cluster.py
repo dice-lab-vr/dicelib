@@ -47,8 +47,8 @@ cluster_idx = cluster(options.input_tractogram,
 #                     verbose=options.verbose
 # )
 
-output_folder = "/media/full/DATA/PhD_Data/Real_Data/103818_baseline/bundles"
+output_folder = "/home/matteo/Dataset/ISBI2013_FINAL_version/test_clustering/bundles"
 
-# split_clusters(options.input_tractogram, np.array(cluster_idx), output_folder)
+split_clusters(options.input_tractogram, np.array(cluster_idx), output_folder)
 # import numpy as np
 # np.savetxt("/home/matteo/Dataset/HCP_100307/Tractography/cluster_by_colot.txt", np.array(cluster_idx))

@@ -209,6 +209,7 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, int thr
     cdef int  j = 0
     cdef int fib_idx = 0
     cdef int idx_ret = 0
+    cdef int flipped_temp = 0
     cdef int flipped = 0
     # cdef int num_c = target.shape[0]
     # cdef int num_pt = target.shape[1]
@@ -218,29 +219,30 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, int thr
         maxdist_pt_i = 0
 
         for j in xrange(num_pt):
+
             d1_x = (target[i][j][0] - fib_in[j][0])**2
             d1_y = (target[i][j][1] - fib_in[j][1])**2
             d1_z = (target[i][j][2] - fib_in[j][2])**2
 
             maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
 
+
             d1_x = (target[i][j][0] - fib_in[num_pt-j-1][0])**2
             d1_y = (target[i][j][1] - fib_in[num_pt-j-1][1])**2
             d1_z = (target[i][j][2] - fib_in[num_pt-j-1][2])**2
             
             maxdist_pt_i += sqrt(d1_x + d1_y + d1_z)
-
         if maxdist_pt_d < maxdist_pt_i:
             maxdist_pt = maxdist_pt_d/num_pt
-            flipped = 0
+            flipped_temp = 0
         else:
             maxdist_pt = maxdist_pt_i/num_pt
-            flipped = 1
+            flipped_temp = 1
         
         if maxdist_pt < maxdist_fib:
             maxdist_fib = maxdist_pt
+            flipped = flipped_temp
             idx_ret = i
-    
     if maxdist_fib < thr:
         return (idx_ret, flipped)
 
@@ -307,7 +309,6 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
 
     for i, s in enumerate(tractogram_gen.streamlines):
         print(f"i:{i}, # clusters:{new_c}", end="\r")
-        # if i==5:return
         # streamline_in[:] = extract_ending_pts(s, resampled_fib)
         streamline_in[:] = set_number_of_points(s, nb_pts, resampled_fib)
 
@@ -317,28 +318,28 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
         clust_idx[i]= t
         weight_centr = c_w[t]
         if t < new_c:
-            for p in xrange(nb_pts):
-                pt_centr = set_centroids[t][p]
-                if flipped:
+            if flipped:
+                for p in xrange(nb_pts):
+                    pt_centr = set_centroids[t][p]
                     pt_stream_in = streamline_in[nb_pts-p-1]
                     new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
                     new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
                     new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
-                else:
+                    new_centroid[p] = new_p_centr
+            else:
+                for p in xrange(nb_pts):
+                    pt_centr = set_centroids[t][p]
                     pt_stream_in = streamline_in[p]
                     new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
                     new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
                     new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
-                new_centroid[p] = new_p_centr
-                c_w[t] += 1
+                    new_centroid[p] = new_p_centr
+            c_w[t] += 1
 
         else:
             new_centroid = streamline_in.copy()
             new_c += 1
-
         set_centroids[t] = new_centroid
-        # for ii in range(new_centroid.shape[0]):
-        #     print(f"{new_centroid[ii][0]},{new_centroid[ii][1]},{new_centroid[ii][2]}")
 
     print(f"time required: {np.round((time.time()-t1)/60, 3)} minutes")
     print(f"total_number of streamlines: {len(clust_idx)}")
