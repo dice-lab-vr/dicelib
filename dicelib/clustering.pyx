@@ -309,8 +309,8 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
 
     for i, s in enumerate(tractogram_gen.streamlines):
         print(f"i:{i}, # clusters:{new_c}", end="\r")
-        # streamline_in[:] = extract_ending_pts(s, resampled_fib)
-        streamline_in[:] = set_number_of_points(s, nb_pts, resampled_fib)
+        streamline_in[:] = extract_ending_pts(s, resampled_fib)
+        # streamline_in[:] = set_number_of_points(s, nb_pts, resampled_fib)
 
         t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z,
                                 new_c, nb_pts)
