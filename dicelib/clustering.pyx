@@ -9,7 +9,7 @@ import numpy as np
 cimport numpy as np
 import nibabel as nib
 from libc.math cimport sqrt
-from dipy.tracking.streamline import set_number_of_points as stp
+from geom_clustering import split_clusters
 import time
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor as tdp
@@ -54,31 +54,6 @@ cdef float[:] tot_lenght(float[:,:] fib_in) :
         length[i] = length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 )
     return length
 
-cdef float[:] tot_lenght_pointers(float[:,:] streamline) :
-    cdef int n = streamline.shape[0]
-    cdef float[:] length = np.zeros(n, dtype=np.float32)
-    cdef size_t i = 0
-
-    cdef float* ptr     = &streamline[0,0]
-    cdef float* ptr_end = ptr+n*3-3
-    length[i] = 0.0
-    i+=1
-    while ptr<ptr_end:
-        length[i] += length[i-1]+ sqrt( (ptr[3]-ptr[0])**2 + (ptr[4]-ptr[1])**2 + (ptr[5]-ptr[2])**2 )
-        ptr += 3
-        i += 1
-    return length
-
-
-cdef float[:] tot_lenght_test(float[:,:] fib_in) :
-    cdef float[:] length = np.zeros(fib_in.shape[0], dtype=np.float32)
-    cdef size_t i = 0
-
-    length[0] = 0.0
-    for i in xrange(1,fib_in.shape[0]):
-        length[i] = sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 )
-        print(length[i])
-    return length
 
 cdef float[:,::1] extract_ending_pts(float[:,::1] fib_in, float[:,::1] resampled_fib) :
     cdef int nb_pts_in = fib_in.shape[0]
@@ -135,72 +110,11 @@ cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] r
 
     return resampled_fib
 
-cdef float[:,:] set_number_of_points_test(float[:,:] fib_in, int nb_pts, float[:,:] resampled_fib) :
-    cdef float[:] start = fib_in[0]
-    cdef int nb_pts_in = fib_in.shape[0]
-    cdef float[:] end = fib_in[nb_pts_in-1]
-    cdef float [:] vers = np.zeros(3, dtype=np.float32)
-    cdef size_t i = 0
-    # cdef size_t j = 0
-    cdef float sum_step = 0
-    cdef float[:] lenghts = tot_lenght(fib_in)
-    cdef float step_size = lenghts[nb_pts_in-1]/(nb_pts-1)
-    cdef float sum_len = 0
-
-    cdef float* ptr_fib_in_prev = &fib_in[0,0]
-    cdef float* ptr_fib_in = &fib_in[0,0]
-    # cdef float* ptr_fib_in_end = &ptr_fib_in[3*nb_pts-1-3]
-    cdef float* ptr_resampled_fib = &resampled_fib[0,0]
-    # cdef float* ptr_resampled_fib_end = &ptr_resampled_fib[3*nb_pts-3]
-
-    # print((ptr_fib_in_prev[0]))
-    # print((ptr_fib_in[0]))
-    # print(f"last point:{fib_in[nb_pts_in-1][0], fib_in[nb_pts_in-1][1], fib_in[nb_pts_in-1][2]}")
-
-    # for i in xrange(1, lenghts.shape[0]-1):
-    ptr_resampled_fib[0] = ptr_fib_in[0]
-    ptr_resampled_fib[1] = ptr_fib_in[1]
-    ptr_resampled_fib[2] = ptr_fib_in[2]
-    resampled_fib[nb_pts-1][0] = fib_in[nb_pts_in-1][0]
-    resampled_fib[nb_pts-1][1] = fib_in[nb_pts_in-1][1]
-    resampled_fib[nb_pts-1][2] = fib_in[nb_pts_in-1][2]
-
-    while sum_step < lenghts[nb_pts_in-1]:
-        # print(sum_step)
-        # print((ptr_resampled_fib[0], ptr_resampled_fib[1],ptr_resampled_fib[2]))
-        # print("")
-        if sum_step == lenghts[i]:
-            ptr_resampled_fib[0] = ptr_fib_in[0] 
-            ptr_resampled_fib[1] = ptr_fib_in[1]
-            ptr_resampled_fib[2] = ptr_fib_in[2]
-            ptr_resampled_fib += 3
-            # j += 1
-            sum_step += step_size
-        elif sum_step < lenghts[i]:
-            ratio = 1 - ((lenghts[i]- sum_step)/(lenghts[i]-lenghts[i-1]))
-            vers[0] = ptr_fib_in[0] - ptr_fib_in_prev[0]
-            vers[1] = ptr_fib_in[1] - ptr_fib_in_prev[1]
-            vers[2] = ptr_fib_in[2] - ptr_fib_in_prev[2]
-            ptr_resampled_fib[0] = ptr_fib_in_prev[0] + ratio * vers[0]
-            ptr_resampled_fib[1] = ptr_fib_in_prev[1] + ratio * vers[1]
-            ptr_resampled_fib[2] = ptr_fib_in_prev[2] + ratio * vers[2]
-            ptr_resampled_fib += 3
-            # j += 1
-            sum_step += step_size
-        else:
-            ptr_fib_in_prev = ptr_fib_in
-            ptr_fib_in += 3
-            i+=1
-
-    return resampled_fib
-
 
 cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, int thr,
                             float d1_x, float d1_y, float d1_z, float d2_x, float d2_y, float d2_z, float d3_x, float d3_y, floatd3_z,
                             int num_c, int num_pt) nogil:
     """Compute the distance between a fiber and a set of centroids"""
-    # cdef float d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z
-    # cdef float dt, dm1_d, dm1_i, dm2, dm3
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
     cdef float maxdist_pt_i = 0
@@ -211,8 +125,6 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, int thr
     cdef int idx_ret = 0
     cdef int flipped_temp = 0
     cdef int flipped = 0
-    # cdef int num_c = target.shape[0]
-    # cdef int num_pt = target.shape[1]
 
     for i in xrange(num_c):
         maxdist_pt_d = 0
@@ -249,22 +161,16 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, int thr
     return (num_c, flipped)
 
 
-cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold=10, n_pts=10, replace_centroids=False,
-             force=False, verbose=False):
-    """ Cluster streamlines in a tractogram.
+cpdef cluster(filename_in, threshold=10, n_pts=10, save_assignments=None, split=False,
+              output_folder=None, force=False, verbose=False):
+    """ Cluster streamlines in a tractogram based on average euclidean distance.
     TODO: DOCUMENTATION
     """
     print(f"\n\nQB v2.0 clustering thr: {threshold}, pts: {n_pts}")
     ui.set_verbose( 2 if verbose else 1 )
     if not os.path.isfile(filename_in):
         ui.ERROR( f'File "{filename_in}" not found' )
-    if os.path.isfile(filename_out) and not force:
-        ui.ERROR("Output tractogram already exists, use -f to overwrite")
-    
-    if filename_reference:
-        if not os.path.isfile(filename_reference):
-            ui.ERROR( f'File "{filename_reference}" not found' )
-        ui.INFO( f'Input tractogram: "{filename_in}"' )
+
 
     if np.isscalar( threshold ) :
         threshold = threshold
@@ -281,8 +187,6 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
         s0 = extract_ending_pts(next(tractogram_gen.streamlines), resampled_fib)
     else:
         s0 = set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
-    # cdef float [:,::1] s0 = extract_ending_pts(next(tractogram_gen.streamlines), resampled_fib)
-    # cdef float [:,::1] s0 = stp(next(tractogram_gen.streamlines), nb_pts)
     cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
     cdef float[:,::1] streamline_in_stp = np.zeros((nb_pts, 3), dtype=np.float32)
@@ -344,7 +248,10 @@ cpdef cluster(filename_in, filename_out=None, filename_reference=None, threshold
     print(f"time required: {np.round((time.time()-t1)/60, 3)} minutes")
     print(f"total_number of streamlines: {len(clust_idx)}")
     print(f"number of clusters {len(np.unique(clust_idx))}")
-
+    if split:
+        split_clusters(filename_in, clust_idx, output_folder)
+    if save_assignments:
+        np.savetxt(save_assignments, clust_idx)
     return clust_idx
 
 # cpdef run_cluster_parallel(filename_in, filename_out=None, filename_reference=None, threshold=10, n_pts=10, replace_centroids=False,
