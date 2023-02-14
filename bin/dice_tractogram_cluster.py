@@ -19,7 +19,7 @@ options = parser.parse_args()
 
 # call actual function
 cluster_idx = cluster(options.input_tractogram,
-                    options.threshold,
+                    threshold=options.threshold,
                     n_pts=options.n_pts,
                     save_assignments=options.save_assignments,
                     split=options.split,
