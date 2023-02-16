@@ -35,7 +35,6 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-
     return [ lazytractogram, image, streamline, tractogram ]
 
 
@@ -50,7 +49,7 @@ class CustomBuildExtCommand(build_ext):
         # Add everything requires for build
         self.swig_opts = None
         self.include_dirs = [get_include()]
-        self.distribution.ext_modules[:] = cythonize(self.distribution.ext_modules)
+        self.distribution.ext_modules[:] = cythonize(self.distribution.ext_modules, build_dir='build')
         print( self.distribution.ext_modules )
 
         # Call original build_ext command
