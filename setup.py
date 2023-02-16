@@ -1,10 +1,12 @@
-from setuptools import setup, find_packages, Extension
+from setuptools import setup, find_packages, Extension, Command
 from setuptools.command.build_ext import build_ext
 from glob import glob
 from numpy import get_include
+import shutil
 
 # name of the package
 package_name = 'dicelib'
+
 
 def get_extensions():
     lazytractogram = Extension(
@@ -57,6 +59,17 @@ class CustomBuildExtCommand(build_ext):
         build_ext.run(self)
 
 
+class CleanCommand(Command):
+    """Custom clean command to tidy up the project root."""
+    user_options = []
+    def initialize_options(self):
+        pass
+    def finalize_options(self):
+        pass
+    def run(self):
+        shutil.rmtree('./build')
+
+
 # import details from {package_name}/info.py
 import sys
 sys.path.insert(0, f'./{package_name}/')
@@ -69,7 +82,10 @@ setup(
     long_description=info.LONG_DESCRIPTION,
     author=info.AUTHOR,
     author_email=info.AUTHOR_EMAIL,
-    cmdclass={'build_ext': CustomBuildExtCommand},
+    cmdclass={
+        'build_ext': CustomBuildExtCommand,
+        'clean': CleanCommand
+    },
     ext_package=package_name,
     ext_modules=get_extensions(),
     packages=find_packages(),
