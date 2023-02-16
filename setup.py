@@ -7,6 +7,13 @@ from numpy import get_include
 package_name = 'dicelib'
 
 def get_extensions():
+    lazytractogram = Extension(
+        name='lazytractogram',
+        sources=[f'{package_name}/lazytractogram.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
     image = Extension(
         name='image',
         sources=[f'{package_name}/image.pyx'],
@@ -29,7 +36,7 @@ def get_extensions():
         language='c++',
     )
 
-    return [ image, streamline, tractogram ]
+    return [ lazytractogram, image, streamline, tractogram ]
 
 
 class CustomBuildExtCommand(build_ext):
@@ -44,10 +51,12 @@ class CustomBuildExtCommand(build_ext):
         self.swig_opts = None
         self.include_dirs = [get_include()]
         self.distribution.ext_modules[:] = cythonize(self.distribution.ext_modules)
+        print( self.distribution.ext_modules )
 
         # Call original build_ext command
         build_ext.finalize_options(self)
         build_ext.run(self)
+
 
 # import details from {package_name}/info.py
 import sys
@@ -65,8 +74,8 @@ setup(
     ext_package=package_name,
     ext_modules=get_extensions(),
     packages=find_packages(),
-    setup_requires=['Cython>=0.29', 'numpy>=1.12'],
-    install_requires=['wheel', 'setuptools>=46.1', 'numpy>=1.12', 'scipy>=1.0', 'cython>=0.29', 'dipy>=1.0', 'tqdm>=4.62', 'dmri-lazy-tractogram @ git+https://github.com/dice-lab-vr/lazytractogram.git@main'],
+    setup_requires=['wheel', 'Cython>=0.29', 'numpy>=1.12'],
+    install_requires=['setuptools>=46.1', 'numpy>=1.12', 'scipy>=1.0', 'cython>=0.29', 'tqdm>=4.62', 'dipy>=1.0'],
     scripts=glob('bin/*.py'),
     zip_safe=False
 )
