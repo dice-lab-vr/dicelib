@@ -8,7 +8,9 @@ import os
 import numpy as np
 cimport numpy as np
 import nibabel as nib
+from lazytractogram cimport LazyTractogram
 from libc.math cimport sqrt
+from libc.stdlib cimport malloc, free
 from geom_clustering import split_clusters
 import time
 from tqdm import tqdm
@@ -45,14 +47,12 @@ def get_streamlines_close_to_centroids( clusters, streamlines, n_pts ):
 
     return centroids_out
 
-cdef float[:] tot_lenght(float[:,:] fib_in) :
-    cdef float[:] length = np.zeros(fib_in.shape[0], dtype=np.float32)
+cdef void tot_lenght(float[:,:] fib_in, float* length) nogil:
     cdef size_t i = 0
 
     length[0] = 0.0
     for i in xrange(1,fib_in.shape[0]):
         length[i] = length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 )
-    return length
 
 
 cdef float[:,::1] extract_ending_pts(float[:,::1] fib_in, float[:,::1] resampled_fib) :
@@ -66,17 +66,19 @@ cdef float[:,::1] extract_ending_pts(float[:,::1] fib_in, float[:,::1] resampled
 
     return resampled_fib
 
-cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] resampled_fib) :
+cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] resampled_fib) nogil:
     cdef float[:] start = fib_in[0]
     cdef int nb_pts_in = fib_in.shape[0]
     cdef float[:] end = fib_in[nb_pts_in-1]
-    cdef float [:] vers = np.zeros(3, dtype=np.float32)
+    cdef float* vers = <float*>malloc(3*sizeof(float))
+    cdef float* lenghts = <float*>malloc(fib_in.shape[0]*sizeof(float))
     cdef size_t i = 0
     cdef size_t j = 0
     cdef float sum_step = 0
-    cdef float[:] lenghts = tot_lenght(fib_in)
+    tot_lenght(fib_in, lenghts)
     cdef float step_size = lenghts[nb_pts_in-1]/(nb_pts-1)
     cdef float sum_len = 0
+    cdef float ratio = 0
 
     # for i in xrange(1, lenghts.shape[0]-1):
     resampled_fib[0][0] = fib_in[0][0]
@@ -108,12 +110,12 @@ cdef float[:,:] set_number_of_points(float[:,:] fib_in, int nb_pts, float[:,:] r
     resampled_fib[nb_pts-1][1] = fib_in[nb_pts_in-1][1]
     resampled_fib[nb_pts-1][2] = fib_in[nb_pts_in-1][2]
 
+    free(vers)
     return resampled_fib
 
 
 cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float thr,
-                            float d1_x, float d1_y, float d1_z, float d2_x, float d2_y, float d2_z, float d3_x, float d3_y, floatd3_z,
-                            int num_c, int num_pt) nogil:
+                            float d1_x, float d1_y, float d1_z, int num_c, int num_pt) nogil:
     """Compute the distance between a fiber and a set of centroids"""
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
@@ -175,19 +177,23 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
 
     if np.isscalar( threshold ) :
         threshold = threshold
+    
+    cdef LazyTractogram TCK_in = LazyTractogram( filename_in, mode='r' )
+    
 
-    tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
-    n_streamlines = int(tractogram_gen.header["count"])
+    # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
+    n_streamlines = int( TCK_in.header['count'] )
     ui.INFO( f'  - {n_streamlines} streamlines found' )
 
     cdef int nb_pts = n_pts
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
     cdef float [:,::] s0
+    TCK_in.read_streamline()
     if n_pts==2:
-        s0 = extract_ending_pts(next(tractogram_gen.streamlines), resampled_fib)
+        s0 = extract_ending_pts(TCK_in.streamline, resampled_fib)
     else:
-        s0 = set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
+        s0 = set_number_of_points(TCK_in.streamline, nb_pts, resampled_fib)
     cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
     cdef float[:,::1] streamline_in_stp = np.zeros((nb_pts, 3), dtype=np.float32)
@@ -212,43 +218,46 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     clust_idx = np.zeros(n_streamlines, dtype=np.int32)
     t1 = time.time()
 
-    for i, s in enumerate(tractogram_gen.streamlines):
-        print(f"i:{i}, # clusters:{new_c}", end="\r")
-        streamline_in[:] = extract_ending_pts(s, resampled_fib)
-        # streamline_in[:] = set_number_of_points(s, nb_pts, resampled_fib)
+    # for i, s in enumerate(tractogram_gen.streamlines):
+    with nogil:
+        for i in xrange(n_streamlines):
+            s = TCK_in.read_streamline()
+            print(f"i:{i}, # clusters:{new_c}", end="\r")
+            streamline_in[:] = extract_ending_pts(s, resampled_fib)
+            # streamline_in[:] = set_number_of_points(s, nb_pts, resampled_fib)
 
-        t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, d2_x, d2_y, d2_z, d3_x, d3_y, d3_z,
-                                new_c, nb_pts)
+            t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
 
-        clust_idx[i]= t
-        weight_centr = c_w[t]
-        if t < new_c:
-            if flipped:
-                for p in xrange(nb_pts):
-                    pt_centr = set_centroids[t][p]
-                    pt_stream_in = streamline_in[nb_pts-p-1]
-                    new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
-                    new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
-                    new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
-                    new_centroid[p] = new_p_centr
+            clust_idx[i]= t
+            weight_centr = c_w[t]
+            if t < new_c:
+                if flipped:
+                    for p in xrange(nb_pts):
+                        pt_centr = set_centroids[t][p]
+                        pt_stream_in = streamline_in[nb_pts-p-1]
+                        new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
+                        new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
+                        new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
+                        new_centroid[p] = new_p_centr
+                else:
+                    for p in xrange(nb_pts):
+                        pt_centr = set_centroids[t][p]
+                        pt_stream_in = streamline_in[p]
+                        new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
+                        new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
+                        new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
+                        new_centroid[p] = new_p_centr
+                c_w[t] += 1
+
             else:
-                for p in xrange(nb_pts):
-                    pt_centr = set_centroids[t][p]
-                    pt_stream_in = streamline_in[p]
-                    new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
-                    new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
-                    new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
-                    new_centroid[p] = new_p_centr
-            c_w[t] += 1
-
-        else:
-            new_centroid = streamline_in.copy()
-            new_c += 1
-        set_centroids[t] = new_centroid
+                new_centroid = streamline_in.copy()
+                new_c += 1
+            set_centroids[t] = new_centroid
 
     ui.INFO(f"time required: {np.round((time.time()-t1)/60, 3)} minutes")
     ui.INFO(f"total_number of streamlines: {len(clust_idx)}")
     ui.INFO(f"number of clusters {len(np.unique(clust_idx))}")
+    TCK_in.close()
     if split:
         split_clusters(filename_in, clust_idx, output_folder)
     if save_assignments:
