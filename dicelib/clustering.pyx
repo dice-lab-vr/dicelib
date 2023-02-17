@@ -181,10 +181,10 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     if np.isscalar( threshold ) :
         threshold = threshold
     
-    cdef LazyTractogram TCK_in = LazyTractogram( filename_in, mode='r' )
+    cdef LazyTractogram TCK_in = LazyTractogram( filename_in, mode='r', max_points=1000 )
     
 
-    tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
+    # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
     cdef int n_streamlines = int( TCK_in.header['count'] )
     ui.INFO( f'  - {n_streamlines} streamlines found' )
 
@@ -192,14 +192,13 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
     cdef float [:,::1] s0 = np.empty( (1000, 3), dtype=np.float32 )
-    cdef float [:,::1] s = np.empty( (1000, 3), dtype=np.float32 )
     TCK_in._read_streamline() 
     s0 = set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, resampled_fib)
     # s0 = set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
 
     cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
-    cdef float[:,::1] streamline_in_stp = np.zeros((nb_pts, 3), dtype=np.float32)
+    cdef float[:,::1] streamline_in_gen = np.zeros((nb_pts, 3), dtype=np.float32)
     cdef int[:] c_w = np.ones(n_streamlines, dtype=np.int32)
     cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
@@ -222,25 +221,20 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     set_centroids[0] = s0
     cdef int [:] clust_idx = np.zeros(n_streamlines, dtype=np.int32)
     t1 = time.time()
-    # with gil:
-    if True:
+    if TCK_in is not None:
+        TCK_in.close()
+    TCK_in = LazyTractogram( filename_in, mode='r' )
+    
+    with nogil:
         for i in xrange(n_streamlines):
-        # for i, s in enumerate(tractogram_gen.streamlines):
-        # for i in xrange(100):
             TCK_in._read_streamline()
-            for s_i in xrange(TCK_in.n_pts):
-                s[s_i] = TCK_in.streamline[s_i]
-            # s = TCK_in.streamline[:TCK_in.n_pts]
-            # with gil: print(TCK_in.n_pts)
-            # print(f"i:{i}, # clusters:{new_c}", end="\r")
-            # streamline_in[:] = extract_ending_pts(s, resampled_fib)
-            streamline_in[:] = set_number_of_points(s[:TCK_in.n_pts], nb_pts, resampled_fib)
+            streamline_in[:] = set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, resampled_fib)
 
             t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
 
             clust_idx[i]= t
-            # with gil: print(f"cluster: {t}")
             weight_centr = c_w[t]
+
             if t < new_c:
                 if flipped:
                     for p in xrange(nb_pts):
