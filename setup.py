@@ -37,7 +37,21 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-    return [ lazytractogram, image, streamline, tractogram ]
+    clustering = Extension(
+        name='clustering',
+        sources=[f'{package_name}/clustering.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+    split_cluster = Extension(
+        name='split_cluster',
+        sources=[f'{package_name}/split_cluster.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+    return [ lazytractogram, image, streamline, tractogram, clustering, split_cluster ]
 
 
 class CustomBuildExtCommand(build_ext):

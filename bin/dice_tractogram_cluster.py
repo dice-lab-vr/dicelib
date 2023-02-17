@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from dicelib.ui import ColoredArgParser
-from dicelib.clustering import cluster
+from dicelib.clustering import cluster, split_clusters
 import numpy as np
 import time
+from concurrent.futures import ThreadPoolExecutor as tdp
+import concurrent.futures as cf
+import os
 
 # parse the input parameters
 parser = ColoredArgParser( description=cluster.__doc__.split('\n')[0] )
@@ -17,7 +20,7 @@ parser.add_argument("--force", "-f", action="store_true", help="Force overwritin
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 options = parser.parse_args()
 
-# call actual function
+t0 = time.time()
 cluster_idx = cluster(options.input_tractogram,
                     threshold=options.threshold,
                     n_pts=options.n_pts,
@@ -27,3 +30,45 @@ cluster_idx = cluster(options.input_tractogram,
                     force=options.force,
                     verbose=options.verbose
 )
+
+t1 = time.time()
+print("Time endin points splitting: ", (t1-t0))
+num_clust = len(np.unique(cluster_idx))
+print(num_clust)
+
+if options.split:
+    split_clusters(options.input_tractogram, cluster_idx, options.output_folder)
+# if options.save_assignments:
+#     np.savetxt(options.save_assignments, cluster_idx)
+
+MAX_THREAD = 6
+executor = tdp(max_workers=MAX_THREAD)
+bundles = []
+res_parallel = []
+for dirpath,_,filenames in os.walk(options.output_folder):
+    for f in filenames:
+        bundles.append( os.path.abspath(os.path.join(dirpath, f)))
+
+options.threshold = 2
+options.n_pts = 10
+
+t0 = time.time()
+future = [executor.submit(cluster, bundles[i], 
+                        threshold=options.threshold,
+                        n_pts=options.n_pts,
+                        save_assignments=options.save_assignments,
+                        # split=options.split,
+                        output_folder=options.output_folder,
+                        force=options.force,
+                        verbose=options.verbose) for i in range(len(bundles))]
+
+# for f in future:
+for i, f in enumerate(cf.as_completed(future)):
+    print(f"Done: {i}/{cluster_idx.shape}", end="\r")
+    res_parallel.append(f.result())
+t1 = time.time()
+print()
+print("Time taken for parallel: ", (t1-t0)/60)
+# call actual function
+
+
