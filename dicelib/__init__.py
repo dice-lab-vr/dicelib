@@ -1,1 +1,2 @@
-from dicelib.info import __version__
+from .info import __version__
+from .lazytractogram import LazyTractogram

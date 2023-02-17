@@ -1,6 +1,11 @@
 # Change Log
 All notable changes will be documented in this file.
 
+## [1.3.0] - 2023-02-16
+
+### Changed
+- lazytck renamed lazytractogram
+
 ## [1.2.1] - 2022-05-02
 
 ### Added
