@@ -40,6 +40,20 @@ def get_extensions():
     clustering = Extension(
         name='clustering',
         sources=[f'{package_name}/clustering.pyx'],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+    connectivity = Extension(
+        name='connectivity',
+        sources=['dicelib/connectivity.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+
+    lazytck = Extension(
+        name='lazytck',
+        sources=['dicelib/lazytck.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
@@ -51,7 +65,7 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-    return [ lazytractogram, image, streamline, tractogram, clustering, split_cluster ]
+    return [ lazytractogram, image, streamline, tractogram, clustering, split_cluster, connectivity ]
 
 
 class CustomBuildExtCommand(build_ext):

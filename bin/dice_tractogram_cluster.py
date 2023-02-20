@@ -20,24 +20,24 @@ parser.add_argument("--force", "-f", action="store_true", help="Force overwritin
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 options = parser.parse_args()
 
-# t0 = time.time()
-# cluster_idx = cluster(options.input_tractogram,
-#                     threshold=options.threshold,
-#                     n_pts=options.n_pts,
-#                     save_assignments=options.save_assignments,
-#                     split=options.split,
-#                     output_folder=options.output_folder,
-#                     force=options.force,
-#                     verbose=options.verbose
-# )
+t0 = time.time()
+cluster_idx = cluster(options.input_tractogram,
+                    threshold=options.threshold,
+                    n_pts=options.n_pts,
+                    save_assignments=options.save_assignments,
+                    split=options.split,
+                    output_folder=options.output_folder,
+                    force=options.force,
+                    verbose=options.verbose
+)
 
-# t1 = time.time()
-# print("Time endin points splitting: ", (t1-t0))
-# num_clust = len(np.unique(cluster_idx))
-# print(num_clust)
+t1 = time.time()
+print("Time endin points splitting: ", (t1-t0))
+num_clust = len(np.unique(cluster_idx))
+print(num_clust)
 
-# if options.split:
-#     split_clusters(options.input_tractogram, cluster_idx, options.output_folder)
+if options.split:
+    split_clusters(options.input_tractogram, cluster_idx, options.output_folder)
 # # if options.save_assignments:
 # #     np.savetxt(options.save_assignments, cluster_idx)
 
@@ -49,7 +49,6 @@ for dirpath,_,filenames in os.walk(options.output_folder):
     for f in filenames:
         if f.endswith('.tck'):
             bundles.append( os.path.abspath(os.path.join(dirpath, f)))
-print(bundles)
 
 options.threshold = 2
 options.n_pts = 10
