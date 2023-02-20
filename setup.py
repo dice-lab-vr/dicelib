@@ -50,7 +50,6 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-
     lazytck = Extension(
         name='lazytck',
         sources=['dicelib/lazytck.pyx'],

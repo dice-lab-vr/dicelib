@@ -403,6 +403,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         else:
             ui.ERROR( 'Invalid extension for the assignments file' )
         if assignments.ndim!=2 or assignments.shape[1]!=2:
+            print( (assignments.ndim, assignments.shape))
             ui.ERROR( 'Unable to open assignments file' )
         ui.INFO( f'{assignments.shape[0]} assignments in input file' )
 
