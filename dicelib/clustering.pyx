@@ -203,6 +203,7 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
     cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
+    cdef float [:,:,:] clust_fib = np.zeros((n_streamlines,n_streamlines,3), dtype=np.float32)
     cdef size_t  i = 0
     cdef size_t  s_i = 0
     cdef size_t  p = 0
@@ -260,10 +261,11 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
                 new_c += 1
 
             set_centroids[t] = new_centroid
+            clust_fib[t][c_w[t]] = streamline_in
 
     # print(f"time required: {np.round((time.time()-t1)/60, 3)} minutes")
     # print(f"total_number of streamlines: {len(clust_idx)}")
     # print(f"number of clusters {len(np.unique(clust_idx))}")
     if TCK_in is not None:
         TCK_in.close()
-    return clust_idx
+    return clust_idx, clust_fib

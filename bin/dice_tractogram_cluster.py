@@ -31,7 +31,7 @@ if options.atlas:
     print("Time taken for connectivity: ", (t1-t0))
 else:
     t0 = time.time()
-    cluster_idx = cluster(options.input_tractogram,
+    cluster_idx, _ = cluster(options.input_tractogram,
                         threshold=options.threshold,
                         n_pts=options.n_pts,
                         save_assignments=options.save_assignments,
