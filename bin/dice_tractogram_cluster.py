@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from dicelib.ui import ColoredArgParser
-from dicelib.clustering import cluster, split_clusters
+from dicelib.clustering import cluster, split_clusters, closest_streamline
 from dicelib.tractogram import split
 from dicelib.connectivity import assign
 import numpy as np
@@ -31,7 +31,7 @@ if options.atlas:
     print("Time taken for connectivity: ", (t1-t0))
 else:
     t0 = time.time()
-    cluster_idx, _ = cluster(options.input_tractogram,
+    cluster_idx, _, _ = cluster(options.input_tractogram,
                         threshold=options.threshold,
                         n_pts=options.n_pts,
                         save_assignments=options.save_assignments,
@@ -83,6 +83,17 @@ for i, f in enumerate(cf.as_completed(future)):
 t1 = time.time()
 print()
 print("Time taken for parallel: ", (t1-t0)/60)
+
+t0 = time.time()
+future = [executor.submit(closest_streamline, res_parallel[i][1], res_parallel[i][2]) for i in range(len(res_parallel))]
+
+# for f in future:
+for i, f in enumerate(cf.as_completed(future)):
+    print(f"Extracting closest streamline to centroid: {i}/{len(res_parallel)}", end="\r")
+    res_parallel.append(f.result())
+t1 = time.time()
+print()
+print("Time taken to find closest streamlines: ", (t1-t0)/60)
 # call actual function
 
 

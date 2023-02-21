@@ -268,4 +268,52 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     # print(f"number of clusters {len(np.unique(clust_idx))}")
     if TCK_in is not None:
         TCK_in.close()
-    return clust_idx, clust_fib
+    return clust_idx, clust_fib, set_centroids[:new_c]
+
+cpdef float[:,:] closest_streamline(float[:,:,::1] fib_in, float[:,:] target, int num_pt, int num_c):
+    """Compute the distance between a fiber and a set of centroids"""
+    cdef float maxdist_pt   = 0
+    cdef float maxdist_pt_d = 0
+    cdef float maxdist_pt_i = 0
+    cdef float maxdist_fib = 10000000000
+    cdef int  i = 0
+    cdef int  j = 0
+    cdef int fib_idx = 0
+    cdef int idx_ret = 0
+    cdef int flipped_temp = 0
+    cdef int flipped = 0
+    cdef float d1_x, d1_y, d1_z
+
+    for i in xrange(num_c):
+        maxdist_pt_d = 0
+        maxdist_pt_i = 0
+
+        for j in xrange(num_pt):
+
+            d1_x = (fib_in[i][j][0] - target[j][0])**2
+            d1_y = (fib_in[i][j][1] - target[j][1])**2
+            d1_z = (fib_in[i][j][2] - target[j][2])**2
+
+            maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
+
+
+            d1_x = (fib_in[i][j][0] - target[num_pt-j-1][0])**2
+            d1_y = (fib_in[i][j][1] - target[num_pt-j-1][1])**2
+            d1_z = (fib_in[i][j][2] - target[num_pt-j-1][2])**2
+            
+            maxdist_pt_i += sqrt(d1_x + d1_y + d1_z)
+        if maxdist_pt_d < maxdist_pt_i:
+            maxdist_pt = maxdist_pt_d/num_pt
+            flipped_temp = 0
+        else:
+            maxdist_pt = maxdist_pt_i/num_pt
+            flipped_temp = 1
+        
+        if maxdist_pt < maxdist_fib:
+            maxdist_fib = maxdist_pt
+            flipped = flipped_temp
+            idx_ret = i
+
+    return fib_in[idx_ret]
+
+
