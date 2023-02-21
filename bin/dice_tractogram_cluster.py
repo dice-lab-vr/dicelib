@@ -13,6 +13,7 @@ import os
 # parse the input parameters
 parser = ColoredArgParser( description=cluster.__doc__.split('\n')[0] )
 parser.add_argument("input_tractogram", help="Input tractogram")
+parser.add_argument("--reference", "-r", help="Reference used for space transofrmation")
 parser.add_argument("--atlas", "-a", help="Atlas used to compute streamlines connectivity")
 parser.add_argument("--threshold", "-t", type=float, metavar="THR", help="Threshold [in mm]")
 parser.add_argument("--n_pts", type=int, default=10, help="Number of points for the resampling of a streamline")
@@ -25,7 +26,7 @@ options = parser.parse_args()
 
 if options.atlas:
     t0 = time.time()
-    assign(options.input_tractogram, gm_map_file=options.atlas, out_assignment=options.save_assignments, threshold=options.threshold, force=options.force)
+    assign(options.input_tractogram, reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments, threshold=options.threshold, force=options.force)
     t1 = time.time()
     print("Time taken for connectivity: ", (t1-t0))
 else:

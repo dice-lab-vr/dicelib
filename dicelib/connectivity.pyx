@@ -9,6 +9,7 @@ import time
 import numpy as np
 cimport numpy as np
 import nibabel as nib
+from nibabel.affines import apply_affine
 
 from lazytractogram cimport LazyTractogram
 from . import ui
@@ -82,12 +83,12 @@ cpdef to_matrix( float[ :,: ] streamline, int n ):
     cdef float *ptr = &streamline[0,0]
     cdef float *ptr_end = ptr+n*3-3
         
-    return np.array([ptr[0], ptr[1], ptr[2], ptr_end[0], ptr_end[1], ptr_end[2]], dtype=np.float32)
+    return np.array([ptr[0], ptr[1], ptr[2], ptr_end[0], ptr_end[1], ptr_end[2]], dtype=np.float32).reshape(2,3)
 
 
 
 
-cpdef streamline_assignment( float [:] mat, float [:,::1] grid,
+cpdef streamline_assignment( float [:,:] mat, float [:,::1] grid,
                             int[:,:,::1] gm_v, float thr, float[:] vox_dim,
                             float[:,::1] inverse, float[::1,:] small_view, float[:] val_view):
 
@@ -118,21 +119,23 @@ cpdef streamline_assignment( float [:] mat, float [:,::1] grid,
     cdef size_t i = 0
     cdef size_t yy = 0
 
-    cdef float [:] starting_pt = np.asarray(mat[:3])
-    cdef float [:] ending_pt = np.asarray(mat[3:])
+    cdef float [:] starting_pt = np.asarray(mat[0])
+    cdef float [:] ending_pt = np.asarray(mat[1])
     cdef float [:] pts_start = np.zeros(3, dtype=np.float32)
     cdef float [:] pts_end = np.zeros(3, dtype=np.float32)
     cdef int [:]  start_vox = np.zeros(3, dtype=np.int32)
     cdef int [:]  end_vox = np.zeros(3, dtype=np.int32)
 
-
-    for yy in xrange(3):
-        pts_start[yy] = ((starting_pt[0]*small_view[0,yy] + starting_pt[1]*small_view[1,yy] + starting_pt[2]*small_view[2,yy]) + val_view[yy]) 
-        pts_start[yy] += (vox_dim[yy]/2)
-        pts_start[yy] = floor(pts_start[yy])
-        pts_end[yy] = ((ending_pt[0]*small_view[0,yy] + ending_pt[1]*small_view[1,yy] + ending_pt[2]*small_view[2,yy]) + val_view[yy]) 
-        pts_end[yy] += (vox_dim[yy]/2)
-        pts_end[yy] = floor(pts_end[yy])
+    # for yy in xrange(3):
+    #     pts_start[yy] = ((starting_pt[0]*small_view[0,yy] + starting_pt[1]*small_view[1,yy] + starting_pt[2]*small_view[2,yy]) + val_view[yy]) 
+    #     pts_start[yy] += (vox_dim[yy]/2)
+    #     pts_start[yy] = floor(pts_start[yy])
+    #     pts_end[yy] = ((ending_pt[0]*small_view[0,yy] + ending_pt[1]*small_view[1,yy] + ending_pt[2]*small_view[2,yy]) + val_view[yy]) 
+    #     pts_end[yy] += (vox_dim[yy]/2)
+    #     pts_end[yy] = floor(pts_end[yy])
+    
+    # for i in range(3):
+    #     print((pts_start[i], pts_end[i]))
 
 
     cdef int grid_size = grid.shape[0]
@@ -141,15 +144,17 @@ cpdef streamline_assignment( float [:] mat, float [:,::1] grid,
     for i in xrange(grid_size):
         
         # from 3D coordinates to index
-        start_vox[0] = <int>(pts_start[0] + grid[i][0])
-        start_vox[1] = <int>(pts_start[1] + grid[i][1])
-        start_vox[2] = <int>(pts_start[2] + grid[i][2])
-        end_vox[0] = <int>(pts_end[0] + grid[i][0])
-        end_vox[1] = <int>(pts_end[1] + grid[i][1])
-        end_vox[2] = <int>(pts_end[2] + grid[i][2])
+        start_vox[0] = <int>(starting_pt[0] + grid[i][0])
+        start_vox[1] = <int>(starting_pt[1] + grid[i][1])
+        start_vox[2] = <int>(starting_pt[2] + grid[i][2])
+        end_vox[0] = <int>(ending_pt[0] + grid[i][0])
+        end_vox[1] = <int>(ending_pt[1] + grid[i][1])
+        end_vox[2] = <int>(ending_pt[2] + grid[i][2])
+        # for i in range(3):
+        #     print((start_vox[i], end_vox[i]))
 
-        dist_s = ( pts_start[0] - start_vox[0] )**2 + ( pts_start[1] - start_vox[1] )**2 + ( pts_start[2] - start_vox[2] )**2 
-        dist_e = ( pts_end[0] - end_vox[0] )**2 + ( pts_end[1] - end_vox[1] )**2 + ( pts_end[2] - end_vox[2] )**2 
+        dist_s = ( starting_pt[0] - start_vox[0] )**2 + ( starting_pt[1] - start_vox[1] )**2 + ( starting_pt[2] - start_vox[2] )**2 
+        dist_e = ( ending_pt[0] - end_vox[0] )**2 + ( ending_pt[1] - end_vox[1] )**2 + ( ending_pt[2] - end_vox[2] )**2 
         if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and found1==0 and dist_s <= thr**2 :
             roi1 = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
             found1 = 1 
@@ -166,7 +171,7 @@ cpdef streamline_assignment( float [:] mat, float [:,::1] grid,
 
 
 
-def assign( input_tractogram: str, gm_map_file: str, out_assignment: str, threshold: 2, verbose: bool=False, force: bool=False ):
+def assign( input_tractogram: str, reference: str, gm_map_file: str, out_assignment: str, threshold: 2, verbose: bool=False, force: bool=False ):
 
     """ Compute the assignments of the streamlines based on a GM map.
     
@@ -193,7 +198,7 @@ def assign( input_tractogram: str, gm_map_file: str, out_assignment: str, thresh
 
 
     out_assignment_ext = os.path.splitext(out_assignment)[1]
-    out_assignment = f"{out_assignment[:-4]}_{threshold}{out_assignment_ext}"
+    # out_assignment = f"{out_assignment[:-4]}{out_assignment_ext}"
     print(f"assign out: {out_assignment}")
     if out_assignment_ext not in ['.txt', '.npy']:
         ui.ERROR( 'Invalid extension for the output scalar file' )
@@ -203,8 +208,9 @@ def assign( input_tractogram: str, gm_map_file: str, out_assignment: str, thresh
     # Load of the gm map
     gm_map_img = nib.load(gm_map_file)
     gm_map_data = gm_map_img.get_fdata()
-    gm_header = gm_map_img.header
-    affine = gm_map_img.affine.astype(np.float64)
+    ref_data = nib.load(reference)
+    ref_header = ref_data.header
+    affine = ref_data.affine
     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm_map_data, dtype=np.int32)
     # gm_map = np.zeros((gm_map_data.shape[0] + 5, gm_map_data.shape[1] + 5, gm_map_data.shape[2] + 5))
     # gm_map = gm_map_data.astype(np.int32)
@@ -212,7 +218,7 @@ def assign( input_tractogram: str, gm_map_file: str, out_assignment: str, thresh
     cdef float [:,::1] inverse = np.linalg.inv(affine).astype(np.float32) #inverse of affine
     cdef float [::1,:] small_view = inverse[:-1,:-1].T 
     cdef float [:] val_view = inverse[:-1,-1]
-    cdef float [:] zooms = np.asarray( gm_header.get_zooms(), dtype = np.float32 )
+    cdef float [:] zooms = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
 
     cdef float thr = np.ceil(threshold).astype(np.int32)
     cdef float [:,::1] grid
@@ -222,7 +228,7 @@ def assign( input_tractogram: str, gm_map_file: str, out_assignment: str, thresh
     TCK_in = None
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
     n_streamlines = int( TCK_in.header['count'] )
-    cdef float [:] matrix = np.zeros( 6, dtype=np.float32)
+    cdef float [:,:] matrix = np.zeros( (2,3), dtype=np.float32)
     # cdef int [:,:] assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
     assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
     try:      
@@ -235,12 +241,15 @@ def assign( input_tractogram: str, gm_map_file: str, out_assignment: str, thresh
 
         if n_streamlines>0:
             for i in xrange( n_streamlines ):
+            # for i in xrange( 10 ):
                 print(f"streamline {i}", end="\r")
                 TCK_in.read_streamline()
 
                 # store the coordinates of the starting point and ending point
                 matrix = to_matrix( TCK_in.streamline, int(TCK_in.n_pts) )
+                matrix = apply_affine(inverse, matrix).astype(np.float32)
                 assignments[i] = streamline_assignment( matrix, grid, gm_map, thr, zooms,  inverse, small_view, val_view)
+                # print(assignments[i])
 
 
 
