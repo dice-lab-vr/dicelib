@@ -5,6 +5,7 @@ from dicelib.clustering import cluster, split_clusters, closest_streamline
 from dicelib.tractogram import split
 from dicelib.connectivity import assign
 import numpy as np
+import nibabel as nib
 import time
 from concurrent.futures import ThreadPoolExecutor as tdp
 import concurrent.futures as cf
@@ -23,7 +24,7 @@ parser.add_argument("--output_folder", "-out", help="Folder where to save the sp
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 options = parser.parse_args()
-
+'''
 if options.atlas:
     t0 = time.time()
     assign(options.input_tractogram, reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments, threshold=options.threshold, force=options.force)
@@ -53,7 +54,7 @@ if options.split:
         split_clusters(options.input_tractogram, cluster_idx, options.output_folder)
 # # if options.save_assignments:
 # #     np.savetxt(options.save_assignments, cluster_idx)
-
+'''
 MAX_THREAD = 6
 executor = tdp(max_workers=MAX_THREAD)
 bundles = []
@@ -76,24 +77,42 @@ future = [executor.submit(cluster, bundles[i],
                         force=options.force,
                         verbose=options.verbose) for i in range(len(bundles))]
 
-# for f in future:
-for i, f in enumerate(cf.as_completed(future)):
+for i, f in enumerate(future):
+# for i, f in enumerate(cf.as_completed(future)):
     print(f"Done: {i}/{len(bundles)}", end="\r")
     res_parallel.append(f.result())
 t1 = time.time()
-print()
 print("Time taken for parallel: ", (t1-t0)/60)
 
+centroids_list = []
 t0 = time.time()
-future = [executor.submit(closest_streamline, res_parallel[i][1], res_parallel[i][2]) for i in range(len(res_parallel))]
+for ii,r in enumerate(res_parallel):
+    print(f"finding closest streamline: {ii}/{len(res_parallel)}", end="\r")
+    clust_idx, set_centroids = r
+    centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
+    # print((clust_idx.shape, set_centroids.shape))
+    new_c = closest_streamline(bundles[ii], set_centroids, clust_idx, options.n_pts, set_centroids.shape[0], centr_len)
+    print(centr_len)
+    for jj, n_c in enumerate(new_c):
+        centroids_list.append(n_c[:centr_len[jj]])
 
-# for f in future:
-for i, f in enumerate(cf.as_completed(future)):
-    print(f"Extracting closest streamline to centroid: {i}/{len(res_parallel)}", end="\r")
-    res_parallel.append(f.result())
+print("before nibabel save")
+ref_data = nib.load(options.reference)
+ref_header = ref_data.header
+affine = ref_data.affine
+centroids_out = nib.streamlines.Tractogram(centroids_list, affine_to_rasmm=affine)
+nib.streamlines.save(centroids_out, os.path.join(options.output_folder,'centroids.tck'))
+# future = [executor.submit(closest_streamline, res_parallel[i][1], res_parallel[i][2], options.n_pts, res_parallel[i][2].shape[0]) for i in range(len(bundles))]
+# res_parallel = []
+# # for f in future:
+# for i, f in enumerate(future):
+# # for i, f in enumerate(cf.as_completed(future)):
+#     print(f"Extracting closest streamline to centroid: {i}/{len(bundles)}", end="\r")
+#     res_parallel.append(f.result())
+
 t1 = time.time()
-print()
 print("Time taken to find closest streamlines: ", (t1-t0)/60)
+import pdb; pdb.set_trace()
 # call actual function
 
 

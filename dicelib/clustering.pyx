@@ -18,35 +18,6 @@ from concurrent.futures import ThreadPoolExecutor as tdp
 from . import ui
 
 
-def get_streamlines_close_to_centroids( clusters, streamlines, n_pts ):
-    """Return the streamlines closer to the centroids of each cluster.
-
-    As first step, the streamlines of the input tractogram are resampled to n_pts points.
-    """
-    cdef float[:,::1] resampled_fib = np.zeros((n_pts,3), dtype=np.float32)
-    sample_streamlines = set_number_of_points(streamlines, n_pts, resampled_fib)
-
-    centroids_out = []
-    for cluster in clusters:
-        minDis      = 1e10
-        minDis_idx  = -1
-        centroid_fw = cluster.centroid
-        centroid_bw = cluster.centroid[::-1]
-        for i in cluster.indices:
-            d1 = np.linalg.norm( centroid_fw - sample_streamlines[i] )
-            d2 = np.linalg.norm( centroid_bw - sample_streamlines[i] )
-            if d1>d2:
-                dm = d2
-            else:
-                dm = d1
-
-            if dm < minDis:
-                minDis = dm
-                minDis_idx = i
-        centroids_out.append( streamlines[minDis_idx] )
-
-    return centroids_out
-
 cdef void tot_lenght(float[:,::1] fib_in, float* length) nogil:
     cdef size_t i = 0
 
@@ -203,7 +174,6 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
     cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
-    cdef float [:,:,:] clust_fib = np.zeros((n_streamlines,n_streamlines,3), dtype=np.float32)
     cdef size_t  i = 0
     cdef size_t  s_i = 0
     cdef size_t  p = 0
@@ -225,7 +195,6 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     if TCK_in is not None:
         TCK_in.close()
     TCK_in = LazyTractogram( filename_in, mode='r' )
-    
     with nogil:
         for i in xrange(n_streamlines):
             TCK_in._read_streamline()
@@ -261,59 +230,78 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
                 new_c += 1
 
             set_centroids[t] = new_centroid
-            clust_fib[t][c_w[t]] = streamline_in
+    
+    # if TCK_in is not None:
+    TCK_in.close()
+    return clust_idx, set_centroids[:new_c]
 
-    # print(f"time required: {np.round((time.time()-t1)/60, 3)} minutes")
-    # print(f"total_number of streamlines: {len(clust_idx)}")
-    # print(f"number of clusters {len(np.unique(clust_idx))}")
-    if TCK_in is not None:
-        TCK_in.close()
-    return clust_idx, clust_fib, set_centroids[:new_c]
 
-cpdef float[:,:] closest_streamline(float[:,:,::1] fib_in, float[:,:] target, int num_pt, int num_c):
+cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len):
     """Compute the distance between a fiber and a set of centroids"""
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
     cdef float maxdist_pt_i = 0
-    cdef float maxdist_fib = 10000000000
     cdef int  i = 0
     cdef int  j = 0
+    cdef int  c_i = 0
     cdef int fib_idx = 0
     cdef int idx_ret = 0
     cdef int flipped_temp = 0
     cdef int flipped = 0
-    cdef float d1_x, d1_y, d1_z
+    cdef float d1_x = 0
+    cdef float d1_y = 0
+    cdef float d1_z= 0
+    cdef float d2_x = 0
+    cdef float d2_y = 0
+    cdef float d2_z= 0
+    cdef float [:] fib_centr_dist = np.repeat(1000, num_c).astype(np.float32)
+    cdef float[:,::1] fib_in = np.zeros((num_pt,3), dtype=np.float32)
+    cdef float[:,::1] resampled_fib = np.zeros((num_pt,3), dtype=np.float32)
+    centroids = np.zeros((num_c, 3000,3), dtype=np.float32)
 
-    for i in xrange(num_c):
+    # cdef float [:,:,::1] centroids = np.zeros((num_c, num_pt,3), dtype=np.float32)
+
+
+    cdef LazyTractogram TCK_in = LazyTractogram( file_name_in, mode='r' )
+    
+    cdef int n_streamlines = int( TCK_in.header['count'] )
+    for i_f in xrange(n_streamlines):
+        TCK_in._read_streamline()
+        c_i = clust_idx[i_f]
+        # print(f"Streamline: {i}/{num_c}, c_i: {c_i}", end="\r")
+        # for i in xrange(num_c):
+        fib_in[:] = set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, resampled_fib)
+        
         maxdist_pt_d = 0
         maxdist_pt_i = 0
 
         for j in xrange(num_pt):
 
-            d1_x = (fib_in[i][j][0] - target[j][0])**2
-            d1_y = (fib_in[i][j][1] - target[j][1])**2
-            d1_z = (fib_in[i][j][2] - target[j][2])**2
+            d1_x = (fib_in[j][0] - target[c_i][j][0])**2
+            d1_y = (fib_in[j][1] - target[c_i][j][1])**2
+            d1_z = (fib_in[j][2] - target[c_i][j][2])**2
 
             maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
 
 
-            d1_x = (fib_in[i][j][0] - target[num_pt-j-1][0])**2
-            d1_y = (fib_in[i][j][1] - target[num_pt-j-1][1])**2
-            d1_z = (fib_in[i][j][2] - target[num_pt-j-1][2])**2
+            d2_x = (fib_in[j][0] - target[c_i][num_pt-j-1][0])**2
+            d2_y = (fib_in[j][1] - target[c_i][num_pt-j-1][1])**2
+            d2_z = (fib_in[j][2] - target[c_i][num_pt-j-1][2])**2
             
-            maxdist_pt_i += sqrt(d1_x + d1_y + d1_z)
+            maxdist_pt_i += sqrt(d2_x + d2_y + d2_z)
+
         if maxdist_pt_d < maxdist_pt_i:
             maxdist_pt = maxdist_pt_d/num_pt
-            flipped_temp = 0
         else:
             maxdist_pt = maxdist_pt_i/num_pt
-            flipped_temp = 1
         
-        if maxdist_pt < maxdist_fib:
-            maxdist_fib = maxdist_pt
-            flipped = flipped_temp
-            idx_ret = i
+        if maxdist_pt < fib_centr_dist[c_i]:
+            fib_centr_dist[c_i] = maxdist_pt
+            centroids[c_i,:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
+            centr_len[c_i] = TCK_in.n_pts
 
-    return fib_in[idx_ret]
+    if TCK_in is not None:
+        TCK_in.close()
+    return centroids
 
 

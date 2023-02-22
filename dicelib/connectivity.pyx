@@ -35,7 +35,7 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
     
     """
 
-    cdef double grid_center[3]
+    cdef float grid_center[3]
     cdef int thr_grid = <int>thr
     cdef int m = 2
     
