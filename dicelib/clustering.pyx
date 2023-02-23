@@ -23,7 +23,7 @@ cdef void tot_lenght(float[:,::1] fib_in, float* length) nogil:
 
     length[0] = 0.0
     for i in xrange(1,fib_in.shape[0]):
-        length[i] = length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 )
+        length[i] = <float>(length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 ))
 
 
 cdef float[:,::1] extract_ending_pts(float[:,::1] fib_in, float[:,::1] resampled_fib) :
@@ -241,13 +241,11 @@ cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
     cdef float maxdist_pt_i = 0
-    cdef int  i = 0
+    cdef size_t  i_f = 0
     cdef int  j = 0
     cdef int  c_i = 0
     cdef int fib_idx = 0
     cdef int idx_ret = 0
-    cdef int flipped_temp = 0
-    cdef int flipped = 0
     cdef float d1_x = 0
     cdef float d1_y = 0
     cdef float d1_z= 0
@@ -257,21 +255,24 @@ cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target
     cdef float [:] fib_centr_dist = np.repeat(1000, num_c).astype(np.float32)
     cdef float[:,::1] fib_in = np.zeros((num_pt,3), dtype=np.float32)
     cdef float[:,::1] resampled_fib = np.zeros((num_pt,3), dtype=np.float32)
-    centroids = np.zeros((num_c, 3000,3), dtype=np.float32)
+    cdef float [:,:,::1] centroids = np.zeros((num_c, 3000,3), dtype=np.float32)
 
     # cdef float [:,:,::1] centroids = np.zeros((num_c, num_pt,3), dtype=np.float32)
 
 
     cdef LazyTractogram TCK_in = LazyTractogram( file_name_in, mode='r' )
-    
     cdef int n_streamlines = int( TCK_in.header['count'] )
+
     for i_f in xrange(n_streamlines):
+        # print(f"before reading fib: {i_f}")
         TCK_in._read_streamline()
+        # print(f"before reading cluster of fib: {i_f}")
         c_i = clust_idx[i_f]
-        # print(f"Streamline: {i}/{num_c}, c_i: {c_i}", end="\r")
+        # print(f"cluster of fib: {i_f} -> {c_i}")
+        # print(f"Streamline: {i_f}/{n_streamlines}, c_i: {c_i}")
         # for i in xrange(num_c):
         fib_in[:] = set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, resampled_fib)
-        
+        # print("set number of points")
         maxdist_pt_d = 0
         maxdist_pt_i = 0
 
@@ -289,16 +290,20 @@ cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target
             d2_z = (fib_in[j][2] - target[c_i][num_pt-j-1][2])**2
             
             maxdist_pt_i += sqrt(d2_x + d2_y + d2_z)
-
+        # print("after for")
         if maxdist_pt_d < maxdist_pt_i:
             maxdist_pt = maxdist_pt_d/num_pt
         else:
             maxdist_pt = maxdist_pt_i/num_pt
         
         if maxdist_pt < fib_centr_dist[c_i]:
+            # print(f"Streamline: {i_f}, # centroids:{num_c}, c_i: {c_i} n_pts: {TCK_in.n_pts}")
             fib_centr_dist[c_i] = maxdist_pt
-            centroids[c_i,:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
+            # print("A")
+            centroids[c_i, :TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
+            # print("B")
             centr_len[c_i] = TCK_in.n_pts
+            # print("C")
 
     if TCK_in is not None:
         TCK_in.close()
