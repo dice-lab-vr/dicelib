@@ -157,6 +157,7 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
 
     # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
     cdef int n_streamlines = int( TCK_in.header['count'] )
+    if n_streamlines == 0: return
     ui.INFO( f'  - {n_streamlines} streamlines found' )
 
     cdef int nb_pts = n_pts
@@ -198,13 +199,14 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     with nogil:
         for i in xrange(n_streamlines):
             TCK_in._read_streamline()
+            # with gil:print("set_number_of_points")
             streamline_in[:] = set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, resampled_fib)
-
+            # with gil:print("compute_dist")
             t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
 
             clust_idx[i]= t
             weight_centr = c_w[t]
-
+            # with gil:print("centroid update")
             if t < new_c:
                 if flipped:
                     for p in xrange(nb_pts):
@@ -228,11 +230,11 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
                 for n_i in xrange(nb_pts):
                     new_centroid[n_i] = streamline_in[n_i]
                 new_c += 1
-
+            # with gil:print("set_centroids")
             set_centroids[t] = new_centroid
     
-    # if TCK_in is not None:
-    TCK_in.close()
+    if TCK_in is not None:
+        TCK_in.close()
     return clust_idx, set_centroids[:new_c]
 
 

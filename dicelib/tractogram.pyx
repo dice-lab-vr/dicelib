@@ -413,11 +413,12 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         # check if #(weights)==n_streamlines
         if weights_in is not None and n_streamlines!=w.size:
             ui.ERROR( f'# of weights ({w.size}) is different from # of streamlines ({n_streamlines}) ' )
-
+        unassigned_count = 0 
         # create empty tractograms for unique assignments
         unique_assignments = np.unique(assignments, axis=0)
         for i in range( unique_assignments.shape[0] ):
             if unique_assignments[i,0]==0 or unique_assignments[i,1]==0:
+                unass_count += 1
                 continue
             if unique_assignments[i,0] <= unique_assignments[i,1]:
                 key = f'{unique_assignments[i,0]}-{unique_assignments[i,1]}'
@@ -431,13 +432,14 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 WEIGHTS_out_idx[key] = i+1
 
         # add key for non-connecting streamlines
-        key = 'unassigned'
-        TCK_outs[key] = None
-        TCK_outs_size[key] = 0
-        tmp = LazyTractogram( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
-        tmp.close( write_eof=False, count=0 )
-        if weights_in is not None:
-            WEIGHTS_out_idx[key] = 0
+        if unassigned_count:
+            key = 'unassigned'
+            TCK_outs[key] = None
+            TCK_outs_size[key] = 0
+            tmp = LazyTractogram( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
+            tmp.close( write_eof=False, count=0 )
+            if weights_in is not None:
+                WEIGHTS_out_idx[key] = 0
 
         ui.INFO( f'Created {len(TCK_outs)} empty files for output tractograms' )
 
@@ -486,7 +488,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 else:
                     np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle, allow_pickle=False )
 
-        ui.INFO( f'{n_written-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
+        if unassigned_count:
+            ui.INFO( f'{n_written-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
+        else:
+            ui.INFO( f'{n_written} connecting, {0} non-connecting' )
 
     except Exception as e:
         if os.path.isdir(output_folder):
