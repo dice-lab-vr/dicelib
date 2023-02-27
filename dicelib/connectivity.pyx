@@ -27,12 +27,12 @@ cdef float [:,::1] apply_affine(float [:,::1] end_pts, float[:,::1] inverse, flo
     cdef size_t yy = 0
 
     for yy in xrange(3):
-        end_pts_trans[0][yy] = (( end_pts[0][0]*small_view[0,yy] + end_pts[0][1]*small_view[1,yy] + end_pts[0][2]*small_view[2,yy]) + val_view[yy]) 
-        end_pts_trans[0][yy] += (vox_dim[yy]/2)
-        end_pts_trans[0][yy] = floor( end_pts_trans[0][yy])
-        end_pts_trans[1][yy] = ((end_pts[1][0]*small_view[0,yy] + end_pts[1][1]*small_view[1,yy] + end_pts[1][2]*small_view[2,yy]) + val_view[yy]) 
-        end_pts_trans[1][yy] += (vox_dim[yy]/2)
-        end_pts_trans[1][yy] = floor(end_pts_trans[1][yy])
+        end_pts_trans[0][yy] = (( end_pts[0][0]*small_view[0,yy] + end_pts[0][1]*small_view[1,yy] + end_pts[0][2]*small_view[2,yy]) + val_view[yy]) + vox_dim[yy]/2
+        # end_pts_trans[0][yy] += (vox_dim[yy]/2)
+        # end_pts_trans[0][yy] = floor( end_pts_trans[0][yy])
+        end_pts_trans[1][yy] = ((end_pts[1][0]*small_view[0,yy] + end_pts[1][1]*small_view[1,yy] + end_pts[1][2]*small_view[2,yy]) + val_view[yy]) + vox_dim[yy]/2
+        # end_pts_trans[1][yy] += (vox_dim[yy]/2)
+        # end_pts_trans[1][yy] = floor(end_pts_trans[1][yy])
 
     return end_pts_trans
 
@@ -189,7 +189,8 @@ cpdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] 
 
 
 
-def assign( input_tractogram: str, end_chunk: int, chunk_size: int, tot_fibs: int, reference: str, gm_map_file: str, out_assignment: str, threshold: 2, verbose: bool=False, force: bool=False ):
+def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size: int, reference: str,
+            gm_map_file: str, out_assignment: str, threshold: 2, verbose: bool=False, force: bool=False ):
 
     """ Compute the assignments of the streamlines based on a GM map.
     
@@ -214,8 +215,6 @@ def assign( input_tractogram: str, end_chunk: int, chunk_size: int, tot_fibs: in
     if not os.path.isfile(gm_map_file):
         ui.ERROR( f'File "{gm_map_file}" not found' )
 
-
-   
     
     # Load of the gm map
     gm_map_img = nib.load(gm_map_file)
@@ -235,46 +234,40 @@ def assign( input_tractogram: str, end_chunk: int, chunk_size: int, tot_fibs: in
     cdef float thr = np.ceil(threshold).astype(np.float32)
     cdef float [:,::1] grid
     cdef size_t i = 0   
-    cdef int n_streamlines = chunk_size
+    cdef int n_streamlines = end_chunk - start_chunk
     
     grid = compute_grid( thr, voxdims )
     TCK_in = None
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
     start_i = 0
-
-    while start_i < end_chunk:
+    while start_i < start_chunk:
         TCK_in._read_streamline()
         start_i += 1
 
-    print(f"start i: {start_i}, n streamlines: {n_streamlines}")
-    # if start_i + chunck_size > tot_fibs:
-    #     n_streamlines = tot_fibs - start_i
+
 
     cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)
-    # cdef int [:,:] assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
     cdef int [:,:] assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
+    # assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
+    # cdef int[:,:] assignments_view = assignments
+
     cdef float [:,::1] end_pts = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] end_pts_temp = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] end_pts_trans = np.zeros((2,3), dtype=np.float32)
     cdef int [:] start_vox = np.zeros(3, dtype=np.int32)
     cdef int [:] end_vox = np.zeros(3, dtype=np.int32)
     cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
-    try:      
-        with nogil:
-            for i in xrange( n_streamlines ):
-            # for i in xrange( 10 ):
-                TCK_in._read_streamline()
-                # store the coordinates of the starting point and ending point
-                end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
-                matrix = apply_affine(end_pts, inverse, small_view, val_view, voxdims, end_pts_trans)
-                assignments[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr, voxdims,  inverse, small_view, val_view)
 
-    except BaseException as e:
-        if os.path.isfile( out_assignment ):
-            os.remove( out_assignment )
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+    with nogil:
+        for i in xrange( n_streamlines ):
+            with gil:print(f"{i}/{n_streamlines}", end="\r")
+        # for i in xrange( 10 ):
+            TCK_in._read_streamline()
+            # store the coordinates of the starting point and ending point
+            end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
+            matrix = apply_affine(end_pts, inverse, small_view, val_view, voxdims, end_pts_trans)
+            assignments[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr, voxdims, inverse, small_view, val_view)
 
-    finally:
-        if TCK_in is not None:
-            TCK_in.close()
-        return assignments
+    if TCK_in is not None:
+        TCK_in.close()
+    return assignments

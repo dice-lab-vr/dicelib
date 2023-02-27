@@ -25,6 +25,15 @@ parser.add_argument("--n_threads", type=int, help="Number of threads to use to p
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 options = parser.parse_args()
+
+
+def compute_chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
+
 tt0 = time.time()
 
 if options.n_threads:
@@ -35,24 +44,31 @@ else:
 
 executor = tdp(max_workers=MAX_THREAD)
 num_streamlines = nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"]
+print(num_streamlines)
 chunk_size = int(int(num_streamlines)/MAX_THREAD)
-end_chunks = np.arange(0,int(num_streamlines), chunk_size)
-chunk_size = [[end_chunks[i] - end_chunks[i-1]] for i in range(1,len(end_chunks))]
+# print(chunk_size)
+chunk_groups = [e for e in compute_chunks( np.arange(int(num_streamlines)),chunk_size)]
+
+# chunk_size = [[end_chunks[i] - end_chunks[i-1]] for i in range(1,len(end_chunks))]
 
 
 if options.atlas:
     chunks_asgn = []
     t0 = time.time()
-    # assign(options.input_tractogram, end_chunk= int, chunck_size=, reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments, threshold=options.threshold, force=options.force)
-    future = [executor.submit(assign, options.input_tractogram, end_chunk=end_chunks[i], chunck_size=chunk_size[i-1], tot_fibs=int(num_streamlines),
+    future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0], end_chunk=chunk_groups[i][len(chunk_groups[i])-1], chunk_size=len(chunk_groups[i]),
                             reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
-                            threshold=options.threshold, force=options.force) for i in range(1,len(end_chunks))]
+                            threshold=options.threshold, force=options.force) for i in range(len(chunk_groups))]
+    # chunks_asgn = assign(input_tractogram=options.input_tractogram, start_chunk =chunk_groups[0][0], end_chunk=chunk_groups[0][len(chunk_groups[0])-1], chunk_size=len(chunk_groups[0]),
+    #                         reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
+    #                         threshold=options.threshold, force=options.force)
 
     for i, f in enumerate(future):
     # for i, f in enumerate(cf.as_completed(future)):
-        print(f"Done chunk: {i}/{len(end_chunks)}", end="\r")
-        chunks_asgn.extend(f.result())
-
+        print(f"Done chunk: {i}/{len(chunk_groups)}", end="\r")
+        chunks_asgn.append(f.result())
+    print("Done")
+    t1 = time.time()
+    print("Time taken for connectivity: ", (t1-t0))
     out_assignment_ext = os.path.splitext(options.save_assignments)[1]
     # out_assignment = f"{out_assignment[:-4]}{out_assignment_ext}"
     if out_assignment_ext not in ['.txt', '.npy']:
@@ -65,12 +81,6 @@ if options.atlas:
                 print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
     else:
         np.save( options.save_assignments, chunks_asgn, allow_pickle=False )
-
-    
-    
-    
-    t1 = time.time()
-    print("Time taken for connectivity: ", (t1-t0))
 
 else:
     t0 = time.time()
