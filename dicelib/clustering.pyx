@@ -199,14 +199,11 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     with nogil:
         for i in xrange(n_streamlines):
             TCK_in._read_streamline()
-            # with gil:print("set_number_of_points")
             streamline_in[:] = set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, resampled_fib)
-            # with gil:print("compute_dist")
             t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
 
             clust_idx[i]= t
             weight_centr = c_w[t]
-            # with gil:print("centroid update")
             if t < new_c:
                 if flipped:
                     for p in xrange(nb_pts):
@@ -230,7 +227,6 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
                 for n_i in xrange(nb_pts):
                     new_centroid[n_i] = streamline_in[n_i]
                 new_c += 1
-            # with gil:print("set_centroids")
             set_centroids[t] = new_centroid
     
     if TCK_in is not None:
@@ -266,15 +262,9 @@ cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target
     cdef int n_streamlines = int( TCK_in.header['count'] )
 
     for i_f in xrange(n_streamlines):
-        # print(f"before reading fib: {i_f}")
         TCK_in._read_streamline()
-        # print(f"before reading cluster of fib: {i_f}")
         c_i = clust_idx[i_f]
-        # print(f"cluster of fib: {i_f} -> {c_i}")
-        # print(f"Streamline: {i_f}/{n_streamlines}, c_i: {c_i}")
-        # for i in xrange(num_c):
         fib_in[:] = set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, resampled_fib)
-        # print("set number of points")
         maxdist_pt_d = 0
         maxdist_pt_i = 0
 
@@ -292,20 +282,15 @@ cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target
             d2_z = (fib_in[j][2] - target[c_i][num_pt-j-1][2])**2
             
             maxdist_pt_i += sqrt(d2_x + d2_y + d2_z)
-        # print("after for")
         if maxdist_pt_d < maxdist_pt_i:
             maxdist_pt = maxdist_pt_d/num_pt
         else:
             maxdist_pt = maxdist_pt_i/num_pt
         
         if maxdist_pt < fib_centr_dist[c_i]:
-            # print(f"Streamline: {i_f}, # centroids:{num_c}, c_i: {c_i} n_pts: {TCK_in.n_pts}")
             fib_centr_dist[c_i] = maxdist_pt
-            # print("A")
             centroids[c_i, :TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
-            # print("B")
             centr_len[c_i] = TCK_in.n_pts
-            # print("C")
 
     if TCK_in is not None:
         TCK_in.close()

@@ -21,15 +21,57 @@ parser.add_argument("--n_pts", type=int, default=10, help="Number of points for 
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
 parser.add_argument("--split", action="store_true", help="Split clusters into separate files")
 parser.add_argument("--output_folder", "-out", help="Folder where to save the split clusters")
+parser.add_argument("--n_threads", type=int, help="Number of threads to use to perform clustering")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 options = parser.parse_args()
 tt0 = time.time()
+
+if options.n_threads:
+    MAX_THREAD = options.n_threads
+else:
+    MAX_THREAD = 1
+
+
+executor = tdp(max_workers=MAX_THREAD)
+num_streamlines = nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"]
+chunk_size = int(int(num_streamlines)/MAX_THREAD)
+end_chunks = np.arange(0,int(num_streamlines), chunk_size)
+chunk_size = [[end_chunks[i] - end_chunks[i-1]] for i in range(1,len(end_chunks))]
+
+
 if options.atlas:
+    chunks_asgn = []
     t0 = time.time()
-    assign(options.input_tractogram, reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments, threshold=options.threshold, force=options.force)
+    # assign(options.input_tractogram, end_chunk= int, chunck_size=, reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments, threshold=options.threshold, force=options.force)
+    future = [executor.submit(assign, options.input_tractogram, end_chunk=end_chunks[i], chunck_size=chunk_size[i-1], tot_fibs=int(num_streamlines),
+                            reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
+                            threshold=options.threshold, force=options.force) for i in range(1,len(end_chunks))]
+
+    for i, f in enumerate(future):
+    # for i, f in enumerate(cf.as_completed(future)):
+        print(f"Done chunk: {i}/{len(end_chunks)}", end="\r")
+        chunks_asgn.extend(f.result())
+
+    out_assignment_ext = os.path.splitext(options.save_assignments)[1]
+    # out_assignment = f"{out_assignment[:-4]}{out_assignment_ext}"
+    if out_assignment_ext not in ['.txt', '.npy']:
+        print( 'Invalid extension for the output scalar file' )
+    if os.path.isfile(options.save_assignments) and not options.force:
+        print( 'Output scalar file already exists, use -f to overwrite' )
+    if out_assignment_ext=='.txt':
+        with open(options.save_assignments, "w") as text_file:
+            for reg in chunks_asgn:
+                print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
+    else:
+        np.save( options.save_assignments, chunks_asgn, allow_pickle=False )
+
+    
+    
+    
     t1 = time.time()
     print("Time taken for connectivity: ", (t1-t0))
+
 else:
     t0 = time.time()
     cluster_idx, _, _ = cluster(options.input_tractogram,
@@ -76,8 +118,6 @@ def cluster_bundle(bundle, threshold=options.threshold, n_pts=options.n_pts, sav
 
 
 t0 = time.time()
-MAX_THREAD = 16
-executor = tdp(max_workers=MAX_THREAD)
 bundles = []
 res_parallel = []
 res_single = []
@@ -89,6 +129,11 @@ centroids_list = []
 for  dirpath, _, filenames in os.walk(options.output_folder):
     for i_b, f in enumerate(filenames):
         bundles.append(os.path.abspath(os.path.join(dirpath, f)))
+
+#TODO sorted_files = sorted(all_files, key = os.path.getsize)
+# 1. Order the available items descending.
+# 2. Create N empty groups
+# 3. Start adding the items one at a time into the group that has the smallest size sum in it.
 
 t0 = time.time()
 future = [executor.submit(cluster_bundle, bundles[i], 
