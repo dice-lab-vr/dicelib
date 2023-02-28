@@ -47,6 +47,7 @@ print(num_streamlines)
 chunk_size = int(num_streamlines/MAX_THREAD)
 # print(chunk_size)
 chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
+print([len(c) for c in chunk_groups])
 
 # chunk_size = [[end_chunks[i] - end_chunks[i-1]] for i in range(1,len(end_chunks))]
 
@@ -64,10 +65,10 @@ if options.atlas:
         future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0], end_chunk=chunk_groups[i][len(chunk_groups[i])-1]+1, chunk_size=len(chunk_groups[i]),
                             reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
                             threshold=options.threshold, force=options.force) for i in range(len(chunk_groups))]
-        # for i, f in enumerate(future):
-        for i, f in enumerate(cf.as_completed(future)):
-            print(f"Done chunk: {i}/{len(chunk_groups)}")
-            chunks_asgn.append(f.result())
+    for i, f in enumerate(future):
+    # for i, f in enumerate(cf.as_completed(future)):
+        print(f"Done chunk: {i}/{len(chunk_groups)}")
+        chunks_asgn.append(f.result())
     print("Done")
     t1 = time.time()
     print("Time taken for connectivity: ", (t1-t0))

@@ -28,11 +28,7 @@ cdef float [:,::1] apply_affine(float [:,::1] end_pts, float[:,::1] inverse, flo
 
     for yy in xrange(3):
         end_pts_trans[0][yy] = (( end_pts[0][0]*small_view[0,yy] + end_pts[0][1]*small_view[1,yy] + end_pts[0][2]*small_view[2,yy]) + val_view[yy]) + vox_dim[yy]/2
-        # end_pts_trans[0][yy] += (vox_dim[yy]/2)
-        # end_pts_trans[0][yy] = floor( end_pts_trans[0][yy])
         end_pts_trans[1][yy] = ((end_pts[1][0]*small_view[0,yy] + end_pts[1][1]*small_view[1,yy] + end_pts[1][2]*small_view[2,yy]) + val_view[yy]) + vox_dim[yy]/2
-        # end_pts_trans[1][yy] += (vox_dim[yy]/2)
-        # end_pts_trans[1][yy] = floor(end_pts_trans[1][yy])
 
     return end_pts_trans
 
@@ -111,7 +107,7 @@ cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end
 
 
 
-cpdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
+cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
                             int[:,:,::1] gm_v, float thr, float[:] vox_dim,
                             float[:,::1] inverse, float[::1,:] small_view, float[:] val_view) nogil:
 
@@ -158,10 +154,7 @@ cpdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] 
 
 
     cdef int grid_size = grid.shape[0]
-
-    
     for i in xrange(grid_size):
-        
         # from 3D coordinates to index
         start_vox[0] = <int>(starting_pt[0] + grid[i][0])
         start_vox[1] = <int>(starting_pt[1] + grid[i][1])
@@ -169,21 +162,22 @@ cpdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] 
         end_vox[0] = <int>(ending_pt[0] + grid[i][0])
         end_vox[1] = <int>(ending_pt[1] + grid[i][1])
         end_vox[2] = <int>(ending_pt[2] + grid[i][2])
-
         dist_s = ( starting_pt[0] - start_vox[0] )**2 + ( starting_pt[1] - start_vox[1] )**2 + ( starting_pt[2] - start_vox[2] )**2 
         dist_e = ( ending_pt[0] - end_vox[0] )**2 + ( ending_pt[1] - end_vox[1] )**2 + ( ending_pt[2] - end_vox[2] )**2 
+        roi_ret[0] = 1
+        roi_ret[1] = 2
+        # break
         
-        if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and found1==0 and dist_s <= thr**2 :
-            roi_ret[0] = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
-            found1 = 1 
+        # if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and found1==0 and dist_s <= thr**2 :
+        #     roi_ret[0] = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
+        #     found1 = 1
         
-        if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0 and found2==0 and dist_e <= thr**2 :    
-            roi_ret[1] = <int>gm_v[ end_vox[0], end_vox[1], end_vox[2]  ]
-            found2 = 1
+        # if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0 and found2==0 and dist_e <= thr**2 :    
+        #     roi_ret[1] = <int>gm_v[ end_vox[0], end_vox[1], end_vox[2]  ]
+        #     found2 = 1
     
-        if found1 + found2 == 2:
-            break
-    # return ((roi1, roi2))
+        # if found1 + found2 == 2:
+        #     break
     return roi_ret
 
 
@@ -233,18 +227,23 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
 
     cdef float thr = np.ceil(threshold).astype(np.float32)
     cdef float [:,::1] grid
-    cdef size_t i = 0   
+    cdef size_t i = 0  
+    cdef int start_i = 0  
     # cdef int n_streamlines = end_chunk
-    cdef int n_streamlines = (end_chunk) - start_chunk
+    cdef int n_streamlines = end_chunk - start_chunk
+    cdef int start_c = <int> start_chunk
+
     
     grid = compute_grid( thr, voxdims )
     TCK_in = None
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
-    start_i = 0
-    while start_i < start_chunk:
-        TCK_in._read_streamline()
-        start_i += 1
-    # print('after while')
+
+    print('before while')
+    print(f"start: {start_chunk}, end {end_chunk}")
+    
+    
+    
+    print('after while')
 
 
     cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)
@@ -260,13 +259,17 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
 
     with nogil:
+        while start_i < start_c:
+            TCK_in._read_streamline()
+            start_i += 1
         for i in xrange( n_streamlines ):
             # with gil:print(f"{i}/{n_streamlines}")
             TCK_in._read_streamline()
             # store the coordinates of the starting point and ending point
             end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
             matrix = apply_affine(end_pts, inverse, small_view, val_view, voxdims, end_pts_trans)
-            # assignments[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr, voxdims, inverse, small_view, val_view)
+            assignments[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr, voxdims, inverse, small_view, val_view)
+
 
     if TCK_in is not None:
         TCK_in.close()
