@@ -42,12 +42,11 @@ else:
     MAX_THREAD = 1
 
 
-executor = tdp(max_workers=MAX_THREAD)
-num_streamlines = nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"]
+num_streamlines = int(nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"])
 print(num_streamlines)
-chunk_size = int(int(num_streamlines)/MAX_THREAD)
+chunk_size = int(num_streamlines/MAX_THREAD)
 # print(chunk_size)
-chunk_groups = [e for e in compute_chunks( np.arange(int(num_streamlines)),chunk_size)]
+chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
 
 # chunk_size = [[end_chunks[i] - end_chunks[i-1]] for i in range(1,len(end_chunks))]
 
@@ -55,17 +54,20 @@ chunk_groups = [e for e in compute_chunks( np.arange(int(num_streamlines)),chunk
 if options.atlas:
     chunks_asgn = []
     t0 = time.time()
-    future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0], end_chunk=chunk_groups[i][len(chunk_groups[i])-1], chunk_size=len(chunk_groups[i]),
-                            reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
-                            threshold=options.threshold, force=options.force) for i in range(len(chunk_groups))]
-    # chunks_asgn = assign(input_tractogram=options.input_tractogram, start_chunk =chunk_groups[0][0], end_chunk=chunk_groups[0][len(chunk_groups[0])-1], chunk_size=len(chunk_groups[0]),
+    # future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0], end_chunk=chunk_groups[i][len(chunk_groups[i])-1], chunk_size=len(chunk_groups[i]),
+    #                         reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
+    #                         threshold=options.threshold, force=options.force) for i in range(len(chunk_groups))]
+    # chunks_asgn = assign(input_tractogram=options.input_tractogram, start_chunk =0, end_chunk=num_streamlines, chunk_size=num_streamlines,
     #                         reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
     #                         threshold=options.threshold, force=options.force)
-
-    for i, f in enumerate(future):
-    # for i, f in enumerate(cf.as_completed(future)):
-        print(f"Done chunk: {i}/{len(chunk_groups)}", end="\r")
-        chunks_asgn.append(f.result())
+    with tdp(max_workers=MAX_THREAD) as executor:
+        future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0], end_chunk=chunk_groups[i][len(chunk_groups[i])-1]+1, chunk_size=len(chunk_groups[i]),
+                            reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
+                            threshold=options.threshold, force=options.force) for i in range(len(chunk_groups))]
+        # for i, f in enumerate(future):
+        for i, f in enumerate(cf.as_completed(future)):
+            print(f"Done chunk: {i}/{len(chunk_groups)}")
+            chunks_asgn.append(f.result())
     print("Done")
     t1 = time.time()
     print("Time taken for connectivity: ", (t1-t0))
@@ -145,6 +147,7 @@ for  dirpath, _, filenames in os.walk(options.output_folder):
 # 2. Create N empty groups
 # 3. Start adding the items one at a time into the group that has the smallest size sum in it.
 
+executor = tdp(max_workers=MAX_THREAD)
 t0 = time.time()
 future = [executor.submit(cluster_bundle, bundles[i], 
                         threshold=options.threshold,

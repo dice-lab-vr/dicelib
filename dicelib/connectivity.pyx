@@ -101,10 +101,10 @@ cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end
 
     end_pts[0,0]=ptr[0]
     end_pts[0,1]=ptr[1]
-    end_pts[1,1]=ptr[2]
-    end_pts[2,0]=ptr_end[0]
-    end_pts[2,1]=ptr_end[1]
-    end_pts[2,2]=ptr_end[2]
+    end_pts[0,2]=ptr[2]
+    end_pts[1,0]=ptr_end[0]
+    end_pts[1,1]=ptr_end[1]
+    end_pts[1,2]=ptr_end[2]
 
     return end_pts
 
@@ -234,7 +234,8 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef float thr = np.ceil(threshold).astype(np.float32)
     cdef float [:,::1] grid
     cdef size_t i = 0   
-    cdef int n_streamlines = end_chunk - start_chunk
+    # cdef int n_streamlines = end_chunk
+    cdef int n_streamlines = (end_chunk) - start_chunk
     
     grid = compute_grid( thr, voxdims )
     TCK_in = None
@@ -243,7 +244,7 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     while start_i < start_chunk:
         TCK_in._read_streamline()
         start_i += 1
-
+    # print('after while')
 
 
     cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)
@@ -260,13 +261,12 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
 
     with nogil:
         for i in xrange( n_streamlines ):
-            with gil:print(f"{i}/{n_streamlines}", end="\r")
-        # for i in xrange( 10 ):
+            # with gil:print(f"{i}/{n_streamlines}")
             TCK_in._read_streamline()
             # store the coordinates of the starting point and ending point
             end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
             matrix = apply_affine(end_pts, inverse, small_view, val_view, voxdims, end_pts_trans)
-            assignments[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr, voxdims, inverse, small_view, val_view)
+            # assignments[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr, voxdims, inverse, small_view, val_view)
 
     if TCK_in is not None:
         TCK_in.close()
