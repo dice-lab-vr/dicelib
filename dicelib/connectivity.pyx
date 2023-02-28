@@ -247,9 +247,9 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
 
 
     cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)
-    cdef int [:,:] assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
-    # assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
-    # cdef int[:,:] assignments_view = assignments
+    # cdef int [:,:] assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
+    assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
+    cdef int[:,:] assignments_view = assignments
 
     cdef float [:,::1] end_pts = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] end_pts_temp = np.zeros((2,3), dtype=np.float32)
@@ -268,7 +268,7 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
             # store the coordinates of the starting point and ending point
             end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
             matrix = apply_affine(end_pts, inverse, small_view, val_view, voxdims, end_pts_trans)
-            assignments[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr, voxdims, inverse, small_view, val_view)
+            assignments_view[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr, voxdims, inverse, small_view, val_view)
 
 
     if TCK_in is not None:
