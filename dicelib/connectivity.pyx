@@ -151,18 +151,18 @@ cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] r
         end_vox[0] = <int>(ending_pt[0] + grid[i][0])
         end_vox[1] = <int>(ending_pt[1] + grid[i][1])
         end_vox[2] = <int>(ending_pt[2] + grid[i][2])
-        dist_s = ( starting_pt[0] - start_vox[0] )**2 + ( starting_pt[1] - start_vox[1] )**2 + ( starting_pt[2] - start_vox[2] )**2 
-        dist_e = ( ending_pt[0] - end_vox[0] )**2 + ( ending_pt[1] - end_vox[1] )**2 + ( ending_pt[2] - end_vox[2] )**2 
+        dist_s = sqrt( ( starting_pt[0] - start_vox[0] )**2 + ( starting_pt[1] - start_vox[1] )**2 + ( starting_pt[2] - start_vox[2] )**2 )
+        dist_e = sqrt( ( ending_pt[0] - end_vox[0] )**2 + ( ending_pt[1] - end_vox[1] )**2 + ( ending_pt[2] - end_vox[2] )**2 )
 
-        if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and found1==0 and dist_s <= thr**2 :
+        if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and found1==0 and dist_s <= thr:
             roi_ret[0] = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
             found1 = 1
         
-        if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0 and found2==0 and dist_e <= thr**2 :    
+        if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0 and found2==0 and dist_e <= thr:    
             roi_ret[1] = <int>gm_v[ end_vox[0], end_vox[1], end_vox[2]  ]
             found2 = 1
     
-        if found1 + found2 == 2:
+        if found1 and found2 :
             break
     return roi_ret
 
