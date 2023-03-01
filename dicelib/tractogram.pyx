@@ -389,6 +389,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
     if weights_in is not None:
         WEIGHTS_out_idx = {}
     n_written         = 0
+    unassigned_count  = 0 
     try:
         # open the tractogram
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
@@ -413,12 +414,12 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         # check if #(weights)==n_streamlines
         if weights_in is not None and n_streamlines!=w.size:
             ui.ERROR( f'# of weights ({w.size}) is different from # of streamlines ({n_streamlines}) ' )
-        unassigned_count = 0 
+
         # create empty tractograms for unique assignments
         unique_assignments = np.unique(assignments, axis=0)
         for i in range( unique_assignments.shape[0] ):
             if unique_assignments[i,0]==0 or unique_assignments[i,1]==0:
-                unass_count += 1
+                unassigned_count += 1
                 continue
             if unique_assignments[i,0] <= unique_assignments[i,1]:
                 key = f'{unique_assignments[i,0]}-{unique_assignments[i,1]}'
