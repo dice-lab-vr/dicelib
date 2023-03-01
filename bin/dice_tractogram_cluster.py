@@ -37,10 +37,7 @@ def compute_chunks(lst, n):
 
 tt0 = time.time()
 
-if options.n_threads:
-    MAX_THREAD = options.n_threads
-else:
-    MAX_THREAD = 1
+MAX_THREAD = 1
 
 
 num_streamlines = int(nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"])
@@ -150,6 +147,8 @@ for  dirpath, _, filenames in os.walk(options.output_folder):
 # 1. Order the available items descending.
 # 2. Create N empty groups
 # 3. Start adding the items one at a time into the group that has the smallest size sum in it.
+if options.n_threads:
+    MAX_THREAD = options.n_threads
 
 executor = tdp(max_workers=MAX_THREAD)
 t0 = time.time()
