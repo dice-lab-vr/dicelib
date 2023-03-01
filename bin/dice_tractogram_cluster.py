@@ -65,10 +65,13 @@ if options.atlas:
         future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0], end_chunk=chunk_groups[i][len(chunk_groups[i])-1]+1, chunk_size=len(chunk_groups[i]),
                             reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
                             threshold=options.threshold, force=options.force) for i in range(len(chunk_groups))]
-    for i, f in enumerate(future):
+    # for i, f in enumerate(future):
+    chunks_asgn = [f.result() for f in future]
+    chunks_asgn = [c for c in chunks_asgn]
+    # print(chunks_asgn[:10])
     # for i, f in enumerate(cf.as_completed(future)):
-        print(f"Done chunk: {i}/{len(chunk_groups)}")
-        chunks_asgn.extend(f.result())
+    #     print(f"Done chunk: {i}/{len(chunk_groups)}")
+    #     chunks_asgn.extend(f.result())
     print("Done")
     t1 = time.time()
     print("Time taken for connectivity: ", (t1-t0))
