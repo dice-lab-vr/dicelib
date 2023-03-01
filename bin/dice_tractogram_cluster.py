@@ -150,7 +150,7 @@ future = [executor.submit(cluster_bundle, bundles[i],
                         force=options.force,
                         verbose=options.verbose) for i in range(len(bundles))]
 
-TCK_in = LazyTractogram( input_tractogram, mode='r' )
+TCK_in = LazyTractogram( options.input_tractogram, mode='r' )
 TCK_out = LazyTractogram( os.path.join(options.output_folder,f'centroids_thr_{options.clust_threshold}.tck'), mode='w', header=TCK_in.header )
 TCK_out_size = 0
 
@@ -161,6 +161,8 @@ for i, f in enumerate(cf.as_completed(future)):
         TCK_out_size += 1
         # centroids_list.append(n_c[:centr_len[jj]])
 TCK_outs.close( write_eof=True, count= TCK_out_size)
+if TCK_in is not None:
+    TCK_in.close()
 
 t1 = time.time()
 print(f"Time taken to cluster and find closest streamlines: {t1-t0}" )
