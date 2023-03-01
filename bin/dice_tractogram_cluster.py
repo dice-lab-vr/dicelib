@@ -16,7 +16,8 @@ parser = ColoredArgParser( description=cluster.__doc__.split('\n')[0] )
 parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("--reference", "-r", help="Reference used for space transofrmation")
 parser.add_argument("--atlas", "-a", help="Atlas used to compute streamlines connectivity")
-parser.add_argument("--threshold", "-t", type=float, metavar="THR", help="Threshold [in mm]")
+parser.add_argument("--conn_threshold", "-t", type=float, metavar="THR", help="Threshold [in mm]")
+parser.add_argument("--clust_threshold", type=float, help="Threshold [in mm]")
 parser.add_argument("--n_pts", type=int, default=10, help="Number of points for the resampling of a streamline")
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
 parser.add_argument("--split", action="store_true", help="Split clusters into separate files")
@@ -64,7 +65,7 @@ if options.atlas:
     with tdp(max_workers=MAX_THREAD) as executor:
         future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0], end_chunk=chunk_groups[i][len(chunk_groups[i])-1]+1, chunk_size=len(chunk_groups[i]),
                             reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
-                            threshold=options.threshold, force=options.force) for i in range(len(chunk_groups))]
+                            threshold=options.conn_threshold, force=options.force) for i in range(len(chunk_groups))]
     # for i, f in enumerate(future):
     chunks_asgn = [f.result() for f in future]
     chunks_asgn = [c for f in chunks_asgn for c in f]
@@ -91,7 +92,7 @@ if options.atlas:
 else:
     t0 = time.time()
     cluster_idx, _, _ = cluster(options.input_tractogram,
-                        threshold=options.threshold,
+                        threshold=options.conn_threshold,
                         n_pts=options.n_pts,
                         save_assignments=options.save_assignments,
                         split=options.split,
@@ -117,10 +118,10 @@ t1 = time.time()
 print("Time bundles splitting: ", (t1-t0))
 
 
-def cluster_bundle(bundle, threshold=options.threshold, n_pts=options.n_pts, save_assignments=options.save_assignments,
+def cluster_bundle(bundle, threshold=options.clust_threshold, n_pts=options.n_pts, save_assignments=options.save_assignments,
                     output_folder=options.output_folder, force=options.force, verbose=options.verbose):
     clust_idx, set_centroids  = cluster(bundle, 
-                            threshold=options.threshold,
+                            threshold=options.clust_threshold,
                             n_pts=options.n_pts,
                             save_assignments=options.save_assignments,
                             # split=options.split,
@@ -137,8 +138,6 @@ t0 = time.time()
 bundles = []
 res_parallel = []
 res_single = []
-options.threshold = 2
-options.n_pts = 10
 
 centroids_list = []
 
@@ -155,7 +154,7 @@ for  dirpath, _, filenames in os.walk(options.output_folder):
 executor = tdp(max_workers=MAX_THREAD)
 t0 = time.time()
 future = [executor.submit(cluster_bundle, bundles[i], 
-                        threshold=options.threshold,
+                        threshold=options.clust_threshold,
                         n_pts=options.n_pts,
                         save_assignments=options.save_assignments,
                         # split=options.split,
