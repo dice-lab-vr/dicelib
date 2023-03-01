@@ -160,7 +160,7 @@ for i, f in enumerate(cf.as_completed(future)):
         TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
         TCK_out_size += 1
         # centroids_list.append(n_c[:centr_len[jj]])
-TCK_outs.close( write_eof=True, count= TCK_out_size)
+TCK_out.close( write_eof=True, count= TCK_out_size)
 if TCK_in is not None:
     TCK_in.close()
 
@@ -168,10 +168,3 @@ t1 = time.time()
 print(f"Time taken to cluster and find closest streamlines: {t1-t0}" )
 tt1= time.time() -tt0 
 print(f"Total time required for clustering: {tt1}" )
-print("Saving centroids...")
-ref_data = nib.load(options.reference)
-ref_header = ref_data.header
-affine = ref_data.affine
-centroids_out = nib.streamlines.Tractogram(centroids_list, affine_to_rasmm=affine)
-
-nib.streamlines.save(centroids_out, os.path.join(options.output_folder, "centroids.tck"))
