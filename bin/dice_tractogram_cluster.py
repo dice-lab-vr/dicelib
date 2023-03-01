@@ -144,7 +144,8 @@ centroids_list = []
 
 for  dirpath, _, filenames in os.walk(options.output_folder):
     for i_b, f in enumerate(filenames):
-        bundles.append(os.path.abspath(os.path.join(dirpath, f)))
+        if f.endswith('.tck') and not f.startswith('unassigned'):
+            bundles.append(os.path.abspath(os.path.join(dirpath, f)))
 
 #TODO sorted_files = sorted(all_files, key = os.path.getsize)
 # 1. Order the available items descending.
