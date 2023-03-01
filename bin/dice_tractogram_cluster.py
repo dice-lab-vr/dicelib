@@ -68,7 +68,7 @@ if options.atlas:
     for i, f in enumerate(future):
     # for i, f in enumerate(cf.as_completed(future)):
         print(f"Done chunk: {i}/{len(chunk_groups)}")
-        chunks_asgn.append(f.result())
+        chunks_asgn.extend(f.result())
     print("Done")
     t1 = time.time()
     print("Time taken for connectivity: ", (t1-t0))

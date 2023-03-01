@@ -21,14 +21,15 @@ from libc.stdlib cimport malloc, free
 
 
 
-cdef float [:,::1] apply_affine(float [:,::1] end_pts, float[:,::1] inverse, float[::1,:] small_view, float[:] val_view, float [:] vox_dim,
-                        float [:,::1] end_pts_trans) nogil:
+cdef float [:,::1] apply_affine(float [:,::1] end_pts, float[:,::1] inverse, float[::1,:] M,
+                                float[:] abc, float [:] vox_dim, float [:,::1] end_pts_trans) nogil:
 
-    cdef size_t yy = 0
-
-    for yy in xrange(3):
-        end_pts_trans[0][yy] = (( end_pts[0][0]*small_view[0,yy] + end_pts[0][1]*small_view[1,yy] + end_pts[0][2]*small_view[2,yy]) + val_view[yy]) + vox_dim[yy]/2
-        end_pts_trans[1][yy] = ((end_pts[1][0]*small_view[0,yy] + end_pts[1][1]*small_view[1,yy] + end_pts[1][2]*small_view[2,yy]) + val_view[yy]) + vox_dim[yy]/2
+    end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0]) + vox_dim[0]/2
+    end_pts_trans[0][1] = ((end_pts[0][1]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1]) + vox_dim[1]/2
+    end_pts_trans[0][2] = (( end_pts[0][2]*M[0,2] + end_pts[0][1]*M[1,2] + end_pts[0][2]*M[2,2]) + abc[2]) + vox_dim[2]/2
+    end_pts_trans[1][0] = ((end_pts[1][0]*M[0,0] + end_pts[1][1]*M[1,0] + end_pts[1][2]*M[2,0]) + abc[0]) + vox_dim[0]/2
+    end_pts_trans[1][1] = (( end_pts[1][1]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1]) + vox_dim[1]/2
+    end_pts_trans[1][2] = ((end_pts[1][2]*M[0,2] + end_pts[1][1]*M[1,2] + end_pts[1][2]*M[2,2]) + abc[2]) + vox_dim[2]/2
 
     return end_pts_trans
 
@@ -108,8 +109,7 @@ cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end
 
 
 cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
-                            int[:,:,::1] gm_v, float thr, float[:] vox_dim,
-                            float[:,::1] inverse, float[::1,:] small_view, float[:] val_view) nogil:
+                            int[:,:,::1] gm_v, float thr) nogil:
 
     """ Compute the label assigned to each streamline endpoint and then returns a list of connected regions.
 
@@ -141,17 +141,6 @@ cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] r
     cdef float [:] starting_pt = mat[0]
     cdef float [:] ending_pt = mat[1]
 
-    # for yy in xrange(3):
-    #     pts_start[yy] = ((starting_pt[0]*small_view[0,yy] + starting_pt[1]*small_view[1,yy] + starting_pt[2]*small_view[2,yy]) + val_view[yy]) 
-    #     pts_start[yy] += (vox_dim[yy]/2)
-    #     pts_start[yy] = floor(pts_start[yy])
-    #     pts_end[yy] = ((ending_pt[0]*small_view[0,yy] + ending_pt[1]*small_view[1,yy] + ending_pt[2]*small_view[2,yy]) + val_view[yy]) 
-    #     pts_end[yy] += (vox_dim[yy]/2)
-    #     pts_end[yy] = floor(pts_end[yy])
-    
-    # for i in range(3):
-    #     print((pts_start[i], pts_end[i]))
-
 
     cdef int grid_size = grid.shape[0]
     for i in xrange(grid_size):
@@ -166,18 +155,17 @@ cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] r
         dist_e = ( ending_pt[0] - end_vox[0] )**2 + ( ending_pt[1] - end_vox[1] )**2 + ( ending_pt[2] - end_vox[2] )**2 
         roi_ret[0] = 1
         roi_ret[1] = 2
-        # break
+
+        if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and found1==0 and dist_s <= thr**2 :
+            roi_ret[0] = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
+            found1 = 1
         
-        # if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and found1==0 and dist_s <= thr**2 :
-        #     roi_ret[0] = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
-        #     found1 = 1
-        
-        # if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0 and found2==0 and dist_e <= thr**2 :    
-        #     roi_ret[1] = <int>gm_v[ end_vox[0], end_vox[1], end_vox[2]  ]
-        #     found2 = 1
+        if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0 and found2==0 and dist_e <= thr**2 :    
+            roi_ret[1] = <int>gm_v[ end_vox[0], end_vox[1], end_vox[2]  ]
+            found2 = 1
     
-        # if found1 + found2 == 2:
-        #     break
+        if found1 + found2 == 2:
+            break
     return roi_ret
 
 
@@ -221,8 +209,8 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     # gm_map = gm_map_data.astype(np.int32)
 
     cdef float [:,::1] inverse = np.linalg.inv(affine).astype(np.float32) #inverse of affine
-    cdef float [::1,:] small_view = inverse[:-1,:-1].T 
-    cdef float [:] val_view = inverse[:-1,-1]
+    cdef float [::1,:] M = inverse[:3, :3].T 
+    cdef float [:] abc = inverse[:3, 3]
     cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
 
     cdef float thr = np.ceil(threshold).astype(np.float32)
@@ -264,11 +252,16 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
             start_i += 1
         for i in xrange( n_streamlines ):
             # with gil:print(f"{i}/{n_streamlines}")
+            # if i == 10:break
             TCK_in._read_streamline()
             # store the coordinates of the starting point and ending point
             end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
-            matrix = apply_affine(end_pts, inverse, small_view, val_view, voxdims, end_pts_trans)
-            assignments_view[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr, voxdims, inverse, small_view, val_view)
+            # with gil:print(f"end_pts: {end_pts[0][0]} {end_pts[0][1]} {end_pts[0][2]}")
+            # with gil:print(f"end_pts: {end_pts[1][0]} {end_pts[1][1]} {end_pts[1][2]}")
+            matrix = apply_affine(end_pts, inverse, M, abc, voxdims, end_pts_trans)
+            # with gil:print(f"matrix: {matrix[0][0]} {matrix[0][1]} {matrix[0][2]}")
+            # with gil:print(f"matrix: {matrix[1][0]} {matrix[1][1]} {matrix[1][2]}")
+            assignments_view[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr)
 
 
     if TCK_in is not None:
