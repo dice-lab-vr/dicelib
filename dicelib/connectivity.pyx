@@ -137,6 +137,8 @@ cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] r
     cdef float dist_e = 0
     cdef size_t i = 0
     cdef size_t yy = 0
+    roi_ret[0] = 0
+    roi_ret[1] = 0
 
     cdef float [:] starting_pt = mat[0]
     cdef float [:] ending_pt = mat[1]
