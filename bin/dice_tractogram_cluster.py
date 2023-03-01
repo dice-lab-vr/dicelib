@@ -4,6 +4,7 @@ from dicelib.ui import ColoredArgParser
 from dicelib.clustering import cluster, split_clusters, closest_streamline
 from dicelib.tractogram import split
 from dicelib.connectivity import assign
+from lazytractogram import LazyTractogram
 import numpy as np
 import nibabel as nib
 import time
@@ -53,28 +54,19 @@ print([len(c) for c in chunk_groups])
 if options.atlas:
     chunks_asgn = []
     t0 = time.time()
-    # future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0], end_chunk=chunk_groups[i][len(chunk_groups[i])-1], chunk_size=len(chunk_groups[i]),
-    #                         reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
-    #                         threshold=options.threshold, force=options.force) for i in range(len(chunk_groups))]
-    # chunks_asgn = assign(input_tractogram=options.input_tractogram, start_chunk =0, end_chunk=num_streamlines, chunk_size=num_streamlines,
-    #                         reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
-    #                         threshold=options.threshold, force=options.force)
+
     with tdp(max_workers=MAX_THREAD) as executor:
         future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0], end_chunk=chunk_groups[i][len(chunk_groups[i])-1]+1, chunk_size=len(chunk_groups[i]),
                             reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
                             threshold=options.conn_threshold, force=options.force) for i in range(len(chunk_groups))]
-    # for i, f in enumerate(future):
     chunks_asgn = [f.result() for f in future]
     chunks_asgn = [c for f in chunks_asgn for c in f]
-    # print(chunks_asgn[:10])
-    # for i, f in enumerate(cf.as_completed(future)):
-    #     print(f"Done chunk: {i}/{len(chunk_groups)}")
-    #     chunks_asgn.extend(f.result())
-    print("Done")
+
     t1 = time.time()
     print("Time taken for connectivity: ", (t1-t0))
+
     out_assignment_ext = os.path.splitext(options.save_assignments)[1]
-    # out_assignment = f"{out_assignment[:-4]}{out_assignment_ext}"
+
     if out_assignment_ext not in ['.txt', '.npy']:
         print( 'Invalid extension for the output scalar file' )
     if os.path.isfile(options.save_assignments) and not options.force:
@@ -87,7 +79,6 @@ if options.atlas:
         np.save( options.save_assignments, chunks_asgn, allow_pickle=False )
 
 else:
-    t0 = time.time()
     cluster_idx, _, _ = cluster(options.input_tractogram,
                         threshold=options.conn_threshold,
                         n_pts=options.n_pts,
@@ -98,20 +89,18 @@ else:
                         verbose=options.verbose
     )
 
-    t1 = time.time()
-    print("Time endin points splitting: ", (t1-t0))
     num_clust = len(np.unique(cluster_idx))
-    print(num_clust)
+
 t0 = time.time()
+
 if options.split:
     if options.atlas:
         split(input_tractogram=options.input_tractogram, input_assignments=options.save_assignments, output_folder=options.output_folder, force=options.force)
     else:
         split_clusters(options.input_tractogram, cluster_idx, options.output_folder)
-# # if options.save_assignments:
-# #     np.savetxt(options.save_assignments, cluster_idx)
 
 t1 = time.time()
+
 print("Time bundles splitting: ", (t1-t0))
 
 
@@ -161,12 +150,18 @@ future = [executor.submit(cluster_bundle, bundles[i],
                         force=options.force,
                         verbose=options.verbose) for i in range(len(bundles))]
 
+TCK_in = LazyTractogram( input_tractogram, mode='r' )
+TCK_out = LazyTractogram( os.path.join(options.output_folder,f'centroids_thr_{options.clust_threshold}.tck'), mode='w', header=TCK_in.header )
+TCK_out_size = 0
+
 for i, f in enumerate(cf.as_completed(future)):
-        print(f"Done: {i}/{len(bundles)}", end="\r")
-        new_c, centr_len = f.result()
-        for jj, n_c in enumerate(new_c):
-            centroids_list.append(n_c[:centr_len[jj]])
-#
+    new_c, centr_len = f.result()
+    for jj, n_c in enumerate(new_c):
+        TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
+        TCK_out_size += 1
+        # centroids_list.append(n_c[:centr_len[jj]])
+TCK_outs.close( write_eof=True, count= TCK_out_size)
+
 t1 = time.time()
 print(f"Time taken to cluster and find closest streamlines: {t1-t0}" )
 tt1= time.time() -tt0 
@@ -177,4 +172,4 @@ ref_header = ref_data.header
 affine = ref_data.affine
 centroids_out = nib.streamlines.Tractogram(centroids_list, affine_to_rasmm=affine)
 
-nib.streamlines.save(centroids_out, os.path.join("/home/matteo/Dataset/HCP_test_retest/baseline/172332",'centroids.tck'))
+nib.streamlines.save(centroids_out, os.path.join(options.output_folder, "centroids.tck"))
