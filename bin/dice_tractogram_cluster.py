@@ -67,7 +67,7 @@ if options.atlas:
                             threshold=options.threshold, force=options.force) for i in range(len(chunk_groups))]
     # for i, f in enumerate(future):
     chunks_asgn = [f.result() for f in future]
-    chunks_asgn = [c for c in chunks_asgn]
+    chunks_asgn = [c for f in chunks_asgn for c in f]
     # print(chunks_asgn[:10])
     # for i, f in enumerate(cf.as_completed(future)):
     #     print(f"Done chunk: {i}/{len(chunk_groups)}")
