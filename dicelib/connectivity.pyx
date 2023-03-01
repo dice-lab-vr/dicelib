@@ -153,8 +153,6 @@ cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] r
         end_vox[2] = <int>(ending_pt[2] + grid[i][2])
         dist_s = ( starting_pt[0] - start_vox[0] )**2 + ( starting_pt[1] - start_vox[1] )**2 + ( starting_pt[2] - start_vox[2] )**2 
         dist_e = ( ending_pt[0] - end_vox[0] )**2 + ( ending_pt[1] - end_vox[1] )**2 + ( ending_pt[2] - end_vox[2] )**2 
-        roi_ret[0] = 1
-        roi_ret[1] = 2
 
         if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and found1==0 and dist_s <= thr**2 :
             roi_ret[0] = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
