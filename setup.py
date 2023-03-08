@@ -13,28 +13,28 @@ def get_extensions():
         name='lazytractogram',
         sources=[f'{package_name}/lazytractogram.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
+        extra_compile_args=['-w', '-std=c++11', '-g0'],
         language='c++'
     )
     image = Extension(
         name='image',
         sources=[f'{package_name}/image.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
+        extra_compile_args=['-w', '-std=c++11', '-g0'],
         language='c++'
     )
     streamline = Extension(
         name='streamline',
         sources=[f'{package_name}/streamline.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
+        extra_compile_args=['-w', '-std=c++11', '-g0'],
         language='c++'
     )
     tractogram = Extension(
         name='tractogram',
         sources=[f'{package_name}/tractogram.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
+        extra_compile_args=['-w', '-std=c++11', '-g0'],
         language='c++'
     )
     return [ lazytractogram, image, streamline, tractogram ]
@@ -53,7 +53,6 @@ class CustomBuildExtCommand(build_ext):
         self.swig_opts = None
         self.include_dirs = [get_include()]
         self.distribution.ext_modules[:] = cythonize( self.distribution.ext_modules, build_dir='build' )
-        print( self.distribution.ext_modules )
 
         # if not specified via '-j N' option, set compilation using max number of cores
         if self.parallel is None:
