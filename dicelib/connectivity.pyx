@@ -25,10 +25,10 @@ cdef float [:,::1] apply_affine(float [:,::1] end_pts, float[:,::1] inverse, flo
                                 float[:] abc, float [:] vox_dim, float [:,::1] end_pts_trans) nogil:
 
     end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0]) + vox_dim[0]/2
-    end_pts_trans[0][1] = ((end_pts[0][1]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1]) + vox_dim[1]/2
+    end_pts_trans[0][1] = ((end_pts[0][1]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1]) + vox_dim[1]/2
     end_pts_trans[0][2] = (( end_pts[0][2]*M[0,2] + end_pts[0][1]*M[1,2] + end_pts[0][2]*M[2,2]) + abc[2]) + vox_dim[2]/2
     end_pts_trans[1][0] = ((end_pts[1][0]*M[0,0] + end_pts[1][1]*M[1,0] + end_pts[1][2]*M[2,0]) + abc[0]) + vox_dim[0]/2
-    end_pts_trans[1][1] = (( end_pts[1][1]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1]) + vox_dim[1]/2
+    end_pts_trans[1][1] = (( end_pts[1][1]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1]) + vox_dim[1]/2
     end_pts_trans[1][2] = ((end_pts[1][2]*M[0,2] + end_pts[1][1]*M[1,2] + end_pts[1][2]*M[2,2]) + abc[2]) + vox_dim[2]/2
 
     return end_pts_trans
@@ -225,13 +225,6 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     grid = compute_grid( thr, voxdims )
     TCK_in = None
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
-
-    print('before while')
-    print(f"start: {start_chunk}, end {end_chunk}")
-    
-    
-    
-    print('after while')
 
 
     cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)

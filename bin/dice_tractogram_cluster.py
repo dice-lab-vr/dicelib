@@ -42,14 +42,8 @@ MAX_THREAD = 1
 
 
 num_streamlines = int(nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"])
-print(num_streamlines)
 chunk_size = int(num_streamlines/MAX_THREAD)
-# print(chunk_size)
 chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
-print([len(c) for c in chunk_groups])
-
-# chunk_size = [[end_chunks[i] - end_chunks[i-1]] for i in range(1,len(end_chunks))]
-
 
 if options.atlas:
     chunks_asgn = []
@@ -118,8 +112,6 @@ def cluster_bundle(bundle, threshold=options.clust_threshold, n_pts=options.n_pt
     new_c = closest_streamline(bundle, set_centroids, clust_idx, options.n_pts, set_centroids.shape[0], centr_len)
     return new_c, centr_len
 
-
-
 t0 = time.time()
 bundles = []
 res_parallel = []
@@ -145,7 +137,6 @@ future = [executor.submit(cluster_bundle, bundles[i],
                         threshold=options.clust_threshold,
                         n_pts=options.n_pts,
                         save_assignments=options.save_assignments,
-                        # split=options.split,
                         output_folder=options.output_folder,
                         force=options.force,
                         verbose=options.verbose) for i in range(len(bundles))]
@@ -159,7 +150,6 @@ for i, f in enumerate(cf.as_completed(future)):
     for jj, n_c in enumerate(new_c):
         TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
         TCK_out_size += 1
-        # centroids_list.append(n_c[:centr_len[jj]])
 TCK_out.close( write_eof=True, count= TCK_out_size)
 if TCK_in is not None:
     TCK_in.close()
