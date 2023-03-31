@@ -116,6 +116,7 @@ setup(
     ext_package=package_name,
     ext_modules=get_extensions(),
     packages=find_packages(),
+    package_data={package_name: ['*.pxd']},
     setup_requires=['wheel', 'Cython>=0.29', 'numpy>=1.12'],
     install_requires=['setuptools>=46.1', 'numpy>=1.12', 'scipy>=1.0', 'cython>=0.29', 'tqdm>=4.62', 'dipy>=1.0'],
     scripts=glob('bin/*.py'),
