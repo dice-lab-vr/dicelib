@@ -214,7 +214,7 @@ cdef class LazyTractogram:
         # write end-of-streamline signature
         fwrite( NAN3, 4, 3, self.fp )
 
-    cpdef  write_streamline( self, float [:,:] streamline, int n=-1 ):
+    cpdef write_streamline( self, float [:,:] streamline, int n=-1 ):
         """Write a streamline at the current position in the file.
 
         Parameters

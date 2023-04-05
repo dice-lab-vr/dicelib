@@ -64,7 +64,14 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-    return [ lazytractogram, image, streamline, tractogram, clustering, split_cluster, connectivity ]
+    tsf = Extension(
+        name='tsf',
+        sources=[f'{package_name}/Tsf.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+    return [ lazytractogram, image, streamline, tractogram, clustering, split_cluster, connectivity, tsf ]
 
 
 class CustomBuildExtCommand(build_ext):
