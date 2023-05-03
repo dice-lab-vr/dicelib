@@ -1,1 +1,1 @@
-import dicelib/*.pxd
+recursive-include dicelib *.pxd *.h

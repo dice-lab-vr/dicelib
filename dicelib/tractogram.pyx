@@ -612,3 +612,38 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
             ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
         else:
             ui.INFO( f'\t- {mb:.2f} MB' )
+
+
+cdef float[:,:] smooth_fib(float [:,:] streamlines, int* ptrlengths, int n_count, float[:,:] streamlines_out, int* ptrlengths_out):
+    
+    cdef float [:, ::1] npaFiberO = np.ascontiguousarray( np.zeros( (3*10000,1) ).astype(np.float32) )
+    cdef float* ptr_npaFiberO = &npaFiberO[0,0]
+
+    cdef float* ptr_start = &streamlines[0,0]
+    
+    trk_fiber_out = []
+    for f in range(n_count):
+        n =  smooth( ptr_start, ptrlengths[f], ptr_npaFiberO, 1, 1 )
+        ptrlengths_out[f] = n
+        if n != 0 :
+            streamline = np.reshape( npaFiberO[:3*n].copy(), (n,3) )
+            trk_fiber_out.append( streamline )
+        ptr_start+= 3*ptrlengths[f]
+    streamlines_out = np.vstack([s for s in trk_fiber_out])
+    return streamlines_out
+
+
+# cdef simple_smooth(float [:,:] streamlines, int* ptrlengths, int n_count):
+#     cdef float [:, ::1] npaFiberO = np.ascontiguousarray( np.zeros( (3*10000,1) ).astype(np.float32) )
+#     cdef float* ptr_npaFiberO = &npaFiberO[0,0]
+
+#     cdef float* ptr_start = &streamlines[0,0]
+    
+#     trk_fiber_out = []
+#     for f in xrange(n_count):
+#         n =  smooth( ptr_start, ptrlengths[f], ptr_npaFiberO, 1, 1 )
+#         if n != 0 :
+#             streamline = np.reshape( npaFiberO[:3*n].copy(), (n,3) )
+#             trk_fiber_out.append( streamline )
+#         ptr_start+= 3*ptrlengths[f]
+#     return trk_fiber_out
