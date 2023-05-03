@@ -110,22 +110,11 @@ sys.path.insert(0, f'./{package_name}/')
 import info
 
 setup(
-    name=info.NAME,
-    version=info.VERSION,
-    description=info.DESCRIPTION,
-    long_description=info.LONG_DESCRIPTION,
-    author=info.AUTHOR,
-    author_email=info.AUTHOR_EMAIL,
     cmdclass={
         'build_ext': CustomBuildExtCommand,
         'clean': CleanCommand
     },
     ext_package=package_name,
     ext_modules=get_extensions(),
-    packages=find_packages(),
-    include_package_data=True,
-    setup_requires=['wheel', 'Cython>=0.29', 'numpy>=1.12'],
-    install_requires=['setuptools>=46.1', 'numpy>=1.12', 'scipy>=1.0', 'cython>=0.29', 'tqdm>=4.62', 'dipy>=1.0'],
     scripts=glob('bin/*.py'),
-    zip_safe=False
 )
