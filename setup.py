@@ -10,62 +10,55 @@ package_name = 'dicelib'
 
 def get_extensions():
     lazytractogram = Extension(
-        name='lazytractogram',
+        name=f'{package_name}.lazytractogram',
         sources=[f'{package_name}/lazytractogram.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
     image = Extension(
-        name='image',
+        name=f'{package_name}.image',
         sources=[f'{package_name}/image.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
     streamline = Extension(
-        name='streamline',
+        name=f'{package_name}.streamline',
         sources=[f'{package_name}/streamline.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
     tractogram = Extension(
-        name='tractogram',
+        name=f'{package_name}.tractogram',
         sources=[f'{package_name}/tractogram.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
     clustering = Extension(
-        name='clustering',
+        name=f'{package_name}.clustering',
         sources=[f'{package_name}/clustering.pyx'],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
     connectivity = Extension(
-        name='connectivity',
+        name=f'{package_name}.connectivity',
         sources=['dicelib/connectivity.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-    lazytck = Extension(
-        name='lazytck',
-        sources=['dicelib/lazytck.pyx'],
-        include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
-        language='c++',
-    )
     split_cluster = Extension(
-        name='split_cluster',
+        name=f'{package_name}.split_cluster',
         sources=[f'{package_name}/split_cluster.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
     tsf = Extension(
-        name='tsf',
+        name=f'{package_name}.tsf',
         sources=[f'{package_name}/Tsf.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
@@ -103,18 +96,11 @@ class CleanCommand(Command):
     def run(self):
         shutil.rmtree('./build')
 
-
-# import details from {package_name}/info.py
-import sys
-sys.path.insert(0, f'./{package_name}/')
-import info
-
 setup(
     cmdclass={
         'build_ext': CustomBuildExtCommand,
         'clean': CleanCommand
     },
-    ext_package=package_name,
     ext_modules=get_extensions(),
-    scripts=glob('bin/*.py'),
+    scripts=glob('bin/*.py')
 )

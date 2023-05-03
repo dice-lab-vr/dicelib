@@ -25,18 +25,18 @@ cdef class LazyTractogram:
     At the moment, only .tck files are supported.
     TODO: complete this description.
     """
-    cdef readonly   str                             filename
-    cdef readonly   str                             suffix
-    cdef readonly   dict                            header
-    cdef readonly   str                             mode
-    cdef readonly   bint                            is_open
-    cdef readonly   float[:,::1]                    streamline
-    cdef readonly   unsigned int                    n_pts
-    cdef            int                             max_points
-    cdef            FILE*                           fp
-    cdef            float*                          buffer
-    cdef            float*                          buffer_ptr
-    cdef            float*                          buffer_end
+    # cdef readonly   str                             filename
+    # cdef readonly   str                             suffix
+    # cdef readonly   dict                            header
+    # cdef readonly   str                             mode
+    # cdef readonly   bint                            is_open
+    # cdef readonly   float[:,::1]                    streamline
+    # cdef readonly   unsigned int                    n_pts
+    # cdef            int                             max_points
+    # cdef            FILE*                           fp
+    # cdef            float*                          buffer
+    # cdef            float*                          buffer_ptr
+    # cdef            float*                          buffer_end
 
     def __init__( self, char *filename, char* mode, header=None, unsigned int max_points=3000 ):
         """Initialize the class.

@@ -11,7 +11,7 @@ cimport numpy as np
 import nibabel as nib
 # from nibabel.affines import apply_affine
 
-from lazytractogram cimport LazyTractogram
+from dicelib.lazytractogram cimport LazyTractogram
 from . import ui
 from tqdm import tqdm
 from libc.math cimport sqrt

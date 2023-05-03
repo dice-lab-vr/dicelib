@@ -5,5 +5,4 @@ requires = [
     "numpy>=1.12",
     "wheel"
 ]
-allow-direct-references = true
 build-backend = "setuptools.build_meta"

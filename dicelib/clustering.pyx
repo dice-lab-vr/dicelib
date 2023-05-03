@@ -8,7 +8,7 @@ import os
 import numpy as np
 cimport numpy as np
 import nibabel as nib
-from lazytractogram cimport LazyTractogram
+from dicelib.lazytractogram cimport LazyTractogram
 from libc.math cimport sqrt
 from libc.stdlib cimport malloc, free
 from geom_clustering import split_clusters

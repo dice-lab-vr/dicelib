@@ -4,8 +4,8 @@ import cython
 import numpy as np
 cimport numpy as np
 import os, glob, random as rnd
-from lazytractogram import LazyTractogram
-from .streamline import length as streamline_length
+from dicelib.lazytractogram import LazyTractogram
+from dicelib.streamline import length as streamline_length
 from . import ui
 from tqdm import trange
 from libc.math cimport sqrt
@@ -633,17 +633,17 @@ cdef float[:,:] smooth_fib(float [:,:] streamlines, int* ptrlengths, int n_count
     return streamlines_out
 
 
-# cdef simple_smooth(float [:,:] streamlines, int* ptrlengths, int n_count):
-#     cdef float [:, ::1] npaFiberO = np.ascontiguousarray( np.zeros( (3*10000,1) ).astype(np.float32) )
-#     cdef float* ptr_npaFiberO = &npaFiberO[0,0]
+cdef simple_smooth(float [:,:] streamlines, int* ptrlengths, int n_count):
+    cdef float [:, ::1] npaFiberO = np.ascontiguousarray( np.zeros( (3*10000,1) ).astype(np.float32) )
+    cdef float* ptr_npaFiberO = &npaFiberO[0,0]
 
-#     cdef float* ptr_start = &streamlines[0,0]
+    cdef float* ptr_start = &streamlines[0,0]
     
-#     trk_fiber_out = []
-#     for f in xrange(n_count):
-#         n =  smooth( ptr_start, ptrlengths[f], ptr_npaFiberO, 1, 1 )
-#         if n != 0 :
-#             streamline = np.reshape( npaFiberO[:3*n].copy(), (n,3) )
-#             trk_fiber_out.append( streamline )
-#         ptr_start+= 3*ptrlengths[f]
-#     return trk_fiber_out
+    trk_fiber_out = []
+    for f in xrange(n_count):
+        n =  smooth( ptr_start, ptrlengths[f], ptr_npaFiberO, 1, 1 )
+        if n != 0 :
+            streamline = np.reshape( npaFiberO[:3*n].copy(), (n,3) )
+            trk_fiber_out.append( streamline )
+        ptr_start+= 3*ptrlengths[f]
+    return trk_fiber_out

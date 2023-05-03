@@ -9,7 +9,7 @@ cimport numpy as np
 import nibabel as nib
 import os, glob, random as rnd
 from tqdm import trange
-from lazytractogram cimport LazyTractogram
+from dicelib.lazytractogram cimport LazyTractogram
 
 cpdef split_clusters(tractogram, clust_idx, output_folder, verbose=3):
     TCK_in          = None

@@ -19,4 +19,9 @@ cdef class LazyTractogram:
     cdef            float*                          buffer_end
 
     cdef int _read_streamline( self ) nogil
-    cdef void _write_streamline( self ) nogil
+    cpdef int read_streamline( self )
+    cdef void _write_streamline( self, float [:,:] streamline, int n=* ) nogil
+    cpdef write_streamline( self, float [:,:] streamline, int n=* )
+    cpdef close( self, bint write_eof=*, int count=* )
+    cpdef _read_header( self )
+    cpdef _write_header( self, header )

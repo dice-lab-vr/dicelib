@@ -2,6 +2,7 @@
 #include "include/psimpl_v7_src/psimpl.h"
 #include "include/Vector.h"
 #include <vector>
+#include <iterator>
 
 
 // =========================

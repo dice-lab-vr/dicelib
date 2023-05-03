@@ -1,2 +1,2 @@
 cdef float[:,:] smooth_fib(float [:,:] streamlines, int* ptrlengths, int n_count, float[:,:] streamlines_out, int* ptrlengths_out)
-# cdef simple_smooth(float [:,:] streamlines, int* ptrlengths, int n_count)
+cdef simple_smooth(float [:,:] streamlines, int* ptrlengths, int n_count)
