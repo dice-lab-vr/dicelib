@@ -11,7 +11,6 @@ import nibabel as nib
 from dicelib.lazytractogram cimport LazyTractogram
 from libc.math cimport sqrt
 from libc.stdlib cimport malloc, free
-from geom_clustering import split_clusters
 import time
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor as tdp

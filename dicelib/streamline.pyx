@@ -6,6 +6,12 @@ cimport numpy as np
 from libc.math cimport sqrt
 
 
+cdef extern from "streamline.hpp":
+    int smooth_c(
+        float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, float segment_len
+    ) nogil
+
+
 cpdef length( float [:,:] streamline, int n=0 ):
     """Compute the length of a streamline.
 
@@ -30,3 +36,32 @@ cpdef length( float [:,:] streamline, int n=0 ):
         length += sqrt( (ptr[3]-ptr[0])**2 + (ptr[4]-ptr[1])**2 + (ptr[5]-ptr[2])**2 )
         ptr += 3
     return length
+
+
+cpdef smooth( streamline, n_pts, control_point_ratio, segment_len ):
+    """Wrapper for streamline smoothing.
+
+    Parameters
+    ----------
+    streamline : Nx3 numpy array
+        The streamline data
+    n_pts : int
+        Number of points in the streamline
+    control_point_ratio : float
+        Ratio of control points w.r.t. the number of points of the input streamline
+    segment_len : float
+        Min length of the segments in mm
+
+    Returns
+    -------
+    streamline_out : Nx3 numpy array
+        The smoothed streamline data
+    n : int
+        Number of points in the smoothed streamline
+    """
+
+    cdef float [:,:] streamline_in = streamline
+    cdef float [:,:] streamline_out = np.empty( (3000,3), dtype=np.float32 )
+    n = smooth_c( &streamline_in[0,0], n_pts, &streamline_out[0,0], control_point_ratio, segment_len )
+    return streamline_out[:n,:], n
+

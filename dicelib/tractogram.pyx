@@ -6,16 +6,10 @@ cimport numpy as np
 import os, glob, random as rnd
 from dicelib.lazytractogram import LazyTractogram
 from dicelib.streamline import length as streamline_length
+from dicelib.streamline import smooth
 from . import ui
 from tqdm import trange
 from libc.math cimport sqrt
-
-
-# # Interface to actual C code
-cdef extern from "streamline.hpp":
-    int smooth(
-        float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, float segment_len
-    ) nogil
 
 
 def compute_lenghts( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
@@ -545,8 +539,6 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
     force : boolean
         Force overwriting of the output (default : False).
     """
-    cdef float [:,:] npaFiberI
-    cdef float [:,:] npaFiberO
 
     if type(verbose) != int or verbose not in [0,1,2,3,4]:
         ui.ERROR( '"verbose" must be in [0...4]' )
@@ -587,14 +579,12 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
             ui.INFO( f'\t- segment length : {segment_len:.2f}' )
 
         # process each streamline
-        npaFiberI = TCK_in.streamline
-        npaFiberO = np.empty( (3000,3), dtype=np.float32 )
         for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
             TCK_in.read_streamline()
             if TCK_in.n_pts==0:
                 break # no more data, stop reading
-            n = smooth( &npaFiberI[0,0], TCK_in.n_pts, &npaFiberO[0,0], control_point_ratio, segment_len )
-            TCK_out.write_streamline( npaFiberO, n )
+            smoothed_streamline, n = smooth( TCK_in.streamline, TCK_in.n_pts, control_point_ratio, segment_len )
+            TCK_out.write_streamline( smoothed_streamline, n )
 
     except Exception as e:
         TCK_out.close()
@@ -612,38 +602,3 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
             ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
         else:
             ui.INFO( f'\t- {mb:.2f} MB' )
-
-
-cdef float[:,:] smooth_fib(float [:,:] streamlines, int* ptrlengths, int n_count, float[:,:] streamlines_out, int* ptrlengths_out):
-    
-    cdef float [:, ::1] npaFiberO = np.ascontiguousarray( np.zeros( (3*10000,1) ).astype(np.float32) )
-    cdef float* ptr_npaFiberO = &npaFiberO[0,0]
-
-    cdef float* ptr_start = &streamlines[0,0]
-    
-    trk_fiber_out = []
-    for f in range(n_count):
-        n =  smooth( ptr_start, ptrlengths[f], ptr_npaFiberO, 1, 1 )
-        ptrlengths_out[f] = n
-        if n != 0 :
-            streamline = np.reshape( npaFiberO[:3*n].copy(), (n,3) )
-            trk_fiber_out.append( streamline )
-        ptr_start+= 3*ptrlengths[f]
-    streamlines_out = np.vstack([s for s in trk_fiber_out])
-    return streamlines_out
-
-
-cdef simple_smooth(float [:,:] streamlines, int* ptrlengths, int n_count):
-    cdef float [:, ::1] npaFiberO = np.ascontiguousarray( np.zeros( (3*10000,1) ).astype(np.float32) )
-    cdef float* ptr_npaFiberO = &npaFiberO[0,0]
-
-    cdef float* ptr_start = &streamlines[0,0]
-    
-    trk_fiber_out = []
-    for f in xrange(n_count):
-        n =  smooth( ptr_start, ptrlengths[f], ptr_npaFiberO, 1, 1 )
-        if n != 0 :
-            streamline = np.reshape( npaFiberO[:3*n].copy(), (n,3) )
-            trk_fiber_out.append( streamline )
-        ptr_start+= 3*ptrlengths[f]
-    return trk_fiber_out

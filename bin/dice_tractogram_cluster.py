@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from dicelib.ui import ColoredArgParser
-from dicelib.clustering import cluster, split_clusters, closest_streamline
+from dicelib.clustering import cluster, closest_streamline
 from dicelib.tractogram import split
 from dicelib.connectivity import assign
-from lazytractogram import LazyTractogram
+from dicelib.lazytractogram import LazyTractogram
+from dicelib.split_cluster import split_clusters
 import numpy as np
-import nibabel as nib
+# import nibabel as nib
 import time
 from concurrent.futures import ThreadPoolExecutor as tdp
 import concurrent.futures as cf
@@ -41,18 +42,22 @@ tt0 = time.time()
 MAX_THREAD = 1
 
 
-num_streamlines = int(nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"])
+# num_streamlines = int(nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"])
+num_streamlines = int(LazyTractogram( options.input_tractogram, mode='r' ).header["count"])
 chunk_size = int(num_streamlines/MAX_THREAD)
 chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
-
+print(f"Number of streamlines: {num_streamlines}")
+print(f"Chunk size: {chunk_size}")
+print(f"Chunk groups: {chunk_groups}")
 if options.atlas:
     chunks_asgn = []
     t0 = time.time()
 
     with tdp(max_workers=MAX_THREAD) as executor:
-        future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0], end_chunk=chunk_groups[i][len(chunk_groups[i])-1]+1, chunk_size=len(chunk_groups[i]),
-                            reference=options.reference, gm_map_file=options.atlas, out_assignment=options.save_assignments,
-                            threshold=options.conn_threshold, force=options.force) for i in range(len(chunk_groups))]
+        future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0],
+                                    end_chunk=chunk_groups[i][len(chunk_groups[i])-1]+1, chunk_size=len(chunk_groups[i]),
+                                    reference=options.reference, gm_map_file=options.atlas, threshold=options.conn_threshold,
+                                    force=options.force) for i in range(len(chunk_groups))]
     chunks_asgn = [f.result() for f in future]
     chunks_asgn = [c for f in chunks_asgn for c in f]
 
