@@ -23,7 +23,7 @@ parser.add_argument("--clust_threshold", type=float, help="Threshold [in mm]")
 parser.add_argument("--n_pts", type=int, default=10, help="Number of points for the resampling of a streamline")
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
 parser.add_argument("--split", action="store_true", help="Split clusters into separate files")
-parser.add_argument("--output_folder", "-out", help="Folder where to save the split clusters")
+parser.add_argument("--_t", "-out", help="Folder where to save the split clusters")
 parser.add_argument("--n_threads", type=int, help="Number of threads to use to perform clustering")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
@@ -147,7 +147,7 @@ future = [executor.submit(cluster_bundle, bundles[i],
                         verbose=options.verbose) for i in range(len(bundles))]
 
 TCK_in = LazyTractogram( options.input_tractogram, mode='r' )
-TCK_out = LazyTractogram( os.path.join(options.output_folder,f'centroids_thr_{options.clust_threshold}.tck'), mode='w', header=TCK_in.header )
+TCK_out = LazyTractogram( os.path.join(options.output_folder,f'clustered_thr_{options.clust_threshold}.tck'), mode='w', header=TCK_in.header )
 TCK_out_size = 0
 
 for i, f in enumerate(cf.as_completed(future)):

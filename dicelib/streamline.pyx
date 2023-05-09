@@ -62,6 +62,9 @@ cpdef smooth( streamline, n_pts, control_point_ratio, segment_len ):
 
     cdef float [:,:] streamline_in = streamline
     cdef float [:,:] streamline_out = np.empty( (3000,3), dtype=np.float32 )
+    
     n = smooth_c( &streamline_in[0,0], n_pts, &streamline_out[0,0], control_point_ratio, segment_len )
+    if n != 0 :
+        streamline_out = np.reshape( streamline_out[:3*n].copy(), (n,3) )
     return streamline_out[:n,:], n
 
