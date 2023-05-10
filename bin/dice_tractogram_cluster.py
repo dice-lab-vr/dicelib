@@ -23,7 +23,7 @@ parser.add_argument("--clust_threshold", type=float, help="Threshold [in mm]")
 parser.add_argument("--n_pts", type=int, default=10, help="Number of points for the resampling of a streamline")
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
 parser.add_argument("--split", action="store_true", help="Split clusters into separate files")
-parser.add_argument("--_t", "-out", help="Folder where to save the split clusters")
+parser.add_argument("--output_folder", "-out", help="Folder where to save the split clusters")
 parser.add_argument("--n_threads", type=int, help="Number of threads to use to perform clustering")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
@@ -129,10 +129,7 @@ for  dirpath, _, filenames in os.walk(options.output_folder):
         if f.endswith('.tck') and not f.startswith('unassigned'):
             bundles.append(os.path.abspath(os.path.join(dirpath, f)))
 
-#TODO sorted_files = sorted(all_files, key = os.path.getsize)
-# 1. Order the available items descending.
-# 2. Create N empty groups
-# 3. Start adding the items one at a time into the group that has the smallest size sum in it.
+
 if options.n_threads:
     MAX_THREAD = options.n_threads
 
