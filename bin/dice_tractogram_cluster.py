@@ -18,7 +18,7 @@ parser = ColoredArgParser( description=cluster.__doc__.split('\n')[0] )
 parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("--reference", "-r", help="Reference used for space transofrmation")
 parser.add_argument("--atlas", "-a", help="Atlas used to compute streamlines connectivity")
-parser.add_argument("--conn_threshold", "-t", type=float, metavar="THR", help="Threshold [in mm]")
+parser.add_argument("--conn_threshold", "-t", default=2, type=float, metavar="THR", help="Threshold [in mm]")
 parser.add_argument("--clust_threshold", type=float, help="Threshold [in mm]")
 parser.add_argument("--n_pts", type=int, default=10, help="Number of points for the resampling of a streamline")
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
@@ -34,7 +34,6 @@ def compute_chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
-
 
 
 tt0 = time.time()
@@ -63,7 +62,7 @@ if options.atlas:
 
     t1 = time.time()
     print("Time taken for connectivity: ", (t1-t0))
-
+    print(f"Asignment file: {options.save_assignments}")
     out_assignment_ext = os.path.splitext(options.save_assignments)[1]
 
     if out_assignment_ext not in ['.txt', '.npy']:
