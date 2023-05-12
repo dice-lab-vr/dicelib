@@ -18,6 +18,7 @@ from libc.math cimport sqrt
 from joblib import Parallel, delayed, cpu_count
 from libc.math cimport floor
 from libc.stdlib cimport malloc, free
+from libcpp cimport bool
 
 
 
@@ -37,7 +38,6 @@ cdef float [:,::1] apply_affine(float [:,::1] end_pts, float[:,::1] inverse, flo
 cdef compute_grid( float thr, float[:] vox_dim ) :
 
     """ Compute the offsets grid
-    
         Parameters
         ---------------------
         thr : double
@@ -45,29 +45,24 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
             
         vox_dim : 1x3 numpy array
             Voxel dimensions
-    
     """
 
     cdef float grid_center[3]
     cdef int thr_grid = <int>thr
-    cdef int m = 2
-    
+
     # grid center
-    cdef float x = vox_dim[0]/m
-    cdef float y = vox_dim[1]/m
-    cdef float z = vox_dim[2]/m
-    
+    cdef float x = vox_dim[0]/2
+    cdef float y = vox_dim[1]/2
+    cdef float z = vox_dim[2]/2
+
     grid_center[:] = [ x, y, z ]
-    
-    
+
     # create the mesh    
     mesh = np.linspace( -thr_grid, thr_grid, 2*thr_grid +1 )
     mx, my, mz = np.meshgrid( mesh, mesh, mesh )
-    
-    
-    # find the centers of each voxels
-    centers = np.stack([mx.ravel(), my.ravel(), mz.ravel()], axis=1) + .5
 
+    # find the centers of each voxels
+    centers = np.stack([mx.ravel() + x, my.ravel() + y, mz.ravel() + z], axis=1)
 
     # sort the centers based on their distance from grid_center 
     cdef long[:] dist_grid = ((centers - grid_center)**2).sum(axis=1).argsort()
@@ -131,8 +126,6 @@ cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] r
 
     cdef int roi1 = 0
     cdef int roi2 = 0
-    cdef int found1 = 0
-    cdef int found2 = 0
     cdef float dist_s = 0
     cdef float dist_e = 0
     cdef size_t i = 0
@@ -150,31 +143,31 @@ cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] r
         start_vox[0] = <int>(starting_pt[0] + grid[i][0])
         start_vox[1] = <int>(starting_pt[1] + grid[i][1])
         start_vox[2] = <int>(starting_pt[2] + grid[i][2])
-        end_vox[0] = <int>(ending_pt[0] + grid[i][0])
-        end_vox[1] = <int>(ending_pt[1] + grid[i][1])
-        end_vox[2] = <int>(ending_pt[2] + grid[i][2])
 
         # check if the voxel is inside the mask
         if start_vox[0] < 0 or start_vox[0] >= gm_v.shape[0] or start_vox[1] < 0 or start_vox[1] >= gm_v.shape[1] or start_vox[2] < 0 or start_vox[2] >= gm_v.shape[2]:
             continue
 
+        dist_s = sqrt( ( starting_pt[0] - start_vox[0] )**2 + ( starting_pt[1] - start_vox[1] )**2 + ( starting_pt[2] - start_vox[2] )**2 )
+
+        if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and dist_s <= thr:
+            roi_ret[0] = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
+            break
+
+    for i in xrange(grid_size):
+        end_vox[0] = <int>(ending_pt[0] + grid[i][0])
+        end_vox[1] = <int>(ending_pt[1] + grid[i][1])
+        end_vox[2] = <int>(ending_pt[2] + grid[i][2])
+
         if end_vox[0] < 0 or end_vox[0] >= gm_v.shape[0] or end_vox[1] < 0 or end_vox[1] >= gm_v.shape[1] or end_vox[2] < 0 or end_vox[2] >= gm_v.shape[2]:
             continue
 
-        # compute the distance between the streamline endpoint and the voxel
-        dist_s = sqrt( ( starting_pt[0] - start_vox[0] )**2 + ( starting_pt[1] - start_vox[1] )**2 + ( starting_pt[2] - start_vox[2] )**2 )
         dist_e = sqrt( ( ending_pt[0] - end_vox[0] )**2 + ( ending_pt[1] - end_vox[1] )**2 + ( ending_pt[2] - end_vox[2] )**2 )
 
-        if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and found1==0 and dist_s <= thr:
-            roi_ret[0] = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
-            found1 = 1
-        
-        if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0 and found2==0 and dist_e <= thr:    
+        if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0 and dist_e <= thr:
             roi_ret[1] = <int>gm_v[ end_vox[0], end_vox[1], end_vox[2]  ]
-            found2 = 1
-    
-        if found1 and found2 :
             break
+
     return roi_ret
 
 
@@ -223,16 +216,17 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
 
     print(f"connectivity threshold: {threshold}")
-    cdef float thr = np.ceil(threshold).astype(np.float32)
+    cdef float thr = np.round(threshold,1).astype(np.float32)
     cdef float [:,::1] grid
     cdef size_t i = 0  
-    cdef int start_i = 0  
+    cdef int start_i = 0
     # cdef int n_streamlines = end_chunk
     cdef int n_streamlines = end_chunk - start_chunk
     cdef int start_c = <int> start_chunk
 
-    
+    # compute the grid of voxels to check
     grid = compute_grid( thr, voxdims )
+
     TCK_in = None
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
 
@@ -244,7 +238,6 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
 
     cdef float [:,::1] end_pts = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] end_pts_temp = np.zeros((2,3), dtype=np.float32)
-    cdef float [:,::1] end_pts_trans = np.zeros((2,3), dtype=np.float32)
     cdef int [:] start_vox = np.zeros(3, dtype=np.int32)
     cdef int [:] end_vox = np.zeros(3, dtype=np.int32)
     cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
@@ -261,7 +254,7 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
             end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
             # with gil:print(f"end_pts: {end_pts[0][0]} {end_pts[0][1]} {end_pts[0][2]}")
             # with gil:print(f"end_pts: {end_pts[1][0]} {end_pts[1][1]} {end_pts[1][2]}")
-            matrix = apply_affine(end_pts, inverse, M, abc, voxdims, end_pts_trans)
+            matrix = apply_affine(end_pts, inverse, M, abc, voxdims, end_pts_temp)
             # with gil:print(f"matrix: {matrix[0][0]} {matrix[0][1]} {matrix[0][2]}")
             # with gil:print(f"matrix: {matrix[1][0]} {matrix[1][1]} {matrix[1][2]}")
             assignments_view[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr)
