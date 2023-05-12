@@ -153,6 +153,15 @@ cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] r
         end_vox[0] = <int>(ending_pt[0] + grid[i][0])
         end_vox[1] = <int>(ending_pt[1] + grid[i][1])
         end_vox[2] = <int>(ending_pt[2] + grid[i][2])
+
+        # check if the voxel is inside the mask
+        if start_vox[0] < 0 or start_vox[0] >= gm_v.shape[0] or start_vox[1] < 0 or start_vox[1] >= gm_v.shape[1] or start_vox[2] < 0 or start_vox[2] >= gm_v.shape[2]:
+            continue
+
+        if end_vox[0] < 0 or end_vox[0] >= gm_v.shape[0] or end_vox[1] < 0 or end_vox[1] >= gm_v.shape[1] or end_vox[2] < 0 or end_vox[2] >= gm_v.shape[2]:
+            continue
+
+        # compute the distance between the streamline endpoint and the voxel
         dist_s = sqrt( ( starting_pt[0] - start_vox[0] )**2 + ( starting_pt[1] - start_vox[1] )**2 + ( starting_pt[2] - start_vox[2] )**2 )
         dist_e = sqrt( ( ending_pt[0] - end_vox[0] )**2 + ( ending_pt[1] - end_vox[1] )**2 + ( ending_pt[2] - end_vox[2] )**2 )
 
@@ -213,7 +222,7 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef float [:] abc = inverse[:3, 3]
     cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
 
-    print(f"threshold: {threshold}")
+    print(f"connectivity threshold: {threshold}")
     cdef float thr = np.ceil(threshold).astype(np.float32)
     cdef float [:,::1] grid
     cdef size_t i = 0  
