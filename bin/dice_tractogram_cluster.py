@@ -45,9 +45,7 @@ MAX_THREAD = 1
 num_streamlines = int(LazyTractogram( options.input_tractogram, mode='r' ).header["count"])
 chunk_size = int(num_streamlines/MAX_THREAD)
 chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
-print(f"Number of streamlines: {num_streamlines}")
-print(f"Chunk size: {chunk_size}")
-print(f"Chunk groups: {chunk_groups}")
+
 if options.atlas:
     chunks_asgn = []
     t0 = time.time()
