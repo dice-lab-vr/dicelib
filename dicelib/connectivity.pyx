@@ -173,8 +173,6 @@ cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] r
     return roi_ret
 
 
-
-
 def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size: int, reference: str,
             gm_map_file: str, threshold: 2, verbose: bool=False, force: bool=False ):
 
@@ -210,7 +208,6 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     affine = ref_data.affine
     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm_map_data, dtype=np.int32)
 
-    # cdef float [:,::1] inverse = np.linalg.inv(affine).astype(np.float32) #inverse of affine
     cdef float [:,::1] inverse = np.ascontiguousarray(inv(affine), dtype=np.float32) #inverse of affine
     cdef float [::1,:] M = inverse[:3, :3].T 
     cdef float [:] abc = inverse[:3, 3]

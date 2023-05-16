@@ -59,8 +59,8 @@ if options.atlas:
     chunks_asgn = [c for f in chunks_asgn for c in f]
 
     t1 = time.time()
-    print("Time taken for connectivity: ", (t1-t0))
-    print(f"Asignment file: {options.save_assignments}")
+    if options.verbose:
+        print("Time taken for connectivity: ", (t1-t0))
     out_assignment_ext = os.path.splitext(options.save_assignments)[1]
 
     if out_assignment_ext not in ['.txt', '.npy']:
@@ -96,8 +96,8 @@ if options.split:
         split_clusters(options.input_tractogram, cluster_idx, options.output_folder)
 
 t1 = time.time()
-
-print("Time bundles splitting: ", (t1-t0))
+if options.verbose:
+    print("Time bundles splitting: ", (t1-t0))
 
 
 def cluster_bundle(bundle, threshold=options.clust_threshold, n_pts=options.n_pts, save_assignments=options.save_assignments,
@@ -140,8 +140,10 @@ future = [executor.submit(cluster_bundle, bundles[i],
                         force=options.force,
                         verbose=options.verbose) for i in range(len(bundles))]
 
+path_out = os.path.dirname(options.input_tractogram)
+
 TCK_in = LazyTractogram( options.input_tractogram, mode='r' )
-TCK_out = LazyTractogram( os.path.join(options.output_folder,f'clustered_thr_{options.clust_threshold}.tck'), mode='w', header=TCK_in.header )
+TCK_out = LazyTractogram( os.path.join(path_out,f'{options.input_tractogram[:-4]}_clustered_thr_{options.clust_threshold}.tck'), mode='w', header=TCK_in.header )
 TCK_out_size = 0
 
 for i, f in enumerate(cf.as_completed(future)):
@@ -150,10 +152,12 @@ for i, f in enumerate(cf.as_completed(future)):
         TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
         TCK_out_size += 1
 TCK_out.close( write_eof=True, count= TCK_out_size)
+
 if TCK_in is not None:
     TCK_in.close()
 
-t1 = time.time()
-print(f"Time taken to cluster and find closest streamlines: {t1-t0}" )
-tt1= time.time() -tt0 
-print(f"Total time required for clustering: {tt1}" )
+if options.verbose:
+    t1 = time.time()
+    print(f"Time taken to cluster and find closest streamlines: {t1-t0}" )
+    tt1= time.time() -tt0 
+    print(f"Total time required for clustering: {tt1}" )
