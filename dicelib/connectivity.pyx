@@ -57,7 +57,10 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
     cdef float y = vox_dim[1]/2
     cdef float z = vox_dim[2]/2
 
-    grid_center[:] = [ x, y, z ]
+    if thr < vox_dim[0]/2 and thr < vox_dim[1]/2 and thr < vox_dim[2]/2:
+        grid_center[:] = [ 0., 0., 0. ]
+    else:
+        grid_center[:] = [ x, y, z ]
 
     # create the mesh    
     mesh = np.linspace( -thr_grid, thr_grid, 2*thr_grid +1 )
@@ -105,7 +108,7 @@ cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end
 
 
 
-cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
+cdef int[:] streamline_assignment( float [:] start_pt_grid, float [:] end_pt_grid, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
                             int[:,:,::1] gm_v, float thr) nogil:
 
     """ Compute the label assigned to each streamline endpoint and then returns a list of connected regions.
@@ -137,34 +140,45 @@ cdef int[:] streamline_assignment( int [:] start_vox, int [:] end_vox, int [:] r
 
     cdef float [:] starting_pt = mat[0]
     cdef float [:] ending_pt = mat[1]
+    cdef int [:] start_vox
+    cdef int [:] end_vox
+
 
 
     cdef int grid_size = grid.shape[0]
     for i in xrange(grid_size):
         # from 3D coordinates to index
-        start_vox[0] = <int>(starting_pt[0] + grid[i][0])
-        start_vox[1] = <int>(starting_pt[1] + grid[i][1])
-        start_vox[2] = <int>(starting_pt[2] + grid[i][2])
+        start_pt_grid[0] = starting_pt[0] + grid[i][0]
+        start_pt_grid[1] = starting_pt[1] + grid[i][1]
+        start_pt_grid[2] = starting_pt[2] + grid[i][2]
 
         # check if the voxel is inside the mask
-        if start_vox[0] < 0 or start_vox[0] >= gm_v.shape[0] or start_vox[1] < 0 or start_vox[1] >= gm_v.shape[1] or start_vox[2] < 0 or start_vox[2] >= gm_v.shape[2]:
+        if start_pt_grid[0] < 0 or start_pt_grid[0] >= gm_v.shape[0] or start_pt_grid[1] < 0 or start_pt_grid[1] >= gm_v.shape[1] or start_pt_grid[2] < 0 or start_pt_grid[2] >= gm_v.shape[2]:
             continue
 
-        dist_s = sqrt( ( starting_pt[0] - start_vox[0] )**2 + ( starting_pt[1] - start_vox[1] )**2 + ( starting_pt[2] - start_vox[2] )**2 )
+        dist_s = sqrt( ( starting_pt[0] - start_pt_grid[0] )**2 + ( starting_pt[1] - start_pt_grid[1] )**2 + ( starting_pt[2] - start_pt_grid[2] )**2 )
+
+        start_vox[0] = <int> starting_pt[0]
+        start_vox[1] = <int> starting_pt[1]
+        start_vox[2] = <int> starting_pt[2]
 
         if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and dist_s <= thr:
             roi_ret[0] = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
             break
 
     for i in xrange(grid_size):
-        end_vox[0] = <int>(ending_pt[0] + grid[i][0])
-        end_vox[1] = <int>(ending_pt[1] + grid[i][1])
-        end_vox[2] = <int>(ending_pt[2] + grid[i][2])
+        end_pt_grid[0] = ending_pt[0] + grid[i][0]
+        end_pt_grid[1] = ending_pt[1] + grid[i][1]
+        end_pt_grid[2] = ending_pt[2] + grid[i][2]
 
-        if end_vox[0] < 0 or end_vox[0] >= gm_v.shape[0] or end_vox[1] < 0 or end_vox[1] >= gm_v.shape[1] or end_vox[2] < 0 or end_vox[2] >= gm_v.shape[2]:
+        if end_pt_grid[0] < 0 or end_pt_grid[0] >= gm_v.shape[0] or end_pt_grid[1] < 0 or end_pt_grid[1] >= gm_v.shape[1] or end_pt_grid[2] < 0 or end_pt_grid[2] >= gm_v.shape[2]:
             continue
 
-        dist_e = sqrt( ( ending_pt[0] - end_vox[0] )**2 + ( ending_pt[1] - end_vox[1] )**2 + ( ending_pt[2] - end_vox[2] )**2 )
+        dist_e = sqrt( ( ending_pt[0] - end_pt_grid[0] )**2 + ( ending_pt[1] - end_pt_grid[1] )**2 + ( ending_pt[2] - end_pt_grid[2] )**2 )
+
+        end_vox[0] = <int> ending_pt[0]
+        end_vox[1] = <int> ending_pt[1]
+        end_vox[2] = <int> ending_pt[2]
 
         if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0 and dist_e <= thr:
             roi_ret[1] = <int>gm_v[ end_vox[0], end_vox[1], end_vox[2]  ]
@@ -236,8 +250,8 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef float [:,::1] end_pts = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] end_pts_temp = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] end_pts_trans = np.zeros((2,3), dtype=np.float32)
-    cdef int [:] start_vox = np.zeros(3, dtype=np.int32)
-    cdef int [:] end_vox = np.zeros(3, dtype=np.int32)
+    cdef float [:] start_vox = np.zeros(3, dtype=np.int32)
+    cdef float [:] end_vox = np.zeros(3, dtype=np.int32)
     cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
 
     with nogil:
