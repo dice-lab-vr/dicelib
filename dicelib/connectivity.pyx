@@ -56,24 +56,25 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
     cdef float x = vox_dim[0]/2
     cdef float y = vox_dim[1]/2
     cdef float z = vox_dim[2]/2
-    cdef float[:,::1] centers_c = np.zeros((1,3), dtype=np.float32)
-    cdef long[:] dist_grid = np.zeros((1,3), dtype=np.int32)
+    cdef float[:,::1] centers_c
+    cdef long[:] dist_grid
 
     if thr < vox_dim[0]/2 and thr < vox_dim[1]/2 and thr < vox_dim[2]/2:
         centers_c = np.zeros((1,3), dtype=np.float32)
-    else:
-        grid_center[:] = [ x, y, z ]
+        return centers_c
 
-        # create the mesh    
-        mesh = np.linspace( -thr_grid, thr_grid, 2*thr_grid +1 )
-        mx, my, mz = np.meshgrid( mesh, mesh, mesh )
+    grid_center[:] = [ x, y, z ]
 
-        # find the centers of each voxels
-        centers = np.stack([mx.ravel() + x, my.ravel() + y, mz.ravel() + z], axis=1)
+    # create the mesh    
+    mesh = np.linspace( -thr_grid, thr_grid, 2*thr_grid +1 )
+    mx, my, mz = np.meshgrid( mesh, mesh, mesh )
 
-        # sort the centers based on their distance from grid_center 
-        dist_grid = ((centers - grid_center)**2).sum(axis=1).argsort()
-        centers_c = centers[ dist_grid ].astype(np.float32)
+    # find the centers of each voxels
+    centers = np.stack([mx.ravel() + x, my.ravel() + y, mz.ravel() + z], axis=1)
+
+    # sort the centers based on their distance from grid_center 
+    dist_grid = ((centers - grid_center)**2).sum(axis=1).argsort()
+    centers_c = centers[ dist_grid ].astype(np.float32)
 
     return centers_c
 
