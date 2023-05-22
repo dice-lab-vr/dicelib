@@ -108,7 +108,7 @@ cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end
 
 
 
-cdef int[:] streamline_assignment( float [:] start_pt_grid, float [:] end_pt_grid, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
+cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, float [:] end_pt_grid, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
                             int[:,:,::1] gm_v, float thr) nogil:
 
     """ Compute the label assigned to each streamline endpoint and then returns a list of connected regions.
@@ -140,12 +140,8 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, float [:] end_pt_gri
 
     cdef float [:] starting_pt = mat[0]
     cdef float [:] ending_pt = mat[1]
-    cdef int [:] start_vox
-    cdef int [:] end_vox
-
-
-
     cdef int grid_size = grid.shape[0]
+
     for i in xrange(grid_size):
         # from 3D coordinates to index
         start_pt_grid[0] = starting_pt[0] + grid[i][0]
@@ -250,8 +246,10 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef float [:,::1] end_pts = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] end_pts_temp = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] end_pts_trans = np.zeros((2,3), dtype=np.float32)
-    cdef float [:] start_vox = np.zeros(3, dtype=np.int32)
-    cdef float [:] end_vox = np.zeros(3, dtype=np.int32)
+    cdef float [:] start_pt_grid = np.zeros(3, dtype=np.float32)
+    cdef int [:] start_vox = np.zeros(3, dtype=np.int32)
+    cdef float [:] end_pt_grid = np.zeros(3, dtype=np.float32)
+    cdef int [:] end_vox = np.zeros(3, dtype=np.int32)
     cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
 
     with nogil:
@@ -262,7 +260,7 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
             TCK_in._read_streamline()
             end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp, voxdims )
             matrix = apply_affine(end_pts, M, abc, end_pts_trans)
-            assignments_view[i] = streamline_assignment( start_vox, end_vox, roi_ret, matrix, grid, gm_map, thr)
+            assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret, matrix, grid, gm_map, thr)
 
 
     if TCK_in is not None:
