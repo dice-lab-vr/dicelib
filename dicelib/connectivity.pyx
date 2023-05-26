@@ -59,10 +59,6 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
     cdef float[:,::1] centers_c
     cdef long[:] dist_grid
 
-    if thr < vox_dim[0]/2 and thr < vox_dim[1]/2 and thr < vox_dim[2]/2:
-        centers_c = np.zeros((1,3), dtype=np.float32)
-        return centers_c
-
     grid_center[:] = [ x, y, z ]
 
     # create the mesh    
@@ -109,6 +105,20 @@ cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end
     return end_pts
 
 
+cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, int[:,:,::1] gm_v) nogil:
+
+    cdef float [:] starting_pt = mat[0]
+    cdef float [:] ending_pt = mat[1]
+    start_vox[0]    = <int> starting_pt[0]
+    start_vox[1]    = <int> starting_pt[1]
+    start_vox[2]    = <int> starting_pt[2]
+    end_vox[0]      = <int> ending_pt[0]
+    end_vox[1]      = <int> ending_pt[1]
+    end_vox[2]      = <int> ending_pt[2]
+
+    roi_ret[0] = <int>gm_v[ start_vox[0], start_vox[1], start_vox[2]]
+    roi_ret[1] = <int>gm_v[ end_vox[0], end_vox[1], end_vox[2]]
+    return roi_ret
 
 
 cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, float [:] end_pt_grid, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
@@ -230,18 +240,7 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef float thr = <float> threshold
     cdef float [:,::1] grid
     cdef size_t i = 0  
-    cdef int start_i = 0
-    # cdef int n_streamlines = end_chunk
     cdef int n_streamlines = end_chunk - start_chunk
-    cdef int start_c = <int> start_chunk
-
-    # compute the grid of voxels to check
-    grid = compute_grid( thr_grid, voxdims )
-
-    TCK_in = None
-    TCK_in = LazyTractogram( input_tractogram, mode='r' )
-
-
     cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)
     # cdef int [:,:] assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
     assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
@@ -256,15 +255,28 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef int [:] end_vox = np.zeros(3, dtype=np.int32)
     cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
 
-    with nogil:
-        # while start_i < start_c:
-        #     TCK_in._read_streamline()
-        #     start_i += 1
-        for i in xrange( n_streamlines ):
-            TCK_in._read_streamline()
-            end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp, voxdims )
-            matrix = apply_affine(end_pts, M, abc, end_pts_trans)
-            assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret, matrix, grid, gm_map, thr)
+    TCK_in = None
+    TCK_in = LazyTractogram( input_tractogram, mode='r' )
+
+    if thr < voxdims[0]/2 and thr < voxdims[1]/2 and thr < voxdims[2]/2:
+        with nogil:
+            for i in xrange( n_streamlines ):
+                TCK_in._read_streamline()
+                end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp, voxdims )
+                matrix = apply_affine(end_pts, M, abc, end_pts_trans)
+                assignments_view[i] = streamline_assignment_endpoints( start_vox, end_vox, roi_ret, matrix, gm_map)
+
+    else:
+        # compute the grid of voxels to check
+        grid = compute_grid( thr_grid, voxdims )
+
+
+        with nogil:
+            for i in xrange( n_streamlines ):
+                TCK_in._read_streamline()
+                end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp, voxdims )
+                matrix = apply_affine(end_pts, M, abc, end_pts_trans)
+                assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret, matrix, grid, gm_map, thr)
 
 
     if TCK_in is not None:
