@@ -226,7 +226,8 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef float [:] abc = inverse[:3, 3]
     cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
 
-    cdef float thr = np.round(threshold,1).astype(np.float32)
+    cdef float thr_grid = np.round(threshold,1).astype(np.float32)
+    cdef float thr = <float> threshold
     cdef float [:,::1] grid
     cdef size_t i = 0  
     cdef int start_i = 0
@@ -235,7 +236,7 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef int start_c = <int> start_chunk
 
     # compute the grid of voxels to check
-    grid = compute_grid( thr, voxdims )
+    grid = compute_grid( thr_grid, voxdims )
 
     TCK_in = None
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
