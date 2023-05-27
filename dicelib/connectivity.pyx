@@ -8,9 +8,12 @@ import time
 
 import numpy as np
 cimport numpy as np
+import numpy.linalg as npl
 import nibabel as nib
 # from nibabel.affines import apply_affine
 from scipy.linalg import inv
+import numpy.linalg as npl
+
 
 from dicelib.lazytractogram cimport LazyTractogram
 from . import ui
@@ -24,14 +27,14 @@ from libcpp cimport bool
 
 
 cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
-                                float [:] abc, float [:,::1] end_pts_trans) nogil:
+                                float [:] abc, float[:] vox_dim, float [:,::1] end_pts_trans) nogil:
 
-    end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0])
-    end_pts_trans[0][1] = ((end_pts[0][0]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1])
-    end_pts_trans[0][2] = ((end_pts[0][0]*M[0,2] + end_pts[0][1]*M[1,2] + end_pts[0][2]*M[2,2]) + abc[2])
-    end_pts_trans[1][0] = ((end_pts[1][0]*M[0,0] + end_pts[1][1]*M[1,0] + end_pts[1][2]*M[2,0]) + abc[0])
-    end_pts_trans[1][1] = ((end_pts[1][0]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1])
-    end_pts_trans[1][2] = ((end_pts[1][0]*M[0,2] + end_pts[1][1]*M[1,2] + end_pts[1][2]*M[2,2]) + abc[2])
+    end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0]) + vox_dim[0]/2
+    end_pts_trans[0][1] = ((end_pts[0][0]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1]) + vox_dim[1]/2
+    end_pts_trans[0][2] = ((end_pts[0][0]*M[0,2] + end_pts[0][1]*M[1,2] + end_pts[0][2]*M[2,2]) + abc[2]) + vox_dim[2]/2
+    end_pts_trans[1][0] = ((end_pts[1][0]*M[0,0] + end_pts[1][1]*M[1,0] + end_pts[1][2]*M[2,0]) + abc[0]) + vox_dim[0]/2
+    end_pts_trans[1][1] = ((end_pts[1][0]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1]) + vox_dim[1]/2
+    end_pts_trans[1][2] = ((end_pts[1][0]*M[0,2] + end_pts[1][1]*M[1,2] + end_pts[1][2]*M[2,2]) + abc[2]) + vox_dim[2]/2
 
 
     return end_pts_trans
@@ -77,7 +80,7 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
 
 
 
-cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end_pts, float [:] vox_dim ) nogil:
+cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end_pts ) nogil:
 
     """ Retrieve the coordinates of the streamlines' endpoints.
     
@@ -90,17 +93,16 @@ cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end
         Writes first n points of the streamline. If n<0 (default), writes all points.
 
     """
-
-    
+ 
     cdef float *ptr = &streamline[0,0]
     cdef float *ptr_end = ptr+n*3-3
 
-    end_pts[0,0]=ptr[0] + vox_dim[0]/2
-    end_pts[0,1]=ptr[1] + vox_dim[1]/2
-    end_pts[0,2]=ptr[2] + vox_dim[2]/2
-    end_pts[1,0]=ptr_end[0] + vox_dim[0]/2
-    end_pts[1,1]=ptr_end[1] + vox_dim[1]/2
-    end_pts[1,2]=ptr_end[2] + vox_dim[2]/2
+    end_pts[0,0]=ptr[0]
+    end_pts[0,1]=ptr[1]
+    end_pts[0,2]=ptr[2]
+    end_pts[1,0]=ptr_end[0]
+    end_pts[1,1]=ptr_end[1]
+    end_pts[1,2]=ptr_end[2]
 
     return end_pts
 
@@ -232,11 +234,12 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm_map_data, dtype=np.int32)
 
     cdef float [:,::1] inverse = np.ascontiguousarray(inv(affine), dtype=np.float32) #inverse of affine
+    # cdef float [:,::1] M = inverse[:3, :3]
     cdef float [::1,:] M = inverse[:3, :3].T 
     cdef float [:] abc = inverse[:3, 3]
     cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
 
-    cdef float thr_grid = np.round(threshold,1).astype(np.float32)
+    cdef float thr_grid = np.ceil(threshold).astype(np.float32)
     cdef float thr = <float> threshold
     cdef float [:,::1] grid
     cdef size_t i = 0  
@@ -262,20 +265,19 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
         with nogil:
             for i in xrange( n_streamlines ):
                 TCK_in._read_streamline()
-                end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp, voxdims )
-                matrix = apply_affine(end_pts, M, abc, end_pts_trans)
+                end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
+                matrix = apply_affine(end_pts, M, abc, voxdims, end_pts_trans)
                 assignments_view[i] = streamline_assignment_endpoints( start_vox, end_vox, roi_ret, matrix, gm_map)
 
     else:
         # compute the grid of voxels to check
         grid = compute_grid( thr_grid, voxdims )
 
-
         with nogil:
             for i in xrange( n_streamlines ):
                 TCK_in._read_streamline()
-                end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp, voxdims )
-                matrix = apply_affine(end_pts, M, abc, end_pts_trans)
+                end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
+                matrix = apply_affine(end_pts, M, abc, voxdims, end_pts_trans)
                 assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret, matrix, grid, gm_map, thr)
 
 
