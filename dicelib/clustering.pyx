@@ -135,15 +135,13 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float t
     return (num_c, flipped)
 
 
-cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
-              threshold: float=10.0, n_pts: int=10, split: bool=False,
-              force: bool=False, verbose: bool=False):
+cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
+              verbose: bool=False):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
     TODO: DOCUMENTATION
     """
-    ui.INFO(f"\n\nQB v2.0 clustering thr: {threshold}, pts: {n_pts}")
-    # ui.set_verbose( 2 if verbose else 1 )
-    ui.set_verbose( 2 )
+    if verbose:
+        ui.INFO(f"\n\nQB v2.0 clustering thr: {threshold}, pts: {n_pts}")
     if not os.path.isfile(filename_in):
         ui.ERROR( f'File "{filename_in}" not found' )
 
@@ -157,7 +155,8 @@ cpdef cluster(filename_in: str, save_assignments: str, output_folder: str,
     # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
     cdef int n_streamlines = int( TCK_in.header['count'] )
     if n_streamlines == 0: return
-    ui.INFO( f'  - {n_streamlines} streamlines found' )
+    if verbose:
+        ui.INFO( f'  - {n_streamlines} streamlines found' )
 
     cdef int nb_pts = n_pts
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)

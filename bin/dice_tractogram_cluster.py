@@ -78,10 +78,6 @@ else:
     cluster_idx, _, _ = cluster(options.input_tractogram,
                         threshold=options.conn_threshold,
                         n_pts=options.n_pts,
-                        save_assignments=options.save_assignments,
-                        split=options.split,
-                        output_folder=options.output_folder,
-                        force=options.force,
                         verbose=options.verbose
     )
 
@@ -100,19 +96,17 @@ if options.verbose:
     print("Time bundles splitting: ", (t1-t0))
 
 
-def cluster_bundle(bundle, threshold=options.clust_threshold, n_pts=options.n_pts, save_assignments=options.save_assignments,
-                    output_folder=options.output_folder, force=options.force, verbose=options.verbose):
+def cluster_bundle(bundle, threshold=options.clust_threshold, n_pts=options.n_pts, verbose=options.verbose):
+
     clust_idx, set_centroids  = cluster(bundle, 
                             threshold=options.clust_threshold,
                             n_pts=options.n_pts,
-                            save_assignments=options.save_assignments,
-                            # split=options.split,
-                            output_folder=options.output_folder,
-                            force=options.force,
                             verbose=options.verbose)
+
     centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
     new_c = closest_streamline(bundle, set_centroids, clust_idx, options.n_pts, set_centroids.shape[0], centr_len)
     return new_c, centr_len
+
 
 t0 = time.time()
 bundles = []
@@ -135,9 +129,6 @@ t0 = time.time()
 future = [executor.submit(cluster_bundle, bundles[i], 
                         threshold=options.clust_threshold,
                         n_pts=options.n_pts,
-                        save_assignments=options.save_assignments,
-                        output_folder=options.output_folder,
-                        force=options.force,
                         verbose=options.verbose) for i in range(len(bundles))]
 
 path_out = os.path.dirname(options.input_tractogram)
