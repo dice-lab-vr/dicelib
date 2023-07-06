@@ -125,6 +125,7 @@ for  dirpath, _, filenames in os.walk(options.output_folder):
 if options.n_threads:
     MAX_THREAD = options.n_threads
 
+
 executor = tdp(max_workers=MAX_THREAD)
 t0 = time.time()
 future = [executor.submit(cluster_bundle, bundles[i], 
@@ -137,6 +138,9 @@ path_out = os.path.dirname(options.input_tractogram)
 TCK_in = LazyTractogram( options.input_tractogram, mode='r' )
 TCK_out = LazyTractogram( os.path.join(path_out,f'{options.input_tractogram[:-4]}_clustered_thr_{options.clust_threshold}.tck'), mode='w', header=TCK_in.header )
 TCK_out_size = 0
+
+if options.remove_outliers:
+    print("WARNING: REMOVING OUTLIERS")
 
 for i, f in enumerate(cf.as_completed(future)):
     new_c, centr_len = f.result()
