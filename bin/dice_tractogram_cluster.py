@@ -27,6 +27,7 @@ parser.add_argument("--output_folder", "-out", help="Folder where to save the sp
 parser.add_argument("--n_threads", type=int, help="Number of threads to use to perform clustering")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
+parser.add_argument("--remove_outliers", "-ro", action="store_true", help="Remove outliers")
 options = parser.parse_args()
 
 
@@ -139,6 +140,8 @@ TCK_out_size = 0
 
 for i, f in enumerate(cf.as_completed(future)):
     new_c, centr_len = f.result()
+    if options.remove_outliers and len(new_c)<4:
+        continue
     for jj, n_c in enumerate(new_c):
         TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
         TCK_out_size += 1
