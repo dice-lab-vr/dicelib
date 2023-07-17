@@ -142,6 +142,11 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
         if TCK_in is not None:
             TCK_in.close()
 
+    if TCK_in.header['count']:
+        return TCK_in.header['count']
+    else:
+        return 0
+
 
 def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random: float=1.0, verbose: int=2, force: bool=False ):
     """Filter out the streamlines in a tractogram according to some criteria.

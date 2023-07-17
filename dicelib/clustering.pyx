@@ -9,11 +9,14 @@ import numpy as np
 cimport numpy as np
 import nibabel as nib
 from dicelib.lazytractogram cimport LazyTractogram
+from dicelib.connectivity import assign
+from dicelib.tractogram import split as split_bundles
 from libc.math cimport sqrt
 from libc.stdlib cimport malloc, free
 import time
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor as tdp
+import concurrent.futures as cf
 from . import ui
 
 
@@ -138,10 +141,19 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float t
 cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
               verbose: bool=False):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
-    TODO: DOCUMENTATION
+
+    Parameters
+    ----------
+    filename_in : str
+        Path to the input tractogram file.
+    threshold : float, optional
+        Threshold for the clustering.
+    n_pts : int, optional
+        Number of points to resample the streamlines to.
+    verbose : bool, optional
+        Whether to print out additional information during the clustering.
     """
-    if verbose:
-        ui.INFO(f"\n\nQB v2.0 clustering thr: {threshold}, pts: {n_pts}")
+
     if not os.path.isfile(filename_in):
         ui.ERROR( f'File "{filename_in}" not found' )
 
@@ -233,7 +245,25 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
 
 
 cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len):
-    """Compute the distance between a fiber and a set of centroids"""
+    """
+    Compute the distance between a fiber and a set of centroids
+    
+    Parameters
+    ----------
+    file_name_in : str
+        Path to the input tractogram file.
+    target : float[:,:,::1]
+        Centroids to compare the streamlines to.
+    clust_idx : int[:]
+        Cluster assignments for each streamline.
+    num_pt : int
+        Number of points to resample the streamlines to.
+    num_c : int
+        Number of centroids.
+    centr_len : int[:]
+        Length of each centroid.
+    """
+
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
     cdef float maxdist_pt_i = 0
@@ -293,5 +323,174 @@ cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target
     if TCK_in is not None:
         TCK_in.close()
     return centroids
+
+
+def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=0.5,
+                    clust_thr: float=10.0, n_pts: int=10, save_assignments: str=None, split: bool=False,
+                    n_threads: int=1, remove_outliers: bool=False, force: bool=False, verbose: bool=False):
+    """ Cluster streamlines in a tractogram based on average euclidean distance.
+
+    Parameters
+    ----------
+    file_name_in : str
+        Path to the input tractogram file.
+    output_folder : str
+        Path to the output folder.
+    atlas : str, optional
+        Path to the atlas file.
+    conn_thr : float, optional
+        Threshold for the connectivity assignment.
+    clust_thr : float, optional
+        Threshold for the clustering.
+    n_pts : int, optional
+        Number of points to resample the streamlines to.
+    save_assignments : str, optional
+        Path to the output file for the cluster assignments.
+    split : bool, optional
+        Whether to split the output tractogram into separate files for each cluster.
+    n_threads : int, optional
+        Number of threads to use for the clustering.
+    remove_outliers : bool, optional
+        Whether to remove outliers from the clustering.
+    verbose : bool, optional
+        Whether to print out additional information during the clustering.
+    """
+    if verbose:
+        ui.INFO(f"\n\nClustering with threshold: {clust_thr}, using  {n_pts} points")
+
+
+    def compute_chunks(lst, n):
+        """Yield successive n-sized chunks from lst."""
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+
+    def cluster_bundle(bundle, threshold=clust_thr, n_pts=n_pts, verbose=verbose):
+        clust_idx, set_centroids = cluster(bundle, 
+                                threshold=clust_thr,
+                                n_pts=n_pts,
+                                verbose=verbose)
+
+        centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
+        new_c = closest_streamline(bundle, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
+        return new_c, centr_len
+
+    MAX_THREAD = 1
+
+    path_out = os.path.dirname(file_name_in)
+
+    TCK_in = LazyTractogram( file_name_in, mode='r' )
+    file_name_out = os.path.join(path_out,f'{file_name_in[:-4]}_clustered_thr_{clust_thr}.tck')
+
+    # check if file exists
+    if os.path.isfile(file_name_out) and not force:
+        print( 'Output tractogram file already exists, use -f to overwrite' )
+        return
+    TCK_out = LazyTractogram(file_name_out, mode='w', header=TCK_in.header )
+
+    num_streamlines = int(TCK_in.header["count"])
+
+    chunk_size = int(num_streamlines/MAX_THREAD)
+    chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
+
+    if atlas:
+        chunks_asgn = []
+        t0 = time.time()
+
+        with tdp(max_workers=MAX_THREAD) as executor:
+            future = [executor.submit( assign, input_tractogram=file_name_in, start_chunk =chunk_groups[i][0],
+                                        end_chunk=chunk_groups[i][len(chunk_groups[i])-1]+1, chunk_size=len(chunk_groups[i]),
+                                        reference=atlas, gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
+        chunks_asgn = [f.result() for f in future]
+        chunks_asgn = [c for f in chunks_asgn for c in f]
+
+        t1 = time.time()
+        if verbose:
+            print("Time taken for connectivity: ", (t1-t0))
+        out_assignment_ext = os.path.splitext(save_assignments)[1]
+
+        if out_assignment_ext not in ['.txt', '.npy']:
+            print( 'Invalid extension for the output scalar file' )
+        if os.path.isfile(save_assignments) and not force:
+            print( 'Output scalar file already exists, use -f to overwrite' )
+            return
+        if out_assignment_ext=='.txt':
+            with open(save_assignments, "w") as text_file:
+                for reg in chunks_asgn:
+                    print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
+        else:
+            np.save( save_assignments, chunks_asgn, allow_pickle=False )
+
+        t0 = time.time()
+
+        if split:
+                split_bundles(input_tractogram=file_name_in, input_assignments=save_assignments, output_folder=output_folder, force=force)
+
+
+        t1 = time.time()
+        if verbose:
+            print("Time bundles splitting: ", (t1-t0))
+
+        bundles = []
+
+        for  dirpath, _, filenames in os.walk(output_folder):
+            for i_b, f in enumerate(filenames):
+                if f.endswith('.tck') and not f.startswith('unassigned'):
+                    bundles.append(os.path.abspath(os.path.join(dirpath, f)))
+
+
+        if n_threads:
+            MAX_THREAD = n_threads
+
+
+        executor = tdp(max_workers=MAX_THREAD)
+        t0 = time.time()
+        future = [executor.submit(cluster_bundle, bundles[i], 
+                                threshold=clust_thr,
+                                n_pts=n_pts,
+                                verbose=verbose) for i in range(len(bundles))]
+
+        TCK_out_size = 0
+
+        if remove_outliers:
+            print("WARNING: REMOVING OUTLIERS")
+
+        for i, f in enumerate(cf.as_completed(future)):
+            new_c, centr_len = f.result()
+            if remove_outliers and len(new_c)<4:
+                continue
+            for jj, n_c in enumerate(new_c):
+                TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
+                TCK_out_size += 1
+        TCK_out.close( write_eof=True, count= TCK_out_size)
+
+    else:
+        t0 = time.time()
+        clust_idx, set_centroids = cluster(file_name_in,
+                                            threshold=clust_thr,
+                                            n_pts=n_pts,
+                                            verbose=verbose
+                                            )
+        centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
+        new_c = closest_streamline(file_name_in, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
+
+        TCK_out_size = 0
+
+        if remove_outliers:
+            print("WARNING: REMOVING OUTLIERS")
+
+        print(f"Number of clusters: {len(new_c)}")
+        for i, n_c in enumerate(new_c):
+            if remove_outliers and len(n_c)<4:
+                continue
+            TCK_out.write_streamline(n_c[:centr_len[i]], centr_len[i] )
+            TCK_out_size += 1
+        TCK_out.close( write_eof=True, count= TCK_out_size)
+
+    if verbose:
+        t1 = time.time()
+        print(f"Time taken to cluster and find closest streamlines: {t1-t0}" )
+
+    if TCK_in is not None:
+        TCK_in.close()
 
 

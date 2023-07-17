@@ -199,7 +199,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
 
 
 def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size: int, reference: str,
-            gm_map_file: str, threshold: 2, verbose: bool=False, force: bool=False ):
+            gm_map_file: str, threshold: 2, verbose: bool=False ):
 
     """ Compute the assignments of the streamlines based on a GM map.
     
