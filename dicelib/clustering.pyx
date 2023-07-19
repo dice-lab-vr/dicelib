@@ -11,6 +11,7 @@ import nibabel as nib
 from dicelib.lazytractogram cimport LazyTractogram
 from dicelib.connectivity import assign
 from dicelib.tractogram import split as split_bundles
+import hashlib
 from libc.math cimport sqrt
 from libc.stdlib cimport malloc, free
 import time
@@ -244,7 +245,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     return clust_idx, set_centroids[:new_c]
 
 
-cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len):
+cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len):
     """
     Compute the distance between a fiber and a set of centroids
     
@@ -282,12 +283,9 @@ cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target
     cdef float[:,::1] fib_in = np.zeros((num_pt,3), dtype=np.float32)
     cdef float[:,::1] resampled_fib = np.zeros((num_pt,3), dtype=np.float32)
     cdef float [:,:,::1] centroids = np.zeros((num_c, 3000,3), dtype=np.float32)
-
-    # cdef float [:,:,::1] centroids = np.zeros((num_c, num_pt,3), dtype=np.float32)
-
-
     cdef LazyTractogram TCK_in = LazyTractogram( file_name_in, mode='r' )
     cdef int n_streamlines = int( TCK_in.header['count'] )
+    cdef int [:] centr_idx = np.zeros(num_c, dtype=np.int32)
 
     for i_f in xrange(n_streamlines):
         TCK_in._read_streamline()
@@ -304,7 +302,6 @@ cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target
 
             maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
 
-
             d2_x = (fib_in[j][0] - target[c_i][num_pt-j-1][0])**2
             d2_y = (fib_in[j][1] - target[c_i][num_pt-j-1][1])**2
             d2_z = (fib_in[j][2] - target[c_i][num_pt-j-1][2])**2
@@ -319,10 +316,12 @@ cpdef float[:,:,::1] closest_streamline(file_name_in: str, float[:,:,::1] target
             fib_centr_dist[c_i] = maxdist_pt
             centroids[c_i, :TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
             centr_len[c_i] = TCK_in.n_pts
+            centr_idx[c_i] = i_f
 
     if TCK_in is not None:
         TCK_in.close()
-    return centroids
+
+    return centroids, centr_idx
 
 
 def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=0.5,
@@ -364,15 +363,15 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
 
-    def cluster_bundle(bundle, threshold=clust_thr, n_pts=n_pts, verbose=verbose):
+    def cluster_bundle(bundle, clust_thr, n_pts=n_pts, n_tracts_bundle=0, verbose=verbose):
         clust_idx, set_centroids = cluster(bundle, 
                                 threshold=clust_thr,
                                 n_pts=n_pts,
                                 verbose=verbose)
 
         centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
-        new_c = closest_streamline(bundle, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
-        return new_c, centr_len
+        new_c, c_idx= closest_streamline(bundle, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
+        return new_c, centr_len, c_idx
 
     MAX_THREAD = 1
 
@@ -397,8 +396,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         t0 = time.time()
 
         with tdp(max_workers=MAX_THREAD) as executor:
-            future = [executor.submit( assign, input_tractogram=file_name_in, start_chunk =chunk_groups[i][0],
-                                        end_chunk=chunk_groups[i][len(chunk_groups[i])-1]+1, chunk_size=len(chunk_groups[i]),
+            future = [executor.submit( assign, input_tractogram=file_name_in, start_chunk=int(chunk_groups[i][0]),
+                                        end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1), chunk_size=len(chunk_groups[i]),
                                         reference=atlas, gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
         chunks_asgn = [f.result() for f in future]
         chunks_asgn = [c for f in chunks_asgn for c in f]
@@ -431,7 +430,6 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             print("Time bundles splitting: ", (t1-t0))
 
         bundles = []
-
         for  dirpath, _, filenames in os.walk(output_folder):
             for i_b, f in enumerate(filenames):
                 if f.endswith('.tck') and not f.startswith('unassigned'):
@@ -445,7 +443,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         executor = tdp(max_workers=MAX_THREAD)
         t0 = time.time()
         future = [executor.submit(cluster_bundle, bundles[i], 
-                                threshold=clust_thr,
+                                clust_thr,
                                 n_pts=n_pts,
                                 verbose=verbose) for i in range(len(bundles))]
 
@@ -453,25 +451,52 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
 
         if remove_outliers:
             print("WARNING: REMOVING OUTLIERS")
-
+        
+        # list_indices = []
+        hash_subset = np.empty( num_streamlines, dtype=int)
+        c_count = 0
         for i, f in enumerate(cf.as_completed(future)):
-            new_c, centr_len = f.result()
+            new_c, centr_len, c_idx = f.result()
+            # list_indices.extend(c_idx)
             if remove_outliers and len(new_c)<4:
                 continue
             for jj, n_c in enumerate(new_c):
                 TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
+                hash_subset[c_count] = hash(np.array(n_c[:centr_len[jj]]).tobytes())
+                c_count += 1
                 TCK_out_size += 1
         TCK_out.close( write_eof=True, count= TCK_out_size)
+        
+        t1 = time.time()
+        if verbose:
+            print("Time taken to cluster and find closest streamlines: ", (t1-t0))
+
+
+        hash_subset = hash_subset[:c_count]
+        hash_superset = np.empty( num_streamlines, dtype=int)
+        for i in range(num_streamlines):
+            TCK_in._read_streamline()
+            hash_superset[i] = hash(np.array(TCK_in.streamline[:TCK_in.n_pts]).tobytes())
+
+        find_indices = np.flatnonzero(np.in1d(hash_superset, hash_subset, assume_unique=True))
+        list_indices = np.zeros( num_streamlines, dtype=bool)
+        list_indices[find_indices] = 1
+
+
 
     else:
         t0 = time.time()
+        list_indices = np.zeros( num_streamlines, dtype=bool)
         clust_idx, set_centroids = cluster(file_name_in,
                                             threshold=clust_thr,
                                             n_pts=n_pts,
                                             verbose=verbose
                                             )
         centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
-        new_c = closest_streamline(file_name_in, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
+        new_c, centr_idx = closest_streamline(file_name_in, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
+        
+        # return centr_idx as list of indices
+        list_indices[centr_idx] = 1
 
         TCK_out_size = 0
 
@@ -492,5 +517,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
 
     if TCK_in is not None:
         TCK_in.close()
+
+    return list_indices
 
 
