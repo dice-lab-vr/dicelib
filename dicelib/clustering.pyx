@@ -285,7 +285,6 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     cdef float [:,:,::1] centroids = np.zeros((num_c, 3000,3), dtype=np.float32)
     cdef LazyTractogram TCK_in = LazyTractogram( file_name_in, mode='r' )
     cdef int n_streamlines = int( TCK_in.header['count'] )
-    cdef int [:] centr_idx = np.zeros(num_c, dtype=np.int32)
 
     for i_f in xrange(n_streamlines):
         TCK_in._read_streamline()
@@ -316,12 +315,11 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
             fib_centr_dist[c_i] = maxdist_pt
             centroids[c_i, :TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
             centr_len[c_i] = TCK_in.n_pts
-            centr_idx[c_i] = i_f
 
     if TCK_in is not None:
         TCK_in.close()
 
-    return centroids, centr_idx
+    return centroids
 
 
 def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=0.5,
@@ -370,22 +368,19 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                                 verbose=verbose)
 
         centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
-        new_c, c_idx= closest_streamline(bundle, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
-        return new_c, centr_len, c_idx
+        new_c = closest_streamline(bundle, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
+        return new_c, centr_len
 
     MAX_THREAD = 1
 
-    path_out = os.path.dirname(file_name_in)
-
     TCK_in = LazyTractogram( file_name_in, mode='r' )
-    file_name_out = os.path.join(path_out,f'{file_name_in[:-4]}_clustered_thr_{clust_thr}.tck')
+    file_name_out = os.path.join(output_folder,f'{os.path.basename(file_name_in)[:-4]}_clustered_thr_{float(clust_thr)}.tck')
 
     # check if file exists
     if os.path.isfile(file_name_out) and not force:
         print( 'Output tractogram file already exists, use -f to overwrite' )
         return
     TCK_out = LazyTractogram(file_name_out, mode='w', header=TCK_in.header )
-
     num_streamlines = int(TCK_in.header["count"])
 
     chunk_size = int(num_streamlines/MAX_THREAD)
@@ -422,7 +417,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         t0 = time.time()
 
         if split:
-                split_bundles(input_tractogram=file_name_in, input_assignments=save_assignments, output_folder=output_folder, force=force)
+                output_bundles_folder = os.path.join(output_folder, 'bundles')
+                split_bundles(input_tractogram=file_name_in, input_assignments=save_assignments, output_folder=output_bundles_folder, force=force)
 
 
         t1 = time.time()
@@ -430,7 +426,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             print("Time bundles splitting: ", (t1-t0))
 
         bundles = []
-        for  dirpath, _, filenames in os.walk(output_folder):
+        for  dirpath, _, filenames in os.walk(output_bundles_folder):
             for i_b, f in enumerate(filenames):
                 if f.endswith('.tck') and not f.startswith('unassigned'):
                     bundles.append(os.path.abspath(os.path.join(dirpath, f)))
@@ -447,77 +443,69 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                                 n_pts=n_pts,
                                 verbose=verbose) for i in range(len(bundles))]
 
-        TCK_out_size = 0
+        TCK_out_size = 0        
+        hash_superset = np.empty( num_streamlines, dtype=int)
 
-        if remove_outliers:
-            print("WARNING: REMOVING OUTLIERS")
-        
-        # list_indices = []
-        hash_subset = np.empty( num_streamlines, dtype=int)
-        c_count = 0
+        for i in range(num_streamlines):
+            TCK_in._read_streamline()
+            hash_superset[i] = hash(np.array(TCK_in.streamline[:TCK_in.n_pts]).tobytes())
+        TCK_in.close()
+
+
+        ref_indices = []
+        TCK_out_size = 0
         for i, f in enumerate(cf.as_completed(future)):
-            new_c, centr_len, c_idx = f.result()
-            # list_indices.extend(c_idx)
-            if remove_outliers and len(new_c)<4:
-                continue
+            new_c, centr_len = f.result()
             for jj, n_c in enumerate(new_c):
+                hash_val = hash(np.array(n_c[:centr_len[jj]]).tobytes())
+                ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
                 TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
-                hash_subset[c_count] = hash(np.array(n_c[:centr_len[jj]]).tobytes())
-                c_count += 1
                 TCK_out_size += 1
         TCK_out.close( write_eof=True, count= TCK_out_size)
+
         
         t1 = time.time()
         if verbose:
             print("Time taken to cluster and find closest streamlines: ", (t1-t0))
 
-
-        hash_subset = hash_subset[:c_count]
-        hash_superset = np.empty( num_streamlines, dtype=int)
-        for i in range(num_streamlines):
-            TCK_in._read_streamline()
-            hash_superset[i] = hash(np.array(TCK_in.streamline[:TCK_in.n_pts]).tobytes())
-
-        find_indices = np.flatnonzero(np.in1d(hash_superset, hash_subset, assume_unique=True))
-        list_indices = np.zeros( num_streamlines, dtype=bool)
-        list_indices[find_indices] = 1
-
-
+        # list_indices = np.argsort(ref_indices)
 
     else:
         t0 = time.time()
-        list_indices = np.zeros( num_streamlines, dtype=bool)
+
+        hash_superset = np.empty( num_streamlines, dtype=int)
+
+        for i in range(num_streamlines):
+            TCK_in._read_streamline()
+            hash_superset[i] = hash(np.array(TCK_in.streamline[:TCK_in.n_pts]).tobytes())
+        TCK_in.close()
+
+
         clust_idx, set_centroids = cluster(file_name_in,
                                             threshold=clust_thr,
                                             n_pts=n_pts,
                                             verbose=verbose
                                             )
         centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
-        new_c, centr_idx = closest_streamline(file_name_in, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
+        new_c = closest_streamline(file_name_in, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
         
-        # return centr_idx as list of indices
-        list_indices[centr_idx] = 1
-
         TCK_out_size = 0
-
-        if remove_outliers:
-            print("WARNING: REMOVING OUTLIERS")
-
-        print(f"Number of clusters: {len(new_c)}")
+        ref_indices = []
         for i, n_c in enumerate(new_c):
-            if remove_outliers and len(n_c)<4:
-                continue
+            hash_val = hash(np.array(n_c[:centr_len[i]]).tobytes())
+            ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
             TCK_out.write_streamline(n_c[:centr_len[i]], centr_len[i] )
             TCK_out_size += 1
         TCK_out.close( write_eof=True, count= TCK_out_size)
 
-    if verbose:
-        t1 = time.time()
-        print(f"Time taken to cluster and find closest streamlines: {t1-t0}" )
+        if verbose:
+            t1 = time.time()
+            print(f"Time taken to cluster and find closest streamlines: {t1-t0}" )
+
+        # list_indices = np.argsort(ref_indices)
 
     if TCK_in is not None:
         TCK_in.close()
 
-    return list_indices
-
+    return ref_indices
 
