@@ -315,6 +315,93 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     return centroids
 
 
+cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10,
+              verbose: bool=False):
+    """ Cluster streamlines in a tractogram based on average euclidean distance.
+    """
+
+    cdef float [:,::1] s0 = np.empty( (1000, 3), dtype=np.float32 )
+    cdef float[:,:,:,::1] set_centroids = np.zeros((len(filenames), n_streamlines, nb_pts, 3), dtype=np.float32)
+    cdef LazyTractogram TCK_in
+    cdef int [:] n_streamlines = np.zeros(len(filenames), dtype=np.int32)
+    for i, filename in enumerate(filenames):
+        TCK_in = LazyTractogram( filename, mode='r', max_points=1000 )
+        n_streamlines[i] = int( TCK_in.header['count'] )
+        TCK_in._read_streamline() 
+        s0 = set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, resampled_fib)
+        set_centroids[i, 0] = s0
+        
+
+    # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
+    
+
+    cdef int nb_pts = n_pts
+    cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
+    cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
+    cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
+    cdef int[:] c_w = np.ones(n_streamlines, dtype=np.int32)
+    cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
+    cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
+    cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
+    cdef size_t  i = 0
+    cdef size_t  p = 0
+    cdef size_t  n_i = 0
+    cdef float thr = threshold
+    cdef int t = 0
+    cdef int [:] new_c = np.ones(len(filenames), dtype=np.int32)
+    cdef int flipped = 0
+    cdef int weight_centr = 0
+    cdef float d1_x, d1_y, d1_z
+
+
+    cdef int [:, :] clust_idx = np.zeros((len(filenames), n_streamlines), dtype=np.int32)
+    t1 = time.time()
+    if TCK_in is not None:
+        TCK_in.close()
+
+    #define array of LazyTractogram objects using cdef
+    cdef LazyTractogram[:] TCK_in_array = [LazyTractogram( filename, mode='r', max_points=1000 ) for filename in filenames]
+
+    with nogil:
+        for i in range(len(filenames)):
+            for j in xrange(n_streamlines):
+                TCK_in_array[i]._read_streamline()
+                streamline_in[:] = set_number_of_points( TCK_in_array[i].streamline[:TCK_in_array[i].n_pts], nb_pts, resampled_fib)
+                t, flipped = compute_dist(streamline_in, set_centroids[:new_c[i]], thr, d1_x, d1_y, d1_z, new_c[i], nb_pts)
+
+                clust_idx[i,j]= t
+                weight_centr = c_w[t]
+                if t < new_c[i]:
+                    if flipped:
+                        for p in xrange(nb_pts):
+                            pt_centr = set_centroids[t][p]
+                            pt_stream_in = streamline_in[nb_pts-p-1]
+                            new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
+                            new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
+                            new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
+                            new_centroid[p] = new_p_centr
+                    else:
+                        for p in xrange(nb_pts):
+                            pt_centr = set_centroids[t][p]
+                            pt_stream_in = streamline_in[p]
+                            new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
+                            new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
+                            new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
+                            new_centroid[p] = new_p_centr
+                    c_w[t] += 1
+
+                else:
+                    for n_i in xrange(nb_pts):
+                        new_centroid[n_i] = streamline_in[n_i]
+                    new_c[i] += 1
+                set_centroids[i,t] = new_centroid
+            set_centroids[i] = set_centroids[i,:new_c[i]]
+            
+            if TCK_in_array[i] is not None:
+                TCK_in_array[i].close()
+    return clust_idx, set_centroids
+
+
 def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=0.5,
                     clust_thr: float=10.0, n_pts: int=10, save_assignments: str=None, split: bool=False,
                     n_threads: int=1, remove_outliers: bool=False, force: bool=False, verbose: bool=False):
@@ -355,8 +442,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             yield lst[i:i + n]
 
 
-    def cluster_bundle(bundle, clust_thr, n_pts=n_pts, verbose=verbose):
-        clust_idx, set_centroids = cluster(bundle, 
+    def cluster_bundle(bundles, clust_thr, n_pts=n_pts, verbose=verbose):
+        clust_idx, set_centroids = cluster_chunk(bundles, 
                                 threshold=clust_thr,
                                 n_pts=n_pts,
                                 verbose=verbose)
@@ -442,13 +529,31 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         ref_indices = []
         TCK_out_size = 0
 
+        # sort bundles by size
+        bundles = sorted(bundles, key=lambda x: os.path.getsize(x))
+        tot_size = sum([os.path.getsize(b) for b in bundles])
+        chunk_mem = tot_size/MAX_THREAD
+
+        # distribute bundles to threads such that each thread has approximately the same amount of streamlines
+        chunk_size = int(len(bundles)/MAX_THREAD)
+        chunk_list = []
+        for i in range(MAX_THREAD):
+            chunk_list.append([])
+        for b in bundles:
+            for i in range(MAX_THREAD):
+                while sum([os.path.getsize(c) for c in chunk_list[i]]) < chunk_mem:
+                    chunk_list[i].append(b)
+                    break
+
+
+
         executor = tdp(max_workers=MAX_THREAD)
         t0 = time.time()
         
-        future = [executor.submit(cluster_bundle, bundles[i], 
+        future = [executor.submit(cluster_bundle, chunk_list[i], 
                                 clust_thr,
                                 n_pts=n_pts,
-                                verbose=verbose) for i in range(len(bundles))]
+                                verbose=verbose) for i in range(len(chunk_list))]
 
         with ui.ProgressBar(total=len(bundles)) as pbar:
             for i, f in enumerate(cf.as_completed(future)):
