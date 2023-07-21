@@ -451,8 +451,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                                 verbose=verbose) for i in range(len(bundles))]
 
         with ui.ProgressBar(total=len(bundles)) as pbar:
-            # for i, f in enumerate(cf.as_completed(future)):
-            for i, f in enumerate(future):
+            for i, f in enumerate(cf.as_completed(future)):
                 new_c, centr_len = f.result()
                 for jj, n_c in enumerate(new_c):
                     hash_val = hash(np.array(n_c[:centr_len[jj]]).tobytes())
