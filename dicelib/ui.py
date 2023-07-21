@@ -5,6 +5,7 @@ import itertools
 import numpy as np
 from threading import Thread
 from time import time, sleep
+import os
 
 # foreground colors
 fBlack   = '\x1b[30m'
@@ -268,13 +269,14 @@ class ProgressBar:
 	...         progress[thread_id] += 1
     """
     
-    def __init__(self, total=None, ncols=58, refresh=0.05, eta_refresh=1, multithread_progress=None, disable=False):
+    def __init__(self, total=None, n_cols=40, refresh=0.05, eta_refresh=1, multithread_progress=None, disable=False):
         self.total = total
-        self.ncols = ncols
+        self.ncols = n_cols if n_cols is not None else int(os.get_terminal_size()[0]) - 15
         self.refresh = refresh
         self.eta_refresh = eta_refresh
         self.multithread_progress = multithread_progress
         self.disable = disable
+
 
         self._graphics = {
             'clear_line': '\x1b[2K',

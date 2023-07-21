@@ -1,15 +1,14 @@
 #!python
 # cython: boundscheck=False, wraparound=False, profile=False, language_level=3
 
-
-import cython
 import os
 import numpy as np
 cimport numpy as np
 import nibabel as nib
-import os, glob, random as rnd
+import os, random as rnd
 from tqdm import trange
 from dicelib.lazytractogram cimport LazyTractogram
+from dicelib.ui import ProgressBar
 
 cpdef split_clusters(tractogram, clust_idx, output_folder, verbose=3):
     TCK_in          = None
@@ -44,29 +43,31 @@ cpdef split_clusters(tractogram, clust_idx, output_folder, verbose=3):
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
-        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
-            TCK_in.read_streamline()
-            if TCK_in.n_pts==0:
-                break # no more data, stop reading
-            # get the key of the dictionary
-            key = f'{clust_idx[i]}'
+        with ProgressBar( total=n_streamlines ) as pbar:
+            for i in range(n_streamlines):
+                TCK_in.read_streamline()
+                if TCK_in.n_pts==0:
+                    break # no more data, stop reading
+                # get the key of the dictionary
+                key = f'{clust_idx[i]}'
 
-            # check if need to open file
-            if TCK_outs[key] is None:
-                fname = os.path.join(output_folder,f'{key}.tck')
-                if n_file_open==max_open:
-                    key_to_close = rnd.choice( [k for k,v in TCK_outs.items() if v!=None] )
-                    TCK_outs[key_to_close].close( write_eof=False )
-                    TCK_outs[key_to_close] = None
-                else:
-                    n_file_open += 1
+                # check if need to open file
+                if TCK_outs[key] is None:
+                    fname = os.path.join(output_folder,f'{key}.tck')
+                    if n_file_open==max_open:
+                        key_to_close = rnd.choice( [k for k,v in TCK_outs.items() if v!=None] )
+                        TCK_outs[key_to_close].close( write_eof=False )
+                        TCK_outs[key_to_close] = None
+                    else:
+                        n_file_open += 1
 
-                TCK_outs[key] = LazyTractogram( fname, mode='a' )
+                    TCK_outs[key] = LazyTractogram( fname, mode='a' )
 
-            # write input streamline to correct output file
-            TCK_outs[key].write_streamline( TCK_in.streamline, TCK_in.n_pts )
-            TCK_outs_size[key] += 1
-            n_written += 1
+                # write input streamline to correct output file
+                TCK_outs[key].write_streamline( TCK_in.streamline, TCK_in.n_pts )
+                TCK_outs_size[key] += 1
+                n_written += 1
+                pbar.update()
     except Exception as e:
         print(e)
 

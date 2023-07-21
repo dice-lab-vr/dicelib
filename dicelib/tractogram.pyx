@@ -1,6 +1,5 @@
 #!python
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
-import cython
 import numpy as np
 cimport numpy as np
 import os, glob, random as rnd
@@ -9,7 +8,6 @@ from dicelib.streamline import length as streamline_length
 from dicelib.streamline import smooth
 from . import ui
 from tqdm import trange
-from libc.math cimport sqrt
 
 
 def compute_lenghts( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
@@ -51,12 +49,13 @@ def compute_lenghts( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
 
         lengths = np.empty( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
-            for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
-                TCK_in.read_streamline()
-                if TCK_in.n_pts==0:
-                    break # no more data, stop reading
+            with ui.ProgressBar( total=n_streamlines ) as pbar:
+                for i in range( n_streamlines ):
+                    TCK_in.read_streamline()
+                    if TCK_in.n_pts==0:
+                        break # no more data, stop reading
 
-                lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
+                    lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
 
         if verbose and n_streamlines>0:
             ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
@@ -126,12 +125,13 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
             n_streamlines = int( TCK_in.header['count'] )
             if n_streamlines>0:
                 lengths = np.empty( n_streamlines, dtype=np.double )
-                for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(ui.get_verbose() in [0,1,3]) ):
-                    TCK_in.read_streamline()
-                    if TCK_in.n_pts==0:
-                        break # no more data, stop reading
-                    lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
-                ui.PRINT( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
+                with ui.ProgressBar( total=n_streamlines ) as pbar:
+                    for i in range( n_streamlines ):
+                        TCK_in.read_streamline()
+                        if TCK_in.n_pts==0:
+                            break # no more data, stop reading
+                        lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
+                    ui.PRINT( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
             else:
                 ui.WARNING( 'The tractogram is empty' )
 
@@ -256,42 +256,43 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         kept = np.ones( n_streamlines, dtype=bool )
-        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
-            TCK_in.read_streamline()
-            if TCK_in.n_pts==0:
-                break # no more data, stop reading
+        with ui.ProgressBar( total=n_streamlines ) as pbar:
+            for i in range( n_streamlines ):
+                TCK_in.read_streamline()
+                if TCK_in.n_pts==0:
+                    break # no more data, stop reading
 
-            # filter by length
-            if minlength is not None or maxlength is not None:
-                length = streamline_length(TCK_in.streamline, TCK_in.n_pts)
-                if minlength is not None and length<minlength :
+                # filter by length
+                if minlength is not None or maxlength is not None:
+                    length = streamline_length(TCK_in.streamline, TCK_in.n_pts)
+                    if minlength is not None and length<minlength :
+                        kept[i] = False
+                        continue
+                    if maxlength is not None and length>maxlength :
+                        kept[i] = False
+                        continue
+
+                # filter by weight
+                if weights_in is not None and (
+                    (minweight is not None and w[i]<minweight) or
+                    (maxweight is not None and w[i]>maxweight)
+                ):
                     kept[i] = False
                     continue
-                if maxlength is not None and length>maxlength :
+
+                # filter randomly
+                if random<1 and rnd.random()>=random:
                     kept[i] = False
                     continue
 
-            # filter by weight
-            if weights_in is not None and (
-                (minweight is not None and w[i]<minweight) or
-                (maxweight is not None and w[i]>maxweight)
-            ):
-                kept[i] = False
-                continue
+                # write streamline to output file
+                TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
 
-            # filter randomly
-            if random<1 and rnd.random()>=random:
-                kept[i] = False
-                continue
-
-            # write streamline to output file
-            TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
-
-        if weights_out is not None and w.size>0:
-            if weights_in_ext=='.txt':
-                np.savetxt( weights_out, w[kept==True].astype(np.float32), fmt='%.5e' )
-            else:
-                np.save( weights_out, w[kept==True].astype(np.float32), allow_pickle=False )
+            if weights_out is not None and w.size>0:
+                if weights_in_ext=='.txt':
+                    np.savetxt( weights_out, w[kept==True].astype(np.float32), fmt='%.5e' )
+                else:
+                    np.save( weights_out, w[kept==True].astype(np.float32), allow_pickle=False )
 
         n_written = np.count_nonzero( kept )
         (ui.INFO if n_written>0 else ui.WARNING)( f'{n_written} streamlines in output tractogram' )
@@ -445,38 +446,40 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
-        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
-            TCK_in.read_streamline()
-            if TCK_in.n_pts==0:
-                break # no more data, stop reading
-            # get the key of the dictionary
-            if assignments[i,0]==0 or assignments[i,1]==0:
-                key = 'unassigned'
-            elif assignments[i,0] <= assignments[i,1]:
-                key = f'{assignments[i,0]}-{assignments[i,1]}'
-            else:
-                key = f'{assignments[i,1]}-{assignments[i,0]}'
-
-            # check if need to open file
-            if TCK_outs[key] is None:
-                fname = os.path.join(output_folder,f'{key}.tck')
-                if n_file_open==max_open:
-                    key_to_close = rnd.choice( [k for k,v in TCK_outs.items() if v!=None] )
-                    TCK_outs[key_to_close].close( write_eof=False )
-                    TCK_outs[key_to_close] = None
+        with ui.ProgressBar( total=n_streamlines ) as pbar:
+            for i in range( n_streamlines ):
+                TCK_in.read_streamline()
+                if TCK_in.n_pts==0:
+                    break # no more data, stop reading
+                # get the key of the dictionary
+                if assignments[i,0]==0 or assignments[i,1]==0:
+                    key = 'unassigned'
+                elif assignments[i,0] <= assignments[i,1]:
+                    key = f'{assignments[i,0]}-{assignments[i,1]}'
                 else:
-                    n_file_open += 1
+                    key = f'{assignments[i,1]}-{assignments[i,0]}'
 
-                TCK_outs[key] = LazyTractogram( fname, mode='a' )
+                # check if need to open file
+                if TCK_outs[key] is None:
+                    fname = os.path.join(output_folder,f'{key}.tck')
+                    if n_file_open==max_open:
+                        key_to_close = rnd.choice( [k for k,v in TCK_outs.items() if v!=None] )
+                        TCK_outs[key_to_close].close( write_eof=False )
+                        TCK_outs[key_to_close] = None
+                    else:
+                        n_file_open += 1
 
-            # write input streamline to correct output file
-            TCK_outs[key].write_streamline( TCK_in.streamline, TCK_in.n_pts )
-            TCK_outs_size[key] += 1
-            n_written += 1
+                    TCK_outs[key] = LazyTractogram( fname, mode='a' )
 
-            # store the index of the corresponding weight
-            if weights_in is not None:
-                w_idx[i] = WEIGHTS_out_idx[key]
+                # write input streamline to correct output file
+                TCK_outs[key].write_streamline( TCK_in.streamline, TCK_in.n_pts )
+                TCK_outs_size[key] += 1
+                n_written += 1
+
+                # store the index of the corresponding weight
+                if weights_in is not None:
+                    w_idx[i] = WEIGHTS_out_idx[key]
+                pbar.update()
 
         # create individual weight files for each splitted tractogram
         if weights_in is not None:
@@ -584,12 +587,15 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
             ui.INFO( f'\t- segment length : {segment_len:.2f}' )
 
         # process each streamline
-        for i in trange( n_streamlines, bar_format='{percentage:3.0f}% | {bar} | {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', leave=False, disable=(verbose in [0,1,3]) ):
-            TCK_in.read_streamline()
-            if TCK_in.n_pts==0:
-                break # no more data, stop reading
-            smoothed_streamline, n = smooth( TCK_in.streamline, TCK_in.n_pts, control_point_ratio, segment_len )
-            TCK_out.write_streamline( smoothed_streamline, n )
+        with ui.ProgressBar( total=n_streamlines ) as pbar:
+            for i in range( n_streamlines ):
+
+                TCK_in.read_streamline()
+                if TCK_in.n_pts==0:
+                    break # no more data, stop reading
+                smoothed_streamline, n = smooth( TCK_in.streamline, TCK_in.n_pts, control_point_ratio, segment_len )
+                TCK_out.write_streamline( smoothed_streamline, n )
+                pbar.update()
 
     except Exception as e:
         TCK_out.close()

@@ -17,11 +17,8 @@ import numpy.linalg as npl
 
 from dicelib.lazytractogram cimport LazyTractogram
 from . import ui
-from tqdm import tqdm
 from libc.math cimport sqrt
-from joblib import Parallel, delayed, cpu_count
-from libc.math cimport floor, round as cround
-from libc.stdlib cimport malloc, free
+from libc.math cimport round as cround
 from libcpp cimport bool
 
 

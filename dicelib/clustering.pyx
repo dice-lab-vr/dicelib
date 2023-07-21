@@ -3,19 +3,15 @@
 
 """Functions to perform clustering of tractograms"""
 
-import cython
 import os
 import numpy as np
 cimport numpy as np
-import nibabel as nib
 from dicelib.lazytractogram cimport LazyTractogram
 from dicelib.connectivity import assign
 from dicelib.tractogram import split as split_bundles
-import hashlib
 from libc.math cimport sqrt
 from libc.stdlib cimport malloc, free
 import time
-from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor as tdp
 import concurrent.futures as cf
 from . import ui
@@ -195,10 +191,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     cdef int new_c = 1
     cdef int flipped = 0
     cdef int weight_centr = 0
-
     cdef float d1_x, d1_y, d1_z
-    cdef float dt, dm1_d, dm1_i, dm2, dm3
-
 
 
     set_centroids[0] = s0
@@ -361,7 +354,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
 
-    def cluster_bundle(bundle, clust_thr, n_pts=n_pts, n_tracts_bundle=0, verbose=verbose):
+
+    def cluster_bundle(bundle, clust_thr, n_pts=n_pts, verbose=verbose):
         clust_idx, set_centroids = cluster(bundle, 
                                 threshold=clust_thr,
                                 n_pts=n_pts,
@@ -370,6 +364,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
         new_c = closest_streamline(bundle, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
         return new_c, centr_len
+
 
     MAX_THREAD = 1
 
@@ -427,7 +422,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
 
         bundles = []
         for  dirpath, _, filenames in os.walk(output_bundles_folder):
-            for i_b, f in enumerate(filenames):
+            for _, f in enumerate(filenames):
                 if f.endswith('.tck') and not f.startswith('unassigned'):
                     bundles.append(os.path.abspath(os.path.join(dirpath, f)))
 
@@ -435,13 +430,6 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         if n_threads:
             MAX_THREAD = n_threads
 
-
-        executor = tdp(max_workers=MAX_THREAD)
-        t0 = time.time()
-        future = [executor.submit(cluster_bundle, bundles[i], 
-                                clust_thr,
-                                n_pts=n_pts,
-                                verbose=verbose) for i in range(len(bundles))]
 
         TCK_out_size = 0        
         hash_superset = np.empty( num_streamlines, dtype=int)
@@ -451,24 +439,33 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             hash_superset[i] = hash(np.array(TCK_in.streamline[:TCK_in.n_pts]).tobytes())
         TCK_in.close()
 
-
         ref_indices = []
         TCK_out_size = 0
-        for i, f in enumerate(cf.as_completed(future)):
-            new_c, centr_len = f.result()
-            for jj, n_c in enumerate(new_c):
-                hash_val = hash(np.array(n_c[:centr_len[jj]]).tobytes())
-                ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
-                TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
-                TCK_out_size += 1
-        TCK_out.close( write_eof=True, count= TCK_out_size)
+
+        executor = tdp(max_workers=MAX_THREAD)
+        t0 = time.time()
+        
+        future = [executor.submit(cluster_bundle, bundles[i], 
+                                clust_thr,
+                                n_pts=n_pts,
+                                verbose=verbose) for i in range(len(bundles))]
+
+        with ui.ProgressBar(total=len(bundles)) as pbar:
+            # for i, f in enumerate(cf.as_completed(future)):
+            for i, f in enumerate(future):
+                new_c, centr_len = f.result()
+                for jj, n_c in enumerate(new_c):
+                    hash_val = hash(np.array(n_c[:centr_len[jj]]).tobytes())
+                    ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
+                    TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
+                    TCK_out_size += 1
+                pbar.update()
+            TCK_out.close( write_eof=True, count= TCK_out_size)
 
         
         t1 = time.time()
         if verbose:
             print("Time taken to cluster and find closest streamlines: ", (t1-t0))
-
-        # list_indices = np.argsort(ref_indices)
 
     else:
         t0 = time.time()
@@ -501,8 +498,6 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         if verbose:
             t1 = time.time()
             print(f"Time taken to cluster and find closest streamlines: {t1-t0}" )
-
-        # list_indices = np.argsort(ref_indices)
 
     if TCK_in is not None:
         TCK_in.close()
