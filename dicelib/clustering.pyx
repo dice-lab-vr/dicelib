@@ -429,6 +429,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
 
         if n_threads:
             MAX_THREAD = n_threads
+        else:
+            MAX_THREAD = os.cpu_count()
 
 
         TCK_out_size = 0        
