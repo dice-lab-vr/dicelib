@@ -7,7 +7,6 @@ from dicelib.lazytractogram import LazyTractogram
 from dicelib.streamline import length as streamline_length
 from dicelib.streamline import smooth
 from . import ui
-from tqdm import trange
 
 
 def compute_lenghts( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
@@ -56,6 +55,7 @@ def compute_lenghts( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
                         break # no more data, stop reading
 
                     lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
+                    pbar.update()
 
         if verbose and n_streamlines>0:
             ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
@@ -131,6 +131,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
                         if TCK_in.n_pts==0:
                             break # no more data, stop reading
                         lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
+                        pbar.update()
                     ui.PRINT( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
             else:
                 ui.WARNING( 'The tractogram is empty' )
@@ -287,6 +288,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
 
                 # write streamline to output file
                 TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
+                pbar.update()
 
             if weights_out is not None and w.size>0:
                 if weights_in_ext=='.txt':

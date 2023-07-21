@@ -6,7 +6,6 @@ cimport numpy as np
 import os
 import nibabel as nib
 from . import ui
-# from tqdm import trange
 
 
 def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: str, b: list, b_step: float=0.0, verbose: bool=False, force: bool=False ):
