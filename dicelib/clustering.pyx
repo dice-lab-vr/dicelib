@@ -377,7 +377,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         if os.path.isdir(os.path.join(os.getcwd(), output_folder )):
             pass
         else:
-            if os.path.isabs(my_path):
+            if os.path.isabs(output_folder):
                 os.makedirs(output_folder, exist_ok=True)
             else:
                 os.makedirs(os.path.join(os.getcwd(), output_folder), exist_ok=True)
