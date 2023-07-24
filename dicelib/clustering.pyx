@@ -315,8 +315,8 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     return centroids
 
 
-def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=0.5,
-                    clust_thr: float=10.0, n_pts: int=10, save_assignments: str=None, split: bool=False,
+def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=2.0,
+                    clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None,
                     n_threads: int=1, remove_outliers: bool=False, force: bool=False, verbose: bool=False):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
@@ -335,9 +335,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
     n_pts : int, optional
         Number of points to resample the streamlines to.
     save_assignments : str, optional
-        Path to the output file for the cluster assignments.
-    split : bool, optional
-        Whether to split the output tractogram into separate files for each cluster.
+        Save the cluster assignments to file
     n_threads : int, optional
         Number of threads to use for the clustering.
     remove_outliers : bool, optional
@@ -369,6 +367,21 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
     MAX_THREAD = 1
 
     TCK_in = LazyTractogram( file_name_in, mode='r' )
+    if output_folder is None:
+        # retrieve the current directory
+        output_dir = os.getcwd()
+        os.makedirs(os.path.join(output_dir, "cluster_dir"), exist_ok=True)
+    
+    # check if output folder exists
+    if not os.path.isdir(output_folder):
+        if os.path.isdir(os.path.join(os.getcwd(), output_folder )):
+            pass
+        else:
+            if os.path.isabs(my_path):
+                os.makedirs(output_folder, exist_ok=True)
+            else:
+                os.makedirs(os.path.join(os.getcwd(), output_folder), exist_ok=True)
+
     file_name_out = os.path.join(output_folder,f'{os.path.basename(file_name_in)[:-4]}_clustered_thr_{float(clust_thr)}.tck')
 
     # check if file exists
@@ -382,6 +395,13 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
     chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
 
     if atlas:
+        # check if save_assignments is None
+        if save_assignments is None:
+            save_assignments = os.path.join(output_folder, f'{os.path.basename(file_name_in)[:-4]}_assignments.txt')
+        else:
+            if not os.path.isabs(save_assignments):
+                save_assignments = os.path.join(output_folder, save_assignments)
+
         chunks_asgn = []
         t0 = time.time()
 
@@ -410,16 +430,12 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             np.save( save_assignments, chunks_asgn, allow_pickle=False )
 
         t0 = time.time()
-
-        if split:
-                output_bundles_folder = os.path.join(output_folder, 'bundles')
-                split_bundles(input_tractogram=file_name_in, input_assignments=save_assignments, output_folder=output_bundles_folder, force=force)
-
-
+        output_bundles_folder = os.path.join(output_folder, 'bundles')
+        split_bundles(input_tractogram=file_name_in, input_assignments=save_assignments, output_folder=output_bundles_folder, force=force)
         t1 = time.time()
         if verbose:
             print("Time bundles splitting: ", (t1-t0))
-
+        
         bundles = []
         for  dirpath, _, filenames in os.walk(output_bundles_folder):
             for _, f in enumerate(filenames):
