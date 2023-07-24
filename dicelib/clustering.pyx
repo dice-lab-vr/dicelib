@@ -170,6 +170,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     cdef int nb_pts = n_pts
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
+    cdef float[:,:,::1] clst_streamlines = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
     cdef float [:,::1] s0 = np.empty( (1000, 3), dtype=np.float32 )
     TCK_in._read_streamline() 
     s0 = set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, resampled_fib)
@@ -177,13 +178,13 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
 
     cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
-    cdef float[:,::1] streamline_in_gen = np.zeros((nb_pts, 3), dtype=np.float32)
+    cdef int[:] fib_centr_dist = np.repeat(1000, n_streamlines).astype(np.float32)
     cdef int[:] c_w = np.ones(n_streamlines, dtype=np.int32)
     cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
     cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
     cdef size_t  i = 0
-    cdef size_t  s_i = 0
+    cdef int  j= 0
     cdef size_t  p = 0
     cdef size_t  n_i = 0
     cdef float thr = threshold
@@ -232,10 +233,59 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
                     new_centroid[n_i] = streamline_in[n_i]
                 new_c += 1
             set_centroids[t] = new_centroid
-    
+
+        clst_streamlines = clst_streamlines[:new_c]
+        fib_centr_dist = fib_centr_dist[:new_c]
+        set_centroids = set_centroids[:new_c]
+        TCK_in.seek_origin()
+        # find closest streamline to each centroid
+        for j in range(set_centroids[:new_c].shape[0]):
+            TCK_in._read_streamline()
+            _closest_streamline(TCK_in.streamline[:TCK_in.n_pts], j, set_centroids, nb_pts, new_c, clust_idx, fib_centr_dist, clst_streamlines)
+            
+            
     if TCK_in is not None:
         TCK_in.close()
-    return clust_idx, set_centroids[:new_c]
+    return clust_idx, clust_idx
+
+
+
+cdef _closest_streamline(float[:,:1] streamline, int i_f, float[:,:,::1] target, int num_pt, int [:] clust_idx, int [:] centr_len, float[:] fib_centr_dist, float[:,:,::1] closest_streamlines) nogil:    
+    cdef float maxdist_pt   = 0
+    cdef float maxdist_pt_d = 0
+    cdef float maxdist_pt_i = 0
+
+
+    c_i = clust_idx[i_f]
+    fib_in[:] = set_number_of_points( streamline, num_pt, resampled_fib)
+    maxdist_pt_d = 0
+    maxdist_pt_i = 0
+
+    for j in xrange(num_pt):
+
+        d1_x = (fib_in[j][0] - target[c_i][j][0])**2
+        d1_y = (fib_in[j][1] - target[c_i][j][1])**2
+        d1_z = (fib_in[j][2] - target[c_i][j][2])**2
+
+        maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
+
+        d2_x = (fib_in[j][0] - target[c_i][num_pt-j-1][0])**2
+        d2_y = (fib_in[j][1] - target[c_i][num_pt-j-1][1])**2
+        d2_z = (fib_in[j][2] - target[c_i][num_pt-j-1][2])**2
+        
+        maxdist_pt_i += sqrt(d2_x + d2_y + d2_z)
+    if maxdist_pt_d < maxdist_pt_i:
+        maxdist_pt = maxdist_pt_d/num_pt
+    else:
+        maxdist_pt = maxdist_pt_i/num_pt
+    
+    if maxdist_pt < fib_centr_dist[c_i]:
+        fib_centr_dist[c_i] = maxdist_pt
+        closest_streamlines[c_i, : streamline.shape[0]] = streamline.copy()
+        centr_len[c_i] = streamline.shape[0]
+
+
+
 
 
 cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len):
@@ -402,8 +452,8 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10,
     return clust_idx, set_centroids
 
 
-def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=0.5,
-                    clust_thr: float=10.0, n_pts: int=10, save_assignments: str=None, split: bool=False,
+def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=2.0,
+                    clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None, split: bool=False,
                     n_threads: int=1, remove_outliers: bool=False, force: bool=False, verbose: bool=False):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
@@ -448,7 +498,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                                 n_pts=n_pts,
                                 verbose=verbose)
 
-        centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
+        centr_len = np.zeros((len(bundles), set_centroids.shape[0]), dtype=np.intc)
         new_c = closest_streamline(bundle, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
         return new_c, centr_len
 

@@ -399,6 +399,16 @@ cdef class LazyTractogram:
         fseek( self.fp, offset, SEEK_SET )
 
 
+    def seek_origin( self):
+        """Move the file pointer to the beginning of the binary data part of the file.
+        """
+        if self.is_open==False:
+            raise RuntimeError( 'File is not open' )
+        if self.mode!='r':
+            raise RuntimeError( 'File is not open for reading' )
+        fseek( self.fp, int( self.header['file'][2:] ), SEEK_SET )
+        
+
     def __dealloc__( self ):
         if self.mode=='r':
             free( self.buffer )
