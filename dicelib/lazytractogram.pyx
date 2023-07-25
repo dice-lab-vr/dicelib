@@ -38,6 +38,7 @@ cdef class LazyTractogram:
     # cdef            float*                          buffer_ptr
     # cdef            float*                          buffer_end
 
+
     def __init__( self, char *filename, char* mode, header=None, unsigned int max_points=3000 ):
         """Initialize the class.
 
@@ -399,7 +400,7 @@ cdef class LazyTractogram:
         fseek( self.fp, offset, SEEK_SET )
 
 
-    def seek_origin( self):
+    cdef void _seek_origin( self ) nogil:
         """Move the file pointer to the beginning of the binary data part of the file.
         """
         if self.is_open==False:
@@ -407,6 +408,35 @@ cdef class LazyTractogram:
         if self.mode!='r':
             raise RuntimeError( 'File is not open for reading' )
         fseek( self.fp, int( self.header['file'][2:] ), SEEK_SET )
+
+    cdef void _close( self,  bint write_eof=True, int count=-1)
+        """Close the file associated with the tractogram.
+        """
+        cdef float inf = float('inf')
+
+        if self.is_open==False:
+            return
+
+        if self.mode!='r':
+            # write end-of-file marker
+            if write_eof:
+                fwrite( &inf, 4, 1, self.fp )
+                fwrite( &inf, 4, 1, self.fp )
+                fwrite( &inf, 4, 1, self.fp )
+
+            # update 'count' in header
+            if count>=0:
+                if self.mode=='a':
+                    # in append mode the header is not read by default
+                    self.header.clear()
+                    self._read_header()
+                self.header['count'] = '%0*d' % (len(self.header['count']), count) # NB: use same number of characters
+                self._write_header( self.header )
+
+        self.is_open = False
+        fclose( self.fp )
+        self.fp = NULL
+
         
 
     def __dealloc__( self ):

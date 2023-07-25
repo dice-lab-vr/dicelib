@@ -25,3 +25,5 @@ cdef class LazyTractogram:
     cpdef close( self, bint write_eof=*, int count=* )
     cpdef _read_header( self )
     cpdef _write_header( self, header )
+    cdef void _seek_origin( self ) nogil
+    cdef void _close( self, bint write_eof=*, int count=* ) nogil

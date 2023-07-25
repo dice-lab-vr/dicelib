@@ -6,7 +6,6 @@ import numpy as np
 cimport numpy as np
 import nibabel as nib
 import os, random as rnd
-from tqdm import trange
 from dicelib.lazytractogram cimport LazyTractogram
 from dicelib.ui import ProgressBar
 
