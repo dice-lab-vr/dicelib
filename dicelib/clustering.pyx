@@ -652,14 +652,14 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         executor = tdp(max_workers=MAX_THREAD)
         t0 = time.time()
 
-
-        future = [executor.submit(cluster_chunk, chunk_list[i], 
-                                clust_thr,
-                                n_pts=n_pts,
-                                verbose=verbose) for i in range(len(chunk_list))]
-
         with ui.ProgressBar(total=len(chunk_list)) as pbar:
-            for i, f in enumerate(cf.as_completed(future)):
+            future = [executor.submit(cluster_chunk, chunk_list[i], 
+                                    clust_thr,
+                                    n_pts=n_pts,
+                                    verbose=verbose) for i in range(len(chunk_list))]
+
+            # for i, f in enumerate(cf.as_completed(future)):
+            for i, f in enumerate(future):
                 bundle_new_c, bundle_centr_len, bundle_num_c= f.result()
                 # for k in range(bundle_centr_len.shape[0]):
                     # print(bundle_num_c[k])
