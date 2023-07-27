@@ -631,26 +631,17 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         ref_indices = []
         TCK_out_size = 0
 
-        # sort bundles by size
-        bundles = sorted(bundles, key=lambda x: os.path.getsize(x))
-        tot_size = sum([os.path.getsize(b) for b in bundles])
-        chunk_mem = tot_size/MAX_THREAD
-
-        # distribute bundles to threads such that each thread has approximately the same amount of streamlines
+        # compute chunks
         chunk_size = int(len(bundles)/MAX_THREAD)
-        chunk_list = []
-        for i in range(MAX_THREAD):
-            chunk_list.append([])
-        for b in bundles:
-            for i in range(MAX_THREAD):
-                while sum([os.path.getsize(c) for c in chunk_list[i]]) < chunk_mem:
-                    chunk_list[i].append(b)
-                    break
-
+        chunk_list = [e for e in compute_chunks( bundles,chunk_size)]    
+        
+ 
 
 
         executor = tdp(max_workers=MAX_THREAD)
         t0 = time.time()
+
+        num_centroids = 0
 
         with ui.ProgressBar(total=len(chunk_list)) as pbar:
             future = [executor.submit(cluster_chunk, chunk_list[i], 
@@ -658,9 +649,9 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                                     n_pts=n_pts,
                                     verbose=verbose) for i in range(len(chunk_list))]
 
-            # for i, f in enumerate(cf.as_completed(future)):
-            for i, f in enumerate(future):
+            for i, f in enumerate(cf.as_completed(future)):
                 bundle_new_c, bundle_centr_len, bundle_num_c= f.result()
+                num_centroids += sum(bundle_num_c)
                 # for k in range(bundle_centr_len.shape[0]):
                     # print(bundle_num_c[k])
                     # for j in range(bundle_centr_len.shape[1]):
@@ -678,6 +669,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                         TCK_out_size += 1
                 pbar.update()
             TCK_out.close( write_eof=True, count= TCK_out_size)
+
+        print("Number of centroids: ", num_centroids)
 
         
         t1 = time.time()
