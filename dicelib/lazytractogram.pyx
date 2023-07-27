@@ -3,7 +3,7 @@
 cimport cython
 import numpy as np
 cimport numpy as np
-from libc.stdio cimport fopen, fclose, FILE, fseek, SEEK_END, SEEK_SET
+from libc.stdio cimport fopen, fclose, FILE, fseek, ftell, SEEK_END, SEEK_SET, SEEK_CUR
 from libc.stdio cimport fgets, fread, fwrite
 from libc.stdlib cimport malloc, free
 from libc.string cimport strlen, strncmp, strchr
@@ -400,43 +400,28 @@ cdef class LazyTractogram:
         fseek( self.fp, offset, SEEK_SET )
 
 
-    cdef void _seek_origin( self ) nogil:
+    cdef void _seek_origin( self, int header_param ) nogil:
         """Move the file pointer to the beginning of the binary data part of the file.
         """
         if self.is_open==False:
             raise RuntimeError( 'File is not open' )
         if self.mode!='r':
             raise RuntimeError( 'File is not open for reading' )
-        fseek( self.fp, int( self.header['file'][2:] ), SEEK_SET )
+        self.n_pts = 0
+        self.buffer_ptr = NULL
+        self.buffer_end = NULL
+        fseek( self.fp, header_param, SEEK_SET )
 
-    cdef void _close( self,  bint write_eof=True, int count=-1)
-        """Close the file associated with the tractogram.
+
+    cdef void move_to(self, int n_pts) nogil:
+        """Move the file pointer to the specified offset.
         """
-        cdef float inf = float('inf')
-
         if self.is_open==False:
-            return
-
+            raise RuntimeError( 'File is not open' )
         if self.mode!='r':
-            # write end-of-file marker
-            if write_eof:
-                fwrite( &inf, 4, 1, self.fp )
-                fwrite( &inf, 4, 1, self.fp )
-                fwrite( &inf, 4, 1, self.fp )
-
-            # update 'count' in header
-            if count>=0:
-                if self.mode=='a':
-                    # in append mode the header is not read by default
-                    self.header.clear()
-                    self._read_header()
-                self.header['count'] = '%0*d' % (len(self.header['count']), count) # NB: use same number of characters
-                self._write_header( self.header )
-
-        self.is_open = False
-        fclose( self.fp )
-        self.fp = NULL
-
+            raise RuntimeError( 'File is not open for reading' )
+        offset = - 3*n_pts*sizeof(float)
+        fseek( self.fp, offset, SEEK_CUR )
         
 
     def __dealloc__( self ):

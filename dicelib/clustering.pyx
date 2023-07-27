@@ -3,7 +3,7 @@
 
 """Functions to perform clustering of tractograms"""
 
-import os
+import os, sys
 import numpy as np
 cimport numpy as np
 from dicelib.lazytractogram cimport LazyTractogram
@@ -36,7 +36,8 @@ cdef float[:,::1] extract_ending_pts(float[:,::1] fib_in, float[:,::1] resampled
 
     return resampled_fib
 
-cdef float[:,::1] set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib) nogil:
+
+cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib) nogil:
     cdef float[:] start = fib_in[0]
     cdef int nb_pts_in = fib_in.shape[0]
     cdef float[:] end = fib_in[nb_pts_in-1]
@@ -83,7 +84,6 @@ cdef float[:,::1] set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,
 
     free(vers)
     free(lenghts)
-    return resampled_fib
 
 
 cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float thr,
@@ -170,10 +170,9 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     cdef int nb_pts = n_pts
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
-    cdef float [:,::1] s0 = np.empty( (1000, 3), dtype=np.float32 )
+    cdef float [:,::1] s0 = np.empty( (10, 3), dtype=np.float32 )
     TCK_in._read_streamline() 
-    s0 = set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, resampled_fib)
-    # s0 = set_number_of_points(next(tractogram_gen.streamlines), nb_pts, resampled_fib)
+    set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0)
 
     cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
@@ -182,7 +181,6 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
     cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
     cdef size_t  i = 0
-    cdef size_t  s_i = 0
     cdef size_t  p = 0
     cdef size_t  n_i = 0
     cdef float thr = threshold
@@ -202,7 +200,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     with nogil:
         for i in xrange(n_streamlines):
             TCK_in._read_streamline()
-            streamline_in[:] = set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, resampled_fib)
+            set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, streamline_in[:])
             t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
 
             clust_idx[i]= t
@@ -262,7 +260,7 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     cdef float maxdist_pt_i = 0
     cdef size_t  i_f = 0
     cdef int  j = 0
-    cdef int  c_i = 0
+    # cdef int  c_i = 0
     cdef float d1_x = 0
     cdef float d1_y = 0
     cdef float d1_z= 0
@@ -279,7 +277,7 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     for i_f in xrange(n_streamlines):
         TCK_in._read_streamline()
         c_i = clust_idx[i_f]
-        fib_in[:] = set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, resampled_fib)
+        set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, fib_in[:])
         maxdist_pt_d = 0
         maxdist_pt_i = 0
 
@@ -317,56 +315,75 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10,
     """ Cluster streamlines in a tractogram based on average euclidean distance.
     """
 
-    cdef float [:,::1] s0 = np.empty( (1000, 3), dtype=np.float32 )
     cdef float[:,:,:,::1] set_centroids = np.zeros((len(filenames), 30000, n_pts, 3), dtype=np.float32)
     cdef LazyTractogram TCK_in
     cdef int [:] n_streamlines = np.zeros(len(filenames), dtype=np.int32)
-    cdef float[:,::1] resampled_fib = np.zeros((n_pts,3), dtype=np.float32)
+    cdef int [:] header_params = np.zeros(len(filenames), dtype=np.intc)
+    cdef float[:,:,::1] resampled_fib = np.zeros((1,n_pts,3), dtype=np.float32)
     cdef size_t i = 0
+    cdef np.ndarray TCK_in_array = np.empty(len(filenames), dtype=object)
+    cdef void ** TCK_in_ptr = <void **> TCK_in_array.data
+
+
     for i, filename in enumerate(filenames):
         TCK_in = LazyTractogram( filename, mode='r', max_points=1000 )
         n_streamlines[i] = int( TCK_in.header['count'] )
+        header_params[i] = int(TCK_in.header['file'][2:] )
         TCK_in._read_streamline()
-        s0 = set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, resampled_fib)
-        set_centroids[i, 0] = s0
+        set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, set_centroids[i, 0])
+        TCK_in._seek_origin(header_params[i])
+        TCK_in_array[i] = TCK_in
 
-    if TCK_in is not None:
-        TCK_in.close()
+    # for i in range(TCK_in_array.shape[0]):
+    #     if TCK_in_array[i] is not None:
+    #         TCK_in_array[i].close()
+    #     TCK_in_array[i] = LazyTractogram( filenames[i], mode='r', max_points=1000 )
 
+    
     cdef int nb_pts = n_pts
     cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
-    cdef float[:,:] fib_centr_dist = np.repeat(1000, (len(filenames), set_centroids.shape[0])).astype(np.float32)
-    cdef float[:,:,:,::1] clst_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), nb_pts, 3), dtype=np.float32)
+    cdef float[:,:] fib_centr_dist = np.zeros((len(filenames), int(np.max(n_streamlines)))).astype(np.float32)
+    fib_centr_dist[:] = 1000
+    clst_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), 1000, 3), dtype=np.float32)
+    cdef float[:,:,:,::1] clst_streamlines_view = clst_streamlines
+
     cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
-    cdef int[:] c_w = np.ones(int(np.max(n_streamlines)), dtype=np.int32)
+    cdef int[:,::1] c_w = np.ones((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
     cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
     cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
-    cdef int [:,:] centr_len = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
+    centr_len = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
+    cdef int [:,:] centr_len_view = centr_len
     cdef size_t  p = 0
     cdef size_t  n_i = 0
     cdef float thr = threshold
     cdef int t = 0
-    cdef int [:] new_c = np.ones(len(filenames), dtype=np.int32)
+    cdef int c_i = 0
+    new_c = np.ones(len(filenames), dtype=np.int32)
+    cdef int [:] new_c_view = new_c
     cdef int flipped = 0
     cdef int weight_centr = 0
     cdef float d1_x, d1_y, d1_z
     cdef int [:,:] clust_idx = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
-    #define array of LazyTractogram objects using cdef
-    cdef np.ndarray TCK_in_array = np.array([LazyTractogram( filename, mode='r', max_points=1000 ) for filename in filenames], dtype=object)
-    cdef void ** TCK_in_ptr = <void **> TCK_in_array.data
-
+    
     with nogil:
         for i in range(TCK_in_array.shape[0]):
-            # TCK_temp = <LazyTractogram>TCK_in_array[i]
-            for j in xrange(n_streamlines[i]):
+            for j in range(n_streamlines[i]):
                 (<LazyTractogram> TCK_in_ptr[i])._read_streamline()
-                streamline_in[j,:] = set_number_of_points( (<LazyTractogram> TCK_in_ptr[i]).streamline[:(<LazyTractogram> TCK_in_ptr[i]).n_pts], nb_pts, resampled_fib)
-                t, flipped = compute_dist(streamline_in, set_centroids[i,:new_c[i]], thr, d1_x, d1_y, d1_z, new_c[i], nb_pts)
+                set_number_of_points( (<LazyTractogram> TCK_in_ptr[i]).streamline[:(<LazyTractogram> TCK_in_ptr[i]).n_pts], nb_pts, streamline_in[:])
+                # with gil:
+                #     print("\n")
+                #     print((<LazyTractogram> TCK_in_ptr[i]).n_pts)
+                #     for k in range((<LazyTractogram> TCK_in_ptr[i]).n_pts):
+                #         print((<LazyTractogram> TCK_in_ptr[i]).streamline[k][0], (<LazyTractogram> TCK_in_ptr[i]).streamline[k][1], (<LazyTractogram> TCK_in_ptr[i]).streamline[k][2])
+                #     for r in range(nb_pts):
+                #         print((streamline_in[r][0], streamline_in[r][1], streamline_in[r][2]))
+    
+                t, flipped = compute_dist(streamline_in, set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
 
                 clust_idx[i,j]= t
-                weight_centr = c_w[t]
-                if t < new_c[i]:
+                weight_centr = c_w[i,t]
+                if t < new_c_view[i]:
                     if flipped:
                         for p in xrange(nb_pts):
                             pt_centr = set_centroids[i,t,p]
@@ -383,30 +400,33 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10,
                             new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
                             new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
                             new_centroid[p] = new_p_centr
-                    c_w[t] += 1
+                    c_w[i,t] += 1
 
                 else:
                     for n_i in xrange(nb_pts):
                         new_centroid[n_i] = streamline_in[n_i]
-                    new_c[i] += 1
+                    new_c_view[i] += 1
                 set_centroids[i,t] = new_centroid
 
+
         for i in range(TCK_in_array.shape[0]):
-            (<LazyTractogram> TCK_in_ptr[i])._seek_origin()
+            (<LazyTractogram> TCK_in_ptr[i])._seek_origin(header_params[j])          
             for j in range(n_streamlines[i]):
-                c_i = clust_idx[i,j]
                 (<LazyTractogram> TCK_in_ptr[i])._read_streamline()
-                closest_streamline_s( (<LazyTractogram> TCK_in_ptr[i]).streamline, resampled_fib, (<LazyTractogram> TCK_in_ptr[i]).n_pts, c_i, set_centroids[i], nb_pts, centr_len[i], fib_centr_dist[i], clst_streamlines[i])
-            
-            if (<LazyTractogram> TCK_in_ptr[i]) is not None:
-                (<LazyTractogram> TCK_in_ptr[i])._close()
-    return clst_streamlines, centr_len
+                c_i = clust_idx[i,j]
+                closest_streamline_s( (<LazyTractogram> TCK_in_ptr[i]).streamline[:(<LazyTractogram> TCK_in_ptr[i]).n_pts], (<LazyTractogram> TCK_in_ptr[i]).n_pts, c_i, set_centroids[i, c_i], resampled_fib[0], nb_pts, centr_len_view[i], fib_centr_dist[i], clst_streamlines_view[i])
+    
+    for i in range(TCK_in_array.shape[0]):
+        if TCK_in_array[i] is not None:
+            TCK_in_array[i].close()
+
+
+    return clst_streamlines, centr_len, new_c
     
 
 
-cdef closest_streamline_s( float[:,:1] streamline_in, float[:,::1] resampled_fib, int n_pts, int c_i, float[:,:,::1] target,
-                        int nb_pts, int [:] centr_len, float[:] fib_centr_dist, float[:,:,::1] closest_streamlines) nogil:
-
+cdef void closest_streamline_s( float[:,::1] streamline_in, int n_pts, int c_i, float[:,::1] target, float[:,::1] fib_in,
+                            int nb_pts, int [:] centr_len, float[:] fib_centr_dist, float[:,:,::1] closest_streamlines) nogil:
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
     cdef float maxdist_pt_i = 0
@@ -417,41 +437,64 @@ cdef closest_streamline_s( float[:,:1] streamline_in, float[:,::1] resampled_fib
     cdef float d2_y = 0
     cdef float d2_z= 0
     cdef int  j = 0
-    cdef float[:,:] fib_in = set_number_of_points( streamline_in, nb_pts, resampled_fib)
+
+    # with gil:
+    #     print("\nc_i: ", c_i)
+    #     for i in range(nb_pts):
+    #         print((target[i][0], target[i][1], target[i][2]))
+
+    set_number_of_points( streamline_in, nb_pts, fib_in)
+
+    # with gil:
+    #     print("\n")
+    #     for i in range(nb_pts):
+    #         print((streamline_in[i][0], streamline_in[i][1], streamline_in[i][2]))
+    #         print((fib_in[i][0], fib_in[i][1], fib_in[i][2]))
 
     maxdist_pt_d = 0
     maxdist_pt_i = 0
 
     for j in range(nb_pts):
 
-        d1_x = (fib_in[j][0] - target[c_i][j][0])**2
-        d1_y = (fib_in[j][1] - target[c_i][j][1])**2
-        d1_z = (fib_in[j][2] - target[c_i][j][2])**2
+        d1_x = (fib_in[j][0] - target[j][0])**2
+        d1_y = (fib_in[j][1] - target[j][1])**2
+        d1_z = (fib_in[j][2] - target[j][2])**2
+
+        # with gil:
+        #     print((fib_in[j][0], fib_in[j][1], fib_in[j][2]))
+        #     print((target[j][0], target[j][1], target[j][2]))
+        #     print((d1_x, d1_y, d1_z))
 
         maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
 
-        d2_x = (fib_in[j][0] - target[c_i][num_pt-j-1][0])**2
-        d2_y = (fib_in[j][1] - target[c_i][num_pt-j-1][1])**2
-        d2_z = (fib_in[j][2] - target[c_i][num_pt-j-1][2])**2
+        d2_x = (fib_in[j][0] - target[nb_pts-j-1][0])**2
+        d2_y = (fib_in[j][1] - target[nb_pts-j-1][1])**2
+        d2_z = (fib_in[j][2] - target[nb_pts-j-1][2])**2
+
+        # with gil:
+        #     print((target[nb_pts-j-1][0], target[nb_pts-j-1][1], target[nb_pts-j-1][2]))
+        #     print((d2_x, d2_y, d2_z))
         
         maxdist_pt_i += sqrt(d2_x + d2_y + d2_z)
+
     if maxdist_pt_d < maxdist_pt_i:
-        maxdist_pt = maxdist_pt_d/num_pt
+        maxdist_pt = maxdist_pt_d/nb_pts
     else:
-        maxdist_pt = maxdist_pt_i/num_pt
+        maxdist_pt = maxdist_pt_i/nb_pts
     
-    if maxdist_pt < fib_centr_dist[c_i]:
+    if maxdist_pt < fib_centr_dist[c_i]: 
         fib_centr_dist[c_i] = maxdist_pt
         copy_s(streamline_in, closest_streamlines[c_i], n_pts)
-        centr_len[c_i] = fib_in.shape[0]
+        centr_len[c_i] = n_pts
 
 
-cdef copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) nogil:
+cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) nogil:
     cdef size_t i = 0
     for i in range(n_pts):
         fib_out[i][0] = fib_in[i][0]
         fib_out[i][1] = fib_in[i][1]
         fib_out[i][2] = fib_in[i][2]
+
 
 
 def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=2.0,
@@ -490,14 +533,6 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         """Yield successive n-sized chunks from lst."""
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
-
-
-    def cluster_bundle(bundles, clust_thr, n_pts=n_pts, verbose=verbose):
-        new_c, centr_len = cluster_chunk(bundles, 
-                                threshold=clust_thr,
-                                n_pts=n_pts,
-                                verbose=verbose)
-        return new_c, centr_len
 
 
     MAX_THREAD = 1
@@ -616,20 +651,31 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
 
         executor = tdp(max_workers=MAX_THREAD)
         t0 = time.time()
-        
-        future = [executor.submit(cluster_bundle, chunk_list[i], 
+
+
+        future = [executor.submit(cluster_chunk, chunk_list[i], 
                                 clust_thr,
                                 n_pts=n_pts,
                                 verbose=verbose) for i in range(len(chunk_list))]
 
-        with ui.ProgressBar(total=len(bundles)) as pbar:
+        with ui.ProgressBar(total=len(chunk_list)) as pbar:
             for i, f in enumerate(cf.as_completed(future)):
-                new_c, centr_len = f.result()
-                for jj, n_c in enumerate(new_c):
-                    hash_val = hash(np.array(n_c[:centr_len[jj]]).tobytes())
-                    ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
-                    TCK_out.write_streamline(n_c[:centr_len[jj]], centr_len[jj] )
-                    TCK_out_size += 1
+                bundle_new_c, bundle_centr_len, bundle_num_c= f.result()
+                # for k in range(bundle_centr_len.shape[0]):
+                    # print(bundle_num_c[k])
+                    # for j in range(bundle_centr_len.shape[1]):
+                    #     print(bundle_centr_len[k,j])
+                    # print("\n")
+                for i_b in range(len(bundle_num_c)):
+                    new_centroids, new_centroids_len = bundle_new_c[i_b], bundle_centr_len[i_b]
+                    for i_s in range(bundle_num_c[i_b]):
+                        hash_val = hash(np.array(new_centroids[i_s, :new_centroids_len[i_s]]).tobytes())
+                        # print(i_s)
+                        # print(bundle_num_c[i_b])
+                        # print(new_centroids_len[i_s])
+                        ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
+                        TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
+                        TCK_out_size += 1
                 pbar.update()
             TCK_out.close( write_eof=True, count= TCK_out_size)
 
