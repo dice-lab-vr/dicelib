@@ -315,7 +315,7 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10,
     """ Cluster streamlines in a tractogram based on average euclidean distance.
     """
 
-    cdef float[:,:,:,::1] set_centroids = np.zeros((len(filenames), 30000, n_pts, 3), dtype=np.float32)
+    cdef float[:,:,:,::1] set_centroids = np.zeros((len(filenames), 100000, n_pts, 3), dtype=np.float32)
     cdef LazyTractogram TCK_in
     cdef int [:] n_streamlines = np.zeros(len(filenames), dtype=np.int32)
     cdef int [:] header_params = np.zeros(len(filenames), dtype=np.intc)
@@ -408,9 +408,8 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10,
                     new_c_view[i] += 1
                 set_centroids[i,t] = new_centroid
 
-
         for i in range(TCK_in_array.shape[0]):
-            (<LazyTractogram> TCK_in_ptr[i])._seek_origin(header_params[j])          
+            (<LazyTractogram> TCK_in_ptr[i])._seek_origin(header_params[i])
             for j in range(n_streamlines[i]):
                 (<LazyTractogram> TCK_in_ptr[i])._read_streamline()
                 c_i = clust_idx[i,j]
@@ -499,7 +498,7 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) nogil:
 
 def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=2.0,
                     clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None, split: bool=False,
-                    n_threads: int=1, remove_outliers: bool=False, force: bool=False, verbose: bool=False):
+                    n_threads: int=None, remove_outliers: bool=False, force: bool=False, verbose: bool=False):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -607,11 +606,12 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         if verbose:
             print("Time bundles splitting: ", (t1-t0))
         
-        bundles = []
+        bundles = {}
         for  dirpath, _, filenames in os.walk(output_bundles_folder):
-            for _, f in enumerate(filenames):
+            for i, f in enumerate(filenames):
                 if f.endswith('.tck') and not f.startswith('unassigned'):
-                    bundles.append(os.path.abspath(os.path.join(dirpath, f)))
+                    filename = os.path.abspath(os.path.join(dirpath, f))
+                    bundles[i] = (filename, os.path.getsize(filename))
 
 
         if n_threads:
@@ -631,27 +631,36 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         ref_indices = []
         TCK_out_size = 0
 
-        # compute chunks
-        chunk_size = int(len(bundles)/MAX_THREAD)
-        chunk_list = [e for e in compute_chunks( bundles,chunk_size)]    
-        
- 
-
-
+        MAX_FILES = 1000
+        MAX_BYTES = 1200000000
+        chunk_size = int(MAX_FILES/MAX_THREAD)
+        computed_bundles = 0
         executor = tdp(max_workers=MAX_THREAD)
         t0 = time.time()
-
-        num_centroids = 0
-
+        chunk_list = []
+        chunk_size = 0
+        # NOTE: compute chunks
+        while len(bundles.items()) > 0:
+            chunk_list.append([])
+            to_delete = []
+            for k, bundle in bundles.items():
+                if sum([os.path.getsize(f) for f in chunk_list[chunk_size]])+bundle[1] < MAX_BYTES and len(chunk_list[chunk_size]) < int(MAX_FILES/MAX_THREAD):
+                    chunk_list[chunk_size].append(bundle[0])
+                    to_delete.append(k)
+            [bundles.pop(k) for k in to_delete]
+            chunk_size += 1
+                
+        # NOTE: start computation
+        # num_centroids = 0
         with ui.ProgressBar(total=len(chunk_list)) as pbar:
-            future = [executor.submit(cluster_chunk, chunk_list[i], 
-                                    clust_thr,
-                                    n_pts=n_pts,
-                                    verbose=verbose) for i in range(len(chunk_list))]
-
+            future = [executor.submit(cluster_chunk,
+                                        chunk,
+                                        clust_thr,
+                                        n_pts=n_pts,
+                                        verbose=verbose) for chunk in chunk_list]
             for i, f in enumerate(cf.as_completed(future)):
-                bundle_new_c, bundle_centr_len, bundle_num_c= f.result()
-                num_centroids += sum(bundle_num_c)
+                bundle_new_c, bundle_centr_len, bundle_num_c = f.result()
+                # num_centroids += sum(bundle_num_c)
                 # for k in range(bundle_centr_len.shape[0]):
                     # print(bundle_num_c[k])
                     # for j in range(bundle_centr_len.shape[1]):
@@ -661,17 +670,17 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                     new_centroids, new_centroids_len = bundle_new_c[i_b], bundle_centr_len[i_b]
                     for i_s in range(bundle_num_c[i_b]):
                         hash_val = hash(np.array(new_centroids[i_s, :new_centroids_len[i_s]]).tobytes())
-                        # print(i_s)
-                        # print(bundle_num_c[i_b])
-                        # print(new_centroids_len[i_s])
-                        ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
-                        TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
-                        TCK_out_size += 1
+                        # # print(i_s)
+                        # # print(bundle_num_c[i_b])
+                        # # print(new_centroids_len[i_s])
+                        # ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
+                        # TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
+                        # TCK_out_size += 1
                 pbar.update()
-            TCK_out.close( write_eof=True, count= TCK_out_size)
+                # computed_bundles += int(chunk_size*MAX_THREAD)
+        TCK_out.close( write_eof=True, count= TCK_out_size)
 
-        print("Number of centroids: ", num_centroids)
-
+        # print("Number of centroids: ", num_centroids)
         
         t1 = time.time()
         if verbose:
