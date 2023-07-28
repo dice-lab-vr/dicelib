@@ -619,6 +619,9 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         else:
             MAX_THREAD = os.cpu_count()
 
+        # NOTE: optimal
+        MAX_THREAD = 6
+
 
         TCK_out_size = 0        
         hash_superset = np.empty( num_streamlines, dtype=int)
@@ -634,21 +637,23 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         MAX_FILES = 1000
         MAX_BYTES = 1200000000
         chunk_size = int(MAX_FILES/MAX_THREAD)
-        computed_bundles = 0
+        # computed_bundles = 0
         executor = tdp(max_workers=MAX_THREAD)
         t0 = time.time()
         chunk_list = []
-        chunk_size = 0
         # NOTE: compute chunks
         while len(bundles.items()) > 0:
-            chunk_list.append([])
+            # chunk_list.append([])
             to_delete = []
+            new_chunk = []
             for k, bundle in bundles.items():
-                if sum([os.path.getsize(f) for f in chunk_list[chunk_size]])+bundle[1] < MAX_BYTES and len(chunk_list[chunk_size]) < int(MAX_FILES/MAX_THREAD):
-                    chunk_list[chunk_size].append(bundle[0])
+                new_chunk_size = [os.path.getsize(f) for f in new_chunk]
+                new_chunk_size.append(bundle[1])
+                if max(new_chunk_size)*len(new_chunk) < MAX_BYTES and len(new_chunk) < int(MAX_FILES/MAX_THREAD):
+                    new_chunk.append(bundle[0])
                     to_delete.append(k)
             [bundles.pop(k) for k in to_delete]
-            chunk_size += 1
+            chunk_list.append(new_chunk)
                 
         # NOTE: start computation
         # num_centroids = 0
@@ -669,16 +674,17 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                 for i_b in range(len(bundle_num_c)):
                     new_centroids, new_centroids_len = bundle_new_c[i_b], bundle_centr_len[i_b]
                     for i_s in range(bundle_num_c[i_b]):
-                        hash_val = hash(np.array(new_centroids[i_s, :new_centroids_len[i_s]]).tobytes())
-                        # # print(i_s)
+                        # hash_val = hash(np.array(new_centroids[i_s, :new_centroids_len[i_s]]).tobytes())
+                        # # print(i_s
                         # # print(bundle_num_c[i_b])
                         # # print(new_centroids_len[i_s])
                         # ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
-                        # TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
-                        # TCK_out_size += 1
+                        TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
+                        TCK_out_size += 1
                 pbar.update()
                 # computed_bundles += int(chunk_size*MAX_THREAD)
-        TCK_out.close( write_eof=True, count= TCK_out_size)
+            TCK_out.close( write_eof=True, count= TCK_out_size)
+
 
         # print("Number of centroids: ", num_centroids)
         
