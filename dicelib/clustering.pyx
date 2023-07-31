@@ -497,9 +497,9 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) nogil:
 
 
 
-def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=2.0,
-                    clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None, split: bool=False,
-                    n_threads: int=1, remove_outliers: bool=False, force: bool=False, verbose: bool=False):
+def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, conn_thr: float=2.0,
+                    clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None, n_threads: int=1,
+                    remove_outliers: bool=False, force: bool=False, verbose: bool=False):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters

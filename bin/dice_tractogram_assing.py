@@ -20,7 +20,6 @@ parser.add_argument("atlas", help="Atlas used to compute streamlines assignments
 parser.add_argument("reference", help="Reference used for space transofrmation")
 parser.add_argument("--conn_threshold", "-t", default=2, type=float, metavar="THR", help="Threshold [in mm]")
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
-parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 options = parser.parse_args()
 
@@ -44,8 +43,7 @@ t0 = time.time()
 with tdp(max_workers=MAX_THREAD) as executor:
     future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =chunk_groups[i][0],
                                 end_chunk=chunk_groups[i][len(chunk_groups[i])-1]+1, chunk_size=len(chunk_groups[i]),
-                                reference=options.reference, gm_map_file=options.atlas, threshold=options.conn_threshold,
-                                force=options.force) for i in range(len(chunk_groups))]
+                                reference=options.reference, gm_map_file=options.atlas, threshold=options.conn_threshold) for i in range(len(chunk_groups))]
 chunks_asgn = [f.result() for f in future]
 chunks_asgn = [c for f in chunks_asgn for c in f]
 

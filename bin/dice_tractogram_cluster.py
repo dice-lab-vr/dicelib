@@ -7,17 +7,15 @@ from dicelib.clustering import run_clustering
 parser = ColoredArgParser( description=run_clustering.__doc__.split('\n')[0] )
 parser.add_argument("file_name_in", help="Input tractogram")
 parser.add_argument("--atlas", "-a", help="Atlas used to compute streamlines connectivity")
-parser.add_argument("--reference", "-r", help="Reference used for space transofrmation")
 parser.add_argument("--conn_thr", "-t", default=2, type=float, metavar="THR", help="Threshold [in mm]")
 parser.add_argument("--clust_thr", type=float, help="Threshold [in mm]")
 parser.add_argument("--n_pts", type=int, default=10, help="Number of points for the resampling of a streamline")
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
-parser.add_argument("--split", action="store_true", help="Split clusters into separate files")
 parser.add_argument("--output_folder", "-out", help="Folder where to save the split clusters")
 parser.add_argument("--n_threads", type=int, help="Number of threads to use to perform clustering")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
-parser.add_argument("--remove_outliers", "-ro", action="store_true", help="Remove outliers")
+parser.add_argument("--remove_outliers", "-ro", default=False, action="store_true", help="Remove outliers - beta feature")
 options = parser.parse_args()
 
 
