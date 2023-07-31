@@ -121,7 +121,7 @@ cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, i
 
 
 cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, float [:] end_pt_grid, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
-                            int[:,:,::1] gm_v, float thr) nogil:
+                            int[:,:,::1] gm_v, float thr, int[:] closest_start_v, int[:] closest_end_v) nogil:
 
     """ Compute the label assigned to each streamline endpoint and then returns a list of connected regions.
 
@@ -141,12 +141,14 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
         Assume value "true" if thr = 0
     """
 
-    cdef int roi1 = 0
-    cdef int roi2 = 0
     cdef float dist_s = 0
     cdef float dist_e = 0
     cdef size_t i = 0
-    cdef size_t yy = 0
+    cdef int idx_s_min = 0
+    cdef int idx_e_min = 0
+    cdef float dist_s_temp = 1000
+    cdef float dist_e_temp = 1000
+
     roi_ret[0] = 0
     roi_ret[1] = 0
 
@@ -164,15 +166,18 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
         if start_pt_grid[0] < 0 or start_pt_grid[0] >= gm_v.shape[0] or start_pt_grid[1] < 0 or start_pt_grid[1] >= gm_v.shape[1] or start_pt_grid[2] < 0 or start_pt_grid[2] >= gm_v.shape[2]:
             continue
 
-        dist_s = sqrt( ( starting_pt[0] - (<int>start_pt_grid[0] + 0.5) )**2 + ( starting_pt[1] - (<int>start_pt_grid[1] + 0.5) )**2 + ( starting_pt[2] - (<int>start_pt_grid[2] + 0.5) )**2 )
-
         start_vox[0] = <int> cround(start_pt_grid[0])
         start_vox[1] = <int> cround(start_pt_grid[1])
         start_vox[2] = <int> cround(start_pt_grid[2])
 
-        if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0 and dist_s <= thr:
-            roi_ret[0] = gm_v[ start_vox[0], start_vox[1], start_vox[2]]
-            break
+        if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0:
+            dist_s = sqrt( ( starting_pt[0] - (<int>start_pt_grid[0] + 0.5) )**2 + ( starting_pt[1] - (<int>start_pt_grid[1] + 0.5) )**2 + ( starting_pt[2] - (<int>start_pt_grid[2] + 0.5) )**2 )
+            if dist_s <= thr and dist_s < dist_s_temp:
+                closest_start_v[0] = start_vox[0]
+                closest_start_v[1] = start_vox[1]
+                closest_start_v[2] = start_vox[2]
+                dist_s_temp = dist_s
+            # break
 
     for i in xrange(grid_size):
         end_pt_grid[0] = ending_pt[0] + grid[i][0]
@@ -182,15 +187,21 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
         if end_pt_grid[0] < 0 or end_pt_grid[0] >= gm_v.shape[0] or end_pt_grid[1] < 0 or end_pt_grid[1] >= gm_v.shape[1] or end_pt_grid[2] < 0 or end_pt_grid[2] >= gm_v.shape[2]:
             continue
 
-        dist_e = sqrt( ( ending_pt[0] - (<int>end_pt_grid[0] + 0.5) )**2 + ( ending_pt[1] - (<int>end_pt_grid[1] + 0.5) )**2 + ( ending_pt[2] - (<int>end_pt_grid[2] + 0.5) )**2 )
-
         end_vox[0] = <int> cround(end_pt_grid[0])
         end_vox[1] = <int> cround(end_pt_grid[1])
         end_vox[2] = <int> cround(end_pt_grid[2])
 
-        if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0 and dist_e <= thr:
-            roi_ret[1] = gm_v[ end_vox[0], end_vox[1], end_vox[2]  ]
-            break
+        if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0:
+            dist_e = sqrt( ( ending_pt[0] - (<int>end_pt_grid[0] + 0.5) )**2 + ( ending_pt[1] - (<int>end_pt_grid[1] + 0.5) )**2 + ( ending_pt[2] - (<int>end_pt_grid[2] + 0.5) )**2 )
+            if dist_e <= thr and dist_e < dist_e_temp:
+                closest_end_v[0] = end_vox[0]
+                closest_end_v[1] = end_vox[1]
+                closest_end_v[2] = end_vox[2]
+                dist_e_temp = dist_e
+            # break
+
+    roi_ret[0] = gm_v[ closest_start_v[0], closest_start_v[1], closest_start_v[2]]
+    roi_ret[1] = gm_v[ closest_end_v[0], closest_end_v[1], closest_end_v[2]]
 
     return roi_ret
 
@@ -252,9 +263,13 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, gm_map_file
     cdef float [:] end_pt_grid = np.zeros(3, dtype=np.float32)
     cdef int [:] end_vox = np.zeros(3, dtype=np.int32)
     cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
+    cdef int [:] closest_start_v = np.zeros(3, dtype=np.int32)
+    cdef int [:] closest_end_v = np.zeros(3, dtype=np.int32)
 
     TCK_in = None
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
+    # compute the grid of voxels to check
+    grid = compute_grid( thr, voxdims )
 
     if thr < 0.5 :
         with nogil:
@@ -265,15 +280,13 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, gm_map_file
                 assignments_view[i] = streamline_assignment_endpoints( start_vox, end_vox, roi_ret, matrix, gm_map)
 
     else:
-        # compute the grid of voxels to check
-        grid = compute_grid( thr, voxdims )
-
         with nogil:
             for i in xrange( n_streamlines ):
                 TCK_in._read_streamline()
                 end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
                 matrix = apply_affine(end_pts, M, abc, end_pts_trans)
-                assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret, matrix, grid, gm_map, thr)
+                assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret,
+                                                            matrix, grid, gm_map, thr, closest_start_v, closest_end_v)
 
 
     if TCK_in is not None:
