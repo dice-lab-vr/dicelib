@@ -195,8 +195,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size: int, reference: str,
-            gm_map_file: str, threshold: 2, verbose: bool=False ):
+def assign( input_tractogram: str, start_chunk: int, end_chunk: int, gm_map_file: str, threshold: 2, verbose: bool=False ):
 
     """ Compute the assignments of the streamlines based on a GM map.
     
@@ -225,7 +224,7 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, chunk_size:
     # Load of the gm map
     gm_map_img = nib.load(gm_map_file)
     gm_map_data = gm_map_img.get_fdata()
-    ref_data = nib.load(reference)
+    ref_data = gm_map_img
     ref_header = ref_data.header
     affine = ref_data.affine
     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm_map_data, dtype=np.int32)

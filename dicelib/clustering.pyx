@@ -476,8 +476,8 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) nogil:
 
 
 
-def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, reference: str=None, conn_thr: float=2.0,
-                    clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None, split: bool=False, temp_idx: str=None,
+def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, conn_thr: float=2.0,
+                    clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
                     n_threads: int=None, remove_outliers: bool=False, force: bool=False, verbose: bool=False):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
@@ -557,8 +557,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
 
         with tdp(max_workers=MAX_THREAD) as executor:
             future = [executor.submit( assign, input_tractogram=file_name_in, start_chunk=int(chunk_groups[i][0]),
-                                        end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1), chunk_size=len(chunk_groups[i]),
-                                        reference=atlas, gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
+                                        end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
+                                        gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
         chunks_asgn = [f.result() for f in future]
         chunks_asgn = [c for f in chunks_asgn for c in f]
 
