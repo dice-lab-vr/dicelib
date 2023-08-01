@@ -12,6 +12,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor as tdp
 import concurrent.futures as cf
 import os
+from dicelib import ui
+
 
 # parse the input parameters
 parser = ColoredArgParser( description=cluster.__doc__.split('\n')[0] )
@@ -19,6 +21,7 @@ parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("atlas", help="Atlas used to compute streamlines assignments")
 parser.add_argument("--conn_threshold", "-t", default=2, type=float, metavar="THR", help="Threshold [in mm]")
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
+parser.add_argument("--n_threads", type=int, default=-1, help="Number of threads to use to compute assignments")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwrite")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 options = parser.parse_args()
@@ -29,8 +32,10 @@ def compute_chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
-
-MAX_THREAD = 1
+if options.n_threads < 1:
+    MAX_THREAD = os.cpu_count()
+else:
+    MAX_THREAD = options.n_threads
 
 # num_streamlines = int(nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"])
 num_streamlines = int(LazyTractogram( options.input_tractogram, mode='r' ).header["count"])
@@ -40,12 +45,22 @@ chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size
 chunks_asgn = []
 t0 = time.time()
 
-with tdp(max_workers=MAX_THREAD) as executor:
-    future = [executor.submit(assign, input_tractogram=options.input_tractogram, start_chunk =int(chunk_groups[i][0]),
-                                end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
-                                gm_map_file=options.atlas, threshold=options.conn_threshold) for i in range(len(chunk_groups))]
-chunks_asgn = [f.result() for f in future]
-chunks_asgn = [c for f in chunks_asgn for c in f]
+if options.verbose:
+    hide_bar = False
+else:
+    hide_bar = True
+
+pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
+
+with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=hide_bar ) as pbar:
+    with tdp(max_workers=MAX_THREAD) as executor:
+        future = [executor.submit(assign, options.input_tractogram, pbar_array, i, start_chunk =int(chunk_groups[i][0]),
+                                    end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
+                                    gm_map_file=options.atlas, threshold=options.conn_threshold) for i in range(len(chunk_groups))]
+        for f in future:
+            chunks_asgn.append(f.result())
+
+    chunks_asgn = [c for f in chunks_asgn for c in f]
 
 t1 = time.time()
 if options.verbose:
@@ -54,11 +69,12 @@ out_assignment_ext = os.path.splitext(options.save_assignments)[1]
 
 if out_assignment_ext not in ['.txt', '.npy']:
     print( 'Invalid extension for the output scalar file' )
-if os.path.isfile(options.save_assignments) and not options.force:
+elif os.path.isfile(options.save_assignments) and not options.force:
     print( 'Output scalar file already exists, use -f to overwrite' )
-if out_assignment_ext=='.txt':
-    with open(options.save_assignments, "w") as text_file:
-        for reg in chunks_asgn:
-            print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
 else:
-    np.save( options.save_assignments, chunks_asgn, allow_pickle=False )
+    if out_assignment_ext=='.txt':
+        with open(options.save_assignments, "w") as text_file:
+            for reg in chunks_asgn:
+                print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
+    else:
+        np.save( options.save_assignments, chunks_asgn, allow_pickle=False )

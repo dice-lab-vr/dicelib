@@ -14,7 +14,7 @@ from libc.stdlib cimport malloc, free
 import time
 from concurrent.futures import ThreadPoolExecutor as tdp
 import concurrent.futures as cf
-from . import ui
+from dicelib import ui
 
 
 cdef void tot_lenght(float[:,::1] fib_in, float* length) nogil:
@@ -556,17 +556,13 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
 
         chunks_asgn = []
         t0 = time.time()
-        executor = tdp(max_workers=MAX_THREAD)
-        
-        with ui.ProgressBar(total=len(chunk_groups), hide_on_exit=hide_bar) as pbar:
+
+        with tdp(max_workers=MAX_THREAD) as executor:
             future = [executor.submit( assign, input_tractogram=file_name_in, start_chunk=int(chunk_groups[i][0]),
                                         end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
                                         gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
-            
-            for f in future:
-                chunks_asgn.append(f.result())
-                pbar.update()
-            chunks_asgn = [c for f in chunks_asgn for c in f]
+        chunks_asgn = [f.result() for f in future]
+        chunks_asgn = [c for f in chunks_asgn for c in f]
 
         t1 = time.time()
         if verbose:
@@ -632,7 +628,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             chunk_list.append(new_chunk)
                 
         # NOTE: start computation
-        with ui.ProgressBar(total=len(chunk_list), hide_on_exit=hide_bar) as pbar:
+        with ui.ProgressBar(total=len(chunk_list)) as pbar:
             future = [executor.submit(cluster_chunk,
                                         chunk,
                                         clust_thr,

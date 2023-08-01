@@ -1,19 +1,13 @@
 #!python
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False
 
-import cython
-import sys
 import os 
-import time
 
 import numpy as np
 cimport numpy as np
-import numpy.linalg as npl
 import nibabel as nib
 # from nibabel.affines import apply_affine
 from scipy.linalg import inv
-import numpy.linalg as npl
-
 
 from dicelib.lazytractogram cimport LazyTractogram
 from . import ui
@@ -198,7 +192,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-def assign( input_tractogram: str, start_chunk: int, end_chunk: int, gm_map_file: str, threshold: 2, verbose: bool=False ):
+cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_file: str, threshold: 2, verbose: bool=False ):
 
     """ Compute the assignments of the streamlines based on a GM map.
     
@@ -263,20 +257,28 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, gm_map_file
 
     if thr < 0.5 :
         with nogil:
+            while i < start_chunk:
+                TCK_in._read_streamline()
+                i += 1
             for i in xrange( n_streamlines ):
                 TCK_in._read_streamline()
                 end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
                 matrix = apply_affine(end_pts, M, abc, end_pts_trans)
                 assignments_view[i] = streamline_assignment_endpoints( start_vox, end_vox, roi_ret, matrix, gm_map)
+                pbar_array[id_chunk] += 1
 
     else:
         with nogil:
+            while i < start_chunk:
+                TCK_in._read_streamline()
+                i += 1
             for i in xrange( n_streamlines ):
                 TCK_in._read_streamline()
                 end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
                 matrix = apply_affine(end_pts, M, abc, end_pts_trans)
                 assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret,
                                                             matrix, grid, gm_map, thr, closest_start_v, closest_end_v)
+                pbar_array[id_chunk] += 1
 
 
     if TCK_in is not None:
