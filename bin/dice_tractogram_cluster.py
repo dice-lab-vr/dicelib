@@ -19,8 +19,8 @@ options = parser.parse_args()
 
 
 def main():
-    run_clustering(options.file_name_in, options.output_folder, options.atlas, options.conn_thr, options.clust_thr, options.n_pts,
-                   options.save_assignments, options.n_threads, options.force, options.verbose)
+    run_clustering(file_name_in=options.file_name_in, output_folder=options.output_folder, atlas=options.atlas, conn_thr=options.conn_thr, clust_thr=options.clust_thr, n_pts=options.n_pts,
+                   save_assignments=options.save_assignments, n_threads=options.n_threads, force=options.force, verbose=options.verbose)
     
 if __name__ == "__main__":
     main()

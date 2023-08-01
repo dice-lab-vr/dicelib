@@ -175,7 +175,6 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
             if dist_s <= thr and dist_s < dist_s_temp:
                 roi_ret[0] = gm_v[ start_vox[0], start_vox[1], start_vox[2]]
                 dist_s_temp = dist_s
-            # break
 
     for i in xrange(grid_size):
         end_pt_grid[0] = ending_pt[0] + grid[i][0]
@@ -191,16 +190,10 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
 
         if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0:
             dist_e = sqrt( ( ending_pt[0] - (<int>end_pt_grid[0] + 0.5) )**2 + ( ending_pt[1] - (<int>end_pt_grid[1] + 0.5) )**2 + ( ending_pt[2] - (<int>end_pt_grid[2] + 0.5) )**2 )
-            # with gil:
-            #     print(f"end point: [{ending_pt[0]}, {ending_pt[1]}, {ending_pt[2]}], grid value: {grid[i][0]}, {grid[i][1]}, {grid[i][2]}")
-            #     print(f"voxel {(end_vox[0], end_vox[1], end_vox[2])}")
-            #     print(f" visiting voxel gm: {gm_v[ end_vox[0], end_vox[1], end_vox[2]]}")
-            #     print(f" distance {dist_e}, previous distance {dist_e_temp}")
 
             if dist_e <= thr and dist_e < dist_e_temp:
                 roi_ret[1] = gm_v[ end_vox[0], end_vox[1], end_vox[2]]
                 dist_e_temp = dist_e
-            # break
 
     return roi_ret
 
@@ -240,7 +233,6 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, gm_map_file
     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm_map_data, dtype=np.int32)
 
     cdef float [:,::1] inverse = np.ascontiguousarray(inv(affine), dtype=np.float32) #inverse of affine
-    # cdef float [:,::1] M = inverse[:3, :3]
     cdef float [::1,:] M = inverse[:3, :3].T 
     cdef float [:] abc = inverse[:3, 3]
     cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
@@ -250,7 +242,6 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, gm_map_file
     cdef size_t i = 0  
     cdef int n_streamlines = end_chunk - start_chunk
     cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)
-    # cdef int [:,:] assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
     assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
     cdef int[:,:] assignments_view = assignments
 

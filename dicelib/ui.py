@@ -5,7 +5,14 @@ import itertools
 import numpy as np
 from threading import Thread
 from time import time, sleep
-import os
+from shutil import get_terminal_size
+
+# check if we are in an ipython session
+try:
+    __IPYTHON__
+    _in_ipython_session = True
+except NameError:
+    _in_ipython_session = False
 
 # foreground colors
 fBlack   = '\x1b[30m'
@@ -269,17 +276,17 @@ class ProgressBar:
 	...         progress[thread_id] += 1
     """
     
-    def __init__(self, total=None, n_cols=40, refresh=0.05, eta_refresh=1, multithread_progress=None, disable=False):
+    def __init__(self, total=None, ncols=None, refresh=0.05, eta_refresh=1, multithread_progress=None, hide_on_exit=True, disable=False):
         self.total = total
-        self.ncols = n_cols if n_cols is not None else int(os.get_terminal_size()[0]) - 15
+        self.ncols = int(get_terminal_size().columns // 2) if ncols is None else ncols
         self.refresh = refresh
         self.eta_refresh = eta_refresh
         self.multithread_progress = multithread_progress
+        self.hide_on_exit = hide_on_exit
         self.disable = disable
 
-
         self._graphics = {
-            'clear_line': '\x1b[2K',
+            'clear_line': '\x1b[2K' if not _in_ipython_session else f"\r{' '*get_terminal_size().columns*2}",
             'reset': '\x1b[0m',
             'black': '\x1b[30m',
             'green': '\x1b[32m',
@@ -346,12 +353,13 @@ class ProgressBar:
         self._done = True
         if not self.disable:
             print(self._graphics['clear_line'], end='\r', flush=True)
-            if self.total is None:
-                print(f"\r   {self._graphics['green']}{'━' * self.ncols} 100.0%{self._graphics['reset']}")
-            else:
-                if self.multithread_progress is not None:
-                    self._progress = np.sum(self.multithread_progress)
-                print(f"\r   {self._graphics['green']}{'━' * int(self.ncols * self._progress / self.total)}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))} {100 * self._progress / self.total:.1f}%{self._graphics['reset']}")
+            if not self.hide_on_exit:
+                if self.total is None:
+                    print(f"\r   {self._graphics['green']}{'━' * self.ncols} 100.0%{self._graphics['reset']}")
+                else:
+                    if self.multithread_progress is not None:
+                        self._progress = np.sum(self.multithread_progress)
+                    print(f"\r   {self._graphics['green']}{'━' * int(self.ncols * self._progress / self.total)}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))} {100 * self._progress / self.total:.1f}%{self._graphics['reset']}")
 
     def update(self):
         self._progress += 1

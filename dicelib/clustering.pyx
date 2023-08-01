@@ -506,6 +506,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
     """
     if verbose:
         ui.INFO(f"  - Clustering with threshold: {clust_thr}, using  {n_pts} points")
+    elif not verbose:
+        hide_bar = True
 
 
     def compute_chunks(lst, n):
@@ -554,13 +556,17 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
 
         chunks_asgn = []
         t0 = time.time()
-
-        with tdp(max_workers=MAX_THREAD) as executor:
+        executor = tdp(max_workers=MAX_THREAD)
+        
+        with ui.ProgressBar(total=len(chunk_groups), hide_on_exit=hide_bar) as pbar:
             future = [executor.submit( assign, input_tractogram=file_name_in, start_chunk=int(chunk_groups[i][0]),
                                         end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
                                         gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
-        chunks_asgn = [f.result() for f in future]
-        chunks_asgn = [c for f in chunks_asgn for c in f]
+            
+            for f in future:
+                chunks_asgn.append(f.result())
+                pbar.update()
+            chunks_asgn = [c for f in chunks_asgn for c in f]
 
         t1 = time.time()
         if verbose:
@@ -626,7 +632,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             chunk_list.append(new_chunk)
                 
         # NOTE: start computation
-        with ui.ProgressBar(total=len(chunk_list)) as pbar:
+        with ui.ProgressBar(total=len(chunk_list), hide_on_exit=hide_bar) as pbar:
             future = [executor.submit(cluster_chunk,
                                         chunk,
                                         clust_thr,
