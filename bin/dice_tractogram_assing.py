@@ -21,7 +21,6 @@ parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("atlas", help="Atlas used to compute streamlines assignments")
 parser.add_argument("--conn_threshold", "-t", default=2, type=float, metavar="THR", help="Threshold [in mm]")
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
-parser.add_argument("--n_threads", type=int, default=-1, help="Number of threads to use to compute assignments")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwrite")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 options = parser.parse_args()
@@ -32,10 +31,7 @@ def compute_chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
-if options.n_threads < 1:
-    MAX_THREAD = os.cpu_count()
-else:
-    MAX_THREAD = options.n_threads
+MAX_THREAD = 3
 
 # num_streamlines = int(nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"])
 num_streamlines = int(LazyTractogram( options.input_tractogram, mode='r' ).header["count"])

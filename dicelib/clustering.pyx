@@ -168,8 +168,10 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
     cdef float [:,::1] s0 = np.empty( (10, 3), dtype=np.float32 )
+    cdef float* vers = <float*>malloc(3*sizeof(float))
+    cdef float* lenghts = <float*>malloc(1000*sizeof(float))
     TCK_in._read_streamline() 
-    # set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0)
+    set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0, vers, lenghts)
 
     cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
@@ -197,7 +199,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     with nogil:
         for i in xrange(n_streamlines):
             TCK_in._read_streamline()
-            # set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, streamline_in[:])
+            set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, streamline_in[:] , vers, lenghts)
             t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
 
             clust_idx[i]= t
