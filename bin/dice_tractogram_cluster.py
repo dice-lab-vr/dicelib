@@ -15,14 +15,12 @@ parser.add_argument("--output_folder", "-out", help="Folder where to save the sp
 parser.add_argument("--n_threads", type=int, help="Number of threads to use to perform clustering")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
-parser.add_argument("--remove_outliers", "-ro", default=False, action="store_true", help="Remove outliers - beta feature")
 options = parser.parse_args()
 
 
 def main():
-    run_clustering(options.file_name_in, options.output_folder, options.atlas, options.reference,
-                   options.conn_thr, options.clust_thr, options.n_pts, options.save_assignments,
-                   options.split, options.n_threads, options.remove_outliers, options.force, options.verbose)
+    run_clustering(options.file_name_in, options.output_folder, options.atlas, options.conn_thr, options.clust_thr, options.n_pts,
+                   options.save_assignments, options.n_threads, options.force, options.verbose)
     
 if __name__ == "__main__":
     main()

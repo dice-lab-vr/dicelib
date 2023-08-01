@@ -270,11 +270,13 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     cdef float [:,:,::1] centroids = np.zeros((num_c, 3000,3), dtype=np.float32)
     cdef LazyTractogram TCK_in = LazyTractogram( file_name_in, mode='r' )
     cdef int n_streamlines = int( TCK_in.header['count'] )
+    cdef float* vers = <float*>malloc(3*sizeof(float))
+    cdef float* lenghts = <float*>malloc(1000*sizeof(float))
 
     for i_f in xrange(n_streamlines):
         TCK_in._read_streamline()
         c_i = clust_idx[i_f]
-        # set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, fib_in[:])
+        set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, fib_in[:] , vers, lenghts)
         maxdist_pt_d = 0
         maxdist_pt_i = 0
 
@@ -478,7 +480,7 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) nogil:
 
 def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, conn_thr: float=2.0,
                     clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
-                    n_threads: int=None, remove_outliers: bool=False, force: bool=False, verbose: bool=False):
+                    n_threads: int=None, force: bool=False, verbose: bool=False):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -499,8 +501,6 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         Save the cluster assignments to file
     n_threads : int, optional
         Number of threads to use for the clustering.
-    remove_outliers : bool, optional
-        Whether to remove outliers from the clustering.
     verbose : bool, optional
         Whether to print out additional information during the clustering.
     """
