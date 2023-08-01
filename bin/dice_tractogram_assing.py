@@ -19,6 +19,7 @@ parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("atlas", help="Atlas used to compute streamlines assignments")
 parser.add_argument("--conn_threshold", "-t", default=2, type=float, metavar="THR", help="Threshold [in mm]")
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
+parser.add_argument("--force", "-f", action="store_true", help="Force overwrite")
 parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
 options = parser.parse_args()
 
