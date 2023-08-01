@@ -173,9 +173,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
         if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0:
             dist_s = sqrt( ( starting_pt[0] - (<int>start_pt_grid[0] + 0.5) )**2 + ( starting_pt[1] - (<int>start_pt_grid[1] + 0.5) )**2 + ( starting_pt[2] - (<int>start_pt_grid[2] + 0.5) )**2 )
             if dist_s <= thr and dist_s < dist_s_temp:
-                closest_start_v[0] = start_vox[0]
-                closest_start_v[1] = start_vox[1]
-                closest_start_v[2] = start_vox[2]
+                roi_ret[0] = gm_v[ start_vox[0], start_vox[1], start_vox[2]]
                 dist_s_temp = dist_s
             # break
 
@@ -193,15 +191,16 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
 
         if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0:
             dist_e = sqrt( ( ending_pt[0] - (<int>end_pt_grid[0] + 0.5) )**2 + ( ending_pt[1] - (<int>end_pt_grid[1] + 0.5) )**2 + ( ending_pt[2] - (<int>end_pt_grid[2] + 0.5) )**2 )
+            # with gil:
+            #     print(f"end point: [{ending_pt[0]}, {ending_pt[1]}, {ending_pt[2]}], grid value: {grid[i][0]}, {grid[i][1]}, {grid[i][2]}")
+            #     print(f"voxel {(end_vox[0], end_vox[1], end_vox[2])}")
+            #     print(f" visiting voxel gm: {gm_v[ end_vox[0], end_vox[1], end_vox[2]]}")
+            #     print(f" distance {dist_e}, previous distance {dist_e_temp}")
+
             if dist_e <= thr and dist_e < dist_e_temp:
-                closest_end_v[0] = end_vox[0]
-                closest_end_v[1] = end_vox[1]
-                closest_end_v[2] = end_vox[2]
+                roi_ret[1] = gm_v[ end_vox[0], end_vox[1], end_vox[2]]
                 dist_e_temp = dist_e
             # break
-
-    roi_ret[0] = gm_v[ closest_start_v[0], closest_start_v[1], closest_start_v[2]]
-    roi_ret[1] = gm_v[ closest_end_v[0], closest_end_v[1], closest_end_v[2]]
 
     return roi_ret
 
@@ -246,7 +245,7 @@ def assign( input_tractogram: str, start_chunk: int, end_chunk: int, gm_map_file
     cdef float [:] abc = inverse[:3, 3]
     cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
 
-    cdef float thr = <float> threshold/np.max(voxdims)
+    cdef float thr = <float> threshold/np.max(voxdims) + 0.5
     cdef float [:,::1] grid
     cdef size_t i = 0  
     cdef int n_streamlines = end_chunk - start_chunk
