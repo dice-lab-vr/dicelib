@@ -196,7 +196,8 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     if TCK_in is not None:
         TCK_in.close()
     TCK_in = LazyTractogram( filename_in, mode='r' )
-    with nogil:
+    
+    with ui.ProgressBar(total=n_streamlines) as pbar:
         for i in xrange(n_streamlines):
             TCK_in._read_streamline()
             set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, streamline_in[:] , vers, lenghts)
@@ -228,6 +229,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
                     new_centroid[n_i] = streamline_in[n_i]
                 new_c += 1
             set_centroids[t] = new_centroid
+            pbar.update()
     
     if TCK_in is not None:
         TCK_in.close()
@@ -275,35 +277,38 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     cdef float* vers = <float*>malloc(3*sizeof(float))
     cdef float* lenghts = <float*>malloc(1000*sizeof(float))
 
-    for i_f in xrange(n_streamlines):
-        TCK_in._read_streamline()
-        c_i = clust_idx[i_f]
-        set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, fib_in[:] , vers, lenghts)
-        maxdist_pt_d = 0
-        maxdist_pt_i = 0
 
-        for j in xrange(num_pt):
+    with ui.ProgressBar(total=n_streamlines) as pbar:
+        for i_f in xrange(n_streamlines):
+            TCK_in._read_streamline()
+            c_i = clust_idx[i_f]
+            set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, fib_in[:] , vers, lenghts)
+            maxdist_pt_d = 0
+            maxdist_pt_i = 0
 
-            d1_x = (fib_in[j][0] - target[c_i][j][0])**2
-            d1_y = (fib_in[j][1] - target[c_i][j][1])**2
-            d1_z = (fib_in[j][2] - target[c_i][j][2])**2
+            for j in xrange(num_pt):
 
-            maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
+                d1_x = (fib_in[j][0] - target[c_i][j][0])**2
+                d1_y = (fib_in[j][1] - target[c_i][j][1])**2
+                d1_z = (fib_in[j][2] - target[c_i][j][2])**2
 
-            d2_x = (fib_in[j][0] - target[c_i][num_pt-j-1][0])**2
-            d2_y = (fib_in[j][1] - target[c_i][num_pt-j-1][1])**2
-            d2_z = (fib_in[j][2] - target[c_i][num_pt-j-1][2])**2
+                maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
+
+                d2_x = (fib_in[j][0] - target[c_i][num_pt-j-1][0])**2
+                d2_y = (fib_in[j][1] - target[c_i][num_pt-j-1][1])**2
+                d2_z = (fib_in[j][2] - target[c_i][num_pt-j-1][2])**2
+                
+                maxdist_pt_i += sqrt(d2_x + d2_y + d2_z)
+            if maxdist_pt_d < maxdist_pt_i:
+                maxdist_pt = maxdist_pt_d/num_pt
+            else:
+                maxdist_pt = maxdist_pt_i/num_pt
             
-            maxdist_pt_i += sqrt(d2_x + d2_y + d2_z)
-        if maxdist_pt_d < maxdist_pt_i:
-            maxdist_pt = maxdist_pt_d/num_pt
-        else:
-            maxdist_pt = maxdist_pt_i/num_pt
-        
-        if maxdist_pt < fib_centr_dist[c_i]:
-            fib_centr_dist[c_i] = maxdist_pt
-            centroids[c_i, :TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
-            centr_len[c_i] = TCK_in.n_pts
+            if maxdist_pt < fib_centr_dist[c_i]:
+                fib_centr_dist[c_i] = maxdist_pt
+                centroids[c_i, :TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
+                centr_len[c_i] = TCK_in.n_pts
+            pbar.update()
 
     if TCK_in is not None:
         TCK_in.close()
