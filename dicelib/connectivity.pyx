@@ -115,7 +115,7 @@ cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, i
 
 
 cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, float [:] end_pt_grid, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
-                            int[:,:,::1] gm_v, float thr, int[:] , int[:] count_neighbours, int[:] closest_end_v) nogil:
+                            int[:,:,::1] gm_v, float thr, int[:] count_neighbours) nogil:
 
     """ Compute the label assigned to each streamline endpoint and then returns a list of connected regions.
 
@@ -270,14 +270,12 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
     cdef float [:] end_pt_grid = np.zeros(3, dtype=np.float32)
     cdef int [:] end_vox = np.zeros(3, dtype=np.int32)
     cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
-    cdef int [:] closest_start_v = np.zeros(3, dtype=np.int32)
-    cdef int [:] closest_end_v = np.zeros(3, dtype=np.int32)
 
     TCK_in = None
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
     # compute the grid of voxels to check
     grid = compute_grid( thr, voxdims )
-    layers = np.arange(1,t+1,2)
+    layers = np.arange( 1,<int> np.ceil(thr)+1, 2 )
     neighbs = [v**3-1 for v in layers]
     cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
 
@@ -303,7 +301,7 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
                 end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
                 matrix = apply_affine(end_pts, M, abc, end_pts_trans)
                 assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret,
-                                                            matrix, grid, gm_map, thr, count_neighbours, closest_start_v, closest_end_v)
+                                                            matrix, grid, gm_map, thr, count_neighbours)
                 pbar_array[id_chunk] += 1
 
 
