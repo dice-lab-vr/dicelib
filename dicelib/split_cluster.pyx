@@ -8,6 +8,7 @@ import nibabel as nib
 import os, random as rnd
 from dicelib.lazytractogram cimport LazyTractogram
 from dicelib.ui import ProgressBar
+from dicelib import ui
 
 cpdef split_clusters(tractogram, clust_idx, output_folder, verbose=3):
     TCK_in          = None
@@ -20,15 +21,15 @@ cpdef split_clusters(tractogram, clust_idx, output_folder, verbose=3):
         # open the tractogram
         TCK_in = LazyTractogram( tractogram, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
-        print( f'{n_streamlines} streamlines in input tractogram' )
+        ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
 
         if n_streamlines!=clust_idx.shape[0]:
-            print( f'# of indexes ({clust_idx.shape[0]}) is different from # of streamlines ({n_streamlines}) ' )
+            ui.ERROR( f'# of indexes ({clust_idx.shape[0]}) is different from # of streamlines ({n_streamlines}) ' )
         # check if #(weights)==n_streamlines
 
         # create empty tractograms for unique assignments
         unique_assignments = np.unique(clust_idx, axis=0)
-        print(f"number of clusters: {unique_assignments.size}")
+        ui.INFO(f"number of clusters: {unique_assignments.size}")
 
         for i in range( unique_assignments.shape[0] ):
             key = f'{unique_assignments[i]}'
@@ -38,7 +39,7 @@ cpdef split_clusters(tractogram, clust_idx, output_folder, verbose=3):
             tmp = LazyTractogram( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
             tmp.close( write_eof=False, count=0 )
 
-        print( f'Created {len(TCK_outs)} empty files for output tractograms' )
+        ui.INFO( f'Created {len(TCK_outs)} empty files for output tractograms' )
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
@@ -68,10 +69,10 @@ cpdef split_clusters(tractogram, clust_idx, output_folder, verbose=3):
                 n_written += 1
                 pbar.update()
     except Exception as e:
-        print(e)
+        ui.ERROR(e)
 
     finally:
-        print( 'Closing files' )
+        ui.INFO( 'Closing files' )
         if TCK_in is not None:
             TCK_in.close()
         for key in TCK_outs.keys():

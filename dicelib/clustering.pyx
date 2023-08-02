@@ -499,18 +499,23 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
     atlas : str, optional
         Path to the atlas file.
     conn_thr : float, optional
-        Threshold for the connectivity assignment.
+        Threshold for the connectivity assignment (mm).
     clust_thr : float, optional
-        Threshold for the clustering.
+        Threshold for the clustering (mm).
     n_pts : int, optional
         Number of points to resample the streamlines to.
     save_assignments : str, optional
         Save the cluster assignments to file
+    temp_idx : str, optional
+        Path to the streamlines index file.
     n_threads : int, optional
         Number of threads to use for the clustering.
+    force : bool, optional
+        Whether to overwrite existing files.
     verbose : bool, optional
         Whether to print out additional information during the clustering.
     """
+
     if verbose:
         ui.INFO(f"  - Clustering with threshold: {clust_thr}, using  {n_pts} points")
     elif not verbose:
@@ -523,7 +528,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             yield lst[i:i + n]
 
 
-    MAX_THREAD = 1
+    MAX_THREAD = 3
 
     TCK_in = LazyTractogram( file_name_in, mode='r' )
     if output_folder is None:
@@ -564,12 +569,15 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         chunks_asgn = []
         t0 = time.time()
 
-        with tdp(max_workers=MAX_THREAD) as executor:
-            future = [executor.submit( assign, input_tractogram=file_name_in, start_chunk=int(chunk_groups[i][0]),
-                                        end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
-                                        gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
-        chunks_asgn = [f.result() for f in future]
-        chunks_asgn = [c for f in chunks_asgn for c in f]
+        pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
+
+        with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=hide_bar ) as pbar:
+            with tdp(max_workers=MAX_THREAD) as executor:
+                future = [executor.submit( assign, file_name_in, pbar_array, i, start_chunk=int(chunk_groups[i][0]),
+                                            end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
+                                            gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
+                chunks_asgn = [f.result() for f in future]
+                chunks_asgn = [c for f in chunks_asgn for c in f]
 
         t1 = time.time()
         if verbose:
@@ -577,10 +585,10 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         out_assignment_ext = os.path.splitext(save_assignments)[1]
 
         if out_assignment_ext not in ['.txt', '.npy']:
-            ui.INFO(f"  - Invalid extension for the output scalar file" )
+            ui.ERROR(f"  - Invalid extension for the output scalar file" )
         if os.path.isfile(save_assignments) and not force:
-            ui.INFO(f"  - Output scalar file already exists, use -f to overwrite" )
-            return
+            ui.ERROR(f"  - Output scalar file already exists, use -f to overwrite" )
+
         if out_assignment_ext=='.txt':
             with open(save_assignments, "w") as text_file:
                 for reg in chunks_asgn:
@@ -603,8 +611,6 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                     filename = os.path.abspath(os.path.join(dirpath, f))
                     bundles[i] = (filename, os.path.getsize(filename))
 
-
-
         if n_threads:
             MAX_THREAD = n_threads
         else:
@@ -621,6 +627,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         executor = tdp(max_workers=MAX_THREAD)
         t0 = time.time()
         chunk_list = []
+
         # NOTE: compute chunks
         while len(bundles.items()) > 0:
             to_delete = []
@@ -634,8 +641,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             [bundles.pop(k) for k in to_delete]
             chunk_list.append(new_chunk)
                 
-        # NOTE: start computation
-        with ui.ProgressBar(total=len(chunk_list)) as pbar:
+        with ui.ProgressBar(total=len(chunk_list), disable=hide_bar) as pbar:
             future = [executor.submit(cluster_chunk,
                                         chunk,
                                         clust_thr,
@@ -687,6 +693,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         if verbose:
             t1 = time.time()
             ui.INFO(f"  - Time taken to cluster and find closest streamlines: {t1-t0}" )
+            ui.INFO(f"  - Number of computed centroids: {TCK_out_size}" )
 
     if TCK_in is not None:
         TCK_in.close()

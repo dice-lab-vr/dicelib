@@ -31,46 +31,54 @@ def compute_chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
+print(f"verbose? {options.verbose}")
+
+hide_bar = False
+
+if options.verbose:
+    ui.set_verbose( 4 )
+else:
+    hide_bar = True
+    ui.set_verbose( 1 )
+
 MAX_THREAD = 3
+
+out_assignment_ext = os.path.splitext(options.save_assignments)[1]
+if out_assignment_ext not in ['.txt', '.npy']:
+    ui.ERROR( 'Invalid extension for the output scalar file' )
+elif os.path.isfile(options.save_assignments) and not options.force:
+    ui.ERROR( 'Output scalar file already exists, use -f to overwrite' )
 
 # num_streamlines = int(nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"])
 num_streamlines = int(LazyTractogram( options.input_tractogram, mode='r' ).header["count"])
+ui.INFO( f"Computing assignments for {num_streamlines} streamlines" )
+
 chunk_size = int(num_streamlines/MAX_THREAD)
 chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
 
 chunks_asgn = []
 t0 = time.time()
 
-if options.verbose:
-    hide_bar = False
-else:
-    hide_bar = True
+ui.INFO( f"Name input tractogram: {options.input_tractogram}" )
 
 pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
-with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=hide_bar ) as pbar:
+with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=hide_bar, hide_on_exit=False) as pbar:
     with tdp(max_workers=MAX_THREAD) as executor:
         future = [executor.submit(assign, options.input_tractogram, pbar_array, i, start_chunk =int(chunk_groups[i][0]),
                                     end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
                                     gm_map_file=options.atlas, threshold=options.conn_threshold) for i in range(len(chunk_groups))]
-        for f in future:
-            chunks_asgn.append(f.result())
+        chunks_asgn = [f.result() for f in future]
+        chunks_asgn = [c for f in chunks_asgn for c in f]
 
-    chunks_asgn = [c for f in chunks_asgn for c in f]
+ui.INFO( f"Number of assignments: {len(chunks_asgn)}" )
 
 t1 = time.time()
-if options.verbose:
-    print(f"Time taken to compute assignments: {np.round((t1-t0),2)} seconds")
-out_assignment_ext = os.path.splitext(options.save_assignments)[1]
+ui.INFO(f"Time taken to compute assignments: {np.round((t1-t0),2)} seconds")
 
-if out_assignment_ext not in ['.txt', '.npy']:
-    print( 'Invalid extension for the output scalar file' )
-elif os.path.isfile(options.save_assignments) and not options.force:
-    print( 'Output scalar file already exists, use -f to overwrite' )
+if out_assignment_ext=='.txt':
+    with open(options.save_assignments, "w") as text_file:
+        for reg in chunks_asgn:
+            print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
 else:
-    if out_assignment_ext=='.txt':
-        with open(options.save_assignments, "w") as text_file:
-            for reg in chunks_asgn:
-                print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
-    else:
-        np.save( options.save_assignments, chunks_asgn, allow_pickle=False )
+    np.save( options.save_assignments, chunks_asgn, allow_pickle=False )

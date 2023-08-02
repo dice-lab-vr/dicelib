@@ -115,24 +115,30 @@ cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, i
 
 
 cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, float [:] end_pt_grid, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
-                            int[:,:,::1] gm_v, float thr, int[:] closest_start_v, int[:] closest_end_v) nogil:
+                            int[:,:,::1] gm_v, float thr, int[:] , int[:] count_neighbours, int[:] closest_end_v) nogil:
 
     """ Compute the label assigned to each streamline endpoint and then returns a list of connected regions.
 
     Parameters
     --------------
-    mat: numpy array
-        Contains the coordinates of the first point and last point of the streamline
-    grid: numpy array
-        A grid of offsets
-    gm_v: numpy array 
-        Reshape of the gm mask
-    dim: numpy array
-        Stores the gm dimensions needed to convert 3D coordinates to index positions
-    thr: double
-        Radius of the radial search
-    flag: boolean
-        Assume value "true" if thr = 0
+    start_pt_grid : 1x3 numpy array
+        Starting point of the streamline in the grid space.
+    start_vox : 1x3 numpy array
+        Starting point of the streamline in the voxel space.
+    end_pt_grid : 1x3 numpy array
+        Ending point of the streamline in the grid space.
+    end_vox : 1x3 numpy array
+        Ending point of the streamline in the voxel space.
+    roi_ret : 1x2 numpy array
+        Labels assigned to the streamline endpoints.
+    mat : 2x3 numpy array
+        Streamline endpoints.
+    grid : Nx3 numpy array
+        Grid of voxels to check.
+    gm_v : 3D numpy array
+        GM map.
+    thr : float
+        Threshold used to compute the grid of voxels to check.
     """
 
     cdef float dist_s = 0
@@ -142,6 +148,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     cdef int idx_e_min = 0
     cdef float dist_s_temp = 1000
     cdef float dist_e_temp = 1000
+    cdef int layer = 0
 
     roi_ret[0] = 0
     roi_ret[1] = 0
@@ -169,7 +176,12 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
             if dist_s <= thr and dist_s < dist_s_temp:
                 roi_ret[0] = gm_v[ start_vox[0], start_vox[1], start_vox[2]]
                 dist_s_temp = dist_s
-
+        if i == count_neighbours[layer]:
+            if dist_s_temp < 1000:
+                break
+            else:
+                layer += 1
+    layer = 0
     for i in xrange(grid_size):
         end_pt_grid[0] = ending_pt[0] + grid[i][0]
         end_pt_grid[1] = ending_pt[1] + grid[i][1]
@@ -188,6 +200,11 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
             if dist_e <= thr and dist_e < dist_e_temp:
                 roi_ret[1] = gm_v[ end_vox[0], end_vox[1], end_vox[2]]
                 dist_e_temp = dist_e
+        if i == count_neighbours[layer]:
+            if dist_e_temp < 1000:
+                break
+            else:
+                layer += 1
 
     return roi_ret
 
@@ -200,14 +217,20 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-    out_assignment : string
-        Path to the file (.txt or .npy) where to store the computed assignments.
-    
-    verbose : boolean
-        Print information messages (default : False).
-    
-    force : boolean
-        Force overwriting of the output (default : False).
+    pbar_array : numpy array
+        Array of integers used to update the progress bar.
+    id_chunk : int
+        Index of the chunk.
+    start_chunk : int
+        Index of the first streamline of the chunk.
+    end_chunk : int
+        Index of the last streamline of the chunk.
+    gm_map_file : string
+        Path to the GM map file.
+    threshold : int
+        Threshold used to compute the grid of voxels to check.
+    verbose : bool
+        If True, display information about the processing.
     """
 
 
@@ -254,6 +277,9 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
     # compute the grid of voxels to check
     grid = compute_grid( thr, voxdims )
+    layers = np.arange(1,t+1,2)
+    neighbs = [v**3-1 for v in layers]
+    cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
 
     if thr < 0.5 :
         with nogil:
@@ -277,7 +303,7 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
                 end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
                 matrix = apply_affine(end_pts, M, abc, end_pts_trans)
                 assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret,
-                                                            matrix, grid, gm_map, thr, closest_start_v, closest_end_v)
+                                                            matrix, grid, gm_map, thr, count_neighbours, closest_start_v, closest_end_v)
                 pbar_array[id_chunk] += 1
 
 
