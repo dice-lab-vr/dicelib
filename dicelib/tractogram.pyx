@@ -9,7 +9,7 @@ from dicelib.streamline import smooth
 from . import ui
 
 
-def compute_lenghts( input_tractogram: str, verbose: int=4 ) -> np.ndarray:
+def compute_lenghts( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
     """Compute the lenghts of the streamlines in a tractogram.
 
     Parameters
@@ -25,8 +25,7 @@ def compute_lenghts( input_tractogram: str, verbose: int=4 ) -> np.ndarray:
     lengths : array of double
         Lengths of all streamlines in the tractogram [in mm]
     """
-    if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        ui.ERROR( '"verbose" must be in [0...4]' )
+
     ui.set_verbose( verbose )
 
     if not os.path.isfile(input_tractogram):
@@ -40,11 +39,10 @@ def compute_lenghts( input_tractogram: str, verbose: int=4 ) -> np.ndarray:
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
 
         n_streamlines = int( TCK_in.header['count'] )
-        if verbose:
-            if n_streamlines>0:
-                ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
-            else:
-                ui.WARNING( 'The tractogram is empty' )
+        if n_streamlines>0:
+            ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+        else:
+            ui.WARNING( 'The tractogram is empty' )
 
         lengths = np.empty( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
@@ -57,7 +55,7 @@ def compute_lenghts( input_tractogram: str, verbose: int=4 ) -> np.ndarray:
                     lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
                     pbar.update()
 
-        if verbose and n_streamlines>0:
+        if n_streamlines>0:
             ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
 
         return lengths
@@ -70,7 +68,7 @@ def compute_lenghts( input_tractogram: str, verbose: int=4 ) -> np.ndarray:
             TCK_in.close()
 
 
-def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=4 ):
+def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=1 ):
     """Print some information about a tractogram.
 
     Parameters
@@ -87,8 +85,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
     """
-    if verbose not in [0,1,2,3,4]:
-        ui.ERROR( '"verbose" must be in [0...4]' )
+
     ui.set_verbose( verbose )
 
     if max_field_length is not None and max_field_length<25:
@@ -149,7 +146,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
         return 0
 
 
-def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random: float=1.0, verbose: int=4, force: bool=False ):
+def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random: float=1.0, verbose: int=1, force: bool=False ):
     """Filter out the streamlines in a tractogram according to some criteria.
 
     Parameters
@@ -187,8 +184,6 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     force : boolean
         Force overwriting of the output (default : False).
     """
-    if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        ui.ERROR( '"verbose" must be in [0...4]' )
     ui.set_verbose( verbose )
 
     n_written = 0
@@ -315,7 +310,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.close( write_eof=True, count=n_written )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: int=4, force: bool=False ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: int=1, force: bool=False ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -338,13 +333,12 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         Maximum number of files opened at the same time (default : 90% of SC_OPEN_MAX system variable).
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 1).
 
     force : boolean
         Force overwriting of the output (default : False).
     """
-    if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        ui.ERROR( '"verbose" must be in [0...4]' )
+
     ui.set_verbose( verbose )
 
     if not os.path.isfile(input_tractogram):

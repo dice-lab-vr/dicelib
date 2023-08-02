@@ -133,7 +133,7 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float t
 
 
 cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
-              verbose: bool=False):
+              verbose: int=1):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -156,13 +156,12 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
         threshold = threshold
     
     cdef LazyTractogram TCK_in = LazyTractogram( filename_in, mode='r', max_points=1000 )
-    
+    ui.set_verbose( verbose )
 
     # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
     cdef int n_streamlines = int( TCK_in.header['count'] )
     if n_streamlines == 0: return
-    if verbose:
-        ui.INFO( f'  - {n_streamlines} streamlines found' )
+    ui.INFO( f'  - {n_streamlines} streamlines found' )
 
     cdef int nb_pts = n_pts
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
@@ -487,7 +486,7 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) nogil:
 
 def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, conn_thr: float=2.0,
                     clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
-                    n_threads: int=None, force: bool=False, verbose: bool=False):
+                    n_threads: int=None, force: bool=False, verbose: int=1):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -516,14 +515,10 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         Whether to print out additional information during the clustering.
     """
 
-    if verbose:
-        ui.set_verbose(4)
-    else:
-        verbose (1)
-
+    ui.set_verbose(verbose)
 
     ui.INFO(f"  - Clustering with threshold: {clust_thr}, using  {n_pts} points")
-    if not verbose:
+    if verbose <4:
         hide_bar = True
 
 
@@ -585,7 +580,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                 chunks_asgn = [c for f in chunks_asgn for c in f]
 
         t1 = time.time()
-        ui.INFO(f"Time taken for connectivity: {t1-t0}")
+        ui.INFO(f"  - Time taken for connectivity: {t1-t0}")
         out_assignment_ext = os.path.splitext(save_assignments)[1]
 
         if out_assignment_ext not in ['.txt', '.npy']:
@@ -606,6 +601,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                       weights_in=temp_idx, force=force)
         t1 = time.time()
         ui.INFO(f"  - Time bundles splitting: {t1-t0}")
+        ui.set_verbose(verbose)
         
         bundles = {}
         for  dirpath, _, filenames in os.walk(output_bundles_folder):

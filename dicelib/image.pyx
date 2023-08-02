@@ -8,7 +8,7 @@ import nibabel as nib
 from . import ui
 
 
-def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: str, b: list, b_step: float=0.0, verbose: bool=False, force: bool=False ):
+def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: str, b: list, b_step: float=0.0, verbose: int=1, force: bool=False ):
     """Extract volumes from a DWI dataset.
 
     Parameters
@@ -34,7 +34,7 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
     force : boolean
         Force overwriting of the output (default : False).
     """
-    ui.set_verbose( 4 if verbose else 1 )
+    ui.set_verbose( verbose )
     if not os.path.isfile(input_dwi):
         ui.ERROR( f'File "{input_dwi}" not found' )
     if not os.path.isfile(input_scheme):
