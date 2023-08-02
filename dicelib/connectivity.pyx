@@ -234,7 +234,7 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
     """
 
 
-    ui.set_verbose( 2 if verbose else 1 )
+    ui.set_verbose( 4 if verbose else 1 )
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
     if not os.path.isfile(gm_map_file):

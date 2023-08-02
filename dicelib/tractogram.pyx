@@ -9,7 +9,7 @@ from dicelib.streamline import smooth
 from . import ui
 
 
-def compute_lenghts( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
+def compute_lenghts( input_tractogram: str, verbose: int=4 ) -> np.ndarray:
     """Compute the lenghts of the streamlines in a tractogram.
 
     Parameters
@@ -18,7 +18,7 @@ def compute_lenghts( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
         Path to the file (.tck) containing the streamlines to process.
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
 
     Returns
     -------
@@ -70,7 +70,7 @@ def compute_lenghts( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
             TCK_in.close()
 
 
-def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=2 ):
+def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=4 ):
     """Print some information about a tractogram.
 
     Parameters
@@ -85,7 +85,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
         Maximum length allowed for printing a field value (default : all chars)
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
     """
     if verbose not in [0,1,2,3,4]:
         ui.ERROR( '"verbose" must be in [0...4]' )
@@ -149,7 +149,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
         return 0
 
 
-def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random: float=1.0, verbose: int=2, force: bool=False ):
+def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random: float=1.0, verbose: int=4, force: bool=False ):
     """Filter out the streamlines in a tractogram according to some criteria.
 
     Parameters
@@ -182,7 +182,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         Probability to keep (randomly) each streamline; this filter is applied after all others (default : 1.0)
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
 
     force : boolean
         Force overwriting of the output (default : False).
@@ -315,7 +315,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.close( write_eof=True, count=n_written )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: int=2, force: bool=False ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: int=4, force: bool=False ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -338,7 +338,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         Maximum number of files opened at the same time (default : 90% of SC_OPEN_MAX system variable).
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
 
     force : boolean
         Force overwriting of the output (default : False).
@@ -524,7 +524,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             tmp.close( write_eof=True, count=TCK_outs_size[key] )
 
 
-cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=2, force=False ):
+cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=4, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
     More info at http://algorithmist.net/docs/catmullrom.pdf.
 
@@ -544,7 +544,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         Sampling resolution of the final streamline after interpolation (default : 1.0).
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
 
     force : boolean
         Force overwriting of the output (default : False).

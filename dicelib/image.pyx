@@ -34,7 +34,7 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
     force : boolean
         Force overwriting of the output (default : False).
     """
-    ui.set_verbose( 2 if verbose else 1 )
+    ui.set_verbose( 4 if verbose else 1 )
     if not os.path.isfile(input_dwi):
         ui.ERROR( f'File "{input_dwi}" not found' )
     if not os.path.isfile(input_scheme):
