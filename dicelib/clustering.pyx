@@ -518,7 +518,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
     ui.set_verbose(verbose)
 
     ui.INFO(f"  - Clustering with threshold: {clust_thr}, using  {n_pts} points")
-    if verbose <3:
+    hide_bar = False
+    if verbose < 3:
         hide_bar = True
 
 
