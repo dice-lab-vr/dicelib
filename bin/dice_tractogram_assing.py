@@ -31,15 +31,13 @@ def compute_chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
-print(f"verbose? {options.verbose}")
-
 hide_bar = False
 
 if options.verbose:
-    ui.set_verbose( 4 )
+    ui.set_verbose(4)
 else:
     hide_bar = True
-    ui.set_verbose( 1 )
+    ui.set_verbose(1)
 
 MAX_THREAD = 3
 

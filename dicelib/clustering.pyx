@@ -516,8 +516,12 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         Whether to print out additional information during the clustering.
     """
 
+    if verbose:
+        ui.set_verbose(4)
+    else:
+        verbose (1)
 
-    ui.set_verbose( 4 if verbose else 1 )
+
     ui.INFO(f"  - Clustering with threshold: {clust_thr}, using  {n_pts} points")
     if not verbose:
         hide_bar = True

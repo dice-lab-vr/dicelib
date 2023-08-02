@@ -209,7 +209,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_file: str, threshold: 2, verbose: bool=False ):
+cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_file: str, threshold: 2 ):
 
     """ Compute the assignments of the streamlines based on a GM map.
     
@@ -234,7 +234,6 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
     """
 
 
-    ui.set_verbose( 4 if verbose else 1 )
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
     if not os.path.isfile(gm_map_file):
