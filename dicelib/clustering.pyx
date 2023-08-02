@@ -518,7 +518,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
     ui.set_verbose(verbose)
 
     ui.INFO(f"  - Clustering with threshold: {clust_thr}, using  {n_pts} points")
-    if verbose <4:
+    if verbose <3:
         hide_bar = True
 
 
@@ -600,8 +600,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         split_bundles(input_tractogram=file_name_in, input_assignments=save_assignments, output_folder=output_bundles_folder,
                       weights_in=temp_idx, force=force)
         t1 = time.time()
-        ui.INFO(f"  - Time bundles splitting: {t1-t0}")
         ui.set_verbose(verbose)
+        ui.INFO(f"  - Time bundles splitting: {t1-t0}")
         
         bundles = {}
         for  dirpath, _, filenames in os.walk(output_bundles_folder):

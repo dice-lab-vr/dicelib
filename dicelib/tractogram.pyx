@@ -339,7 +339,12 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         Force overwriting of the output (default : False).
     """
 
+    hide_bar = False
     ui.set_verbose( verbose )
+
+    if verbose <4:
+        hide_bar = True
+        
 
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
@@ -442,7 +447,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
-        with ui.ProgressBar( total=n_streamlines ) as pbar:
+        with ui.ProgressBar( total=n_streamlines, disable=hide_bar ) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
