@@ -516,9 +516,10 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         Whether to print out additional information during the clustering.
     """
 
-    if verbose:
-        ui.INFO(f"  - Clustering with threshold: {clust_thr}, using  {n_pts} points")
-    elif not verbose:
+
+    ui.set_verbose( 4 if verbose else 1 )
+    ui.INFO(f"  - Clustering with threshold: {clust_thr}, using  {n_pts} points")
+    if not verbose:
         hide_bar = True
 
 
@@ -580,8 +581,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
                 chunks_asgn = [c for f in chunks_asgn for c in f]
 
         t1 = time.time()
-        if verbose:
-            ui.INFO(f"Time taken for connectivity: {t1-t0}")
+        ui.INFO(f"Time taken for connectivity: {t1-t0}")
         out_assignment_ext = os.path.splitext(save_assignments)[1]
 
         if out_assignment_ext not in ['.txt', '.npy']:
@@ -601,8 +601,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         split_bundles(input_tractogram=file_name_in, input_assignments=save_assignments, output_folder=output_bundles_folder,
                       weights_in=temp_idx, force=force)
         t1 = time.time()
-        if verbose:
-            ui.INFO(f"  - Time bundles splitting: {t1-t0}")
+        ui.INFO(f"  - Time bundles splitting: {t1-t0}")
         
         bundles = {}
         for  dirpath, _, filenames in os.walk(output_bundles_folder):
@@ -659,8 +658,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             TCK_out.close( write_eof=True, count= TCK_out_size)
 
         t1 = time.time()
-        if verbose:
-            ui.INFO(f"  - Time taken to cluster and find closest streamlines: {t1-t0}")
+        ui.INFO(f"  - Time taken to cluster and find closest streamlines: {t1-t0}")
+        ui.INFO(f"  - Number of computed centroids: {TCK_out_size}")
 
     else:
         t0 = time.time()
@@ -690,10 +689,9 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             TCK_out_size += 1
         TCK_out.close( write_eof=True, count= TCK_out_size)
 
-        if verbose:
-            t1 = time.time()
-            ui.INFO(f"  - Time taken to cluster and find closest streamlines: {t1-t0}" )
-            ui.INFO(f"  - Number of computed centroids: {TCK_out_size}" )
+        t1 = time.time()
+        ui.INFO(f"  - Time taken to cluster and find closest streamlines: {t1-t0}" )
+        ui.INFO(f"  - Number of computed centroids: {TCK_out_size}" )
 
     if TCK_in is not None:
         TCK_in.close()

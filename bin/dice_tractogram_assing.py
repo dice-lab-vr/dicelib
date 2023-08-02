@@ -59,7 +59,6 @@ chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size
 chunks_asgn = []
 t0 = time.time()
 
-ui.INFO( f"Name input tractogram: {options.input_tractogram}" )
 
 pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
@@ -71,7 +70,6 @@ with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, dis
         chunks_asgn = [f.result() for f in future]
         chunks_asgn = [c for f in chunks_asgn for c in f]
 
-ui.INFO( f"Number of assignments: {len(chunks_asgn)}" )
 
 t1 = time.time()
 ui.INFO(f"Time taken to compute assignments: {np.round((t1-t0),2)} seconds")
