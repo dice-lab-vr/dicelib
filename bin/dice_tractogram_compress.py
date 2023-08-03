@@ -14,7 +14,7 @@ parser.add_argument("--minweight", type=float, help="Keep streamlines with weigh
 parser.add_argument("--maxweight", type=float, help="Keep streamlines with weight <= this value")
 parser.add_argument("--weights_in",  help="Text file with the input streamline weights")
 parser.add_argument("--weights_out", help="Text file for the output streamline weights")
-parser.add_argument("--verbose", "-v", action="store_true", help="Print information messages")
+parser.add_argument("--verbose", "-v", default=2, type=int, help="Verbose level [ 0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress ]")
 parser.add_argument("--force", "-f",   action="store_true", help="Force overwriting of the output")
 options = parser.parse_args()
 

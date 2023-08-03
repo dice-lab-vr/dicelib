@@ -22,7 +22,7 @@ parser.add_argument("atlas", help="Atlas used to compute streamlines assignments
 parser.add_argument("--conn_threshold", "-t", default=2, type=float, metavar="THR", help="Threshold [in mm]")
 parser.add_argument("--save_assignments", help="Save the cluster assignments to file")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwrite")
-parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
+parser.add_argument("--verbose", "-v", default=2, type=int, help="Verbose level [ 0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress ]")
 options = parser.parse_args()
 
 
@@ -52,7 +52,7 @@ t0 = time.time()
 
 pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
-with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=(verbose in [0,1,3]), hide_on_exit=False) as pbar:
+with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=(options.verbose in [0,1,3]), hide_on_exit=False) as pbar:
     with tdp(max_workers=MAX_THREAD) as executor:
         future = [executor.submit(assign, options.input_tractogram, pbar_array, i, start_chunk =int(chunk_groups[i][0]),
                                     end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),

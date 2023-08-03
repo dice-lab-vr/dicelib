@@ -11,7 +11,7 @@ parser.add_argument("output_dwi", help="Output DWI data")
 parser.add_argument("output_scheme", help="Output scheme")
 parser.add_argument("--b", "-b", type=float, nargs='+', required=True, help="List of b-values to extract")
 parser.add_argument("--round", "-r", type=float, default=0.0, help="Round b-values to nearest integer multiple of this value")
-parser.add_argument("--verbose", "-v", action="store_true", help="Print information messages")
+parser.add_argument("--verbose", "-v", default=2, type=int, help="Verbose level [ 0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress ]")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 options = parser.parse_args()
 

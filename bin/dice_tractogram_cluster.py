@@ -15,7 +15,7 @@ parser.add_argument("--output_folder", "-out", help="Folder where to save the sp
 parser.add_argument("--file_name_out", "-o", default=None, help="Output clustered tractogram")
 parser.add_argument("--n_threads", type=int, help="Number of threads to use to perform clustering")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
-parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
+parser.add_argument("--verbose", "-v", default=2, type=int, help="Verbose level [ 0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress ]")
 options = parser.parse_args()
 
 

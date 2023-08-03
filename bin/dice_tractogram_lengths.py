@@ -9,7 +9,7 @@ from dicelib.tractogram import compute_lenghts
 parser = ColoredArgParser( description=compute_lenghts.__doc__.split('\n')[0] )
 parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("output_scalar_file", help="Output scalar file (.npy or .txt) that will contain the streamline lengths")
-parser.add_argument("--verbose", "-v", type=int, default=4, help="What information to print (must be in [0...4] as defined in ui)")
+parser.add_argument("--verbose", "-v", default=2, type=int, help="Verbose level [ 0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress ]")
 parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
 options = parser.parse_args()
 
