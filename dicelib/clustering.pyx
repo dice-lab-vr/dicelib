@@ -623,7 +623,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         ref_indices = []
         TCK_out_size = 0
 
-        MAX_BYTES = 1200000000
+        MAX_BYTES = 2e8
         executor = tdp(max_workers=MAX_THREAD)
         t0 = time.time()
         chunk_list = []

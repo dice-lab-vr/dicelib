@@ -253,7 +253,7 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
     cdef float [:] abc = inverse[:3, 3]
     cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
 
-    cdef float thr = <float> threshold/np.max(voxdims) + 0.5
+    cdef float thr = <float> threshold/np.max(voxdims)
     cdef float [:,::1] grid
     cdef size_t i = 0  
     cdef int n_streamlines = end_chunk - start_chunk
@@ -291,6 +291,7 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
                 pbar_array[id_chunk] += 1
 
     else:
+        thr += 0.5
         with nogil:
             while i < start_chunk:
                 TCK_in._read_streamline()
