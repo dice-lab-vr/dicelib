@@ -567,6 +567,10 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         else:
             if not os.path.isabs(save_assignments):
                 save_assignments = os.path.join(output_folder, save_assignments)
+        if temp_idx is None:
+            temp_idx_arr = np.arange(num_streamlines)
+            temp_idx = os.path.join(output_folder, 'streamline_idx.npy')
+            np.save( temp_idx, temp_idx_arr )
 
         chunks_asgn = []
         t0 = time.time()
