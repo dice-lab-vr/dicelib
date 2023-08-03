@@ -33,6 +33,8 @@ def compute_chunks(lst, n):
 
 MAX_THREAD = 3
 
+ui.set_verbose( options.verbose )
+
 out_assignment_ext = os.path.splitext(options.save_assignments)[1]
 if out_assignment_ext not in ['.txt', '.npy']:
     ui.ERROR( 'Invalid extension for the output scalar file' )
@@ -52,7 +54,7 @@ t0 = time.time()
 
 pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
-with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=(options.verbose in [0,1,3]), hide_on_exit=False) as pbar:
+with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=(options.verbose in [0,1,3]) ) as pbar:
     with tdp(max_workers=MAX_THREAD) as executor:
         future = [executor.submit(assign, options.input_tractogram, pbar_array, i, start_chunk =int(chunk_groups[i][0]),
                                     end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
