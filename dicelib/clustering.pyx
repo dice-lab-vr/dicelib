@@ -484,7 +484,7 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) nogil:
 
 
 
-def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, conn_thr: float=2.0,
+def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: str=None, atlas: str=None, conn_thr: float=2.0,
                     clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
                     n_threads: int=None, force: bool=False, verbose: int=1):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
@@ -494,7 +494,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
     file_name_in : str
         Path to the input tractogram file.
     output_folder : str
-        Path to the output folder.
+        Path to the output folder. If None, a folder named cluster_dir in the current directory is used.
     atlas : str, optional
         Path to the atlas file.
     conn_thr : float, optional
@@ -532,6 +532,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
         # retrieve the current directory
         output_dir = os.getcwd()
         os.makedirs(os.path.join(output_dir, "cluster_dir"), exist_ok=True)
+        output_folder = os.path.join(output_dir, "cluster_dir")
     
     # check if output folder exists
     if not os.path.isdir(output_folder):
@@ -543,7 +544,11 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             else:
                 os.makedirs(os.path.join(os.getcwd(), output_folder), exist_ok=True)
 
-    file_name_out = os.path.join(output_folder,f'{os.path.basename(file_name_in)[:-4]}_clustered_thr_{float(clust_thr)}.tck')
+    if file_name_out is None:
+        file_name_out = os.path.join(output_folder,f'{os.path.basename(file_name_in)[:-4]}_clustered_thr_{float(clust_thr)}.tck')
+    else:
+        if not os.path.isabs(file_name_out):
+            file_name_out = os.path.join(output_folder, file_name_out)
 
     # check if file exists
     if os.path.isfile(file_name_out) and not force:
