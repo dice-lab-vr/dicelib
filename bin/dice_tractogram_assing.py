@@ -41,6 +41,14 @@ if out_assignment_ext not in ['.txt', '.npy']:
 elif os.path.isfile(options.save_assignments) and not options.force:
     ui.ERROR( 'Output scalar file already exists, use -f to overwrite' )
 
+# check if path to save assignments exists
+if not os.path.exists(os.path.dirname(options.save_assignments)):
+    ui.ERROR( 'Path to save assignments does not exist' )
+
+# check if atlas exists
+if not os.path.exists(options.atlas):
+    ui.ERROR( 'Atlas does not exist' )
+
 # num_streamlines = int(nib.streamlines.load(options.input_tractogram, lazy_load=True).header["count"])
 num_streamlines = int(LazyTractogram( options.input_tractogram, mode='r' ).header["count"])
 ui.INFO( f"Computing assignments for {num_streamlines} streamlines" )
