@@ -518,10 +518,6 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
     ui.set_verbose(verbose)
 
     ui.INFO(f"  - Clustering with threshold: {clust_thr}, using  {n_pts} points")
-    hide_bar = False
-    if verbose < 3:
-        hide_bar = True
-
 
     def compute_chunks(lst, n):
         """Yield successive n-sized chunks from lst."""
@@ -572,7 +568,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
 
         pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
-        with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=hide_bar ) as pbar:
+        with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=(verbose in [0,1,3]) ) as pbar:
             with tdp(max_workers=MAX_THREAD) as executor:
                 future = [executor.submit( assign, file_name_in, pbar_array, i, start_chunk=int(chunk_groups[i][0]),
                                             end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
@@ -641,7 +637,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, atlas: str=None, 
             [bundles.pop(k) for k in to_delete]
             chunk_list.append(new_chunk)
                 
-        with ui.ProgressBar(total=len(chunk_list), disable=hide_bar) as pbar:
+        with ui.ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3])) as pbar:
             future = [executor.submit(cluster_chunk,
                                         chunk,
                                         clust_thr,

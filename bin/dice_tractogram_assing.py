@@ -31,14 +31,6 @@ def compute_chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
-hide_bar = False
-
-if options.verbose:
-    ui.set_verbose(4)
-else:
-    hide_bar = True
-    ui.set_verbose(1)
-
 MAX_THREAD = 3
 
 out_assignment_ext = os.path.splitext(options.save_assignments)[1]
@@ -60,7 +52,7 @@ t0 = time.time()
 
 pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
-with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=hide_bar, hide_on_exit=False) as pbar:
+with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=(verbose in [0,1,3]), hide_on_exit=False) as pbar:
     with tdp(max_workers=MAX_THREAD) as executor:
         future = [executor.submit(assign, options.input_tractogram, pbar_array, i, start_chunk =int(chunk_groups[i][0]),
                                     end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
