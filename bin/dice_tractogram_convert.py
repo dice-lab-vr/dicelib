@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import argparse, os, sys
-from dipy.io.streamline import save_tractogram, load_tractogram
+import argparse
+import os
+import sys
+
 from dipy.io.stateful_tractogram import set_sft_logger_level
+from dipy.io.streamline import load_tractogram, save_tractogram
+
 set_sft_logger_level("CRITICAL")
 
 DESCRIPTION = """Tractogram conversion from and to '.tck', '.trk', '.fib',
@@ -14,9 +18,17 @@ def input_parser():
     parser = argparse.ArgumentParser(description=DESCRIPTION)
     parser.add_argument("input_tractogram", help="Input tractogram")
     parser.add_argument("output_tractogram", help="Output tractogram")
-    parser.add_argument("--reference", "-r", action="store", help="Space attributes used as reference for the input tractogram")
-    parser.add_argument("--force", "-f", action="store_true", help="Force overwriting of the output")
-    if len(sys.argv)==1:
+    parser.add_argument(
+        "--reference",
+        "-r",
+        action="store",
+        help="Space attributes used as reference for the input tractogram")
+    parser.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="Force overwriting of the output")
+    if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
     return parser
