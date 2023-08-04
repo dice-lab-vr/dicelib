@@ -20,9 +20,12 @@ parser.add_argument(
 parser.add_argument(
     "regions",
     nargs='*',
+    default=[],
     help="Streamline connecting the provided region(s) will be extracted")
 parser.add_argument(
     "--weights_in",
+    "-w",
+    default=None,
     help="Text file with the input streamline weights")
 parser.add_argument(
     "--max_open",
@@ -52,8 +55,9 @@ if not os.path.isdir(options.output_folder):
     os.makedirs(options.output_folder)
 if not os.path.isfile(options.assignments):
     ui.ERROR(f"Input assignments file not found: {options.assignments}")
-if not os.path.isfile(options.weights_in):
-    ui.ERROR(f"Input weights file not found: {options.weights_in}")
+if options.weights_in is not None:
+    if not os.path.isfile(options.weights_in):
+        ui.ERROR(f"Input weights file not found: {options.weights_in}")
 if options.force:
     ui.WARNING("Overwriting existing files")
 
