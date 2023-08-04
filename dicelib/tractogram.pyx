@@ -310,7 +310,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.close( write_eof=True, count=n_written )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', weights_in: str=None, max_open: int=None, verbose: int=1, force: bool=False ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions: list[int]=[], weights_in: str=None, max_open: int=None, verbose: int=1, force: bool=False ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -324,6 +324,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
     output_folder : string
         Output folder for the splitted tractograms.
+
+    regions : list of integers
+        If a single integer is provided, only streamlines assigned to that region will be extracted.
+        If two integers are provided, only streamlines connecting those two regions will be extracted.
 
     weights_in : string
         Text file with the input streamline weights (one row/streamline). If not None, one individual
@@ -417,7 +421,16 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             ui.ERROR( f'# of weights ({w.size}) is different from # of streamlines ({n_streamlines}) ' )
 
         # create empty tractograms for unique assignments
-        unique_assignments = np.unique(assignments, axis=0)
+        if len(regions)==0:
+            unique_assignments = np.unique(assignments, axis=0)
+        elif len(regions)==1:
+            np.sort(assignments, axis=1)
+            unique_assignments = np.unique(assignments[assignments[:,0]==regions[0]], axis=0)
+        elif len(regions)==2:
+            np.sort(assignments, axis=1)
+            np.sort(regions)
+            unique_assignments = np.unique(assignments[assignments[:,0]==regions[0] and assignments[:,1]==regions[1]], axis=0)
+
         for i in range( unique_assignments.shape[0] ):
             if unique_assignments[i,0]==0 or unique_assignments[i,1]==0:
                 unassigned_count += 1

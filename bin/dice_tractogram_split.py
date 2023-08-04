@@ -18,6 +18,10 @@ parser.add_argument(
     default='bundles',
     help="Output folder for the splitted tractograms")
 parser.add_argument(
+    "regions",
+    default=[],
+    help="Streamline connecting the provided region(s) will be extracted")
+parser.add_argument(
     "--weights_in",
     help="Text file with the input streamline weights")
 parser.add_argument(

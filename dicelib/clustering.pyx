@@ -166,7 +166,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     cdef int nb_pts = n_pts
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
-    cdef float [:,::1] s0 = np.empty( (10, 3), dtype=np.float32 )
+    cdef float [:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
     cdef float* vers = <float*>malloc(3*sizeof(float))
     cdef float* lenghts = <float*>malloc(1000*sizeof(float))
     TCK_in._read_streamline() 
