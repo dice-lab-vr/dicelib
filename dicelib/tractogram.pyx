@@ -424,12 +424,12 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         if len(regions)==0:
             unique_assignments = np.unique(assignments, axis=0)
         elif len(regions)==1:
-            np.sort(assignments, axis=1)
+            assignments.sort()
             unique_assignments = np.unique(assignments[assignments[:,0]==regions[0]], axis=0)
         elif len(regions)==2:
-            np.sort(assignments, axis=1)
-            np.sort(regions)
-            unique_assignments = np.unique(assignments[assignments[:,0]==regions[0] and assignments[:,1]==regions[1]], axis=0)
+            assignments.sort()
+            regions.sort()
+            unique_assignments = np.unique(assignments[np.logical_and(assignments[:,0]==regions[0], assignments[:,1]==regions[1])], axis=0)
 
         for i in range( unique_assignments.shape[0] ):
             if unique_assignments[i,0]==0 or unique_assignments[i,1]==0:
@@ -465,6 +465,11 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
                     break # no more data, stop reading
+                # skip assignments not in the region list
+                elif len(regions)==1 and assignments[i,0]!=regions[0]:
+                    continue
+                elif len(regions)==2 and (assignments[i,0]!=regions[0] or assignments[i,1]!=regions[1]):
+                    continue                
                 # get the key of the dictionary
                 if assignments[i,0]==0 or assignments[i,1]==0:
                     key = 'unassigned'
