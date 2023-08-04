@@ -19,7 +19,7 @@ parser.add_argument(
     help="Output folder for the splitted tractograms")
 parser.add_argument(
     "regions",
-    default=[],
+    nargs='*',
     help="Streamline connecting the provided region(s) will be extracted")
 parser.add_argument(
     "--weights_in",
@@ -57,12 +57,19 @@ if not os.path.isfile(options.weights_in):
 if options.force:
     ui.WARNING("Overwriting existing files")
 
+if len(options.regions) > 2:
+    ui.ERROR("Too many regions provided, only 2 are allowed")
+if len(options.regions) == 0:
+    regions = []
+else:
+    regions = [int(i) for i in options.regions]
 
 # call actual function
 split(
     options.tractogram,
     options.assignments,
     options.output_folder,
+    regions,
     options.weights_in,
     options.max_open,
     options.verbose,
