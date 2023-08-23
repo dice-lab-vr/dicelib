@@ -164,7 +164,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
         start_pt_grid[2] = starting_pt[2] + grid[i][2]
 
         # check if the voxel is inside the mask
-        if start_pt_grid[0] < 0 or start_pt_grid[0] >= gm_v.shape[0] or start_pt_grid[1] < 0 or start_pt_grid[1] >= gm_v.shape[1] or start_pt_grid[2] < 0 or start_pt_grid[2] >= gm_v.shape[2]:
+        if cround(start_pt_grid[0]) < 0 or cround(start_pt_grid[0]) >= gm_v.shape[0] or cround(start_pt_grid[1]) < 0 or cround(start_pt_grid[1]) >= gm_v.shape[1] or cround(start_pt_grid[2]) < 0 or cround(start_pt_grid[2]) >= gm_v.shape[2]:
             continue
 
         start_vox[0] = <int> cround(start_pt_grid[0])
@@ -187,7 +187,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
         end_pt_grid[1] = ending_pt[1] + grid[i][1]
         end_pt_grid[2] = ending_pt[2] + grid[i][2]
 
-        if end_pt_grid[0] < 0 or end_pt_grid[0] >= gm_v.shape[0] or end_pt_grid[1] < 0 or end_pt_grid[1] >= gm_v.shape[1] or end_pt_grid[2] < 0 or end_pt_grid[2] >= gm_v.shape[2]:
+        if cround(end_pt_grid[0]) < 0 or cround(end_pt_grid[0]) >= gm_v.shape[0] or cround(end_pt_grid[1]) < 0 or cround(end_pt_grid[1]) >= gm_v.shape[1] or cround(end_pt_grid[2]) < 0 or cround(end_pt_grid[2]) >= gm_v.shape[2]:
             continue
 
         end_vox[0] = <int> cround(end_pt_grid[0])
