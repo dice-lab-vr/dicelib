@@ -38,18 +38,13 @@ cdef float[:,::1] extract_ending_pts(float[:,::1] fib_in, float[:,::1] resampled
 
 
 cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib, float *vers, float *lenghts) nogil:
-    cdef float[:] start = fib_in[0]
     cdef int nb_pts_in = fib_in.shape[0]
-    cdef float[:] end = fib_in[nb_pts_in-1]
-    # cdef float* vers = <float*>malloc(3*sizeof(float))
-    # cdef float* lenghts = <float*>malloc(fib_in.shape[0]*sizeof(float))
     cdef size_t i = 0
     cdef size_t j = 0
     cdef float sum_step = 0
     tot_lenght(fib_in, lenghts)
 
     cdef float step_size = lenghts[nb_pts_in-1]/(nb_pts-1)
-    cdef float sum_len = 0
     cdef float ratio = 0
 
     # for i in xrange(1, lenghts.shape[0]-1):
