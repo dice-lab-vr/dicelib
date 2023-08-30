@@ -7,6 +7,7 @@ from dicelib.lazytractogram import LazyTractogram
 from dicelib.streamline import length as streamline_length
 from dicelib.streamline import smooth
 from . import ui
+from dicelib.streamline import apply_smoothing
 
 
 def compute_lenghts( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
@@ -539,6 +540,111 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             # Update 'count' and write EOF marker
             tmp = LazyTractogram( f, mode='a' )
             tmp.close( write_eof=True, count=TCK_outs_size[key] )
+
+
+def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=1.0, verbose=4, force=False ):
+    """Smooth each streamline in the input tractogram using Catmull-Rom splines.
+    More info at http://algorithmist.net/docs/catmullrom.pdf.
+
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to process.
+
+    output_tractogram : string
+        Path to the file where to store the filtered tractogram. If not specified (default),
+        the new file will be created by appending '_smooth' to the input filename.
+
+    spline_type : string
+        Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default : 'centripetal').
+
+    epsilon : float
+        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).
+
+    segment_len : float
+        Sampling resolution of the final streamline after interpolation (default : 1.0).
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
+
+    force : boolean
+        Force overwriting of the output (default : False).
+    """
+
+    if type(verbose) != int or verbose not in [0,1,2,3,4]:
+        ui.ERROR( '"verbose" must be in [0...4]' )
+    ui.set_verbose( verbose )
+
+    if not os.path.isfile(input_tractogram):
+        ui.ERROR( f'File "{input_tractogram}" not found' )
+    if os.path.isfile(output_tractogram) and not force:
+        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+
+    if output_tractogram is None :
+        basename, extension = os.path.splitext(input_tractogram)
+        output_tractogram = basename+'_smooth'+extension
+
+    if spline_type == 'centripetal':
+        alpha = 0.5
+    elif spline_type == 'chordal':
+        alpha = 1.0
+    elif spline_type == 'uniform':
+        alpha = 0.0
+    else:
+        ui.ERROR("'spline_type' parameter must be 'centripetal', 'uniform' or 'chordal'")
+
+    if epsilon < 0 :
+        raise ValueError( "'epsilon' parameter must be non-negative" )
+
+
+    try:
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
+        n_streamlines = int( TCK_in.header['count'] )
+
+        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+
+        if verbose :
+            ui.INFO( 'Input tractogram :' )
+            ui.INFO( f'\t- {input_tractogram}' )
+            ui.INFO( f'\t- {n_streamlines} streamlines' )
+
+            mb = os.path.getsize( input_tractogram )/1.0E6
+            if mb >= 1E3:
+                ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+            else:
+                ui.INFO( f'\t- {mb:.2f} MB' )
+
+            ui.INFO( 'Output tractogram :' )
+            ui.INFO( f'\t- {output_tractogram}' )
+            ui.INFO( f'\t- spline type : {spline_type}')
+            ui.INFO( f'\t- segment length : {segment_len:.2f}' )
+
+        # process each streamline
+        with ui.ProgressBar( total=n_streamlines ) as pbar:
+            for i in range( n_streamlines ):
+                TCK_in.read_streamline()
+                if TCK_in.n_pts==0:
+                    break # no more data, stop reading
+                smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len, epsilon=epsilon, alpha=alpha)
+                TCK_out.write_streamline( smoothed_streamline, n )
+                pbar.update()
+
+    except Exception as e:
+        TCK_out.close()
+        if os.path.exists( output_tractogram ):
+            os.remove( output_tractogram )
+        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+
+    finally:
+        TCK_in.close()
+        TCK_out.close()
+
+    if verbose :
+        mb = os.path.getsize( output_tractogram )/1.0E6
+        if mb >= 1E3:
+            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        else:
+            ui.INFO( f'\t- {mb:.2f} MB' )
 
 
 cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=4, force=False ):

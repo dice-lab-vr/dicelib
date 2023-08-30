@@ -4,11 +4,17 @@ import cython
 import numpy as np
 cimport numpy as np
 from libc.math cimport sqrt
+import splines #https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-properties.html 
 
 
 cdef extern from "streamline.hpp":
     int smooth_c(
         float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, float segment_len
+    ) nogil
+
+cdef extern from "streamline.hpp":
+    int rdp_red_c(
+        float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float epsilon
     ) nogil
 
 
@@ -67,6 +73,93 @@ cpdef smooth( streamline, n_pts, control_point_ratio, segment_len ):
     if n != 0 :
         streamline = np.reshape( streamline_out[:3*n].copy(), (n,3) )
     return streamline, n
+
+
+cpdef rdp_reduction( streamline, n_pts, epsilon ):
+    """Wrapper for streamline point reduction.
+
+    Parameters
+    ----------
+    streamline : Nx3 numpy array
+        The streamline data
+    n_pts : int
+        Number of points in the streamline
+    epsilon : float
+        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points
+
+    Returns
+    -------
+    streamline : Nx3 numpy array
+        The smoothed streamline data
+    n : int
+        Number of points in the smoothed streamline
+    """
+    
+    cdef float [:,:] streamline_in = streamline
+    cdef float [:,:] streamline_out = np.ascontiguousarray( np.zeros( (3*1000,1) ).astype(np.float32) )
+    
+    n = rdp_red_c( &streamline_in[0,0], n_pts, &streamline_out[0,0], epsilon )
+    if n != 0 :
+        streamline = np.reshape( streamline_out[:3*n].copy(), (n,3) )
+
+    return streamline, n
+
+
+cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len, epsilon = 0.3, alpha = 0.5, n_pts_tmp = 50):
+    """Perform smoothing on one streamline.
+
+    Parameters
+    ----------
+    fib_ptr : Nx3 numpy array
+        The streamline data
+    n_pts_in : int
+        Number of points in the streamline
+    segment_len : float
+        Min length of the segments in mm
+    epsilon : float
+        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3)
+    alpha : float
+        Parameter defining the spline type: 0.5 = 'centripetal', 0.0 = 'uniform' or 1.0 = 'chordal' (default : 0.5).
+    n_pts_temp : int
+        Number of points used for the first sampling of the spline
+
+    Returns
+    -------
+    resampled_fib : Nx3 numpy array
+        The smoothed streamline data
+    n_pts_out : int
+        Number of points in the smoothed streamline
+    """
+
+    # reduce number of points
+    fib_red_ptr, n_red = rdp_reduction(fib_ptr, n_pts_in, epsilon)
+
+    cdef float [:,:] smoothed_fib
+    cdef int n_pts_tot = 0
+    # check number of points 
+    if n_red==2: # no need to smooth
+        smoothed_fib = fib_red_ptr
+        n_pts_tot = n_red
+    else:
+        # get reduced streamline as np array
+        fib_reduced = np.asarray(fib_red_ptr, dtype=np.float32)[:n_red, :]
+        # compute spline
+        smoothed_spline = splines.CatmullRom(fib_reduced, alpha=alpha)
+        # sample spline
+        smoothed_fib_arr = smoothed_spline.evaluate(np.linspace(0, np.array(smoothed_spline.grid).max(), n_pts_tmp)).astype(np.float32)
+        # get spline as memory view
+        smoothed_fib = np.ascontiguousarray(smoothed_fib_arr)
+        n_pts_tot = n_pts_tmp
+
+    # compute streamline length
+    cdef float fib_len = length( smoothed_fib, n_pts_tot )
+    # compute number of final points
+    cdef int n_pts_out = int(fib_len / segment_len)
+
+    # resample smoothed streamline
+    cdef float [:,:] resampled_fib = resample(smoothed_fib, n_pts_out)
+
+    return resampled_fib, n_pts_out
 
 
 cpdef resample (streamline, nb_pts) :
