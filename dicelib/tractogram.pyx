@@ -46,7 +46,7 @@ def compute_lenghts( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
 
         lengths = np.empty( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
-            with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
+            with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
                 for i in range( n_streamlines ):
                     TCK_in.read_streamline()
                     if TCK_in.n_pts==0:
@@ -68,7 +68,7 @@ def compute_lenghts( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
             TCK_in.close()
 
 
-def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=1 ):
+def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=4 ):
     """Print some information about a tractogram.
 
     Parameters
@@ -122,7 +122,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
             n_streamlines = int( TCK_in.header['count'] )
             if n_streamlines>0:
                 lengths = np.empty( n_streamlines, dtype=np.double )
-                with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
+                with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True ) as pbar:
                     for i in range( n_streamlines ):
                         TCK_in.read_streamline()
                         if TCK_in.n_pts==0:
@@ -252,7 +252,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         kept = np.ones( n_streamlines, dtype=bool )
-        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
+        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -455,7 +455,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
-        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3])) as pbar:
+        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -601,7 +601,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
             ui.INFO( f'\t- segment length : {segment_len:.2f}' )
 
         # process each streamline
-        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
+        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
             for i in range( n_streamlines ):
 
                 TCK_in.read_streamline()
@@ -663,7 +663,7 @@ def recompute_indices(indices, dictionary_kept, verbose=1):
     indices_recomputed = []
 
     # recompute indices
-    with ui.ProgressBar( total=idx.size, disable=(verbose in [0, 1, 3]) ) as pbar:
+    with ui.ProgressBar( total=idx.size, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
         for i in range( idx.size ):
             #count the number of streamlines before the current one
             n = np.count_nonzero( d[:idx[i]] )

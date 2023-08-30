@@ -85,7 +85,7 @@ t0 = time.time()
 pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
 with ui.ProgressBar(multithread_progress=pbar_array, total=num_streamlines,
-                    disable=(options.verbose in [0, 1, 3])) as pbar:
+                    disable=(options.verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
     with tdp(max_workers=MAX_THREAD) as executor:
         future = [executor.submit(assign,
                                   options.input_tractogram,
