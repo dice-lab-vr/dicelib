@@ -43,7 +43,7 @@ cpdef split_clusters(tractogram, clust_idx, output_folder, verbose=3):
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
-        with ProgressBar( total=n_streamlines ) as pbar:
+        with ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
             for i in range(n_streamlines):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:

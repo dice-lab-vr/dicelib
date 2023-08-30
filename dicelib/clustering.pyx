@@ -191,7 +191,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
         TCK_in.close()
     TCK_in = LazyTractogram( filename_in, mode='r' )
     
-    with ui.ProgressBar(total=n_streamlines) as pbar:
+    with ui.ProgressBar(total=n_streamlines, disable=(verbose in [0, 1, 3])) as pbar:
         for i in xrange(n_streamlines):
             TCK_in._read_streamline()
             set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, streamline_in[:] , vers, lenghts)
@@ -230,7 +230,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     return clust_idx, set_centroids[:new_c]
 
 
-cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len):
+cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=1):
     """
     Compute the distance between a fiber and a set of centroids
     
@@ -272,7 +272,7 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     cdef float* lenghts = <float*>malloc(1000*sizeof(float))
 
 
-    with ui.ProgressBar(total=n_streamlines) as pbar:
+    with ui.ProgressBar(total=n_streamlines, disable=(verbose in [0, 1, 3])) as pbar:
         for i_f in xrange(n_streamlines):
             TCK_in._read_streamline()
             c_i = clust_idx[i_f]
