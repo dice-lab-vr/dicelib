@@ -46,7 +46,7 @@ def compute_lenghts( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
 
         lengths = np.empty( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
-            with ui.ProgressBar( total=n_streamlines ) as pbar:
+            with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
                 for i in range( n_streamlines ):
                     TCK_in.read_streamline()
                     if TCK_in.n_pts==0:
@@ -122,7 +122,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
             n_streamlines = int( TCK_in.header['count'] )
             if n_streamlines>0:
                 lengths = np.empty( n_streamlines, dtype=np.double )
-                with ui.ProgressBar( total=n_streamlines ) as pbar:
+                with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
                     for i in range( n_streamlines ):
                         TCK_in.read_streamline()
                         if TCK_in.n_pts==0:
@@ -252,7 +252,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         kept = np.ones( n_streamlines, dtype=bool )
-        with ui.ProgressBar( total=n_streamlines ) as pbar:
+        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -343,12 +343,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         Force overwriting of the output (default : False).
     """
 
-    hide_bar = False
     ui.set_verbose( verbose )
-
-    if verbose <4:
-        hide_bar = True
-        
 
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
@@ -460,7 +455,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
-        with ui.ProgressBar( total=n_streamlines, disable=hide_bar ) as pbar:
+        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3])) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -541,7 +536,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             tmp.close( write_eof=True, count=TCK_outs_size[key] )
 
 
-cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=4, force=False ):
+cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=1, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
     More info at http://algorithmist.net/docs/catmullrom.pdf.
 
@@ -606,7 +601,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
             ui.INFO( f'\t- segment length : {segment_len:.2f}' )
 
         # process each streamline
-        with ui.ProgressBar( total=n_streamlines ) as pbar:
+        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
             for i in range( n_streamlines ):
 
                 TCK_in.read_streamline()
@@ -632,3 +627,50 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
             ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
         else:
             ui.INFO( f'\t- {mb:.2f} MB' )
+
+
+def recompute_indices(indices, dictionary_kept, verbose=1):
+    """Recompute the indices of the streamlines in a tractogram after filtering.
+
+    Parameters
+    ----------
+    indices : array of integers
+        Indices of the streamlines in the original tractogram.
+
+    dictionary_kept : dictionary
+        Dictionary of the streamlines kept after filtering.
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
+
+    Returns
+    -------
+    indices_recomputed : array of integers
+        Recomputed indices of the streamlines.
+    """
+
+    if type(verbose) != int or verbose not in [0,1,2,3,4]:
+        ui.ERROR( '"verbose" must be in [0...4]' )
+    ui.set_verbose( verbose )
+
+    if verbose==4:
+        ui.INFO( 'Recomputing indices' )
+
+    # open indices file and dictionary
+    d = np.fromfile(dictionary_kept, dtype=np.uint8)
+
+    idx = np.loadtxt(indices).astype(np.uint32)
+    indices_recomputed = []
+
+    # recompute indices
+    with ui.ProgressBar( total=idx.size, disable=(verbose in [0, 1, 3]) ) as pbar:
+        for i in range( idx.size ):
+            #count the number of streamlines before the current one
+            n = np.count_nonzero( d[:idx[i]] )
+
+            # check if the current streamline is kept
+            if d[idx[i]]==1:
+                indices_recomputed.append( n )
+            pbar.update()
+
+    return indices_recomputed
