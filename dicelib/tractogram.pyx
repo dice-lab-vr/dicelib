@@ -8,6 +8,8 @@ from dicelib.streamline import length as streamline_length
 from dicelib.streamline import smooth
 from . import ui
 from dicelib.streamline import apply_smoothing
+import nibabel as nib
+from libc.math cimport sqrt
 
 
 def compute_lenghts( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
@@ -535,6 +537,303 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             # Update 'count' and write EOF marker
             tmp = LazyTractogram( f, mode='a' )
             tmp.close( write_eof=True, count=TCK_outs_size[key] )
+
+
+cdef float [:] apply_affine_1pt(float [:] orig_pt, double[::1,:] M, double[:] abc):
+    cdef float [:] moved_pt = np.zeros(3, dtype=np.float32)
+    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[1,0] + orig_pt[2]*M[2,0]) + abc[0])
+    moved_pt[1] = float((orig_pt[0]*M[0,1] + orig_pt[1]*M[1,1] + orig_pt[2]*M[2,1]) + abc[1])
+    moved_pt[2] = float((orig_pt[0]*M[0,2] + orig_pt[1]*M[1,2] + orig_pt[2]*M[2,2]) + abc[2])
+    return moved_pt
+
+cpdef compute_vect_vers(float [:] p0, float[:] p1):
+    cdef float vec_x, vec_y, vec_z = 0
+    cdef float ver_x, ver_y, ver_z = 0
+    cdef size_t ax = 0
+    vec_x = p0[0] - p1[0]
+    vec_y = p0[1] - p1[1]
+    vec_z = p0[2] - p1[2]
+    cdef float s = sqrt( vec_x**2 + vec_y**2 + vec_z**2 )
+    ver_x = vec_x / s
+    ver_y = vec_y / s
+    ver_z = vec_z / s
+    return vec_x, vec_y, vec_z, ver_x, ver_y, ver_z
+
+cpdef move_point_to_gm(float[:] point, float vers_x, float vers_y, float vers_z, float step, int chances, int[:,:,::1] gm): 
+    cdef bint ok = False
+    size_x, size_y, size_z = gm.shape[:3]
+    cdef size_t c, a = 0
+    cdef int coord_x, coord_y, coord_z = 0
+    for c in xrange(chances):
+        point[0] = point[0] + vers_x * step
+        point[1] = point[1] + vers_y * step
+        point[2] = point[2] + vers_z * step
+        coord_x = <int>point[0]
+        coord_y = <int>point[1]
+        coord_z = <int>point[2]
+        if coord_x < 0 or coord_y < 0 or coord_z < 0 or coord_x >= size_x or coord_y >= size_y or coord_z >= size_z: # check if I'll moved outside the image space
+            break
+        if gm[coord_x,coord_y,coord_z] > 0: # I moved in the GM
+            ok = True
+            break
+    return ok, point
+
+def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_tractogram: str=None, step: float=0.2, max_dist: float=2, save_connecting_tck: bool=False, verbose: int=2, force: bool=False ):
+    """Sanitize stramlines in order to end in the gray matter.
+    
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to process.
+
+    gray_matter : string
+        Path to the gray matter.
+
+    white_matter : string
+        Path to the white matter.
+
+    output_tractogram : string
+        Path to the file where to store the filtered tractogram. If not specified (default),
+        the new file will be created by appending '_sanitized' to the input filename.
+
+    step : float = 0.2
+        Length of each step done when trying to reach the gray matter [in mm].
+
+    max_dist : float = 2
+        Maximum distance tested when trying to reach the gray matter [in mm]. Suggestion: use double (largest) voxel size.
+        
+    save_connecting_tck : boolean
+        Save in output also the tractogram containing only the real connecting streamlines (default : False).
+        If True, the file will be created by appending '_only_connecting' to the input filename.
+        
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+
+    force : boolean
+        Force overwriting of the output (default : False).
+     """
+
+    if type(verbose) != int or verbose not in [0,1,2,3,4]:
+        ui.ERROR( '"verbose" must be in [0...4]' )
+    ui.set_verbose( verbose )
+
+    if not os.path.isfile(input_tractogram):
+        ui.ERROR( f'File "{input_tractogram}" not found' )
+
+    if output_tractogram is None :
+        basename, extension = os.path.splitext(input_tractogram)
+        output_tractogram = basename+'_sanitized'+extension
+
+    if os.path.isfile(output_tractogram) and not force:
+        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+
+    if save_connecting_tck == True :
+        basename, extension = os.path.splitext(output_tractogram)
+        conn_tractogram = basename+'_only_connecting'+extension
+    
+    wm_nii = nib.load(white_matter)
+    cdef int[:,:,::1] wm = np.ascontiguousarray(wm_nii.get_fdata(), dtype=np.int32)
+    wm_header = wm_nii.header
+    cdef double [:,::1] wm_affine  = wm_nii.affine
+    cdef double [::1,:] M_dir      = wm_affine[:3, :3].T 
+    cdef double [:]     abc_dir    = wm_affine[:3, 3]
+    cdef double [:,::1] wm_aff_inv = np.linalg.inv(wm_affine) #inverse of affine
+    cdef double [::1,:] M_inv      = wm_aff_inv[:3, :3].T 
+    cdef double [:]     abc_inv    = wm_aff_inv[:3, 3]
+    gm_nii = nib.load(gray_matter)
+    cdef int[:,:,::1] gm = np.ascontiguousarray(gm_nii.get_fdata(), dtype=np.int32)
+    gm_header = gm_nii.header
+    
+    if wm.shape[0] != gm.shape[0] or wm.shape[1] != gm.shape[1] or wm.shape[2] != gm.shape[2]:
+        ui.ERROR( 'Images have different shapes' )
+
+    if wm_header['pixdim'][1] != gm_header['pixdim'][1] or wm_header['pixdim'][2] != gm_header['pixdim'][2] or wm_header['pixdim'][3] != gm_header['pixdim'][3]:
+        ui.ERROR( 'Images have different pixel size' )
+
+    """Modify the streamline in order to reach the GM.
+    """
+    cdef size_t i, n = 0
+    cdef int n_tot   = 0
+    cdef int n_in    = 0
+    cdef int n_out   = 0
+    cdef int n_half  = 0
+    TCK_in  = None
+    TCK_out = None
+    TCK_con = None
+    cdef int n_streamlines = 0
+    cdef int n_pts_out = 0
+    cdef int idx_last  = 0
+    cdef int coord_x, coord_y, coord_z = 0
+    cdef float[:] tmp  = np.zeros(3, dtype=np.float32)
+    cdef float vec_x, vec_y, vec_z = 0
+    cdef float ver_x, ver_y, ver_z = 0
+    cdef float[:] pt_0 = np.zeros(3, dtype=np.float32)
+    cdef float[:] pt_1 = np.zeros(3, dtype=np.float32)
+    cdef float[:] pt_2 = np.zeros(3, dtype=np.float32)
+    cdef bint extremity = 0 # 0=starting, 1=ending
+    cdef bint[:] ok_both  = np.zeros(2, dtype=np.int32) # in GM with starting (0) / ending (1) point?
+    cdef bint[:] del_both = np.zeros(2, dtype=np.int32) # have I deleted starting (0) / ending (1) point?
+
+    cdef int chances   = int(round(max_dist / step))
+    cdef int chances_f = 0
+
+    try:
+        # open the input file
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
+        n_streamlines = int( TCK_in.header['count'] )
+
+        if n_streamlines == 0:
+            ui.ERROR( 'NO streamlines found' )
+
+        ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+
+        # open the output file
+        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+        if save_connecting_tck==True:
+            TCK_con = LazyTractogram( conn_tractogram, mode='w', header=TCK_in.header )
+
+        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
+            for i in range( n_streamlines ):
+                TCK_in.read_streamline()
+                if TCK_in.n_pts==0:
+                    break # no more data, stop reading
+
+                n_pts_out = TCK_in.n_pts
+                idx_last  = TCK_in.n_pts - 1
+
+                fib = np.asarray(TCK_in.streamline)
+                fib = fib[:TCK_in.n_pts, :]
+                for n in xrange(3): # move first 3 point at each end
+                    fib[n,:] = apply_affine_1pt(fib[n,:], M_inv, abc_inv)
+                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], M_inv, abc_inv)
+
+                ok_both  = np.zeros(2, dtype=np.int32)
+                del_both = np.zeros(2, dtype=np.int32)
+
+                for extremity in xrange(2):
+                    if extremity == 0:
+                        coord_x = <int>fib[0,0]
+                        coord_y = <int>fib[0,1]
+                        coord_z = <int>fib[0,2]
+                        pt_0  = fib[0,:]
+                        pt_1  = fib[1,:]
+                        pt_2  = fib[2,:]
+                    else:
+                        coord_x = <int>fib[idx_last,0]
+                        coord_y = <int>fib[idx_last,1]
+                        coord_z = <int>fib[idx_last,2]
+                        pt_0  = fib[idx_last,:]
+                        pt_1  = fib[idx_last-1,:]
+                        pt_2  = fib[idx_last-2,:]
+                        
+                    if gm[coord_x,coord_y,coord_z]==0: # starting point is outside gm
+                        if wm[coord_x,coord_y,coord_z]==1: # starting point is inside wm
+                            vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_0, pt_1)
+                            tmp = pt_0.copy() # changing starting point, direct
+                            ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances, gm)
+                            if ok_both[extremity]:
+                                if extremity==0: fib[0,:] = tmp.copy()
+                                else: fib[idx_last,:] = tmp.copy()
+                        if ok_both[extremity] == False: # I used all the possible chances following the direct direction but I have not reached the GM or I stepped outside the image space
+                            vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_1, pt_0)
+                            tmp = pt_0.copy() # changing starting point, flipped
+                            chances_f = int(sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step)
+                            if chances_f < chances:
+                                ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances_f, gm)
+                            else:
+                                ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances, gm)
+                            if ok_both[extremity]:
+                                    if extremity==0: fib[0,:] = tmp.copy()
+                                    else: fib[idx_last,:] = tmp.copy()
+                        if ok_both[extremity] == False: # starting point is outside wm
+                            if extremity==0:  # coordinates of second point
+                                coord_x = <int>fib[1,0]
+                                coord_y = <int>fib[1,1]
+                                coord_z = <int>fib[1,2]
+                            else: # coordinates of second-to-last point
+                                coord_x = <int>fib[idx_last-1,0]
+                                coord_y = <int>fib[idx_last-1,1]
+                                coord_z = <int>fib[idx_last-1,2]
+                            if gm[coord_x,coord_y,coord_z]>0: # second point is inside gm => delete first point
+                                ok_both[extremity] = True
+                            else: # second point is outside gm
+                                if wm[coord_x,coord_y,coord_z]==1: # second point is inside wm
+                                    vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_0, pt_2)
+                                    tmp = pt_1.copy() # changing starting point, direct
+                                    ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances, gm)
+                                    if ok_both[extremity]:
+                                            if extremity==0: fib[1,:] = tmp.copy()
+                                            else: fib[idx_last-1,:] = tmp.copy()
+                                else:
+                                    vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_2, pt_0)
+                                    tmp = pt_1.copy() # changing starting point, flipped
+                                    chances_f = int(sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step)
+                                    if chances_f < chances:
+                                        ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances_f, gm)
+                                    else:
+                                        ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances, gm)
+                                    if ok_both[extremity]:
+                                            if extremity==0: fib[1,:] = tmp.copy()
+                                            else: fib[idx_last-1,:] = tmp.copy()
+                            if ok_both[extremity]: # delete first/last point because the second one reaches/is inside GM
+                                if extremity==0: fib = np.delete(fib, 0, axis=0)
+                                else: fib = np.delete(fib, -1, axis=0)
+                                n_pts_out = n_pts_out -1
+                                idx_last = idx_last -1
+                                del_both[extremity] = True
+                    else: # starting point is inside gm
+                        ok_both[extremity] = True
+
+
+                # bring points back to original space
+                for n in xrange(2):
+                    fib[n,:] = apply_affine_1pt( fib[n,:], M_dir, abc_dir) 
+                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], M_dir, abc_dir) 
+                if del_both[0] == False:    
+                    fib[2,:] = apply_affine_1pt( fib[2,:], M_dir, abc_dir) 
+                if del_both[1] == False:
+                    fib[idx_last-2,:] = apply_affine_1pt( fib[idx_last-2,:], M_dir, abc_dir) 
+
+                TCK_out.write_streamline( fib, n_pts_out )
+                n_tot += 1
+
+                # count cases
+                if ok_both[0] and ok_both[1]:
+                    if save_connecting_tck: TCK_con.write_streamline( fib, n_pts_out )
+                    n_in += 1
+                elif ok_both[0] or ok_both[1]:
+                    n_half += 1
+                else:
+                    n_out += 1
+                
+                pbar.update()
+
+    except Exception as e:
+        if TCK_out is not None:
+            TCK_out.close()
+        if os.path.isfile( output_tractogram ):
+            os.remove( output_tractogram )
+        if TCK_con is not None:
+            TCK_con.close()
+        if save_connecting_tck == True :
+            if os.path.isfile( conn_tractogram ):
+                os.remove( conn_tractogram )
+    finally:
+        if TCK_in is not None:
+            TCK_in.close()
+        if TCK_out is not None:
+            TCK_out.close( write_eof=True, count=n_tot )
+        if TCK_con is not None:
+            TCK_con.close( write_eof=True, count=n_in )
+
+    if verbose :
+        ui.INFO( f'- Save sanitized tractogram to "{output_tractogram}"' )
+        if save_connecting_tck: ui.INFO( f'- Save only connecting streamlines to "{conn_tractogram}"' )
+    if verbose :
+        ui.INFO( f'    * tot. streamlines: {n_tot}' )
+        ui.INFO( f'        + connecting (both ends in GM):          {n_in}' )
+        ui.INFO( f'        + half connecting (one ends in GM):      {n_half}' )
+        ui.INFO( f'        + non-connecting (both ends outside GM): {n_out}' )
 
 
 def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=1.0, verbose=4, force=False ):
