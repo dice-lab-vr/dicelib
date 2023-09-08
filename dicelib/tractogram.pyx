@@ -539,6 +539,124 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             tmp.close( write_eof=True, count=TCK_outs_size[key] )
 
 
+def join( input_list: list[str], output_tractogram: str, weights_list: list[str]=[], weights_out: str=None, verbose: int=1, force: bool=False ):
+    """Join different tractograms into a single file.
+
+    Parameters
+    ----------
+    input_list : list of str
+        List of the paths to the files (.tck) to join.
+
+    output_tractogram : string
+        Path to the file where to store the resulting tractogram.
+
+    weights_list : list of str
+        List of scalar file (.txt or .npy) with the input streamline weights; same order of input_list!
+
+    weights_out : str
+        Scalar file (.txt or .npy) for the output streamline weights.
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 1).
+
+    force : boolean
+        Force overwriting of the output (default : False).
+    """
+
+    ui.set_verbose( verbose )
+
+    if len(input_list) < 2:
+        ui.ERROR(f'Input list contains less than 2 items')
+    for f in input_list:
+        if not os.path.isfile( f ):
+            ui.ERROR( f'File "{f}" not found' )
+    if os.path.isfile(output_tractogram) and not force:
+        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+
+    ui.INFO( f'Writing output tractogram to "{output_tractogram}"' )
+
+    weights_in_ext = None
+    if weights_list:
+        if len(input_list) != len(weights_list):
+            ui.ERROR( f'Number of weights files is different from number of input trac tograms' )
+        for w in weights_list:
+            if not os.path.isfile( w ):
+                ui.ERROR( f'File "{w}" not found' )
+            weights_in_ext = os.path.splitext(w)[1]
+            if weights_in_ext not in ['.txt', '.npy']:
+                ui.ERROR( f'Invalid extension for the weights file "{w}"' )
+
+
+    #----- iterate over input files -----
+    TCK_in    = None
+    TCK_out   = None
+    n_written = 0
+    weights_tot = np.array([], dtype=np.float32)
+    try:
+        # open the output file
+        TCK_in = LazyTractogram( input_list[0], mode='r' )
+        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+        TCK_in.close()
+
+        with ui.ProgressBar( total=len(input_list), disable=(verbose in [0, 1, 3]) ) as pbar:
+            for i,input_tractogram in enumerate(input_list):
+
+                # open the input file
+                TCK_in = LazyTractogram( input_tractogram, mode='r' )
+                n_streamlines = int( TCK_in.header['count'] )
+                if n_streamlines == 0:
+                    ui.WARNING( f'NO streamlines found in tractogram {input_tractogram}' )
+                else:
+                    for s in range( n_streamlines ):
+                        TCK_in.read_streamline()
+                        if TCK_in.n_pts==0:
+                            break # no more data, stop reading
+                        TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
+                        n_written += 1
+                TCK_in.close()
+
+                if weights_list:
+                    # load weights file
+                    weights_in_ext = os.path.splitext(weights_list[i])[1]
+                    if weights_in_ext=='.txt':
+                        w = np.loadtxt( weights_list[i] ).astype(np.float32)
+                    elif weights_in_ext=='.npy':
+                        w = np.load( weights_list[i], allow_pickle=False ).astype(np.float64)
+                    else:
+                        ui.ERROR( 'Invalid extension for the weights file' )
+                    # check if #(weights)==n_streamlines
+                    if n_streamlines!=w.size:
+                        ui.ERROR( f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) in file {input_tractogram}' )
+                    # append weights
+                    weights_tot = np.append(weights_tot, w)
+
+                pbar.update()
+
+            if weights_out is not None and weights_tot.size>0:
+                ui.INFO( f'Writing output weights to    "{weights_out}"' )
+                weights_out_ext = os.path.splitext(weights_out)[1]
+                if weights_out_ext=='.txt':
+                    np.savetxt( weights_out, weights_tot.astype(np.float32), fmt='%.5e' )
+                else:
+                    np.save( weights_out, weights_tot.astype(np.float32), allow_pickle=False )
+                ui.INFO( f'Total output weigths:     {weights_tot.size}' )
+
+        ui.INFO( f'Total output streamlines: {n_written}' )
+    except Exception as e:
+        if TCK_out is not None:
+            TCK_out.close()
+        if os.path.isfile( output_tractogram ):
+            os.remove( output_tractogram )
+        if weights_out is not None and os.path.isfile( weights_out ):
+            os.remove( weights_out )
+        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+    finally:
+        if TCK_in is not None:
+            TCK_in.close()
+        if TCK_out is not None:
+            TCK_out.close( write_eof=True, count=n_written )
+
+
 cdef float [:] apply_affine_1pt(float [:] orig_pt, double[::1,:] M, double[:] abc):
     cdef float [:] moved_pt = np.zeros(3, dtype=np.float32)
     moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[1,0] + orig_pt[2]*M[2,0]) + abc[0])
