@@ -51,7 +51,7 @@ cdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, flo
     
 
     grid = check_grid(grid, alpha, vertices)
-    cdef float[:, :] smoothed = np.empty((grid.shape[0], 3), dtype=np.float32)
+    cdef float[:, :] smoothed = np.empty((num_pts, 3), dtype=np.float32)
 
     for i in range(vertices.shape[0]):
         # compute tangent over triplets of vertices and grid points

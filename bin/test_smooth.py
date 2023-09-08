@@ -9,7 +9,7 @@ import numpy as np
 
 
 def test_smoothing(streamline):
-    smoothed = spline_smooth(streamline)
+    smoothed = spline_smooth(streamline, alpha=0.5, num_pts=20)
     print(smoothed)
 
 def main():
