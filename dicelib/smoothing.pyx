@@ -116,6 +116,9 @@ cdef float[:] check_grid(float[:] grid, float alpha, float[:, :] vertices):
     cdef size_t ii = 0
     cdef size_t jj = 0
     cdef float diff = 0
+    cdef float[:] x0 = np.empty((3,), dtype=np.float32)
+    cdef float[:] x1 = np.empty((3,), dtype=np.float32)
+
     if alpha == 0:
         # NB: This is the same as alpha=0, except the type is int
         for jj in range(vertices.shape[0]):
@@ -123,9 +126,15 @@ cdef float[:] check_grid(float[:] grid, float alpha, float[:, :] vertices):
 
     grid[0] = 0
     for ii in range(vertices.shape[0]-1):
-        x0 = np.asarray(vertices[ii])
-        x1 = np.asarray(vertices[ii+1])
-        diff = np.linalg.norm(x1 - x0)**alpha
+        for jj in range(3):
+            x0[jj] = vertices[ii][jj]
+            x1[jj] = vertices[ii+1][jj]
+        
+        # rewrite diff to avoid numpy overhead
+        diff = np.sqrt((x1[0] - x0[0])**2 + (x1[1] - x0[1])**2 + (x1[2] - x0[2])**2)**alpha
+        # x0 = np.asarray(vertices[ii])
+        # x1 = np.asarray(vertices[ii+1])
+        # diff = np.linalg.norm(x1 - x0)**alpha
 
         if diff == 0:
             raise ValueError(
