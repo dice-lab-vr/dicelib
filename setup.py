@@ -64,7 +64,7 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-    smooth = Extension(
+    smoothing = Extension(
         name=f'{package_name}.smoothing',
         sources=[f'{package_name}/smoothing.pyx'],
         include_dirs=[get_include()],
