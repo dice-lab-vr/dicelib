@@ -4,6 +4,7 @@ import cython
 import numpy as np
 cimport numpy as np
 from libc.math cimport sqrt
+from dicelib.smooth import spline_smooth
 import splines #https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-properties.html 
 
 
@@ -142,13 +143,14 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len, epsilon = 0.3, alpha = 0.5
         n_pts_tot = n_red
     else:
         # get reduced streamline as np array
-        fib_reduced = np.asarray(fib_red_ptr, dtype=np.float32)[:n_red, :]
+        # fib_reduced = np.asarray(fib_red_ptr, dtype=np.float32)[:n_red, :]
         # compute spline
-        smoothed_spline = splines.CatmullRom(fib_reduced, alpha=alpha)
+        # smoothed_spline = splines.CatmullRom(fib_reduced, alpha=alpha)
         # sample spline
-        smoothed_fib_arr = smoothed_spline.evaluate(np.linspace(0, np.array(smoothed_spline.grid).max(), n_pts_tmp)).astype(np.float32)
+        # smoothed_fib_arr = smoothed_spline.evaluate(np.linspace(0, np.array(smoothed_spline.grid).max(), n_pts_tmp)).astype(np.float32)
+        smoothed_fib = spline_smooth(fib_red_ptr, alpha, n_pts_tmp)
         # get spline as memory view
-        smoothed_fib = np.ascontiguousarray(smoothed_fib_arr)
+        # smoothed_fib = np.ascontiguousarray(smoothed_fib_arr)
         n_pts_tot = n_pts_tmp
 
     # compute streamline length
