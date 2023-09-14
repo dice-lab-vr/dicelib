@@ -2,12 +2,13 @@
 #include "include/psimpl_v7_src/psimpl.h"
 #include "include/Vector.h"
 #include <vector>
+#include <iterator>
 
 
 // =========================
 // Function called by CYTHON
 // =========================
-int smooth( float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, float segment_len )
+int smooth_c( float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, float segment_len )
 {
     std::vector<float>          polyline_simplified;
     std::vector<Vector<float>>  CPs;
@@ -48,5 +49,30 @@ int smooth( float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, flo
             *(ptr_npaFiberO++) = FIBER.P[j].z;
         }
         return FIBER.P.size();
+    }
+}
+
+
+int rdp_red_c( float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float epsilon )
+{
+    std::vector<float>          polyline_simplified;
+    int                         n_out;
+
+    if ( nP<=2 )
+    {
+        // if input streamline has less than 2 points, just copy input to output
+        for( int j=0; j<3*nP; j++ )
+            *(ptr_npaFiberO++) = *(ptr_npaFiberI++);
+        return nP;
+    }
+    else
+    {
+        // simplify input polyline 
+        psimpl::simplify_douglas_peucker<3>( ptr_npaFiberI, ptr_npaFiberI+3*nP, epsilon, std::back_inserter(polyline_simplified) );
+        // copy coordinates of the reduced streamline back to python
+        for( int j=0; j<polyline_simplified.size(); j++ )
+            *(ptr_npaFiberO++) = polyline_simplified[j];
+        n_out = polyline_simplified.size()/3;
+        return n_out;
     }
 }

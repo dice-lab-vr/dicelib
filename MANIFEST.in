@@ -1,0 +1,6 @@
+include dicelib/*.pxd
+include dicelib/*.h
+include dicelib/*.cpp
+include dicelib/*.hpp
+include dicelib/include/*.h
+include dicelib/include/psimpl_v7_src/*.h

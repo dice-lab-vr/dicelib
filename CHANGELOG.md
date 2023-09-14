@@ -1,5 +1,20 @@
 # Change Log
-All notable changes will be documented in this file.
+### All notable changes to `DICElib` will be documented in this file.
+
+## `v1.0.0`<br>_2023-08-##_
+🎉published on PyPI🎉
+### 🛠️Changed
+- Switched to proprietary license (see `LICENSE` file)
+
+### ✨Added
+- `ui.ProgressBar()`
+    - Indeterminate progress bar
+    - Determinate progress bar with support for multithreading
+
+### 🐛Fixed
+
+---
+---
 
 ## [1.3.0] - 2023-02-16
 

@@ -10,34 +10,68 @@ package_name = 'dicelib'
 
 def get_extensions():
     lazytractogram = Extension(
-        name='lazytractogram',
+        name=f'{package_name}.lazytractogram',
         sources=[f'{package_name}/lazytractogram.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11', '-g0'],
         language='c++'
     )
     image = Extension(
-        name='image',
+        name=f'{package_name}.image',
         sources=[f'{package_name}/image.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11', '-g0'],
         language='c++'
     )
     streamline = Extension(
-        name='streamline',
+        name=f'{package_name}.streamline',
         sources=[f'{package_name}/streamline.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11', '-g0'],
         language='c++'
     )
     tractogram = Extension(
-        name='tractogram',
+        name=f'{package_name}.tractogram',
         sources=[f'{package_name}/tractogram.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11', '-g0'],
         language='c++'
     )
-    return [ lazytractogram, image, streamline, tractogram ]
+    clustering = Extension(
+        name=f'{package_name}.clustering',
+        sources=[f'{package_name}/clustering.pyx'],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+    connectivity = Extension(
+        name=f'{package_name}.connectivity',
+        sources=['dicelib/connectivity.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+    split_cluster = Extension(
+        name=f'{package_name}.split_cluster',
+        sources=[f'{package_name}/split_cluster.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+    tsf = Extension(
+        name=f'{package_name}.tsf',
+        sources=[f'{package_name}/Tsf.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+    smoothing = Extension(
+        name=f'{package_name}.smoothing',
+        sources=[f'{package_name}/smoothing.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+    return [ lazytractogram, image, streamline, tractogram, clustering, split_cluster, connectivity, tsf, smoothing ]
 
 
 class CustomBuildExtCommand(build_ext):
@@ -52,7 +86,7 @@ class CustomBuildExtCommand(build_ext):
         # Add everything requires for build
         self.swig_opts = None
         self.include_dirs = [get_include()]
-        self.distribution.ext_modules[:] = cythonize( self.distribution.ext_modules, build_dir='build' )
+        self.distribution.ext_modules[:] = cythonize(self.distribution.ext_modules, build_dir='build')
 
         # if not specified via '-j N' option, set compilation using max number of cores
         if self.parallel is None:
@@ -74,28 +108,11 @@ class CleanCommand(Command):
     def run(self):
         rmtree('./build', ignore_errors=True)
 
-
-# import details from {package_name}/info.py
-import sys
-sys.path.insert(0, f'./{package_name}/')
-import info
-
 setup(
-    name=info.NAME,
-    version=info.VERSION,
-    description=info.DESCRIPTION,
-    long_description=info.LONG_DESCRIPTION,
-    author=info.AUTHOR,
-    author_email=info.AUTHOR_EMAIL,
     cmdclass={
         'build_ext': CustomBuildExtCommand,
         'clean': CleanCommand
     },
-    ext_package=package_name,
     ext_modules=get_extensions(),
-    packages=find_packages(),
-    setup_requires=['wheel', 'Cython>=0.29', 'numpy>=1.12'],
-    install_requires=['setuptools>=46.1', 'numpy>=1.12', 'scipy>=1.0', 'cython>=0.29', 'tqdm>=4.62', 'dipy>=1.0'],
-    scripts=glob('bin/*.py'),
-    zip_safe=False
+    scripts=glob('bin/*.py')
 )
