@@ -2,7 +2,7 @@ from setuptools import setup, find_packages, Extension, Command
 from setuptools.command.build_ext import build_ext
 from glob import glob
 from numpy import get_include
-import shutil
+from shutil import rmtree
 
 # name of the package
 package_name = 'dicelib'
@@ -13,29 +13,29 @@ def get_extensions():
         name=f'{package_name}.lazytractogram',
         sources=[f'{package_name}/lazytractogram.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
-        language='c++',
+        extra_compile_args=['-w', '-std=c++11', '-g0'],
+        language='c++'
     )
     image = Extension(
         name=f'{package_name}.image',
         sources=[f'{package_name}/image.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
-        language='c++',
+        extra_compile_args=['-w', '-std=c++11', '-g0'],
+        language='c++'
     )
     streamline = Extension(
         name=f'{package_name}.streamline',
         sources=[f'{package_name}/streamline.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
-        language='c++',
+        extra_compile_args=['-w', '-std=c++11', '-g0'],
+        language='c++'
     )
     tractogram = Extension(
         name=f'{package_name}.tractogram',
         sources=[f'{package_name}/tractogram.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
-        language='c++',
+        extra_compile_args=['-w', '-std=c++11', '-g0'],
+        language='c++'
     )
     clustering = Extension(
         name=f'{package_name}.clustering',
@@ -106,7 +106,7 @@ class CleanCommand(Command):
     def finalize_options(self):
         pass
     def run(self):
-        shutil.rmtree('./build')
+        rmtree('./build', ignore_errors=True)
 
 setup(
     cmdclass={
