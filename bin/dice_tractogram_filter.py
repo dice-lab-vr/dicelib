@@ -78,15 +78,6 @@ if options.weights_in:
         ui.ERROR(
             f"Output weights file already exists: {options.weights_out}")
 
-# check if the input lengths file is valid
-if options.lengths_in:
-    if not os.path.isfile(options.lengths_in):
-        ui.ERROR(f"Input lengths file not found: {options.lengths_in}")
-    if options.lengths_out and os.path.isfile(
-            options.lengths_out) and not options.force:
-        ui.ERROR(
-            f"Output lengths file already exists: {options.lengths_out}")
-
 # check if the input weights file has absolute path and if not, add the
 # current working directory
 if options.weights_in and not os.path.isabs(options.weights_in):
