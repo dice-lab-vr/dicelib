@@ -1,7 +1,15 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
-## `v1.0.0`<br>_2023-08-##_
+## `v1.0.1`<br>_2023-09-21_
+
+### 🐛Fixed
+- Removed unused control in `dice_tractogram_filter.py`
+- Removed unused `splines` module from `streamline.pyx`
+
+---
+
+## `v1.0.0`<br>_2023-09-14_
 🎉published on PyPI🎉
 ### 🛠️Changed
 - Switched to proprietary license (see `LICENSE` file)
