@@ -5,7 +5,6 @@ import numpy as np
 cimport numpy as np
 from libc.math cimport sqrt
 from dicelib.smoothing import spline_smooth
-import splines #https://splines.readthedocs.io/en/latest/euclidean/catmull-rom-properties.html 
 
 
 cdef extern from "streamline.hpp":
