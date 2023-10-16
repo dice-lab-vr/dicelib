@@ -209,6 +209,8 @@ cdef class Tsf:
         """
         cdef float [::1] scalars_arr = scalars
         cdef int [::1]  pts_arr = pts
+        cdef int        i = 0
+        cdef int        sum_len = 0
         if  scalars.ndim!=1:
             raise RuntimeError( 'array must be one dimension' )
 
@@ -217,7 +219,6 @@ cdef class Tsf:
         if self.mode=='r':
             raise RuntimeError( 'File is not open for writing/appending' )
 
-        sum_len = 0
         # write scalars data
         for i in range(pts_arr.size):
             if fwrite( &scalars_arr[sum_len],4, pts_arr[i], self.fp )!=pts_arr[i]:

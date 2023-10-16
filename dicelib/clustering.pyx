@@ -17,7 +17,7 @@ import concurrent.futures as cf
 from dicelib import ui
 
 
-cdef void tot_lenght(float[:,::1] fib_in, float* length) nogil:
+cdef void tot_lenght(float[:,::1] fib_in, float* length) noexcept nogil:
     cdef size_t i = 0
 
     length[0] = 0.0
@@ -37,7 +37,7 @@ cdef float[:,::1] extract_ending_pts(float[:,::1] fib_in, float[:,::1] resampled
     return resampled_fib
 
 
-cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib, float *vers, float *lenghts) nogil:
+cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib, float *vers, float *lenghts) noexcept nogil:
     cdef int nb_pts_in = fib_in.shape[0]
     cdef size_t i = 0
     cdef size_t j = 0
@@ -79,7 +79,7 @@ cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] res
 
 
 cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float thr,
-                            float d1_x, float d1_y, float d1_z, int num_c, int num_pt) nogil:
+                            float d1_x, float d1_y, float d1_z, int num_c, int num_pt) noexcept nogil:
     """Compute the distance between a fiber and a set of centroids"""
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
@@ -181,7 +181,9 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     cdef int new_c = 1
     cdef int flipped = 0
     cdef int weight_centr = 0
-    cdef float d1_x, d1_y, d1_z
+    cdef float d1_x = 0
+    cdef float d1_y = 0
+    cdef float d1_z= 0
 
 
     set_centroids[0] = s0
@@ -390,7 +392,9 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10):
     cdef int [:] new_c_view = new_c
     cdef int flipped = 0
     cdef int weight_centr = 0
-    cdef float d1_x, d1_y, d1_z
+    cdef float d1_x = 0
+    cdef float d1_y = 0
+    cdef float d1_z = 0
     cdef int [:,:] clust_idx = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
     
     with nogil:
@@ -439,7 +443,7 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10):
 
 cdef void closest_streamline_s( float[:,::1] streamline_in, int n_pts, int c_i, float[:,::1] target, float[:,::1] fib_in,
                                 int nb_pts, int [:] centr_len, float[:] fib_centr_dist, float[:,:,::1] closest_streamlines,
-                                int[:] idx_closest, int[:] idx_closest_return, int jj) nogil:
+                                int[:] idx_closest, int[:] idx_closest_return, int jj) noexcept nogil:
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
     cdef float maxdist_pt_i = 0
@@ -480,7 +484,7 @@ cdef void closest_streamline_s( float[:,::1] streamline_in, int n_pts, int c_i, 
         idx_closest_return[c_i] = idx_closest[jj]
 
 
-cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) nogil:
+cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept nogil:
     cdef size_t i = 0
     for i in range(n_pts):
         fib_out[i][0] = fib_in[i][0]
@@ -550,7 +554,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
                 os.makedirs(os.path.join(os.getcwd(), output_folder), exist_ok=True)
 
     if file_name_out is None:
-        file_name_out = os.path.join(output_folder,f'{os.path.basename(file_name_in)[:-4]}_clustered_thr_{float(clust_thr)}.tck')
+        file_name_out = os.path.join(output_folder,f'{os.path.basename(file_name_in)[:len(file_name_in)-4]}_clustered_thr_{float(clust_thr)}.tck')
     else:
         if not os.path.isabs(file_name_out):
             file_name_out = os.path.join(output_folder, file_name_out)
@@ -568,7 +572,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
     if atlas:
         # check if save_assignments is None
         if save_assignments is None:
-            save_assignments = os.path.join(output_folder, f'{os.path.basename(file_name_in)[:-4]}_assignments.txt')
+            save_assignments = os.path.join(output_folder, f'{os.path.basename(file_name_in)[:len(file_name_in)-4]}_assignments.txt')
         else:
             if not os.path.isabs(save_assignments):
                 save_assignments = os.path.join(output_folder, save_assignments)
