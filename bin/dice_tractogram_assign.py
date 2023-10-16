@@ -7,13 +7,12 @@ from concurrent.futures import ThreadPoolExecutor as tdp
 
 import numpy as np
 from dicelib import ui
-from dicelib.clustering import cluster
 from dicelib.connectivity import assign
 from dicelib.lazytractogram import LazyTractogram
 from dicelib.ui import ColoredArgParser
 
 # parse the input parameters
-parser = ColoredArgParser(description=cluster.__doc__.split('\n')[0])
+parser = ColoredArgParser(description=assign.__doc__.split('\n')[0])
 parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument(
     "atlas",

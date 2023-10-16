@@ -312,6 +312,16 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
 
 cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
+
+    Parameters
+    ----------
+    filenames : list[str]
+        List of paths to the input tractogram files.
+    threshold : float, optional
+        Threshold for the clustering.
+    n_pts : int, optional
+        Number of points to resample the streamlines to.
+
     """
 
     # NOTE: init (1)

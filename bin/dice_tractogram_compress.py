@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from dicelib.ui import ColoredArgParser
+
 from dicelib.tractogram import compress
 from dicelib.tractogram import spline_smoothing
 from dicelib import ui
+from dicelib.ui import ColoredArgParser
+
+import os
 
 # parse the input parameters
 parser = ColoredArgParser(description=filter.__doc__.split('\n')[0])
