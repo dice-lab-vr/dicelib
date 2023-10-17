@@ -1,6 +1,14 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.0.2`<br>_2023-10-16_
+
+### 🐛Fixed
+- Fixed help descriptions
+- Removed unused `test_smooth.py` script
+
+---
+
 ## `v1.0.1`<br>_2023-09-21_
 
 ### 🐛Fixed

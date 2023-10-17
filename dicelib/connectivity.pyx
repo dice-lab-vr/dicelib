@@ -18,7 +18,7 @@ from libcpp cimport bool
 
 
 cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
-                                float [:] abc, float [:,::1] end_pts_trans) nogil:
+                                float [:] abc, float [:,::1] end_pts_trans) noexcept nogil:
 
     end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0])
     end_pts_trans[0][1] = ((end_pts[0][0]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1])
@@ -71,7 +71,7 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
 
 
 
-cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end_pts ) nogil:
+cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end_pts ) noexcept nogil:
 
     """ Retrieve the coordinates of the streamlines' endpoints.
     
@@ -98,7 +98,7 @@ cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end
     return end_pts
 
 
-cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, int[:,:,::1] gm_v) nogil:
+cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, int[:,:,::1] gm_v) noexcept nogil:
 
     cdef float [:] starting_pt = mat[0]
     cdef float [:] ending_pt = mat[1]
@@ -115,7 +115,7 @@ cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, i
 
 
 cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, float [:] end_pt_grid, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
-                            int[:,:,::1] gm_v, float thr, int[:] count_neighbours) nogil:
+                            int[:,:,::1] gm_v, float thr, int[:] count_neighbours) noexcept nogil:
 
     """ Compute the label assigned to each streamline endpoint and then returns a list of connected regions.
 

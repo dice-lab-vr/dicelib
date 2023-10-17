@@ -72,8 +72,12 @@ def color_by_scalar_file(streamlines, values, num_streamlines):
         n_pts_list, dtype=np.int32)
 
 
+DESCRIPTION = """
+Create a tsf file for each streamline in order to color them.
+"""
+
 # parse the input parameters
-parser = ColoredArgParser(description=filter.__doc__.split('\n')[0])
+parser = ColoredArgParser(description=DESCRIPTION)
 parser.add_argument("input_tractogram", help="Input tractogram")
 parser.add_argument("output_tsf", help="Output tsf filename")
 parser.add_argument(

@@ -4,7 +4,7 @@ from dicelib.ui import ColoredArgParser
 from dicelib.tractogram import sanitize
 
 # parse the input parameters
-parser = ColoredArgParser( description=sanitize.__doc__.split('\n')[0] )
+parser = ColoredArgParser(description=sanitize.__doc__.split('\n')[0])
 parser.add_argument(
     "input_tractogram", 
     help="Input tractogram")
