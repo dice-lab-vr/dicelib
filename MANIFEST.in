@@ -1,4 +1,1 @@
-include dicelib/*.pxd
-include dicelib/*.h
-include dicelib/*.cpp
-include dicelib/*.hpp
+recursive-include dicelib *.h *.pxd *.cpp *.hpp
