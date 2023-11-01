@@ -1,12 +1,21 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.0.3`<br>_2023-10-31_
+
+### ✨Added
+- `_in_notebook()` method to check if code is running in a Jupyter notebook
+
+---
+---
+
 ## `v1.0.2`<br>_2023-10-16_
 
 ### 🐛Fixed
 - Fixed help descriptions
 - Removed unused `test_smooth.py` script
 
+---
 ---
 
 ## `v1.0.1`<br>_2023-09-21_
@@ -15,6 +24,7 @@
 - Removed unused control in `dice_tractogram_filter.py`
 - Removed unused `splines` module from `streamline.pyx`
 
+---
 ---
 
 ## `v1.0.0`<br>_2023-09-14_
