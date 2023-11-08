@@ -17,6 +17,11 @@ cdef extern from "streamline.hpp":
         float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float epsilon
     ) nogil
 
+cdef extern from "streamline.hpp":
+    int create_replicas_pt( 
+        float* ptr_pts_in, double* ptr_pts_out, double* ptr_blur_rho, double* ptr_blur_angle, int n_replicas, float fiberShiftX, float fiberShiftY, float fiberShiftZ 
+    ) nogil
+
 
 cpdef length( float [:,:] streamline, int n=0 ):
     """Compute the length of a streamline.
@@ -215,3 +220,21 @@ cdef void resample_len(float[:,::1] fib_in, float* length):
     length[0] = 0.0
     for i in xrange(1,fib_in.shape[0]):
         length[i] = <float>(length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 ))
+
+
+cpdef float [:,::1] create_replicas( float [:,::1] in_pts, double [:] blurRho, double [:] blurAngle, int nReplicas, float fiber_shiftX, float fiber_shiftY, float fiber_shiftZ):
+    """ Generate the replicas of an ending point given the grid coordinates.
+    
+    Parameters
+    -----------------
+    
+    TODO
+
+    """
+
+    cdef double [:,:] pts_out = np.ascontiguousarray( np.zeros( (3*nReplicas,1) ).astype(np.float64) )
+    n = create_replicas_pt( &in_pts[0,0], &pts_out[0,0], &blurRho[0], &blurAngle[0], nReplicas, fiber_shiftX, fiber_shiftY, fiber_shiftZ )
+    if n != 0 :
+        out_pts_m = np.reshape( pts_out[:3*n].copy(), (n,3) ).astype(np.float32)
+
+    return out_pts_m

@@ -20,12 +20,13 @@ from libcpp cimport bool
 cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
                                 float [:] abc, float [:,::1] end_pts_trans) noexcept nogil:
 
-    end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0])
-    end_pts_trans[0][1] = ((end_pts[0][0]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1])
-    end_pts_trans[0][2] = ((end_pts[0][0]*M[0,2] + end_pts[0][1]*M[1,2] + end_pts[0][2]*M[2,2]) + abc[2])
-    end_pts_trans[1][0] = ((end_pts[1][0]*M[0,0] + end_pts[1][1]*M[1,0] + end_pts[1][2]*M[2,0]) + abc[0])
-    end_pts_trans[1][1] = ((end_pts[1][0]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1])
-    end_pts_trans[1][2] = ((end_pts[1][0]*M[0,2] + end_pts[1][1]*M[1,2] + end_pts[1][2]*M[2,2]) + abc[2])
+    # N.B. use this function only to move from RASmm to VOX, not the inverse (because of +0.5)
+    end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0]) +0.5
+    end_pts_trans[0][1] = ((end_pts[0][0]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1]) +0.5
+    end_pts_trans[0][2] = ((end_pts[0][0]*M[0,2] + end_pts[0][1]*M[1,2] + end_pts[0][2]*M[2,2]) + abc[2]) +0.5
+    end_pts_trans[1][0] = ((end_pts[1][0]*M[0,0] + end_pts[1][1]*M[1,0] + end_pts[1][2]*M[2,0]) + abc[0]) +0.5
+    end_pts_trans[1][1] = ((end_pts[1][0]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1]) +0.5
+    end_pts_trans[1][2] = ((end_pts[1][0]*M[0,2] + end_pts[1][1]*M[1,2] + end_pts[1][2]*M[2,2]) + abc[2]) +0.5
 
 
     return end_pts_trans
@@ -98,16 +99,23 @@ cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end
     return end_pts
 
 
+cdef float distance2vox(float vox_x_min, float vox_x_max, float vox_y_min, float vox_y_max, float vox_z_min, float vox_z_max, float p_x, float p_y, float p_z) nogil:
+    cdef float dx = max(vox_x_min - p_x, 0, p_x - vox_x_max)
+    cdef float dy = max(vox_y_min - p_y, 0, p_y - vox_y_max)
+    cdef float dz = max(vox_z_min - p_z, 0, p_z - vox_z_max)
+    return sqrt(dx*dx + dy*dy + dz*dz)
+
+
 cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, int[:,:,::1] gm_v) noexcept nogil:
 
     cdef float [:] starting_pt = mat[0]
     cdef float [:] ending_pt = mat[1]
-    start_vox[0]    = <int> cround(starting_pt[0])
-    start_vox[1]    = <int> cround(starting_pt[1])
-    start_vox[2]    = <int> cround(starting_pt[2])
-    end_vox[0]      = <int> cround(ending_pt[0])
-    end_vox[1]      = <int> cround(ending_pt[1])
-    end_vox[2]      = <int> cround(ending_pt[2])
+    start_vox[0] = <int> starting_pt[0]
+    start_vox[1] = <int> starting_pt[1]
+    start_vox[2] = <int> starting_pt[2]
+    end_vox[0]   = <int> ending_pt[0]
+    end_vox[1]   = <int> ending_pt[1]
+    end_vox[2]   = <int> ending_pt[2]
 
     roi_ret[0] = gm_v[ start_vox[0], start_vox[1], start_vox[2]]
     roi_ret[1] = gm_v[ end_vox[0], end_vox[1], end_vox[2]]
@@ -157,22 +165,37 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     cdef float [:] ending_pt = mat[1]
     cdef int grid_size = grid.shape[0]
 
+    cdef float vox_x_min = 0
+    cdef float vox_x_max = 0
+    cdef float vox_y_min = 0
+    cdef float vox_y_max = 0
+    cdef float vox_z_min = 0
+    cdef float vox_z_max = 0
+
     for i in xrange(grid_size):
+
         # from 3D coordinates to index
         start_pt_grid[0] = starting_pt[0] + grid[i][0]
         start_pt_grid[1] = starting_pt[1] + grid[i][1]
         start_pt_grid[2] = starting_pt[2] + grid[i][2]
 
         # check if the voxel is inside the mask
-        if cround(start_pt_grid[0]) < 0 or cround(start_pt_grid[0]) >= gm_v.shape[0] or cround(start_pt_grid[1]) < 0 or cround(start_pt_grid[1]) >= gm_v.shape[1] or cround(start_pt_grid[2]) < 0 or cround(start_pt_grid[2]) >= gm_v.shape[2]:
+        if start_pt_grid[0] < 0 or start_pt_grid[0] >= gm_v.shape[0] or start_pt_grid[1] < 0 or start_pt_grid[1] >= gm_v.shape[1] or start_pt_grid[2] < 0 or start_pt_grid[2] >= gm_v.shape[2]:
             continue
 
-        start_vox[0] = <int> cround(start_pt_grid[0])
-        start_vox[1] = <int> cround(start_pt_grid[1])
-        start_vox[2] = <int> cround(start_pt_grid[2])
+        start_vox[0] = <int> start_pt_grid[0]
+        start_vox[1] = <int> start_pt_grid[1]
+        start_vox[2] = <int> start_pt_grid[2]
 
-        if gm_v[ start_vox[0], start_vox[1], start_vox[2]] > 0:
-            dist_s = sqrt( ( starting_pt[0] - (<int>start_pt_grid[0] + 0.5) )**2 + ( starting_pt[1] - (<int>start_pt_grid[1] + 0.5) )**2 + ( starting_pt[2] - (<int>start_pt_grid[2] + 0.5) )**2 )
+        if gm_v[ start_vox[0], start_vox[1], start_vox[2] ] > 0:
+            vox_x_min = <int>(start_pt_grid[0])
+            vox_x_max = <int>(start_pt_grid[0]) + 1
+            vox_y_min = <int>(start_pt_grid[1])
+            vox_y_max = <int>(start_pt_grid[1]) + 1
+            vox_z_min = <int>(start_pt_grid[2])
+            vox_z_max = <int>(start_pt_grid[2]) + 1
+            dist_s = distance2vox(vox_x_min, vox_x_max, vox_y_min, vox_y_max, vox_z_min, vox_z_max, starting_pt[0], starting_pt[1], starting_pt[2])
+
             if dist_s <= thr and dist_s < dist_s_temp:
                 roi_ret[0] = gm_v[ start_vox[0], start_vox[1], start_vox[2]]
                 dist_s_temp = dist_s
@@ -187,15 +210,21 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
         end_pt_grid[1] = ending_pt[1] + grid[i][1]
         end_pt_grid[2] = ending_pt[2] + grid[i][2]
 
-        if cround(end_pt_grid[0]) < 0 or cround(end_pt_grid[0]) >= gm_v.shape[0] or cround(end_pt_grid[1]) < 0 or cround(end_pt_grid[1]) >= gm_v.shape[1] or cround(end_pt_grid[2]) < 0 or cround(end_pt_grid[2]) >= gm_v.shape[2]:
+        if end_pt_grid[0] < 0 or end_pt_grid[0] >= gm_v.shape[0] or end_pt_grid[1] < 0 or end_pt_grid[1] >= gm_v.shape[1] or end_pt_grid[2] < 0 or end_pt_grid[2] >= gm_v.shape[2]:
             continue
 
-        end_vox[0] = <int> cround(end_pt_grid[0])
-        end_vox[1] = <int> cround(end_pt_grid[1])
-        end_vox[2] = <int> cround(end_pt_grid[2])
+        end_vox[0] = <int> end_pt_grid[0]
+        end_vox[1] = <int> end_pt_grid[1]
+        end_vox[2] = <int> end_pt_grid[2]
 
-        if gm_v[ end_vox[0], end_vox[1], end_vox[2]  ] > 0:
-            dist_e = sqrt( ( ending_pt[0] - (<int>end_pt_grid[0] + 0.5) )**2 + ( ending_pt[1] - (<int>end_pt_grid[1] + 0.5) )**2 + ( ending_pt[2] - (<int>end_pt_grid[2] + 0.5) )**2 )
+        if gm_v[ end_vox[0], end_vox[1], end_vox[2] ] > 0:
+            vox_x_min = <int>(end_pt_grid[0])
+            vox_x_max = <int>(end_pt_grid[0]) + 1
+            vox_y_min = <int>(end_pt_grid[1])
+            vox_y_max = <int>(end_pt_grid[1]) + 1
+            vox_z_min = <int>(end_pt_grid[2])
+            vox_z_max = <int>(end_pt_grid[2]) + 1
+            dist_e = distance2vox(vox_x_min, vox_x_max, vox_y_min, vox_y_max, vox_z_min, vox_z_max, ending_pt[0], ending_pt[1], ending_pt[2])
 
             if dist_e <= thr and dist_e < dist_e_temp:
                 roi_ret[1] = gm_v[ end_vox[0], end_vox[1], end_vox[2]]
@@ -274,8 +303,9 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
     # compute the grid of voxels to check
     grid = compute_grid( thr, voxdims )
-    layers = np.arange( 1,<int> np.ceil(thr)+1, 2 )
-    neighbs = [v**3-1 for v in layers]
+    layers = np.arange( 0,<int> np.ceil(thr)+1, 1 ) # e.g [0, 1, 2, 3]
+    lato = layers * 2 + 1 # e.g [0, 3, 5, 7] = layerx2+1
+    neighbs = [v**3-1 for v in lato] # e.g [1, 27, 125, 343] = (lato)**3
     cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
 
     if thr < 0.5 :
@@ -291,7 +321,6 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
                 pbar_array[id_chunk] += 1
 
     else:
-        thr += 0.5
         with nogil:
             while i < start_chunk:
                 TCK_in._read_streamline()
@@ -303,7 +332,6 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
                 assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret,
                                                             matrix, grid, gm_map, thr, count_neighbours)
                 pbar_array[id_chunk] += 1
-
 
     if TCK_in is not None:
         TCK_in.close()
