@@ -10,6 +10,7 @@ from . import ui
 from dicelib.streamline import apply_smoothing
 import nibabel as nib
 from libc.math cimport sqrt
+from libc.math cimport round as cround
 
 
 def compute_lenghts( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
@@ -824,6 +825,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
                 for n in xrange(3): # move first 3 point at each end
                     fib[n,:] = apply_affine_1pt(fib[n,:], M_inv, abc_inv)
                     fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], M_inv, abc_inv)
+                fib+=0.5 # move to center
 
                 ok_both  = np.zeros(2, dtype=np.int32)
                 del_both = np.zeros(2, dtype=np.int32)
@@ -904,6 +906,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
 
 
                 # bring points back to original space
+                fib=fib-0.5 # move back to corner
                 for n in xrange(2):
                     fib[n,:] = apply_affine_1pt( fib[n,:], M_dir, abc_dir) 
                     fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], M_dir, abc_dir) 

@@ -1,6 +1,10 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.0.4`<br>_2023-11-08_
+### 🐛Fixed
+- Fixed connectivity radial search assignments
+
 ## `v1.0.3`<br>_2023-10-31_
 
 ### ✨Added
