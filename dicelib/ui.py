@@ -7,12 +7,17 @@ from threading import Thread
 from time import time, sleep
 from shutil import get_terminal_size
 
-# check if we are in an ipython session
-try:
-    __IPYTHON__
-    _in_ipython_session = True
-except NameError:
-    _in_ipython_session = False
+def _in_notebook() -> bool:
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False # IPython terminal
+        else:
+            return False # Other terminal
+    except NameError:
+        pass # Python interpreter
 
 # foreground colors
 fBlack   = '\x1b[30m'
@@ -286,7 +291,7 @@ class ProgressBar:
         self.disable = disable
 
         self._graphics = {
-            'clear_line': '\x1b[2K' if not _in_ipython_session else f"\r{' '*get_terminal_size().columns*2}",
+            'clear_line': '\x1b[2K' if not _in_notebook() else f"\r{' '*get_terminal_size().columns*2}",
             'reset': '\x1b[0m',
             'black': '\x1b[30m',
             'green': '\x1b[32m',
