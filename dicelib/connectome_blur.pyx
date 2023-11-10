@@ -164,12 +164,12 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     threshold = core_extent + gauss_extent
     cdef float thr = <float> threshold/np.max(voxdims)
     # print(f'thr = {thr}')
+    thr += offset_thr # if input streamlines are all connecting but using a radial search
     grid = compute_grid( thr, voxdims )
     layers = np.arange( 0,<int> np.ceil(thr)+1, 1 ) # e.g. layer=[0, 1, 2, 3]
     lato = layers * 2 + 1 # e.g. lato = [0, 3, 5, 7] = layerx2+1
     neighbs = [v**3-1 for v in lato] # e.g. [1, 27, 125, 343] = (lato)**3
     cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
-    thr += offset_thr # if input streamlines are all connecting but using a radial search
     thr += 0.005 # to take into accound rounding errors in the distance of the replicas
     # print(f'core+gauss = {core_extent + gauss_extent}')
     ui.INFO(f'Threshold to use when computing assignments = {thr:.3f}')
@@ -268,25 +268,26 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
                                                 dtype=np.float32)
                         asgn_view[j][:] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret, points_mat, grid, gm_map, thr, count_neighbours)
                         # if asgn[j][0] == 0 and asgn[j][1] == 0:
-                        #     one_replica = np.array([[replicas_start[j][0], replicas_start[j][1], replicas_start[j][2]], 
-                        #                             [replicas_end[j][0], replicas_end[j][1], replicas_end[j][2]]],
+                        #     one_replica = np.array([[replicas_start[j][0]-0.5, replicas_start[j][1]-0.5, replicas_start[j][2]-0.5], 
+                        #                             [replicas_end[j][0]-0.5, replicas_end[j][1]-0.5, replicas_end[j][2]-0.5]],
                         #                             dtype=np.float32)
                         #     TCK_out.write_streamline( one_replica, 2 )
                         #     str_count += 1
                         # if asgn[j][0] == 0 and asgn[j][1] > 0:
-                        #     one_replica = np.array([[replicas_start[j][0], replicas_start[j][1], replicas_start[j][2]]],
+                        #     print(f'in connectome, replica = [{replicas_start[j][0]}, {replicas_start[j][1]}, {replicas_start[j][2]}')
+                        #     one_replica = np.array([[replicas_start[j][0]-0.5, replicas_start[j][1]-0.5, replicas_start[j][2]-0.5]],
                         #                             dtype=np.float32)
                         #     TCK_out.write_streamline( one_replica, 1 )
                         #     str_count += 1
                         #     d_s = sqrt((replicas_start[j][0] - pts_start_vox[0,0])**2 + (replicas_start[j][1] - pts_start_vox[0,1])**2 + (replicas_start[j][2] - pts_start_vox[0,2])**2)
-                        #     print(f'dist: {d_s}, roi_pt = {gm_map[<int>(pts_start_vox[0,0]), <int>(pts_start_vox[0,1]), <int>(pts_start_vox[0,2])]}, roi_repl = {gm_map[<int>(replicas_start[j][0]), <int>(replicas_start[j][1]), <int>(replicas_start[j][2])]}')
+                        #     # print(f'dist_s: {d_s}, roi_pt = {gm_map[<int>(pts_start_vox[0,0]), <int>(pts_start_vox[0,1]), <int>(pts_start_vox[0,2])]}, roi_repl = {gm_map[<int>(replicas_start[j][0]), <int>(replicas_start[j][1]), <int>(replicas_start[j][2])]}, roi_asgn={asgn[j][0]}, roi_ret={roi_ret[0]}, pt = [{pts_start_vox[0,0]}, {pts_start_vox[0,1]}, {pts_start_vox[0,2]}], streamline_n = {i}')
                         # if asgn[j][1] == 0 and asgn[j][0] > 0:
-                        #     one_replica = np.array([[replicas_end[j][0], replicas_end[j][1], replicas_end[j][2]]],
+                        #     one_replica = np.array([[replicas_end[j][0]-0.5, replicas_end[j][1]-0.5, replicas_end[j][2]-0.5]],
                         #                             dtype=np.float32)
                         #     TCK_out.write_streamline( one_replica, 1 )
                         #     str_count += 1
                         #     d_e = sqrt((replicas_end[j][0] - pts_end_vox[0,0])**2 + (replicas_end[j][1] - pts_end_vox[0,1])**2 + (replicas_end[j][2] - pts_end_vox[0,2])**2)
-                        #     print(f'dist: {d_e}, roi_pt = {gm_map[<int>(pts_end_vox[0,0]), <int>(pts_end_vox[0,1]), <int>(pts_end_vox[0,2])]}, roi_repl = {gm_map[<int>(replicas_end[j][0]), <int>(replicas_end[j][1]), <int>(replicas_end[j][2])]}')
+                        #     # print(f'dist_e: {d_e}, roi_pt = {gm_map[<int>(pts_end_vox[0,0]), <int>(pts_end_vox[0,1]), <int>(pts_end_vox[0,2])]}, roi_repl = {gm_map[<int>(replicas_end[j][0]), <int>(replicas_end[j][1]), <int>(replicas_end[j][2])]}, roi_asgn={asgn[j][1]}, roi_ret={roi_ret[1]},, pt = [{pts_start_vox[0,0]}, {pts_start_vox[0,1]}, {pts_start_vox[0,2]}], streamline_n = {i}')
                     zeros_count += (asgn.size - np.count_nonzero(asgn))
 
                     # find unique assignments and sum the weights of their replicas
@@ -300,6 +301,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
                     # update the connectome weights
                     weight_fraction = weight_fraction * w[i]
                     for k in range(asgn_unique.shape[0]):
+                        if asgn_unique[k][0] == 0: continue
                         conn[asgn_unique[k][0]-1, asgn_unique[k][1]-1] += weight_fraction[k]
 
                 pbar.update()
