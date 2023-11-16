@@ -8,8 +8,8 @@ import numpy as np
 import nibabel as nib
 # from nibabel.affines import apply_affine
 from scipy.linalg import inv
-from libc.math cimport sqrt
-from libc.math cimport round as cround
+# from libc.math cimport sqrt
+# from libc.math cimport round as cround
 
 from dicelib.lazytractogram cimport LazyTractogram
 from . import ui
@@ -76,6 +76,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     if os.path.isfile(output_connectome) and not force:
         ui.ERROR( 'Output connectome already exists, use -f to overwrite' )
     conn_out_ext = os.path.splitext(output_connectome)[1]
+    ui.INFO( f'Input tractogram: "{input_tractogram}"' )
 
     #streamline weights
     if not os.path.isfile( weights_in ):
@@ -91,6 +92,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     # parcellation
     if not os.path.isfile(parcellation_in):
         ui.ERROR( f'File "{parcellation_in}" not found' )
+    ui.INFO( f'Input parcellation: "{parcellation_in}"' )
 
     # blur parameters
     if blur_core_extent<0:
@@ -101,6 +103,11 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         ui.ERROR( '"blur_spacing" must be > 0' )
     if blur_gauss_min<=0:
         ui.ERROR( '"blur_gauss_min" must be > 0' )
+    ui.INFO( 'Blur parameters:')
+    ui.INFO( f'- blur_core_extent:  {blur_core_extent}' )
+    ui.INFO( f'- blur_gauss_extent: {blur_gauss_extent}' )
+    ui.INFO( f'- blur_spacing:      {blur_spacing}' )
+    ui.INFO( f'- blur_gauss_min:    {blur_gauss_min}' )
 
     # fiber_shift
     if np.isscalar(fiber_shift) :
@@ -162,9 +169,8 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
     # compute the grid of voxels for the radial search
     threshold = core_extent + gauss_extent
-    cdef float thr = <float> threshold/np.max(voxdims)
     # print(f'thr = {thr}')
-    thr += offset_thr # if input streamlines are all connecting but using a radial search
+    cdef float thr = threshold + (offset_thr/np.max(voxdims)) # if input streamlines are all connecting but using a radial search
     grid = compute_grid( thr, voxdims )
     layers = np.arange( 0,<int> np.ceil(thr)+1, 1 ) # e.g. layer=[0, 1, 2, 3]
     lato = layers * 2 + 1 # e.g. lato = [0, 3, 5, 7] = layerx2+1
@@ -172,7 +178,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
     thr += 0.005 # to take into accound rounding errors in the distance of the replicas
     # print(f'core+gauss = {core_extent + gauss_extent}')
-    ui.INFO(f'Threshold to use when computing assignments = {thr:.3f}')
+    ui.INFO(f'Threshold to use when computing assignments (in VOX space) = {thr:.3f}')
 
     # variables for transformations 
     cdef float [:,::1] pts_start = np.zeros((2,3), dtype=np.float32)
@@ -188,8 +194,6 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     cdef float [:,::1] replicas_start = np.zeros((3,nReplicas), dtype=np.float32)
     cdef float [:,::1] replicas_end   = np.zeros((nReplicas,3), dtype=np.float32)
     cdef double [:] blurWeights_norm  = blurWeights/np.sum(blurWeights) # normalize in order to have sum = 1
-    cdef float [:,::1] in_pts  = np.zeros((2,3), dtype=np.float32)
-    cdef float [:,::1] out_pts = np.zeros((3,nReplicas), dtype=np.float32)
 
     # variables for assignments
     asgn = np.zeros( (nReplicas, 2), dtype=np.int32 )
@@ -212,7 +216,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     try:
         # open the input file
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
-        output_tractogram = input_tractogram[:-4]+'_non_connecting.tck'
+        # output_tractogram = input_tractogram[:-4]+'_non_connecting.tck'
         # TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
         # str_count = 0
 
@@ -255,7 +259,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
                     # change space to VOX
                     pts_start_vox = apply_affine(pts_start, M, abc, pts_start_tmp) # starting points in voxel space
-                    pts_end_vox   = apply_affine(pts_end,   M, abc, pts_end_tmp) # ending points in voxel space
+                    pts_end_vox   = apply_affine(pts_end,   M, abc, pts_end_tmp)   # ending points in voxel space
 
                     # create replicas of starting and ending points
                     replicas_start = create_replicas(pts_start_vox, blurRho, blurAngle, nReplicas, fiber_shiftX, fiber_shiftY, fiber_shiftZ)
