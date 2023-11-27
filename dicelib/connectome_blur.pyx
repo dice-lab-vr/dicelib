@@ -20,7 +20,7 @@ from dicelib.streamline import create_replicas
 
 
 def compute_connectome_blur( input_tractogram: str, output_connectome: str, weights_in: str, parcellation_in: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, offset_thr: float=0.0, symmetric: bool=False, fiber_shift=0, verbose: int=1, force: bool=False ):
-    """Build the connectome weighted by COMMITblur.
+    """Build the connectome weighted by COMMITblur (only sum).
 
     Parameters
     ----------
@@ -30,10 +30,10 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     output_connectome : string
         Path to the file where to store the resulting connectome.
 
-    weights_in : str
+    weights_in : string
         Scalar file (.txt or .npy) for the input streamline weights estimated by COMMITblur.
 
-    parcellation_in : str
+    parcellation_in : string
         Path to the file containing the gray matter parcellation.
 
     blur_core_extent: float
@@ -70,15 +70,19 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
     ui.set_verbose( verbose )
 
-    # check input 
+    # check input tractogram
     if not os.path.isfile(input_tractogram):
         ui.ERROR( f'File "{input_tractogram}" not found' )
+    ui.INFO( f'Input tractogram: "{input_tractogram}"' )
+
+    # output
     if os.path.isfile(output_connectome) and not force:
         ui.ERROR( 'Output connectome already exists, use -f to overwrite' )
     conn_out_ext = os.path.splitext(output_connectome)[1]
-    ui.INFO( f'Input tractogram: "{input_tractogram}"' )
+    if conn_out_ext not in ['.csv', '.npy']:
+        ui.ERROR('Invalid extension for the output connectome file')
 
-    #streamline weights
+    # streamline weights
     if not os.path.isfile( weights_in ):
         ui.ERROR( f'File "{weights_in}" not found' )
     weights_in_ext = os.path.splitext(weights_in)[1]
@@ -120,8 +124,6 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         fiber_shiftZ = fiber_shift[2]
     else :
         ui.ERROR( '"fiber_shift" must be a scalar or a vector with 3 elements' )
-
-    ui.INFO( f'Writing output connectome to "{output_connectome}"' )
 
     # load parcellation
     gm_nii = nib.load(parcellation_in)
@@ -224,7 +226,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
 
         # check if #(weights)==n_streamlines
-        if weights_in is not None and n_streamlines!=w.size:
+        if n_streamlines!=w.size:
             ui.ERROR( f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) ' )
 
         zeros_count = 0
@@ -303,7 +305,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
                         weight_fraction[idx] += blurWeights_norm[j] # total fraction of the blurred streamline weight to be assigned to a specific pair of ROI
 
                     # update the connectome weights
-                    weight_fraction = weight_fraction * w[i]
+                    weight_fraction = np.round(weight_fraction * w[i], 12)
                     for k in range(asgn_unique.shape[0]):
                         if asgn_unique[k][0] == 0: continue
                         conn[asgn_unique[k][0]-1, asgn_unique[k][1]-1] += weight_fraction[k]
@@ -325,15 +327,135 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
             conn_sym = conn.T + conn
             np.fill_diagonal(conn_sym,np.diag(conn))
             if conn_out_ext=='.csv':
-                np.savetxt(output_connectome, conn_sym, delimiter=",", fmt="%.5e")
-            elif conn_out_ext=='.npy':
-                np.save(output_connectome, conn_sym, allow_pickle=False)
+                np.savetxt(output_connectome, conn_sym, delimiter=",")
             else:
-                ui.ERROR( 'Invalid extension for the output connectome file' )
+                np.save(output_connectome, conn_sym, allow_pickle=False)
         else:
             if conn_out_ext=='.csv':
-                np.savetxt(output_connectome, conn, delimiter=",", fmt="%.5e")
-            elif conn_out_ext=='.npy':
-                np.save(output_connectome, conn, allow_pickle=False)
+                np.savetxt(output_connectome, conn, delimiter=",")
             else:
-                ui.ERROR( 'Invalid extension for the output connectome file' )
+                np.save(output_connectome, conn, allow_pickle=False)
+    ui.INFO( f'Writing output connectome to "{output_connectome}"' )
+
+
+
+def build_connectome( input_assignments: str, output_connectome: str, input_weights: str, metric: str='sum', symmetric: bool=False, verbose: int=1, force: bool=False ):
+    """Build the weighted connectome having the assignements.
+
+    Parameters
+    ----------
+    input_assignments : string
+        Path to the file (.txt or .npy) containing the streamline assignments.
+
+    output_connectome : string
+        Path to the file where to store the resulting connectome.
+
+    input_weights : string
+        Scalar file (.txt or .npy) for the input streamline weights.
+
+    metric : string
+        Operation to compute the value of the edges, options: sum, mean, min, max (default: sum).
+
+    symmetric : boolean
+        Make output connectome symmetric (default : False).
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 1).
+
+    force : boolean
+        Force overwriting of the output (default : False).
+    """
+
+    ui.set_verbose( verbose )
+
+    # streamline assignments
+    if not os.path.isfile( input_assignments ):
+        ui.ERROR( f'File "{input_assignments}" not found' )
+    input_assignments_ext = os.path.splitext(input_assignments)[1]
+    if input_assignments_ext=='.txt':
+        asgn = np.loadtxt( input_assignments ).astype(np.int32)
+    elif input_assignments_ext=='.npy':
+        asgn = np.load( input_assignments, allow_pickle=False ).astype(np.int32)
+    else:
+        ui.ERROR( 'Invalid extension for the assignments file' )
+    n_streamlines = asgn.shape[0]
+    asgn_sort = np.sort(asgn, axis=1) # shape = (n_streamlines, 2)
+    ui.INFO( f'Input assignments: "{input_assignments}"' )
+
+    # streamline weights
+    if not os.path.isfile( input_weights ):
+        ui.ERROR( f'File "{input_weights}" not found' )
+    input_weights_ext = os.path.splitext(input_weights)[1]
+    if input_weights_ext=='.txt':
+        w = np.loadtxt( input_weights ).astype(np.float64)
+    elif input_weights_ext=='.npy':
+        w = np.load( input_weights, allow_pickle=False ).astype(np.float64)
+    else:
+        ui.ERROR( 'Invalid extension for the weights file' )
+    ui.INFO( f'Input weights: "{input_weights}"' )
+
+    # check if #(weights)==n_streamlines
+    if n_streamlines!=w.size:
+        ui.ERROR( f'# of weights ({w.size}) is different from # of streamline assignments ({n_streamlines})' )
+
+    # output
+    if os.path.isfile(output_connectome) and not force:
+        ui.ERROR( 'Output connectome already exists, use -f to overwrite' )
+    conn_out_ext = os.path.splitext(output_connectome)[1]
+    if conn_out_ext not in ['.csv', '.npy']:
+        ui.ERROR('Invalid extension for the output connectome file')
+
+    # metric
+    if metric not in ['sum', 'mean', 'min', 'max']:
+        ui.ERROR('Invalid type of metric for the edges')
+    ui.INFO( f'Chosen metric to weight the edges: {metric}' )
+
+    # create connectome to fill
+    n_rois = np.max(asgn).astype(np.int32)
+    if metric == 'min':
+        conn = np.triu(np.full((n_rois, n_rois), 1000000000, dtype=np.float64))
+    else:
+        conn = np.zeros((n_rois, n_rois), dtype=np.float64)
+    conn_nos = np.zeros((n_rois, n_rois), dtype=np.float64)
+    count_unconn = 0
+
+    with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+        for i in range( n_streamlines ):
+            if asgn_sort[i][0] == 0 or asgn_sort[i][1] == 0: 
+                count_unconn += 1
+                continue
+
+            if metric == 'min':
+                if w[i] < conn[asgn_sort[i][0]-1, asgn_sort[i][1]-1]:
+                    conn[asgn_sort[i][0]-1, asgn_sort[i][1]-1] = w[i]
+            elif metric == 'max':
+                if w[i] > conn[asgn_sort[i][0]-1, asgn_sort[i][1]-1]:
+                    conn[asgn_sort[i][0]-1, asgn_sort[i][1]-1] = w[i]
+            else: # sum or mean
+                conn[asgn_sort[i][0]-1, asgn_sort[i][1]-1] += w[i]
+            conn_nos[asgn_sort[i][0]-1, asgn_sort[i][1]-1] += 1
+        pbar.update()
+    if count_unconn > 0:
+        ui.WARNING(f'Number of non-connecting streamlines {count_unconn}')
+
+    if metric == 'mean':
+        conn[conn_nos>0] = conn[conn_nos>0]/conn_nos[conn_nos>0]
+
+    conn[conn_nos==0] = 0
+    # np.save(output_connectome[:-4]+'NOS.npy', conn, allow_pickle=False)
+
+    if symmetric:
+        conn_sym = conn.T + conn
+        np.fill_diagonal(conn_sym,np.diag(conn))
+        if conn_out_ext=='.csv':
+            np.savetxt(output_connectome, conn_sym, delimiter=",")
+        else:
+            np.save(output_connectome, conn_sym, allow_pickle=False)
+    else:
+        if conn_out_ext=='.csv':
+            np.savetxt(output_connectome, conn, delimiter=",")
+        else:
+            np.save(output_connectome, conn, allow_pickle=False)
+
+    ui.INFO( f'Writing output connectome to "{output_connectome}"' )
+
