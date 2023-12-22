@@ -19,7 +19,7 @@ from dicelib.connectivity cimport streamline_assignment
 from dicelib.streamline import create_replicas
 
 
-def compute_connectome_blur( input_tractogram: str, output_connectome: str, weights_in: str, parcellation_in: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, offset_thr: float=0.0, symmetric: bool=False, fiber_shift=0, verbose: int=1, force: bool=False ):
+def compute_connectome_blur( input_tractogram: str, output_connectome: str, weights_in: str, input_nodes: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, offset_thr: float=0.0, symmetric: bool=False, fiber_shift=0, verbose: int=1, force: bool=False ):
     """Build the connectome weighted by COMMITblur (only sum).
 
     Parameters
@@ -33,8 +33,8 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     weights_in : string
         Scalar file (.txt or .npy) for the input streamline weights estimated by COMMITblur.
 
-    parcellation_in : string
-        Path to the file containing the gray matter parcellation.
+    input_nodes : string
+        Path to the file containing the gray matter parcellation (nodes of the connectome).
 
     blur_core_extent: float
         Extent of the core inside which the segments have equal contribution to the central one used by COMMITblur.
@@ -94,9 +94,9 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         ui.ERROR( 'Invalid extension for the weights file' )
 
     # parcellation
-    if not os.path.isfile(parcellation_in):
-        ui.ERROR( f'File "{parcellation_in}" not found' )
-    ui.INFO( f'Input parcellation: "{parcellation_in}"' )
+    if not os.path.isfile(input_nodes):
+        ui.ERROR( f'File "{input_nodes}" not found' )
+    ui.INFO( f'Input parcellation: "{input_nodes}"' )
 
     # blur parameters
     if blur_core_extent<0:
@@ -126,7 +126,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         ui.ERROR( '"fiber_shift" must be a scalar or a vector with 3 elements' )
 
     # load parcellation
-    gm_nii = nib.load(parcellation_in)
+    gm_nii = nib.load(input_nodes)
     gm = gm_nii.get_fdata()
     gm_header = gm_nii.header
     affine = gm_nii.affine
@@ -339,19 +339,28 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
 
 
-def build_connectome( input_assignments: str, output_connectome: str, input_weights: str, metric: str='sum', symmetric: bool=False, verbose: int=1, force: bool=False ):
+def build_connectome( input_weights: str,  input_assignments: str, output_connectome: str, input_tractogram: str=None, input_nodes: str=None, threshold: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=1, force: bool=False ):
     """Build the weighted connectome having the assignements.
 
     Parameters
     ----------
+    input_weights : string
+        Scalar file (.txt or .npy) for the input streamline weights.
+        
     input_assignments : string
         Path to the file (.txt or .npy) containing the streamline assignments.
 
     output_connectome : string
         Path to the file where to store the resulting connectome.
 
-    input_weights : string
-        Scalar file (.txt or .npy) for the input streamline weights.
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to process.
+
+    input_nodes : string
+        Path to the file containing the gray matter parcellation (nodes of the connectome).
+
+    threshold : float
+        Threshold used to compute the assignments of the streamlines (default: 2.0).
 
     metric : string
         Operation to compute the value of the edges, options: sum, mean, min, max (default: sum).
@@ -368,20 +377,6 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
 
     ui.set_verbose( verbose )
 
-    # streamline assignments
-    if not os.path.isfile( input_assignments ):
-        ui.ERROR( f'File "{input_assignments}" not found' )
-    input_assignments_ext = os.path.splitext(input_assignments)[1]
-    if input_assignments_ext=='.txt':
-        asgn = np.loadtxt( input_assignments ).astype(np.int32)
-    elif input_assignments_ext=='.npy':
-        asgn = np.load( input_assignments, allow_pickle=False ).astype(np.int32)
-    else:
-        ui.ERROR( 'Invalid extension for the assignments file' )
-    n_streamlines = asgn.shape[0]
-    asgn_sort = np.sort(asgn, axis=1) # shape = (n_streamlines, 2)
-    ui.INFO( f'Input assignments: "{input_assignments}"' )
-
     # streamline weights
     if not os.path.isfile( input_weights ):
         ui.ERROR( f'File "{input_weights}" not found' )
@@ -394,10 +389,6 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
         ui.ERROR( 'Invalid extension for the weights file' )
     ui.INFO( f'Input weights: "{input_weights}"' )
 
-    # check if #(weights)==n_streamlines
-    if n_streamlines!=w.size:
-        ui.ERROR( f'# of weights ({w.size}) is different from # of streamline assignments ({n_streamlines})' )
-
     # output
     if os.path.isfile(output_connectome) and not force:
         ui.ERROR( 'Output connectome already exists, use -f to overwrite' )
@@ -405,13 +396,53 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
     if conn_out_ext not in ['.csv', '.npy']:
         ui.ERROR('Invalid extension for the output connectome file')
 
+    # streamline assignments
+    input_assignments_ext = os.path.splitext(input_assignments)[1]
+    if input_assignments_ext not in ['.txt', '.npy']:
+        ui.ERROR( 'Invalid extension for the assignments file' )
+
+    if not os.path.isfile( input_assignments ):
+        # check input tractogram
+        if input_tractogram is None or not os.path.isfile(input_tractogram):
+            ui.ERROR( f'Tractogram file "{input_tractogram}" not found. Required if the assignments are not provided.' )
+        ui.INFO( f'Input tractogram: "{input_tractogram}"' )
+
+        # parcellation
+        if input_nodes is None or not os.path.isfile(input_nodes):
+            ui.ERROR( f'Nodes file "{input_nodes}" not found. Required if the assignments are not provided.' )
+        ui.INFO( f'Input parcellation: "{input_nodes}"' )
+
+        # compute assignments
+        os.system(f'dice_tractogram_assign.py {input_tractogram} {input_nodes} --save_assignments {input_assignments} -t {threshold} -v {verbose}')
+
+    if input_assignments_ext=='.txt':
+        asgn = np.loadtxt( input_assignments ).astype(np.int32)
+    else:
+        asgn = np.load( input_assignments, allow_pickle=False ).astype(np.int32)
+
+    n_streamlines = asgn.shape[0]
+    asgn_sort = np.sort(asgn, axis=1) # shape = (n_streamlines, 2)
+    ui.INFO( f'Input assignments: "{input_assignments}"' )
+
+    # check if #(weights)==n_streamlines
+    if n_streamlines!=w.size:
+        ui.ERROR( f'# of weights ({w.size}) is different from # of streamline assignments ({n_streamlines})' )
+
     # metric
     if metric not in ['sum', 'mean', 'min', 'max']:
         ui.ERROR('Invalid type of metric for the edges')
     ui.INFO( f'Chosen metric to weight the edges: {metric}' )
 
     # create connectome to fill
-    n_rois = np.max(asgn).astype(np.int32)
+    if input_nodes is not None:
+        gm_nii = nib.load(input_nodes)
+        gm = gm_nii.get_fdata()
+        n_rois = np.max(gm).astype(np.int32)
+        ui.INFO(f'Number of regions: {n_rois}')
+    else:
+        n_rois = np.max(asgn).astype(np.int32)
+        ui.INFO(f'Number of regions: {n_rois}')
+
     if metric == 'min':
         conn = np.triu(np.full((n_rois, n_rois), 1000000000, dtype=np.float64))
     else:
