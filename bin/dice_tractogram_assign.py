@@ -47,8 +47,6 @@ def compute_chunks(lst, n):
         yield lst[i:i + n]
 
 
-MAX_THREAD = 3
-
 ui.set_verbose(options.verbose)
 
 out_assignment_ext = os.path.splitext(options.save_assignments)[1]
@@ -70,6 +68,11 @@ num_streamlines = int(
         options.input_tractogram,
         mode='r').header["count"])
 ui.INFO(f"Computing assignments for {num_streamlines} streamlines")
+
+if num_streamlines > 3:
+    MAX_THREAD = 3
+else:
+    MAX_THREAD = 1
 
 chunk_size = int(num_streamlines / MAX_THREAD)
 chunk_groups = [
