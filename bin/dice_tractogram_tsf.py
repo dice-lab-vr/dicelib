@@ -113,7 +113,6 @@ if options.orientation:
         streamline, int(num_streamlines))
 elif options.file:
     values = np.loadtxt(options.file)
-    print(values)
     scalar_arr, n_pts_list = color_by_scalar_file(
         streamline, values, int(num_streamlines))
 else:
