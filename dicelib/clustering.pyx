@@ -87,7 +87,6 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float t
     cdef float maxdist_fib = 10000000000
     cdef int  i = 0
     cdef int  j = 0
-    cdef int fib_idx = 0
     cdef int idx_ret = 0
     cdef int flipped_temp = 0
     cdef int flipped = 0
@@ -125,6 +124,51 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float t
         return (idx_ret, flipped)
 
     return (num_c, flipped)
+
+
+cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_idx, str path_resampled, int num_pt):
+    """Compute the distance between the streamlines and the centroid of the cluster to which they belong
+        centroids      = array with the final centroids
+        clust_idx      = array containing for each streamline the idx of the cluster to which it belongs
+        path_resampled = path of the input streamlines after resampling
+        num_pt         = number of points
+    """
+    cdef float dist_d = 0
+    cdef float dist_f = 0
+    cdef float d_x = 0
+    cdef float d_y = 0
+    cdef float d_z = 0
+    cdef size_t  i = 0
+    cdef size_t  j = 0
+
+    cdef LazyTractogram TCK_res = LazyTractogram( path_resampled, mode='r' )
+    cdef int num_str = int( TCK_res.header['count'] )
+    cdef float [:] distances = np.zeros(num_str, dtype=np.float32) # array containing for each streamline the distance from the centroid (output)
+
+    for i in xrange(num_str):
+        TCK_res.read_streamline()
+        dist_d = 0
+        dist_f = 0
+
+        for j in xrange(num_pt):
+            # direct
+            d_x = (centroids[clust_idx[i]][j][0] - TCK_res.streamline[j][0])**2
+            d_y = (centroids[clust_idx[i]][j][1] - TCK_res.streamline[j][1])**2
+            d_z = (centroids[clust_idx[i]][j][2] - TCK_res.streamline[j][2])**2
+            dist_d += sqrt(d_x + d_y + d_z)
+
+            # flipped
+            d_x = (centroids[clust_idx[i]][j][0] - TCK_res.streamline[num_pt-j-1][0])**2
+            d_y = (centroids[clust_idx[i]][j][1] - TCK_res.streamline[num_pt-j-1][1])**2
+            d_z = (centroids[clust_idx[i]][j][2] - TCK_res.streamline[num_pt-j-1][2])**2
+            dist_f += sqrt(d_x + d_y + d_z)
+
+        if dist_d < dist_f:
+            distances[i] = dist_d/num_pt
+        else:
+            distances[i] = dist_f/num_pt
+
+    return distances
 
 
 cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
@@ -428,7 +472,7 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10):
     
     with nogil:
         for i in range(in_streamlines_view.shape[0]):
-            for j in range(n_streamlines[i]):
+            for j in range(1, n_streamlines[i], 1):
                 t, flipped = compute_dist(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
 
                 clust_idx[i,j]= t
