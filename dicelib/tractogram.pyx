@@ -961,7 +961,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
         ui.INFO( f'        + non-connecting (both ends outside GM): {n_out}' )
 
 
-def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=1.0, verbose=4, force=False ):
+def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=4, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
     More info at http://algorithmist.net/docs/catmullrom.pdf.
 
@@ -981,7 +981,10 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).
 
     segment_len : float
-        Sampling resolution of the final streamline after interpolation (default : 1.0).
+        Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set.
+
+    streamline_pts : int
+        Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
@@ -998,6 +1001,11 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         ui.ERROR( f'File "{input_tractogram}" not found' )
     if os.path.isfile(output_tractogram) and not force:
         ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+
+    if segment_len==None and streamline_pts==None:
+        ui.ERROR( "Either 'streamline_pts' or 'segment_len' must be set." )
+    if segment_len!=None and streamline_pts!=None:
+        ui.ERROR( "Either 'streamline_pts' or 'segment_len' must be set, not both." )
 
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
@@ -1036,7 +1044,10 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
             ui.INFO( 'Output tractogram :' )
             ui.INFO( f'\t- {output_tractogram}' )
             ui.INFO( f'\t- spline type : {spline_type}')
-            ui.INFO( f'\t- segment length : {segment_len:.2f}' )
+            if not segment_len==None:
+                ui.INFO( f'\t- segment length : {segment_len:.2f}' )
+            if not streamline_pts==None:
+                ui.INFO( f'\t- number of points : {streamline_pts}' )
 
         # process each streamline
         with ui.ProgressBar( total=n_streamlines ) as pbar:
@@ -1044,7 +1055,10 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
                     break # no more data, stop reading
-                smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len, epsilon=epsilon, alpha=alpha)
+                if not segment_len==None:
+                    smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha)
+                if not streamline_pts==None:
+                    smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, n_pts_final=streamline_pts, epsilon=epsilon, alpha=alpha)
                 TCK_out.write_streamline( smoothed_streamline, n )
                 pbar.update()
 
