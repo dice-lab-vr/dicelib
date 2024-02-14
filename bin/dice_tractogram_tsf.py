@@ -7,7 +7,7 @@ import numpy as np
 from dicelib import ui
 from dicelib.lazytractogram import LazyTractogram
 from dicelib.ui import ColoredArgParser
-from Tsf import Tsf
+from dicelib.tsf import Tsf
 
 
 # create script to color streamlines using mrtrix
@@ -83,12 +83,13 @@ parser.add_argument("output_tsf", help="Output tsf filename")
 parser.add_argument(
     "--orientation",
     action="store_true",
-    default=True,
+    default=False,
     help="Color based on orientation")
 parser.add_argument("--file", action="store", help="Color based on given file")
 parser.add_argument("--force", "-f", action="store_true",
                     help="Force overwriting of the output")
 options = parser.parse_args()
+
 
 # check if path to input and output files are valid
 if not os.path.isfile(options.input_tractogram):
@@ -99,8 +100,9 @@ if os.path.isfile(options.output_tsf) and not options.force:
         "use -f to overwrite")
 if not options.orientation and not options.file:
     ui.ERROR("Please specify a color option")
-if not os.path.isfile(options.file):
-    ui.ERROR(f"Input file not found: {options.file}")
+if options.file:
+    if not os.path.isfile(options.file):
+        ui.ERROR(f"Input file not found: {options.file}")
 
 
 streamline = LazyTractogram(options.input_tractogram, mode='r')

@@ -59,7 +59,7 @@ def get_extensions():
     )
     tsf = Extension(
         name=f'{package_name}.tsf',
-        sources=[f'{package_name}/Tsf.pyx'],
+        sources=[f'{package_name}/tsf.pyx'],
         include_dirs=[get_include()],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
