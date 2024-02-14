@@ -78,7 +78,15 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-    return [ lazytractogram, image, streamline, tractogram, clustering, split_cluster, connectivity, tsf, smoothing, connectome_blur ]
+    space_transf = Extension(
+        name=f'{package_name}.space_transf',
+        sources=['dicelib/coords_transf.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language="c++"
+    )
+
+    return [ lazytractogram, image, streamline, tractogram, clustering, split_cluster, connectivity, tsf, smoothing, connectome_blur, space_transf ]
 
 
 class CustomBuildExtCommand(build_ext):

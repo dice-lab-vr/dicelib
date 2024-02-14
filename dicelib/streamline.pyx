@@ -3,8 +3,12 @@
 import cython
 import numpy as np
 cimport numpy as np
+
 from libc.math cimport sqrt
+from libc.stdlib cimport malloc, free
+
 from dicelib.smoothing import spline_smooth
+
 
 
 cdef extern from "streamline.hpp":
@@ -238,3 +242,97 @@ cpdef float [:,::1] create_replicas( float [:,::1] in_pts, double [:] blurRho, d
         out_pts_m = np.reshape( pts_out[:3*n].copy(), (n,3) ).astype(np.float32)
 
     return out_pts_m
+
+
+cpdef sampling(float [:,::1] streamline_view, float [:,:,::1] img_view, int npoints, float [:,:,::1] mask_view, option=None):
+    """Compute the length of a streamline.
+
+    Parameters
+    ----------
+    streamline : Nx3 numpy array
+        The streamline data, coordinates 
+    img : numpy array 
+        data of the image 
+    npoints : int  
+        points of the streamline 
+    Returns
+    -------
+    value : numpy array of dim (npoint,)
+        values that correspond to coordinates of streamline in the image space 
+         
+    """
+
+    value = np.empty([npoints,], dtype= float) 
+    opt_value = 0
+    cdef size_t ii
+
+    for ii in range(npoints):
+        vox_coords = np.array([int(streamline_view[ii,0]), int(streamline_view[ii,1]), int(streamline_view[ii,2])])
+        if mask_view[vox_coords[0], vox_coords[1], vox_coords[2]] == 0:
+            value[ii] = np.nan
+        else: 
+            value[ii] = img_view[<int>streamline_view[ii,0],<int>streamline_view[ii,1],<int>streamline_view[ii,2]] #cast int values
+         
+        
+    if option == "mean":
+        opt_value = np.nanmean(value)
+        return opt_value
+    elif option == "median":
+        opt_value = np.nanmedian(value)
+        return opt_value
+    elif option == "min":
+        opt_value = value.min()
+        return opt_value
+    elif option == "max":
+        opt_value = value.max()
+        return opt_value
+    else: #none case
+        return value
+
+
+cpdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib, float[::1] vers, float[::1] lenghts):# noexcept nogil:
+    cdef int nb_pts_in = fib_in.shape[0]
+    cdef size_t i = 0
+    cdef size_t j = 0
+    cdef float sum_step = 0
+    tot_lenght(fib_in, lenghts)
+
+    cdef float step_size = lenghts[nb_pts_in-1]/(nb_pts-1)
+    cdef float ratio = 0
+
+    # for i in xrange(1, lenghts.shape[0]-1):
+    resampled_fib[0][0] = fib_in[0][0]
+    resampled_fib[0][1] = fib_in[0][1]
+    resampled_fib[0][2] = fib_in[0][2]
+    while sum_step < lenghts[nb_pts_in-1]:
+        if sum_step == lenghts[i]:
+            resampled_fib[j][0] = fib_in[i][0] 
+            resampled_fib[j][1] = fib_in[i][1]
+            resampled_fib[j][2] = fib_in[i][2]
+            j += 1
+            sum_step += step_size
+        elif sum_step < lenghts[i]:
+            ratio = 1 - ((lenghts[i]- sum_step)/(lenghts[i]-lenghts[i-1]))
+            vers[0] = fib_in[i][0] - fib_in[i-1][0]
+            vers[1] = fib_in[i][1] - fib_in[i-1][1]
+            vers[2] = fib_in[i][2] - fib_in[i-1][2]
+            resampled_fib[j][0] = fib_in[i-1][0] + ratio * vers[0]
+            resampled_fib[j][1] = fib_in[i-1][1] + ratio * vers[1]
+            resampled_fib[j][2] = fib_in[i-1][2] + ratio * vers[2]
+            j += 1
+            sum_step += step_size
+        else:
+            i+=1
+    resampled_fib[nb_pts-1][0] = fib_in[nb_pts_in-1][0]
+    resampled_fib[nb_pts-1][1] = fib_in[nb_pts_in-1][1]
+    resampled_fib[nb_pts-1][2] = fib_in[nb_pts_in-1][2]
+
+
+cdef void tot_lenght(float[:,::1] fib_in, float[::1] length):# noexcept nogil:
+    cdef size_t i = 0
+
+    length[0] = 0.0
+    for i in xrange(1,fib_in.shape[0]):
+        length[i] = <float>(length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 ))
+
+

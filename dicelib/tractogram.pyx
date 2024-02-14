@@ -5,12 +5,16 @@ cimport numpy as np
 import os, glob, random as rnd
 from dicelib.lazytractogram import LazyTractogram
 from dicelib.streamline import length as streamline_length
-from dicelib.streamline import smooth
+from dicelib.streamline import smooth, apply_smoothing, sampling, set_number_of_points
+
 from . import ui
-from dicelib.streamline import apply_smoothing
 import nibabel as nib
+
 from libc.math cimport sqrt
 from libc.math cimport round as cround
+from libc.stdlib cimport malloc, free
+
+from dicelib.space_transf import space_tovox
 
 
 def compute_lenghts( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
@@ -658,11 +662,10 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
             TCK_out.close( write_eof=True, count=n_written )
 
 
-cdef float [:] apply_affine_1pt(float [:] orig_pt, double[::1,:] M, double[:] abc):
-    cdef float [:] moved_pt = np.zeros(3, dtype=np.float32)
-    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[1,0] + orig_pt[2]*M[2,0]) + abc[0])
-    moved_pt[1] = float((orig_pt[0]*M[0,1] + orig_pt[1]*M[1,1] + orig_pt[2]*M[2,1]) + abc[1])
-    moved_pt[2] = float((orig_pt[0]*M[0,2] + orig_pt[1]*M[1,2] + orig_pt[2]*M[2,2]) + abc[2])
+cdef float [:] apply_affine_1pt(float [:] orig_pt, double[::1,:] M, double[:] abc, float [:] moved_pt):
+    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[1,0] + orig_pt[2]*M[2,0]) + abc[0]) + .5
+    moved_pt[1] = float((orig_pt[0]*M[0,1] + orig_pt[1]*M[1,1] + orig_pt[2]*M[2,1]) + abc[1]) + .5
+    moved_pt[2] = float((orig_pt[0]*M[0,2] + orig_pt[1]*M[1,2] + orig_pt[2]*M[2,2]) + abc[2]) + .5
     return moved_pt
 
 cpdef compute_vect_vers(float [:] p0, float[:] p1):
@@ -795,6 +798,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
 
     cdef int chances   = int(round(max_dist / step))
     cdef int chances_f = 0
+    cdef float [:] moved_pt = np.zeros(3, dtype=np.float32)
 
     try:
         # open the input file
@@ -823,8 +827,8 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
                 fib = np.asarray(TCK_in.streamline)
                 fib = fib[:TCK_in.n_pts, :]
                 for n in xrange(3): # move first 3 point at each end
-                    fib[n,:] = apply_affine_1pt(fib[n,:], M_inv, abc_inv)
-                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], M_inv, abc_inv)
+                    fib[n,:] = apply_affine_1pt(fib[n,:], M_inv, abc_inv, moved_pt)
+                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], M_inv, abc_inv, moved_pt)
                 fib+=0.5 # move to center
 
                 ok_both  = np.zeros(2, dtype=np.int32)
@@ -908,12 +912,12 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
                 # bring points back to original space
                 fib=fib-0.5 # move back to corner
                 for n in xrange(2):
-                    fib[n,:] = apply_affine_1pt( fib[n,:], M_dir, abc_dir) 
-                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], M_dir, abc_dir) 
+                    fib[n,:] = apply_affine_1pt( fib[n,:], M_dir, abc_dir, moved_pt)
+                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], M_dir, abc_dir, moved_pt)
                 if del_both[0] == False:    
-                    fib[2,:] = apply_affine_1pt( fib[2,:], M_dir, abc_dir) 
+                    fib[2,:] = apply_affine_1pt( fib[2,:], M_dir, abc_dir, moved_pt)
                 if del_both[1] == False:
-                    fib[idx_last-2,:] = apply_affine_1pt( fib[idx_last-2,:], M_dir, abc_dir) 
+                    fib[idx_last-2,:] = apply_affine_1pt( fib[idx_last-2,:], M_dir, abc_dir, moved_pt) 
 
                 TCK_out.write_streamline( fib, n_pts_out )
                 n_tot += 1
@@ -1200,3 +1204,183 @@ def recompute_indices(indices, dictionary_kept, verbose=1):
             pbar.update()
 
     return indices_recomputed
+
+
+cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=None , option="No_opt", force=False, verbose=1):
+    """dicelib.tractogram.sample 
+    Sample underlying values of a tractogram along its points from the corresponding image:
+    (ATTENTION: this method does not use interpolation during sampling)
+
+    Parameters:
+
+    -----------
+
+    input_tractogram : string 
+        Path to the file (.tck) containing the streamlines to process.
+    input image : string 
+        Path to the image where the method has to sample values.
+    output_file : string 
+        Path to the file (.txt in needed) where the method saves values
+    space : string (default rasmm)
+        space reference of streamline coordinates
+    option : string ( default None)
+        apply some operation on values 
+
+    ------------
+
+    Return:
+
+    Txt file with values of input tractogram in the referred input image. 
+
+
+    """
+    
+    TCK_in  = None
+
+    # check input and output 
+    if not os.path.isfile(input_tractogram):
+        ui.ERROR( f'File "{input_tractogram}" not found' )
+    if not os.path.isfile(input_image):
+        ui.ERROR( f'File "{input_image}" not found' )
+    if mask_file != None and not os.path.isfile(mask_file):
+        ui.ERROR( f'File "{mask_file}" not found' )
+    if os.path.isfile(output_file) and not force:
+        ui.ERROR( 'Output file {} already exists, use -f to overwrite'.format(output_file) )
+    if option not in ["min","max","median","No_opt","mean"]:
+        ui.ERROR( 'The selected option {} is not present!'.format(option))
+
+
+    #open the image
+    Img = nib.load(input_image)
+    img_data = Img.get_fdata()
+    img_data = np.array(img_data, dtype=np.float32)
+    
+
+    if mask_file != None:
+        #open the mask
+        mask = nib.load(mask_file)
+        mask_data = mask.get_fdata()
+    else:
+        mask_data = np.ones(img_data.shape, dtype=np.float32)
+
+    cdef float [:,:,::1] img_view = np.ascontiguousarray(img_data).astype(np.float32)
+    cdef float [:,:,::1] mask_view = np.ascontiguousarray(mask_data).astype(np.float32)
+    cdef double [:,::1] wm_aff_inv  = np.linalg.inv(Img.affine) #inverse of affine
+    cdef double [::1,:] M_inv       = wm_aff_inv[:3, :3].T 
+    cdef double [:] abc_inv         = wm_aff_inv[:3, 3]
+    cdef float [:] moved_pt         = np.zeros(3, dtype=np.float32)
+    cdef size_t ii                  = 0
+    cdef int [::1] vox_coords       = np.zeros(3, dtype=np.int32)
+    cdef float[::1] value           = np.zeros(2000, dtype=np.float32)
+    
+    try:
+        #open the input file
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
+
+        n_streamlines = int( TCK_in.header['count'] )
+        ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+
+        pixdim = Img.header['pixdim'] [1:4] 
+        ui.INFO( 'Image resolution : {}'.format(pixdim) )
+        ui.INFO("**Applying --> vox transformation**")
+
+        with open(output_file,'w') as file:
+            file.write("# dicelib.tractogram.sample option={} {} {} {}**\n".format(option,input_tractogram,input_image,output_file))
+            with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+                for i in range(n_streamlines):
+                    TCK_in.read_streamline()
+                    npoints = TCK_in.n_pts
+                    for ii in range(npoints):
+                        moved_pt = apply_affine_1pt(TCK_in.streamline[ii], M_inv, abc_inv, moved_pt)
+                        vox_coords[0] = int(moved_pt[0])
+                        vox_coords[1] = int(moved_pt[1])
+                        vox_coords[2] = int(moved_pt[2])
+                        if mask_view[vox_coords[0], vox_coords[1], vox_coords[2]] == 0:
+                            value[ii] = np.nan
+                        else: 
+                            value[ii] = img_view[vox_coords[0], vox_coords[1], vox_coords[2]]
+                    np.savetxt(file, value[:npoints], fmt='%.3f', newline=' ')
+                    file.write("\n")
+                    # value[ii+2] = np.mean(value[i][:ii+1])
+                    # value[ii+3] = np.median(value[i][:ii+1])
+                    # value[ii+4] = np.min(value[i][:ii+1])
+                    # value[ii+5] = np.max(value[i][:ii+1])
+                    pbar.update()            
+
+                
+    except Exception as e:
+        if TCK_in is not None:
+            TCK_in.close()
+            ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+    finally:
+        if TCK_in is not None:
+            TCK_in.close()
+            ui.INFO( 'Closing files' )
+        file.close()
+
+
+cpdef tractogram_resample(input_tractogram, output_tractogram, nb_pts, verbose=4, force=False):
+    """Set the number of points of each streamline in the input tractogram.
+
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to process.
+
+    output_tractogram : string
+        Path to the file where to store the filtered tractogram. If not specified (default),
+        the new file will be created by appending '_nbpts' to the input filename.
+
+    nb_pts : int
+        Number of points to set for each streamline.
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
+
+    force : boolean
+        Force overwriting of the output (default : False).
+    """
+
+    if not os.path.isfile(input_tractogram):
+        ui.ERROR( f'File "{input_tractogram}" not found' )
+    if os.path.isfile(output_tractogram) and not force:
+        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+
+    if output_tractogram is None :
+        basename, extension = os.path.splitext(input_tractogram)
+        output_tractogram = basename+'_nbpts'+extension
+
+    cdef float [::1] lenghts = np.empty( 1000, dtype=np.float32 )
+    cdef float [:,::1] s0 = np.empty( (nb_pts, 3), dtype=np.float32 )
+    cdef float [::1] vers = np.empty( 3, dtype=np.float32 )
+
+    TCK_in = LazyTractogram( input_tractogram, mode='r' )
+    n_streamlines = int( TCK_in.header['count'] )
+
+    TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+
+    if verbose :
+        ui.INFO( 'Input tractogram :' )
+        ui.INFO( f'\t- {input_tractogram}' )
+        ui.INFO( f'\t- {n_streamlines} streamlines' )
+
+        mb = os.path.getsize( input_tractogram )/1.0E6
+        if mb >= 1E3:
+            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        else:
+            ui.INFO( f'\t- {mb:.2f} MB' )
+
+        ui.INFO( 'Output tractogram :' )
+        ui.INFO( f'\t- {output_tractogram}' )
+        ui.INFO( f'\t- nb_pts : {nb_pts}')
+
+    # process each streamline
+    with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+        for i in range( n_streamlines ):
+            TCK_in.read_streamline() 
+            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0, vers, lenghts)
+            TCK_out.write_streamline( s0, nb_pts )
+            pbar.update()
+
+    TCK_in.close()
+    TCK_out.close()

@@ -238,65 +238,65 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-cpdef assign_single_thread( input_tractogram: str, gm_map_file: str, threshold: 2 ):
+# cpdef assign_single_thread( input_tractogram: str, gm_map_file: str, threshold: 2 ):
     
-    """ Compute the assignments of the streamlines based on a GM map.
+#     """ Compute the assignments of the streamlines based on a GM map.
     
-    Parameters
-    ----------
-    input_tractogram : string
-        Path to the file (.tck) containing the streamlines to process.
-    gm_map_file : string
-        Path to the GM map file.
-    threshold : int
-        Threshold used to compute the grid of voxels to check.
-    verbose : bool
-        If True, display information about the processing.
-    """
+#     Parameters
+#     ----------
+#     input_tractogram : string
+#         Path to the file (.tck) containing the streamlines to process.
+#     gm_map_file : string
+#         Path to the GM map file.
+#     threshold : int
+#         Threshold used to compute the grid of voxels to check.
+#     verbose : bool
+#         If True, display information about the processing.
+#     """
 
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
-    if not os.path.isfile(gm_map_file):
-        ui.ERROR( f'File "{gm_map_file}" not found' )
+#     if not os.path.isfile(input_tractogram):
+#         ui.ERROR( f'File "{input_tractogram}" not found' )
+#     if not os.path.isfile(gm_map_file):
+#         ui.ERROR( f'File "{gm_map_file}" not found' )
 
-    # Load of the gm map
-    gm_map_img = nib.load(gm_map_file)
-    gm_map_data = gm_map_img.get_fdata()
-    ref_data = gm_map_img
-    ref_header = ref_data.header
-    affine = ref_data.affine
-    cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm_map_data, dtype=np.int32)
+#     # Load of the gm map
+#     gm_map_img = nib.load(gm_map_file)
+#     gm_map_data = gm_map_img.get_fdata()
+#     ref_data = gm_map_img
+#     ref_header = ref_data.header
+#     affine = ref_data.affine
+#     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm_map_data, dtype=np.int32)
 
-    cdef float [:,::1] inverse = np.ascontiguousarray(inv(affine), dtype=np.float32) #inverse of affine
-    cdef float [::1,:] M = inverse[:3, :3].T 
-    cdef float [:] abc = inverse[:3, 3]
-    cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
+#     cdef float [:,::1] inverse = np.ascontiguousarray(inv(affine), dtype=np.float32) #inverse of affine
+#     cdef float [::1,:] M = inverse[:3, :3].T 
+#     cdef float [:] abc = inverse[:3, 3]
+#     cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
 
-    cdef float thr = <float> threshold/np.max(voxdims)
-    cdef float [:,::1] grid
-    cdef size_t i = 0  
-    cdef int n_streamlines = end_chunk - start_chunk
-    cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)
-    assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
-    cdef int[:,:] assignments_view = assignments
+#     cdef float thr = <float> threshold/np.max(voxdims)
+#     cdef float [:,::1] grid
+#     cdef size_t i = 0  
+#     cdef int n_streamlines = end_chunk - start_chunk
+#     cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)
+#     assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
+#     cdef int[:,:] assignments_view = assignments
 
-    cdef float [:,::1] end_pts = np.zeros((2,3), dtype=np.float32)
-    cdef float [:,::1] end_pts_temp = np.zeros((2,3), dtype=np.float32)
-    cdef float [:,::1] end_pts_trans = np.zeros((2,3), dtype=np.float32)
-    cdef float [:] start_pt_grid = np.zeros(3, dtype=np.float32)
-    cdef int [:] start_vox = np.zeros(3, dtype=np.int32)
-    cdef float [:] end_pt_grid = np.zeros(3, dtype=np.float32)
-    cdef int [:] end_vox = np.zeros(3, dtype=np.int32)
-    cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
+#     cdef float [:,::1] end_pts = np.zeros((2,3), dtype=np.float32)
+#     cdef float [:,::1] end_pts_temp = np.zeros((2,3), dtype=np.float32)
+#     cdef float [:,::1] end_pts_trans = np.zeros((2,3), dtype=np.float32)
+#     cdef float [:] start_pt_grid = np.zeros(3, dtype=np.float32)
+#     cdef int [:] start_vox = np.zeros(3, dtype=np.int32)
+#     cdef float [:] end_pt_grid = np.zeros(3, dtype=np.float32)
+#     cdef int [:] end_vox = np.zeros(3, dtype=np.int32)
+#     cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
 
-    TCK_in = None
-    TCK_in = LazyTractogram( input_tractogram, mode='r' )
-    # compute the grid of voxels to check
-    grid = compute_grid( thr, voxdims )
-    layers = np.arange( 0,<int> np.ceil(thr)+1, 1 ) # e.g [0, 1, 2, 3]
-    lato = layers * 2 + 1 # e.g [0, 3, 5, 7] = layerx2+1
-    neighbs = [v**3-1 for v in lato] # e.g [1, 27, 125, 343] = (lato)**3
-    cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
+#     TCK_in = None
+#     TCK_in = LazyTractogram( input_tractogram, mode='r' )
+#     # compute the grid of voxels to check
+#     grid = compute_grid( thr, voxdims )
+#     layers = np.arange( 0,<int> np.ceil(thr)+1, 1 ) # e.g [0, 1, 2, 3]
+#     lato = layers * 2 + 1 # e.g [0, 3, 5, 7] = layerx2+1
+#     neighbs = [v**3-1 for v in lato] # e.g [1, 27, 125, 343] = (lato)**3
+#     cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
 
 
 
