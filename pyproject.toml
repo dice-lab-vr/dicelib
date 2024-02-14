@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dmri-dicelib"
-dynamic = ["version"]
+version = "1.0.5"
 dependencies = [
     "numpy>=1.24.4",
     "scipy>=1.10.1",
@@ -50,6 +50,3 @@ Documentation = "https://github.com/dice-lab-vr/dicelib/blob/master/README.md"
 Repository = "https://github.com/dice-lab-vr/dicelib.git"
 Issues = "https://github.com/dice-lab-vr/dicelib/issues"
 Changelog = "https://github.com/dice-lab-vr/dicelib/blob/master/CHANGELOG.md"
-
-[tool.setuptools]
-

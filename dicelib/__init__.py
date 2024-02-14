@@ -1,8 +1,11 @@
-from .info import __version__
 from .lazytractogram import LazyTractogram
-
-
 from pathlib import Path
+from importlib import metadata
+
+try:
+    __version__ = metadata.version('dmri-dicelib')
+except metadata.PackageNotFoundError:
+    __version__ = 'not installed'
 
 def get_include():
     include_dirs = []
