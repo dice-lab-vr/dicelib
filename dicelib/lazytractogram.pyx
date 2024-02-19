@@ -1,5 +1,7 @@
 #!python
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
+# distutils: language=c++
+
 cimport cython
 import numpy as np
 cimport numpy as np
@@ -287,9 +289,10 @@ cdef class LazyTractogram:
         After the reading, the file pointer is located at the end of it, i.e., beginning of
         the binary data part of the file, ready to read streamlines.
         """
-        cdef char[5000000] line # a field can be max 5MB long
+        cdef string        line
         cdef char*         ptr
         cdef int           nLines = 0
+        cdef size_t        max_size_line = 5000000*sizeof(char)
 
         if len(self.header) > 0:
             raise RuntimeError( 'Header already read' )
@@ -297,32 +300,32 @@ cdef class LazyTractogram:
         fseek( self.fp, 0, SEEK_SET )
 
         # check if it's a valid TCK file
-        if fgets( line, sizeof(line), self.fp )==NULL:
+        if fgets(&line[0], max_size_line, self.fp) == NULL:
             raise IOError( 'Problems reading header from file FIRST LINE' )
         # line[strlen(line)-1] = 0
-        if strncmp( line, 'mrtrix tracks', 13)!=0:
+        if &line[0] != 'mrtrix tracks\n':
             raise IOError( f'"{self.filename}" is not a valid TCK file' )
 
         # parse one line at a time
         while True:
             if nLines>=1000:
                 raise RuntimeError( 'Problem parsing the header; too many header lines' )
-            if fgets( line, sizeof(line), self.fp )==NULL:
+            if fgets(&line[0], max_size_line, self.fp) == NULL:
                 raise IOError( 'Problems reading header from file' )
-            line[strlen(line)-1] = 0
-            if strncmp(line,'END',3)==0:
+            py_line = &line[0]
+            py_line = py_line.strip()
+            if py_line == 'END':
                 break
-            ptr = strchr(line, ord(':'))
-            if ptr==NULL:
-                raise RuntimeError( 'Problem parsing the header; format not valid' )
-            key = str(line[:(ptr-line)])
-            val = ptr+2
+            try:
+                key, value = py_line.split(': ')
+            except ValueError:
+                raise ValueError('Problem parsing the header; format not valid')
             if key not in self.header:
-                self.header[key] = val
+                self.header[key] = value
             else:
                 if type(self.header[key])!=list:
                     self.header[key] = [ self.header[key] ]
-                self.header[key].append( val )
+                self.header[key].append(value)
             nLines += 1
 
         # check if the 'count' field is present TODO: fix this, allow working even without it
