@@ -5,7 +5,8 @@ cimport numpy as np
 import os, glob, random as rnd
 from dicelib.lazytractogram import LazyTractogram
 from dicelib.streamline import length as streamline_length
-from dicelib.streamline import smooth, apply_smoothing, sampling, set_number_of_points
+from dicelib.streamline import smooth, apply_smoothing, set_number_of_points, rdp_reduction, length, resample
+from dicelib.smoothing import spline_smooth
 
 from . import ui
 import nibabel as nib
@@ -13,6 +14,8 @@ import nibabel as nib
 from libc.math cimport sqrt
 from libc.math cimport round as cround
 from libc.stdlib cimport malloc, free
+from libcpp cimport bool as cbool
+
 
 from dicelib.space_transf import space_tovox
 
@@ -1078,6 +1081,204 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
             ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
         else:
             ui.INFO( f'\t- {mb:.2f} MB' )
+
+
+cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=4, force=False ):
+    """Smooth each streamline in the input tractogram using Catmull-Rom splines.
+    More info at http://algorithmist.net/docs/catmullrom.pdf.
+
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to process.
+
+    output_tractogram : string
+        Path to the file where to store the filtered tractogram. If not specified (default),
+        the new file will be created by appending '_smooth' to the input filename.
+
+    mask : string
+        Path to the mask file (.nii) to constrain the smoothing to a specific region (default : None).
+
+    threshold : float
+        Percentage of points of the streamline that must be inside the mask to be considered (default : 0.5).
+
+    spline_type : string
+        Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default : 'centripetal').
+
+    epsilon : float
+        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).
+
+    segment_len : float
+        Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set.
+
+    streamline_pts : int
+        Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
+
+    force : boolean
+        Force overwriting of the output (default : False).
+    """
+
+    if type(verbose) != int or verbose not in [0,1,2,3,4]:
+        ui.ERROR( '"verbose" must be in [0...4]' )
+    ui.set_verbose( verbose )
+
+    if not os.path.isfile(input_tractogram):
+        ui.ERROR( f'File "{input_tractogram}" not found' )
+    if os.path.isfile(output_tractogram) and not force:
+        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+
+    if segment_len==None and streamline_pts==None:
+        ui.ERROR( "Either 'streamline_pts' or 'segment_len' must be set." )
+    if segment_len!=None and streamline_pts!=None:
+        ui.ERROR( "Either 'streamline_pts' or 'segment_len' must be set, not both." )
+
+    if output_tractogram is None :
+        basename, extension = os.path.splitext(input_tractogram)
+        output_tractogram = basename+'_smooth'+extension
+
+    if spline_type == 'centripetal':
+        alpha = 0.5
+    elif spline_type == 'chordal':
+        alpha = 1.0
+    elif spline_type == 'uniform':
+        alpha = 0.0
+    else:
+        ui.ERROR("'spline_type' parameter must be 'centripetal', 'uniform' or 'chordal'")
+
+    if epsilon < 0 :
+        raise ValueError( "'epsilon' parameter must be non-negative" )
+
+    # cdef float [:,:] smoothed_fib = np.zeros((1000,3), dtype=np.float32)
+    # cdef float [:,:] resampled_fib = np.zeros((1000,3), dtype=np.float32)
+    cdef int n_pts_tot = 0
+    cdef int n_pts_in = 0
+    cdef int[:,:,:] mask_view
+    cdef float[:] pt_aff = np.zeros(3, dtype=np.float32)
+    cdef double [:,::1] mask_aff_inv 
+    cdef double [::1,:] M_inv        
+    cdef double [:] abc_inv
+    cdef cbool in_mask
+    cdef float fib_len = 0
+    cdef int n_pts_out = 0
+    cdef int in_mask_count
+    cdef float epsilon_tmp
+    cdef int n_pts_tmp = 0
+    cdef size_t i, j = 0
+    cdef int attempts = 0
+    cdef float threshold = pts_cutoff
+
+    if mask is not None:
+        if not os.path.isfile(mask):
+            ui.ERROR( f'File "{mask}" not found' )
+        mask_nii = nib.load(mask)
+        mask_view = np.ascontiguousarray(mask_nii.get_fdata(), dtype=np.int32)
+        mask_aff_inv = np.linalg.inv(mask_nii.affine)
+        M_inv = mask_aff_inv[:3, :3].T
+        abc_inv = mask_aff_inv[:3, 3]
+
+    try:
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
+        n_streamlines = int( TCK_in.header['count'] )
+
+        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+
+        if verbose :
+            ui.INFO( 'Input tractogram :' )
+            ui.INFO( f'\t- {input_tractogram}' )
+            ui.INFO( f'\t- {n_streamlines} streamlines' )
+
+            mb = os.path.getsize( input_tractogram )/1.0E6
+            if mb >= 1E3:
+                ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+            else:
+                ui.INFO( f'\t- {mb:.2f} MB' )
+
+            ui.INFO( 'Output tractogram :' )
+            ui.INFO( f'\t- {output_tractogram}' )
+            ui.INFO( f'\t- spline type : {spline_type}')
+            if not segment_len==None:
+                ui.INFO( f'\t- segment length : {segment_len:.2f}' )
+            if not streamline_pts==None:
+                ui.INFO( f'\t- number of points : {streamline_pts}' )
+            if mask is not None:
+                ui.INFO( f'\t- mask : {mask}' )
+
+        if streamline_pts!=None:
+            n_pts_out = streamline_pts
+        else:
+            n_pts_out = 50
+
+
+        # process each streamline
+        with ui.ProgressBar( total=n_streamlines ) as pbar:
+            for i in range( n_streamlines ):
+                epsilon_tmp = epsilon
+                in_mask = False
+                TCK_in.read_streamline()
+                n_pts_in = TCK_in.n_pts
+                if TCK_in.n_pts==0:
+                    break # no more data, stop reading
+                while in_mask==False:
+                    # smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha)
+                    fib_red_ptr, n_red = rdp_reduction(TCK_in.streamline, n_pts_in, epsilon_tmp)
+
+                    # check number of points 
+                    if n_red==2: # no need to smooth
+                        smoothed_fib = fib_red_ptr
+                        n_pts_tot = n_red
+                        in_mask = True
+                    else:
+                        smoothed_fib =  spline_smooth(fib_red_ptr, alpha, n_pts_out)
+                        in_mask_count = 0 
+                        for j in range(n_pts_out):
+                            pt_aff = apply_affine_1pt(smoothed_fib[j,:], M_inv, abc_inv, pt_aff)
+                            if mask_view[<int>pt_aff[0],<int>pt_aff[1],<int>pt_aff[2]] > 0:
+                                in_mask_count += 1
+                        if in_mask_count > threshold*n_pts_out:
+                            in_mask = True
+                        else:
+                            # reduce epsilon and try again
+                            attempts += 1
+                            epsilon_tmp = epsilon_tmp-0.1
+                            if epsilon_tmp < 0.1:
+                                smoothed_fib = fib_red_ptr
+                                n_pts_tot = n_pts_in
+                                in_mask = True
+
+                    # compute streamline length
+                    fib_len = length( smoothed_fib, n_pts_out )
+
+                    if segment_len!=None:
+                        n_pts_out = int(fib_len / segment_len)
+
+
+                    # resample smoothed streamline
+                    resampled_fib = resample(smoothed_fib, n_pts_out)
+
+                TCK_out.write_streamline( resampled_fib, n_pts_out )
+                pbar.update()
+
+    except Exception as e:
+        TCK_out.close()
+        if os.path.exists( output_tractogram ):
+            os.remove( output_tractogram )
+        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+
+    finally:
+        TCK_in.close()
+        TCK_out.close()
+
+    if verbose :
+        mb = os.path.getsize( output_tractogram )/1.0E6
+        ui.INFO( f'\t- {attempts} attempts')
+        if mb >= 1E3:
+            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        else:
+            ui.INFO( f'\t- {mb:.2f} MB' )
+
 
 
 cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=1, force=False ):

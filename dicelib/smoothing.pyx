@@ -48,7 +48,6 @@ cdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, flo
     cdef float[:, :, :] segments = np.empty((vertices.shape[0]-1, 4, 3), dtype=np.float32)
     cdef float[:] grid = np.empty(vertices.shape[0], dtype=np.float32)
     cdef float[:,:] prod = np.empty((4, 3), dtype=np.float32)
-    
 
     grid = check_grid(grid, alpha, vertices)
     cdef float[:, :] smoothed = np.empty((num_pts, 3), dtype=np.float32)
