@@ -272,7 +272,7 @@ cpdef sampling(float [:,::1] streamline_view, float [:,:,::1] img_view, int npoi
 
     for ii in range(npoints):
         vox_coords = np.array([int(streamline_view[ii,0]), int(streamline_view[ii,1]), int(streamline_view[ii,2])])
-        if mask_view[vox_coords[0], vox_coords[1], vox_coords[2]] == 0:
+        if mask_view[<int>vox_coords[0], <int>vox_coords[1], <int>vox_coords[2]] == 0:
             value[ii] = np.nan
         else: 
             value[ii] = img_view[<int>streamline_view[ii,0],<int>streamline_view[ii,1],<int>streamline_view[ii,2]] #cast int values
