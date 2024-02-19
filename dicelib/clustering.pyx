@@ -394,6 +394,7 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10):
     cdef int [:] header_params = np.zeros(len(filenames), dtype=np.intc)
     cdef float[:,:,::1] resampled_fib = np.zeros((1,n_pts,3), dtype=np.float32)
     cdef size_t i = 0
+    cdef size_t j = 0
     cdef size_t pp = 0
 
     idx_cl = np.zeros((len(filenames), 100000), dtype=np.intc)

@@ -140,7 +140,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
                             break # no more data, stop reading
                         lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
                         pbar.update()
-                    ui.PRINT( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
+                ui.PRINT( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
             else:
                 ui.WARNING( 'The tractogram is empty' )
 
