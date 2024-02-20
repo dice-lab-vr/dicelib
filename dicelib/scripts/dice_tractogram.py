@@ -2,7 +2,7 @@ from os import makedirs, getcwd, remove
 from os.path import isfile, isdir, exists, splitext, dirname, join as p_join, isabs
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import compute_lengths, filter as t_filter, info, split, recompute_indices, join as t_join, resample, sample, sanitize
+from dicelib.tractogram import compute_lengths, filter as t_filter, info, split, recompute_indices, join as t_join, resample, sample, sanitize, spline_smoothing
 from dicelib.ui import ColoredArgParser, ProgressBar, INFO, ERROR, WARNING, set_verbose
 from time import time
 from concurrent.futures import ThreadPoolExecutor
@@ -505,6 +505,52 @@ def tractogram_sanitize():
         options.step,
         options.max_dist,
         options.save_connecting_tck,
+        options.verbose,
+        options.force
+    )
+
+def tractogram_smooth():
+    # parse the input parameters
+    parser = ColoredArgParser(description=spline_smoothing.__doc__.split('\n')[0])
+    args = [
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+        [['--ratio', '-r'], {'type': float, 'default': 0.25, 'help': 'Ratio of points to be kept/used as control points'}],
+        [['--step', '-s'], {'type': float, 'default': 1.0, 'help': 'Sampling step for the output streamlines [in mm]'}],
+        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}],
+        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
+    ]
+    for arg in args:
+        parser.add_argument(*arg[0], **arg[1])
+    options = parser.parse_args()
+
+    # check if path to input and output files are valid
+    if not isfile(options.input_tractogram):
+        ERROR(f"Input tractogram file not found: {options.input_tractogram}")
+    if isfile(options.output_tractogram) and not options.force:
+        ERROR(f"Output tractogram file already exists: {options.output_tractogram}")
+    # check if the output tractogram file has the correct extension
+    output_tractogram_ext = splitext(options.output_tractogram)[1]
+    if output_tractogram_ext not in ['.trk', '.tck']:
+        ERROR("Invalid extension for the output tractogram file")
+
+    # check if output tractogram file has absolute path and if not, add the
+    # current working directory
+    if not isabs(options.output_tractogram):
+        options.output_tractogram = p_join(getcwd(), options.output_tractogram)
+
+    # check if ratio and step are valid
+    if options.ratio < 0.0 or options.ratio > 1.0:
+        ERROR("Invalid ratio, must be between 0 and 1")
+    if options.step <= 0.0:
+        ERROR("Invalid step, must be greater than 0")
+
+    # call actual function
+    spline_smoothing(
+        options.input_tractogram,
+        options.output_tractogram,
+        options.ratio,
+        options.step,
         options.verbose,
         options.force
     )
