@@ -2,7 +2,7 @@ from os import makedirs, getcwd, remove
 from os.path import isfile, isdir, exists, splitext, dirname, join as p_join, isabs
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import compute_lengths, filter as t_filter, info, split, recompute_indices, join as t_join, resample, sample
+from dicelib.tractogram import compute_lengths, filter as t_filter, info, split, recompute_indices, join as t_join, resample, sample, sanitize
 from dicelib.ui import ColoredArgParser, ProgressBar, INFO, ERROR, WARNING, set_verbose
 from time import time
 from concurrent.futures import ThreadPoolExecutor
@@ -476,6 +476,37 @@ def tractogram_sample():
         options.option,
         options.force,
         options.verbose
+    )
+
+def tractogram_sanitize():
+    # parse the input parameters
+    parser = ColoredArgParser(description=sanitize.__doc__.split('\n')[0])
+    args = [
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['gray_matter'], {'type': str, 'help': 'Gray matter'}],
+        [['white_matter'], {'type': str, 'help': 'White matter'}],
+        [['--output_tractogram', '-out'], {'type': str, 'help': 'Output tractogram (if None: "_sanitized" appended to the input filename)'}],
+        [['--step'], {'type': float, 'default': 0.2, 'help': 'Step size [in mm]'}],
+        [['--max_dist'], {'type': float, 'default': 2, 'help': 'Maximum distance [in mm]'}],
+        [['--save_connecting_tck', '-conn'], {'action': 'store_true', 'default': False, 'help': 'Save also tractogram with only the actual connecting streamlines (if True: "_only_connecting" appended to the output filename)'}],
+        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}],
+        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
+    ]
+    for arg in args:
+        parser.add_argument(*arg[0], **arg[1])
+    options = parser.parse_args()
+
+    # call actual function
+    sanitize(
+        options.input_tractogram,
+        options.gray_matter,
+        options.white_matter,
+        options.output_tractogram,
+        options.step,
+        options.max_dist,
+        options.save_connecting_tck,
+        options.verbose,
+        options.force
     )
 
 def tractogram_split():
