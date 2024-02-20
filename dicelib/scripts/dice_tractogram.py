@@ -6,6 +6,8 @@ from dicelib.tsf import Tsf
 from dicelib.ui import ColoredArgParser, ERROR, INFO, ProgressBar, set_verbose, WARNING
 
 from concurrent.futures import ThreadPoolExecutor
+from dipy.io.stateful_tractogram import set_sft_logger_level
+from dipy.io.streamline import load_tractogram, save_tractogram
 import numpy as np
 from os import getcwd, makedirs, remove
 from os.path import dirname, exists, isabs, isfile, isdir, join as p_join, splitext 
@@ -241,6 +243,51 @@ def tractogram_compress():
     options = parser.parse_args()
 
     WARNING('This function is not implemented yet')
+
+def tractogram_convert():
+    set_sft_logger_level("CRITICAL")
+
+    parser = ColoredArgParser(description="Tractogram conversion from and to '.tck', '.trk', '.fib', '.vtk' and 'dpy'. All the extensions except '.trk, need a NIFTI file as reference")
+    args = [
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+        [['--reference', '-r'], {'type': str, 'help': 'Space attributes used as reference for the input tractogram'}],
+        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
+    ]
+    for arg in args:
+        parser.add_argument(*arg[0], **arg[1])
+    options = parser.parse_args()
+
+    if not isfile(options.input_tractogram):
+        ERROR("No such file {}".format(options.input_tractogram))
+    if isfile(options.output_tractogram) and not options.force:
+        ERROR("Output tractogram already exists, use -f to overwrite")
+    if options.reference is not None:
+        if not isfile(options.reference):
+            ERROR("No such file {}".format(options.reference))
+
+    if not options.input_tractogram.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
+        ERROR("Invalid input tractogram format")
+    elif not options.output_tractogram.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
+        ERROR("Invalid input tractogram format")
+    elif options.reference is not None and not options.reference.endswith(('.nii', 'nii.gz')):
+        ERROR("Invalid reference format")
+
+    if options.input_tractogram.endswith('.tck') and options.reference is None:
+        ERROR("Reference is required if the input format is '.tck'")
+
+    try:
+        sft_in = load_tractogram(
+            options.input_tractogram,
+            reference=options.reference if options.reference else "same"
+        )
+    except Exception:
+        raise ValueError("Error loading input tractogram")
+    
+    try:
+        save_tractogram(sft_in, options.output_tractogram)
+    except (OSError, TypeError) as e:
+        ERROR(f"Output not valid: {e}")
 
 def tractogram_filter():
     # parse the input parameters
