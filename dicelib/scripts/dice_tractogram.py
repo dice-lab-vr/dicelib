@@ -1,14 +1,15 @@
-from os import makedirs, getcwd, remove
-from os.path import isfile, isdir, exists, splitext, dirname, join as p_join, isabs
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import compute_lengths, filter as t_filter, info, split, recompute_indices, join as t_join, resample, sample, sanitize, spline_smoothing
-from dicelib.ui import ColoredArgParser, ProgressBar, INFO, ERROR, WARNING, set_verbose
-from time import time
+from dicelib.lazytractogram import LazyTractogram
+from dicelib.tractogram import compute_lengths, filter as t_filter, info, join as t_join, recompute_indices, resample, sample, sanitize, spline_smoothing, split
+from dicelib.tsf import Tsf
+from dicelib.ui import ColoredArgParser, ERROR, INFO, ProgressBar, set_verbose, WARNING
+
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
-from dicelib.lazytractogram import LazyTractogram
-from dicelib.tsf import Tsf
+from os import getcwd, makedirs, remove
+from os.path import dirname, exists, isabs, isfile, isdir, join as p_join, splitext 
+from time import time
 
 def compute_chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
@@ -65,93 +66,78 @@ def color_by_scalar_file(streamline, values, num_streamlines):
         scalar_list.extend(streamline_points)
     return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
 
-def tractogram_filter():
+def tractogram_assign():
     # parse the input parameters
-    parser = ColoredArgParser(description=t_filter.__doc__.split('\n')[0])
+    parser = ColoredArgParser(description=assign.__doc__.split('\n')[0])
     args = [
         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
-        [['--minlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
-        [['--maxlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
-        [['--minweight'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
-        [['--maxweight'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
-        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
-        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
-        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': 'Randomly discard streamlines: 0=discard all, 1=keep all'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
+        [['atlas'], {'type': str, 'help': 'Atlas used to compute streamlines assignments'}],
+        [['--conn_threshold', '-t'], {'type': float, 'default': 2, 'metavar': 'THR', 'help': 'Threshold [in mm]'}],
+        [['--save_assignments'], {'type': str, 'help': 'Save the cluster assignments to file'}],
+        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwrite'}],
+        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
     ]
     for arg in args:
         parser.add_argument(*arg[0], **arg[1])
     options = parser.parse_args()
 
-    # check if path to input and output files are valid
-    if not isfile(options.input_tractogram):
-        ERROR(f"Input tractogram file not found: {options.input_tractogram}")
-    if isfile(options.output_tractogram) and not options.force:
-        ERROR(f"Output tractogram file already exists: {options.output_tractogram}")
-    # check if the output tractogram file has the correct extension
-    output_tractogram_ext = splitext(options.output_tractogram)[1]
-    if output_tractogram_ext not in ['.trk', '.tck']:
-        ERROR("Invalid extension for the output tractogram file")
+    set_verbose(options.verbose)
 
-    # check if output tractogram file has absolute path and if not, add the
-    # current working directory
-    if not isabs(options.output_tractogram):
-        options.output_tractogram = join(getcwd(), options.output_tractogram)
+    out_assignment_ext = splitext(options.save_assignments)[1]
+    if out_assignment_ext not in ['.txt', '.npy']:
+        ERROR('Invalid extension for the output scalar file')
+    elif isfile(options.save_assignments) and not options.force:
+        ERROR('Output scalar file already exists, use -f to overwrite')
 
-    # check if the input weights file is valid
-    if options.weights_in:
-        if not isfile(options.weights_in):
-            ERROR(f"Input weights file not found: {options.weights_in}")
-        if options.weights_out and isfile(options.weights_out) and not options.force:
-            ERROR(f"Output weights file already exists: {options.weights_out}")
+    # check if path to save assignments exists and create it if not
+    if not exists(dirname(options.save_assignments)):
+        makedirs(dirname(options.save_assignments))
 
-    # check if the input weights file has absolute path and if not, add the
-    # current working directory
-    if options.weights_in and not isabs(options.weights_in):
-        options.weights_in = join(getcwd(), options.weights_in)
+    # check if atlas exists
+    if not exists(options.atlas):
+        ERROR('Atlas does not exist')
 
-    # check if the output weights file has absolute path and if not, add the
-    # current working directory
-    if options.weights_out and not isabs(options.weights_out):
-        options.weights_out = join(getcwd(), options.weights_out)
+    num_streamlines = int(LazyTractogram(options.input_tractogram, mode='r').header["count"])
+    INFO(f"Computing assignments for {num_streamlines} streamlines")
 
-    # call actual function
-    t_filter(
-        options.input_tractogram,
-        options.output_tractogram,
-        options.minlength,
-        options.maxlength,
-        options.minweight,
-        options.maxweight,
-        options.weights_in,
-        options.weights_out,
-        options.random,
-        options.verbose,
-        options.force
-    )
+    if num_streamlines > 3:
+        MAX_THREAD = 3
+    else:
+        MAX_THREAD = 1
 
-def tractogram_compress():
-    # parse the input parameters
-    parser = ColoredArgParser(description='Not implemented')
-    args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
-        [['--minlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
-        [['--maxlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
-        [['--minweight'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
-        [['--maxweight'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
-        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
-        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
-    ]
-    for arg in args:
-        parser.add_argument(*arg[0], **arg[1])
-    options = parser.parse_args()
+    chunk_size = int(num_streamlines / MAX_THREAD)
+    chunk_groups = [e for e in compute_chunks(np.arange(num_streamlines), chunk_size)]
+    chunks_asgn = []
+    
+    pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
+    t0 = time()
+    with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=(options.verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+        with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
+            future = [
+                executor.submit(
+                    assign,
+                    options.input_tractogram,
+                    pbar_array,
+                    i,
+                    start_chunk=int(chunk_groups[i][0]),
+                    end_chunk=int(chunk_groups[i][len(chunk_groups[i]) - 1] + 1),
+                    gm_map_file=options.atlas,
+                    threshold=options.conn_threshold)
+                    for i in range(len(chunk_groups)
+                )
+            ]
+            chunks_asgn = [f.result() for f in future]
+            chunks_asgn = [c for f in chunks_asgn for c in f]
 
-    WARNING('This function is not implemented yet')
+    t1 = time()
+    INFO(f"Time taken to compute assignments: {np.round((t1-t0),2)} seconds")
+
+    if out_assignment_ext == '.txt':
+        with open(options.save_assignments, "w") as text_file:
+            for reg in chunks_asgn:
+                print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
+    else:
+        np.save(options.save_assignments, chunks_asgn, allow_pickle=False)
 
 def tractogram_cluster():
     # parse the input parameters
@@ -235,78 +221,93 @@ def tractogram_cluster():
         verbose=options.verbose
     )
 
-def tractogram_assign():
+def tractogram_compress():
     # parse the input parameters
-    parser = ColoredArgParser(description=assign.__doc__.split('\n')[0])
+    parser = ColoredArgParser(description='Not implemented')
     args = [
         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['atlas'], {'type': str, 'help': 'Atlas used to compute streamlines assignments'}],
-        [['--conn_threshold', '-t'], {'type': float, 'default': 2, 'metavar': 'THR', 'help': 'Threshold [in mm]'}],
-        [['--save_assignments'], {'type': str, 'help': 'Save the cluster assignments to file'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwrite'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+        [['--minlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
+        [['--maxlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
+        [['--minweight'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
+        [['--maxweight'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
+        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
+        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
+        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}],
+        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
     ]
     for arg in args:
         parser.add_argument(*arg[0], **arg[1])
     options = parser.parse_args()
 
-    set_verbose(options.verbose)
+    WARNING('This function is not implemented yet')
 
-    out_assignment_ext = splitext(options.save_assignments)[1]
-    if out_assignment_ext not in ['.txt', '.npy']:
-        ERROR('Invalid extension for the output scalar file')
-    elif isfile(options.save_assignments) and not options.force:
-        ERROR('Output scalar file already exists, use -f to overwrite')
+def tractogram_filter():
+    # parse the input parameters
+    parser = ColoredArgParser(description=t_filter.__doc__.split('\n')[0])
+    args = [
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+        [['--minlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
+        [['--maxlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
+        [['--minweight'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
+        [['--maxweight'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
+        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
+        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
+        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': 'Randomly discard streamlines: 0=discard all, 1=keep all'}],
+        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}],
+        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
+    ]
+    for arg in args:
+        parser.add_argument(*arg[0], **arg[1])
+    options = parser.parse_args()
 
-    # check if path to save assignments exists and create it if not
-    if not exists(dirname(options.save_assignments)):
-        makedirs(dirname(options.save_assignments))
+    # check if path to input and output files are valid
+    if not isfile(options.input_tractogram):
+        ERROR(f"Input tractogram file not found: {options.input_tractogram}")
+    if isfile(options.output_tractogram) and not options.force:
+        ERROR(f"Output tractogram file already exists: {options.output_tractogram}")
+    # check if the output tractogram file has the correct extension
+    output_tractogram_ext = splitext(options.output_tractogram)[1]
+    if output_tractogram_ext not in ['.trk', '.tck']:
+        ERROR("Invalid extension for the output tractogram file")
 
-    # check if atlas exists
-    if not exists(options.atlas):
-        ERROR('Atlas does not exist')
+    # check if output tractogram file has absolute path and if not, add the
+    # current working directory
+    if not isabs(options.output_tractogram):
+        options.output_tractogram = join(getcwd(), options.output_tractogram)
 
-    num_streamlines = int(LazyTractogram(options.input_tractogram, mode='r').header["count"])
-    INFO(f"Computing assignments for {num_streamlines} streamlines")
+    # check if the input weights file is valid
+    if options.weights_in:
+        if not isfile(options.weights_in):
+            ERROR(f"Input weights file not found: {options.weights_in}")
+        if options.weights_out and isfile(options.weights_out) and not options.force:
+            ERROR(f"Output weights file already exists: {options.weights_out}")
 
-    if num_streamlines > 3:
-        MAX_THREAD = 3
-    else:
-        MAX_THREAD = 1
+    # check if the input weights file has absolute path and if not, add the
+    # current working directory
+    if options.weights_in and not isabs(options.weights_in):
+        options.weights_in = join(getcwd(), options.weights_in)
 
-    chunk_size = int(num_streamlines / MAX_THREAD)
-    chunk_groups = [e for e in compute_chunks(np.arange(num_streamlines), chunk_size)]
-    chunks_asgn = []
-    
-    pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
-    t0 = time()
-    with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=(options.verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
-        with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
-            future = [
-                executor.submit(
-                    assign,
-                    options.input_tractogram,
-                    pbar_array,
-                    i,
-                    start_chunk=int(chunk_groups[i][0]),
-                    end_chunk=int(chunk_groups[i][len(chunk_groups[i]) - 1] + 1),
-                    gm_map_file=options.atlas,
-                    threshold=options.conn_threshold)
-                    for i in range(len(chunk_groups)
-                )
-            ]
-            chunks_asgn = [f.result() for f in future]
-            chunks_asgn = [c for f in chunks_asgn for c in f]
+    # check if the output weights file has absolute path and if not, add the
+    # current working directory
+    if options.weights_out and not isabs(options.weights_out):
+        options.weights_out = join(getcwd(), options.weights_out)
 
-    t1 = time()
-    INFO(f"Time taken to compute assignments: {np.round((t1-t0),2)} seconds")
-
-    if out_assignment_ext == '.txt':
-        with open(options.save_assignments, "w") as text_file:
-            for reg in chunks_asgn:
-                print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
-    else:
-        np.save(options.save_assignments, chunks_asgn, allow_pickle=False)
+    # call actual function
+    t_filter(
+        options.input_tractogram,
+        options.output_tractogram,
+        options.minlength,
+        options.maxlength,
+        options.minweight,
+        options.maxweight,
+        options.weights_in,
+        options.weights_out,
+        options.random,
+        options.verbose,
+        options.force
+    )
 
 def tractogram_indices():
     # parse the input parameters
