@@ -128,6 +128,5 @@ setup(
         'build_ext': CustomBuildExtCommand,
         'clean': CleanCommand
     },
-    ext_modules=get_extensions(),
-    scripts=glob('bin/*.py')
+    ext_modules=get_extensions()
 )
