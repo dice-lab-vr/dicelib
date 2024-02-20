@@ -52,6 +52,7 @@ Issues = "https://github.com/dice-lab-vr/dicelib/issues"
 Changelog = "https://github.com/dice-lab-vr/dicelib/blob/master/CHANGELOG.md"
 
 [project.scripts]
+dice_connectome_build = "dicelib.scripts.dice_connectome:connectome_build"
 dice_tractogram_assign = "dicelib.scripts.dice_tractogram:tractogram_assign"
 dice_tractogram_cluster = "dicelib.scripts.dice_tractogram:tractogram_cluster"
 dice_tractogram_compress = "dicelib.scripts.dice_tractogram:tractogram_compress"
