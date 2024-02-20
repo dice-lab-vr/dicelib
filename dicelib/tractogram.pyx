@@ -5,7 +5,7 @@ cimport numpy as np
 import os, glob, random as rnd
 from dicelib.lazytractogram import LazyTractogram
 from dicelib.streamline import length as streamline_length
-from dicelib.streamline import smooth, apply_smoothing, set_number_of_points, rdp_reduction, length, resample
+from dicelib.streamline import smooth, apply_smoothing, set_number_of_points, rdp_reduction, length, resample as s_resample
 from dicelib.smoothing import spline_smooth
 
 from . import ui
@@ -1256,7 +1256,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
 
 
                     # resample smoothed streamline
-                    resampled_fib = resample(smoothed_fib, n_pts_out)
+                    resampled_fib = s_resample(smoothed_fib, n_pts_out)
 
                 TCK_out.write_streamline( resampled_fib, n_pts_out )
                 pbar.update()
@@ -1534,7 +1534,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
         file.close()
 
 
-cpdef tractogram_resample(input_tractogram, output_tractogram, nb_pts, verbose=4, force=False):
+cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=4, force=False):
     """Set the number of points of each streamline in the input tractogram.
 
     Parameters
