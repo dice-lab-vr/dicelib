@@ -20,8 +20,8 @@ from libcpp cimport bool as cbool
 from dicelib.space_transf import space_tovox
 
 
-def compute_lenghts( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
-    """Compute the lenghts of the streamlines in a tractogram.
+def compute_lengths( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
+    """Compute the lengths of the streamlines in a tractogram.
 
     Parameters
     ----------
@@ -88,7 +88,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
         Path to the file (.tck) containing the streamlines to process.
 
     compute_lengths : boolean
-        Show stats on streamline lenghts (default : False).
+        Show stats on streamline lengths (default : False).
 
     max_field_length : int
         Maximum length allowed for printing a field value (default : all chars)
@@ -129,7 +129,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
 
         # print stats on lengths
         if compute_lengths:
-            ui.INFO( 'Streamline lenghts')
+            ui.INFO( 'Streamline lengths')
             n_streamlines = int( TCK_in.header['count'] )
             if n_streamlines>0:
                 lengths = np.empty( n_streamlines, dtype=np.double )
@@ -1565,7 +1565,7 @@ cpdef tractogram_resample(input_tractogram, output_tractogram, nb_pts, verbose=4
         basename, extension = os.path.splitext(input_tractogram)
         output_tractogram = basename+'_nbpts'+extension
 
-    cdef float [::1] lenghts = np.empty( 1000, dtype=np.float32 )
+    cdef float [::1] lengths = np.empty( 1000, dtype=np.float32 )
     cdef float [:,::1] s0 = np.empty( (nb_pts, 3), dtype=np.float32 )
     cdef float [::1] vers = np.empty( 3, dtype=np.float32 )
 
@@ -1593,7 +1593,7 @@ cpdef tractogram_resample(input_tractogram, output_tractogram, nb_pts, verbose=4
     with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
         for i in range( n_streamlines ):
             TCK_in.read_streamline() 
-            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0, vers, lenghts)
+            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0, vers, lengths)
             TCK_out.write_streamline( s0, nb_pts )
             pbar.update()
 

@@ -37,29 +37,29 @@ cdef float[:,::1] extract_ending_pts(float[:,::1] fib_in, float[:,::1] resampled
     return resampled_fib
 
 
-cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib, float *vers, float *lenghts) noexcept nogil:
+cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib, float *vers, float *lengths) noexcept nogil:
     cdef int nb_pts_in = fib_in.shape[0]
     cdef size_t i = 0
     cdef size_t j = 0
     cdef float sum_step = 0
-    tot_lenght(fib_in, lenghts)
+    tot_lenght(fib_in, lengths)
 
-    cdef float step_size = lenghts[nb_pts_in-1]/(nb_pts-1)
+    cdef float step_size = lengths[nb_pts_in-1]/(nb_pts-1)
     cdef float ratio = 0
 
-    # for i in xrange(1, lenghts.shape[0]-1):
+    # for i in xrange(1, lengths.shape[0]-1):
     resampled_fib[0][0] = fib_in[0][0]
     resampled_fib[0][1] = fib_in[0][1]
     resampled_fib[0][2] = fib_in[0][2]
-    while sum_step < lenghts[nb_pts_in-1]:
-        if sum_step == lenghts[i]:
+    while sum_step < lengths[nb_pts_in-1]:
+        if sum_step == lengths[i]:
             resampled_fib[j][0] = fib_in[i][0] 
             resampled_fib[j][1] = fib_in[i][1]
             resampled_fib[j][2] = fib_in[i][2]
             j += 1
             sum_step += step_size
-        elif sum_step < lenghts[i]:
-            ratio = 1 - ((lenghts[i]- sum_step)/(lenghts[i]-lenghts[i-1]))
+        elif sum_step < lengths[i]:
+            ratio = 1 - ((lengths[i]- sum_step)/(lengths[i]-lengths[i-1]))
             vers[0] = fib_in[i][0] - fib_in[i-1][0]
             vers[1] = fib_in[i][1] - fib_in[i-1][1]
             vers[2] = fib_in[i][2] - fib_in[i-1][2]
@@ -75,7 +75,7 @@ cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] res
     resampled_fib[nb_pts-1][2] = fib_in[nb_pts_in-1][2]
 
     # free(vers)
-    # free(lenghts)
+    # free(lengths)
 
 
 cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float thr,
@@ -207,7 +207,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
     cdef float[:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
     cdef float* vers = <float*>malloc(3*sizeof(float))
-    cdef float* lenghts = <float*>malloc(1000*sizeof(float))
+    cdef float* lengths = <float*>malloc(1000*sizeof(float))
     TCK_in._read_streamline() 
     cdef size_t pp = 0
 
@@ -217,7 +217,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
             s0[pp][1] = TCK_in.streamline[pp][1]
             s0[pp][2] = TCK_in.streamline[pp][2]
     else:
-        set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0, vers, lenghts)
+        set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0, vers, lengths)
 
     cdef float[:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::1] streamline_in = np.zeros((nb_pts,3), dtype=np.float32)
@@ -251,7 +251,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
                     streamline_in[pp][1] = TCK_in.streamline[pp][1]
                     streamline_in[pp][2] = TCK_in.streamline[pp][2]
             else:
-                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, streamline_in[:] , vers, lenghts)
+                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, streamline_in[:] , vers, lengths)
             t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
 
             clust_idx[i]= t
@@ -326,7 +326,7 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     cdef LazyTractogram TCK_in = LazyTractogram( file_name_in, mode='r' )
     cdef int n_streamlines = int( TCK_in.header['count'] )
     cdef float* vers = <float*>malloc(3*sizeof(float))
-    cdef float* lenghts = <float*>malloc(1000*sizeof(float))
+    cdef float* lengths = <float*>malloc(1000*sizeof(float))
     cdef size_t p = 0
 
     
@@ -340,7 +340,7 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
                     fib_in[p][1] = TCK_in.streamline[p][1]
                     fib_in[p][2] = TCK_in.streamline[p][2]
             else:
-                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, fib_in[:] , vers, lenghts)
+                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, fib_in[:] , vers, lengths)
             maxdist_pt_d = 0
             maxdist_pt_i = 0
 
@@ -400,7 +400,7 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10):
     idx_cl = np.zeros((len(filenames), 100000), dtype=np.intc)
     cdef int[:,::1] idx_closest = idx_cl
     cdef float* vers = <float*>malloc(3*sizeof(float))
-    cdef float* lenghts = <float*>malloc(1000*sizeof(float))
+    cdef float* lengths = <float*>malloc(1000*sizeof(float))
 
     for i, filename in enumerate(filenames):
         TCK_in = LazyTractogram( filename, mode='r', max_points=1000 )
@@ -415,7 +415,7 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10):
                 set_centroids[i, 0, pp, 1] = TCK_in.streamline[pp][1]
                 set_centroids[i, 0, pp, 2] = TCK_in.streamline[pp][2]
         else:
-            set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, set_centroids[i, 0], vers, lenghts)
+            set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, set_centroids[i, 0], vers, lengths)
         TCK_in.close()
 
 
@@ -437,10 +437,10 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10):
                     resampled_streamlines[i, st, pp, 1] = TCK_in.streamline[pp][1]
                     resampled_streamlines[i, st, pp, 2] = TCK_in.streamline[pp][2]
             else:
-                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, resampled_streamlines[i, st], vers, lenghts)
+                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, resampled_streamlines[i, st], vers, lengths)
         TCK_in.close()
     free(vers)
-    free(lenghts)
+    free(lengths)
     
     cdef int nb_pts = n_pts
     idx_cl_return = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.intc)

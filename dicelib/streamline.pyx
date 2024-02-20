@@ -183,28 +183,28 @@ cpdef resample (streamline, nb_pts) :
     cdef size_t j = 0
     cdef float sum_step = 0
     cdef float[:] vers = np.zeros(3, dtype=np.float32)
-    cdef float[:] lenghts = np.zeros(nb_pts_in, dtype=np.float32)
+    cdef float[:] lengths = np.zeros(nb_pts_in, dtype=np.float32)
     cdef float[:,::1] fib_in = np.ascontiguousarray(streamline, dtype=np.float32)
     
-    resample_len(fib_in, &lenghts[0])
+    resample_len(fib_in, &lengths[0])
 
-    cdef float step_size = lenghts[nb_pts_in-1]/(nb_pts-1)
+    cdef float step_size = lengths[nb_pts_in-1]/(nb_pts-1)
     cdef float sum_len = 0
     cdef float ratio = 0
 
-    # for i in xrange(1, lenghts.shape[0]-1):
+    # for i in xrange(1, lengths.shape[0]-1):
     resampled_fib[0][0] = fib_in[0][0]
     resampled_fib[0][1] = fib_in[0][1]
     resampled_fib[0][2] = fib_in[0][2]
-    while sum_step < lenghts[nb_pts_in-1]:
-        if sum_step == lenghts[i]:
+    while sum_step < lengths[nb_pts_in-1]:
+        if sum_step == lengths[i]:
             resampled_fib[j][0] = fib_in[i][0] 
             resampled_fib[j][1] = fib_in[i][1]
             resampled_fib[j][2] = fib_in[i][2]
             j += 1
             sum_step += step_size
-        elif sum_step < lenghts[i]:
-            ratio = 1 - ((lenghts[i]- sum_step)/(lenghts[i]-lenghts[i-1]))
+        elif sum_step < lengths[i]:
+            ratio = 1 - ((lengths[i]- sum_step)/(lengths[i]-lengths[i-1]))
             vers[0] = fib_in[i][0] - fib_in[i-1][0]
             vers[1] = fib_in[i][1] - fib_in[i-1][1]
             vers[2] = fib_in[i][2] - fib_in[i-1][2]
@@ -294,29 +294,29 @@ cpdef sampling(float [:,::1] streamline_view, float [:,:,::1] img_view, int npoi
         return value
 
 
-cpdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib, float[::1] vers, float[::1] lenghts):# noexcept nogil:
+cpdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib, float[::1] vers, float[::1] lengths):# noexcept nogil:
     cdef int nb_pts_in = fib_in.shape[0]
     cdef size_t i = 0
     cdef size_t j = 0
     cdef float sum_step = 0
-    tot_lenght(fib_in, lenghts)
+    tot_lenght(fib_in, lengths)
 
-    cdef float step_size = lenghts[nb_pts_in-1]/(nb_pts-1)
+    cdef float step_size = lengths[nb_pts_in-1]/(nb_pts-1)
     cdef float ratio = 0
 
-    # for i in xrange(1, lenghts.shape[0]-1):
+    # for i in xrange(1, lengths.shape[0]-1):
     resampled_fib[0][0] = fib_in[0][0]
     resampled_fib[0][1] = fib_in[0][1]
     resampled_fib[0][2] = fib_in[0][2]
-    while sum_step < lenghts[nb_pts_in-1]:
-        if sum_step == lenghts[i]:
+    while sum_step < lengths[nb_pts_in-1]:
+        if sum_step == lengths[i]:
             resampled_fib[j][0] = fib_in[i][0] 
             resampled_fib[j][1] = fib_in[i][1]
             resampled_fib[j][2] = fib_in[i][2]
             j += 1
             sum_step += step_size
-        elif sum_step < lenghts[i]:
-            ratio = 1 - ((lenghts[i]- sum_step)/(lenghts[i]-lenghts[i-1]))
+        elif sum_step < lengths[i]:
+            ratio = 1 - ((lengths[i]- sum_step)/(lengths[i]-lengths[i-1]))
             vers[0] = fib_in[i][0] - fib_in[i-1][0]
             vers[1] = fib_in[i][1] - fib_in[i-1][1]
             vers[2] = fib_in[i][2] - fib_in[i-1][2]
