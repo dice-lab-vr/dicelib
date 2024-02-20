@@ -2,7 +2,7 @@ from os import makedirs, getcwd, remove
 from os.path import isfile, isdir, exists, splitext, dirname, join as p_join, isabs
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import compute_lengths, filter as t_filter, info, split, recompute_indices, join as t_join, resample
+from dicelib.tractogram import compute_lengths, filter as t_filter, info, split, recompute_indices, join as t_join, resample, sample
 from dicelib.ui import ColoredArgParser, ProgressBar, INFO, ERROR, WARNING, set_verbose
 from time import time
 from concurrent.futures import ThreadPoolExecutor
@@ -447,6 +447,35 @@ def tractogram_resample():
         options.nb_points,
         options.verbose,
         options.force,
+    )
+
+def tractogram_sample():
+    # parse the input parameters
+    parser = ColoredArgParser(description=sample.__doc__.split('\n')[0])
+    args = [
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['input_image'], {'type': str, 'help': 'Input image'}],
+        [['output_file'], {'type': str, 'help': 'File for the output'}],
+        [['--mask', '-m'], {'type': str, 'default': None, 'help': 'Optional mask to restrict the sampling voxels'}],
+        [['--space'], {'type': str, 'nargs': '?', 'default': None, 'choices': ['voxmm', 'rasmm', 'vox'], 'help': 'Current reference space of streamlines (rasmm, voxmm, vox), default rasmm'}],
+        [['--option'], {'type': str, 'nargs': '?', 'default': 'No_opt', 'choices': ['No_opt', 'mean', 'median', 'min', 'max'], 'help': 'Operation to apply on streamlines, default no operation applied'}],
+        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
+        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+    ]
+    for arg in args:
+        parser.add_argument(*arg[0], **arg[1])
+    options = parser.parse_args()
+
+    # call actual function
+    sample(
+        options.input_tractogram,
+        options.input_image,
+        options.output_file,
+        options.mask,
+        options.space,
+        options.option,
+        options.force,
+        options.verbose
     )
 
 def tractogram_split():
