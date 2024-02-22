@@ -402,6 +402,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             max_open = int(limit*10)
             win32file._setmaxstdio(max_open)
     elif sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
+        import resource
         limit, limit_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         if max_open is not None and max_open > limit:
             resource.setrlimit(resource.RLIMIT_NOFILE, (max_open, limit_hard))
