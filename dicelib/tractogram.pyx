@@ -7,6 +7,7 @@ from dicelib.lazytractogram import LazyTractogram
 from dicelib.streamline import length as streamline_length
 from dicelib.streamline import smooth, apply_smoothing, set_number_of_points, rdp_reduction, length, resample as s_resample
 from dicelib.smoothing import spline_smooth
+import sys
 
 from . import ui
 import nibabel as nib
@@ -345,7 +346,11 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         file will be created for each splitted tractogram, using the same filename prefix.
 
     max_open : integer
-        Maximum number of files opened at the same time (default : 90% of SC_OPEN_MAX system variable).
+        Maximum number of files opened at the same time (default : None).
+        If the specified value is greater than the system limit, the latter will be increased.
+        If None, the following values are used:
+            - on Windows: default system limit * 10
+            - on Unix: 50% of the default system hard limit
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 1).
@@ -388,8 +393,22 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         w_idx = np.zeros_like( w, dtype=np.int32 )
         ui.INFO( f'Loaded {w.size} streamline weights' )
 
-    if max_open is None:
-        max_open = int( os.sysconf('SC_OPEN_MAX')*0.9 )
+    if sys.platform.startswith('win32'):
+        import win32file
+        limit = win32file._getmaxstdio()
+        if max_open is not None and max_open > limit:
+            win32file._setmaxstdio(max_open)
+        if max_open is None:
+            max_open = int(limit*10)
+            win32file._setmaxstdio(max_open)
+    else if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
+        limit, limit_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if max_open is not None and max_open > limit:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (max_open, limit_hard))
+        if max_open is None:
+            max_open = int(limit_hard*0.5)
+            resource.setrlimit(resource.RLIMIT_NOFILE, (max_open, limit_hard))
+    
     ui.INFO( f'Using {max_open} files open simultaneously' )
 
     #----- iterate over input streamlines -----
