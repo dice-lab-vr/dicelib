@@ -397,7 +397,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         import win32file
         limit = win32file._getmaxstdio()
         if max_open is not None and max_open > limit:
-            win32file._setmaxstdio(max_open)
+            win32file._setmaxstdio(int(max_open*2))
         if max_open is None:
             max_open = int(limit*10)
             win32file._setmaxstdio(max_open)
@@ -405,7 +405,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         import resource
         limit, limit_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         if max_open is not None and max_open > limit:
-            resource.setrlimit(resource.RLIMIT_NOFILE, (max_open, limit_hard))
+            resource.setrlimit(resource.RLIMIT_NOFILE, (int(max_open*2), limit_hard))
         if max_open is None:
             max_open = int(limit_hard*0.5)
             resource.setrlimit(resource.RLIMIT_NOFILE, (max_open, limit_hard))
