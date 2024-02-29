@@ -11,10 +11,13 @@ from dicelib.connectivity import assign
 from dicelib.tractogram import split as split_bundles
 from libc.math cimport sqrt
 from libc.stdlib cimport malloc, free
+from libcpp cimport bool
 import time
 from concurrent.futures import ThreadPoolExecutor as tdp
 import concurrent.futures as cf
 from dicelib import ui
+import shutil
+
 
 
 cdef void tot_lenght(float[:,::1] fib_in, float* length) noexcept nogil:
@@ -78,13 +81,61 @@ cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] res
     # free(lengths)
 
 
-cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float thr,
+cdef (int, int) compute_dist_mean(float[:,::1] fib_in, float[:,:,::1] target, float thr,
+                            float d1_x, float d1_y, float d1_z, int num_c, int num_pt) noexcept nogil:
+    """Compute the distance between a fiber and a set of centroids"""
+    cdef float meandist_pt   = 0
+    cdef float meandist_pt_d = 0
+    cdef float meandist_pt_i = 0
+    cdef float meandist_fib = 10000000000
+    cdef int  i = 0
+    cdef int  j = 0
+    cdef int idx_ret = 0
+    cdef int flipped_temp = 0
+    cdef int flipped = 0
+
+    for i in xrange(num_c):
+        meandist_pt_d = 0
+        meandist_pt_i = 0
+
+        for j in xrange(num_pt):
+
+            d1_x = (target[i][j][0] - fib_in[j][0])**2
+            d1_y = (target[i][j][1] - fib_in[j][1])**2
+            d1_z = (target[i][j][2] - fib_in[j][2])**2
+
+            meandist_pt_d += sqrt(d1_x + d1_y + d1_z)
+
+
+            d1_x = (target[i][j][0] - fib_in[num_pt-j-1][0])**2
+            d1_y = (target[i][j][1] - fib_in[num_pt-j-1][1])**2
+            d1_z = (target[i][j][2] - fib_in[num_pt-j-1][2])**2
+            
+            meandist_pt_i += sqrt(d1_x + d1_y + d1_z)
+        if meandist_pt_d < meandist_pt_i:
+            meandist_pt = meandist_pt_d/num_pt
+            flipped_temp = 0
+        else:
+            meandist_pt = meandist_pt_i/num_pt
+            flipped_temp = 1
+        
+        if meandist_pt < meandist_fib:
+            meandist_fib = meandist_pt
+            flipped = flipped_temp
+            idx_ret = i
+    if meandist_fib < thr:
+        return (idx_ret, flipped)
+
+    return (num_c, flipped)
+
+
+cdef (int, int) compute_dist_max(float[:,::1] fib_in, float[:,:,::1] target, float thr,
                             float d1_x, float d1_y, float d1_z, int num_c, int num_pt) noexcept nogil:
     """Compute the distance between a fiber and a set of centroids"""
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
     cdef float maxdist_pt_i = 0
-    cdef float maxdist_fib = 10000000000
+    cdef float maxdist_fib  = 10000000000
     cdef int  i = 0
     cdef int  j = 0
     cdef int idx_ret = 0
@@ -94,6 +145,7 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float t
     for i in xrange(num_c):
         maxdist_pt_d = 0
         maxdist_pt_i = 0
+        maxdist_pt = 0
 
         for j in xrange(num_pt):
 
@@ -101,20 +153,21 @@ cdef (int, int) compute_dist(float[:,::1] fib_in, float[:,:,::1] target, float t
             d1_y = (target[i][j][1] - fib_in[j][1])**2
             d1_z = (target[i][j][2] - fib_in[j][2])**2
 
-            maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
+            maxdist_pt_d = sqrt(d1_x + d1_y + d1_z)
 
 
             d1_x = (target[i][j][0] - fib_in[num_pt-j-1][0])**2
             d1_y = (target[i][j][1] - fib_in[num_pt-j-1][1])**2
             d1_z = (target[i][j][2] - fib_in[num_pt-j-1][2])**2
             
-            maxdist_pt_i += sqrt(d1_x + d1_y + d1_z)
-        if maxdist_pt_d < maxdist_pt_i:
-            maxdist_pt = maxdist_pt_d/num_pt
-            flipped_temp = 0
-        else:
-            maxdist_pt = maxdist_pt_i/num_pt
-            flipped_temp = 1
+            maxdist_pt_i = sqrt(d1_x + d1_y + d1_z)
+
+            if maxdist_pt_d < maxdist_pt_i and maxdist_pt_d > maxdist_pt:
+                maxdist_pt = maxdist_pt_d
+                flipped_temp = 0
+            elif maxdist_pt_d > maxdist_pt_i and maxdist_pt_i > maxdist_pt:
+                maxdist_pt = maxdist_pt_i
+                flipped_temp = 1
         
         if maxdist_pt < maxdist_fib:
             maxdist_fib = maxdist_pt
@@ -171,7 +224,7 @@ cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_id
     return distances
 
 
-cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
+cpdef cluster(filename_in: str, metric: str="mean", threshold: float=10.0, n_pts: int=10,
               verbose: int=1):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
@@ -203,6 +256,7 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
     ui.INFO( f'  - {n_streamlines} streamlines found' )
 
     cdef int nb_pts = n_pts
+    cdef bool metric_mean = metric == 'mean'
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
     cdef float[:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
@@ -252,7 +306,11 @@ cpdef cluster(filename_in: str, threshold: float=10.0, n_pts: int=10,
                     streamline_in[pp][2] = TCK_in.streamline[pp][2]
             else:
                 set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, streamline_in[:] , vers, lengths)
-            t, flipped = compute_dist(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
+
+            if metric_mean:
+                t, flipped = compute_dist_mean(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
+            else:
+                t, flipped = compute_dist_max(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
 
             clust_idx[i]= t
             weight_centr = c_w[t]
@@ -374,7 +432,7 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     return centroids
 
 
-cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10):
+cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10, metric: str="mean"):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -470,11 +528,15 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10):
     cdef float d1_y = 0
     cdef float d1_z = 0
     cdef int [:,:] clust_idx = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
+    cdef bool metric_mean = metric == 'mean'
     
     with nogil:
         for i in range(in_streamlines_view.shape[0]):
             for j in range(1, n_streamlines[i], 1):
-                t, flipped = compute_dist(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
+                if metric_mean:
+                    t, flipped = compute_dist_mean(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
+                else:
+                    t, flipped = compute_dist_max(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
 
                 clust_idx[i,j]= t
                 weight_centr = c_w[i,t]
@@ -568,8 +630,8 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 
 
 def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: str=None, atlas: str=None, conn_thr: float=2.0,
-                    clust_thr: float=2.0, n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
-                    n_threads: int=None, force: bool=False, verbose: int=1):
+                    clust_thr: float=2.0, metric: str="mean", n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
+                    n_threads: int=None, force: bool=False, verbose: int=1, delete_temp_files: bool=True):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -577,15 +639,17 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
     file_name_in : str
         Path to the input tractogram file.
     output_folder : str
-        Path to the output folder. If None, a folder named cluster_dir in the current directory is used.
+        Path to the output folder. If None, files are saved in the input tractogram folder.
     atlas : str, optional
         Path to the atlas file.
     conn_thr : float, optional
-        Threshold for the connectivity assignment (mm).
+        Threshold for the connectivity assignment (default: 2.0).
     clust_thr : float, optional
-        Threshold for the clustering (mm).
+        Threshold for the clustering (default: 2.0).
+    metric : str, optional
+        Metric to use for the clustering. Either "mean" or "max" (default: "mean").
     n_pts : int, optional
-        Number of points to resample the streamlines to.
+        Number of points to resample the streamlines to (default: 10).
     save_assignments : str, optional
         Save the cluster assignments to file
     temp_idx : str, optional
@@ -612,10 +676,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
 
     TCK_in = LazyTractogram( file_name_in, mode='r' )
     if output_folder is None:
-        # retrieve the current directory
-        output_dir = os.getcwd()
-        os.makedirs(os.path.join(output_dir, "cluster_dir"), exist_ok=True)
-        output_folder = os.path.join(output_dir, "cluster_dir")
+        # # retrieve filename_in folder
+        output_folder = os.path.dirname(file_name_in)
     
     # check if output folder exists
     if not os.path.isdir(output_folder):
@@ -733,7 +795,8 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
             future = [executor.submit(cluster_chunk,
                                         chunk,
                                         clust_thr,
-                                        n_pts=n_pts) for chunk in chunk_list]
+                                        n_pts=n_pts,
+                                        metric=metric) for chunk in chunk_list]
             for i, f in enumerate(cf.as_completed(future)):
                 bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst = f.result()
 
@@ -750,6 +813,11 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         ui.INFO(f"  - Time taken to cluster and find closest streamlines: {t1-t0}")
         ui.INFO(f"  - Number of computed centroids: {TCK_out_size}")
 
+        if delete_temp_files:
+            shutil.rmtree(output_bundles_folder)
+            os.remove(save_assignments)
+            os.remove(temp_idx)
+
     else:
         t0 = time.time()
 
@@ -762,6 +830,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
 
 
         clust_idx, set_centroids = cluster(file_name_in,
+                                            metric=metric,
                                             threshold=clust_thr,
                                             n_pts=n_pts,
                                             verbose=verbose
