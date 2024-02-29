@@ -289,7 +289,7 @@ cdef class LazyTractogram:
         After the reading, the file pointer is located at the end of it, i.e., beginning of
         the binary data part of the file, ready to read streamlines.
         """
-        cdef string        line
+        cdef char[5000000] line
         cdef char*         ptr
         cdef int           nLines = 0
         cdef size_t        max_size_line = 5000000*sizeof(char)
@@ -300,18 +300,20 @@ cdef class LazyTractogram:
         fseek( self.fp, 0, SEEK_SET )
 
         # check if it's a valid TCK file
-        if fgets(&line[0], max_size_line, self.fp) == NULL:
+        if fgets(line, max_size_line, self.fp) == NULL:
             raise IOError( 'Problems reading header from file FIRST LINE' )
-        if (&line[0])[:13] != 'mrtrix tracks':
+        py_line = line
+        py_line = py_line.strip()
+        if py_line != 'mrtrix tracks':
             raise IOError( f'"{self.filename}" is not a valid TCK file' )
 
         # parse one line at a time
         while True:
             if nLines>=1000:
                 raise RuntimeError( 'Problem parsing the header; too many header lines' )
-            if fgets(&line[0], max_size_line, self.fp) == NULL:
+            if fgets(line, max_size_line, self.fp) == NULL:
                 raise IOError( 'Problems reading header from file' )
-            py_line = &line[0]
+            py_line = line
             py_line = py_line.strip()
             if py_line == 'END':
                 break
