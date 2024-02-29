@@ -302,8 +302,7 @@ cdef class LazyTractogram:
         # check if it's a valid TCK file
         if fgets(&line[0], max_size_line, self.fp) == NULL:
             raise IOError( 'Problems reading header from file FIRST LINE' )
-        # line[strlen(line)-1] = 0
-        if &line[0] != 'mrtrix tracks\n':
+        if (&line[0])[:13] != 'mrtrix tracks':
             raise IOError( f'"{self.filename}" is not a valid TCK file' )
 
         # parse one line at a time
