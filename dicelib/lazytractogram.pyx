@@ -289,10 +289,9 @@ cdef class LazyTractogram:
         After the reading, the file pointer is located at the end of it, i.e., beginning of
         the binary data part of the file, ready to read streamlines.
         """
-        cdef char[5000000] line
-        cdef char*         ptr
+        cdef size_t        max_size_line = 5000000*sizeof(char) # 5MB
+        cdef char*         line = <char*> malloc(max_size_line)
         cdef int           nLines = 0
-        cdef size_t        max_size_line = 5000000*sizeof(char)
 
         if len(self.header) > 0:
             raise RuntimeError( 'Header already read' )
@@ -302,9 +301,7 @@ cdef class LazyTractogram:
         # check if it's a valid TCK file
         if fgets(line, max_size_line, self.fp) == NULL:
             raise IOError( 'Problems reading header from file FIRST LINE' )
-        py_line = line
-        py_line = py_line.strip()
-        if py_line != 'mrtrix tracks':
+        if line.strip() != 'mrtrix tracks':
             raise IOError( f'"{self.filename}" is not a valid TCK file' )
 
         # parse one line at a time
@@ -313,12 +310,10 @@ cdef class LazyTractogram:
                 raise RuntimeError( 'Problem parsing the header; too many header lines' )
             if fgets(line, max_size_line, self.fp) == NULL:
                 raise IOError( 'Problems reading header from file' )
-            py_line = line
-            py_line = py_line.strip()
-            if py_line == 'END':
+            if line.strip() == 'END':
                 break
             try:
-                key, value = py_line.split(': ')
+                key, value = line.strip().split(': ')
             except ValueError:
                 raise ValueError('Problem parsing the header; format not valid')
             if key not in self.header:
