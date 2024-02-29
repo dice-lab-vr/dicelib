@@ -289,9 +289,9 @@ cdef class LazyTractogram:
         After the reading, the file pointer is located at the end of it, i.e., beginning of
         the binary data part of the file, ready to read streamlines.
         """
-        cdef char*         line = <char*> malloc(5000000*sizeof(char))
+        cdef size_t        max_size_line = 5000000*sizeof(char) # 5MB
+        cdef char*         line = <char*> malloc(max_size_line)
         cdef int           nLines = 0
-        cdef size_t        max_size_line = 5000000*sizeof(char)
 
         if len(self.header) > 0:
             raise RuntimeError( 'Header already read' )
