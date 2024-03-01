@@ -686,7 +686,9 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
     elif not os.path.isabs(file_name_out) and output_folder is not None:
         file_name_out = os.path.join(os.getcwd(), file_name_out)
     
-        
+    # check if metric is valid
+    if metric not in ['mean', 'max']:
+        ui.ERROR( f'Invalid metric, must be "mean" or "max"' )
 
     # check if file exists
     if os.path.isfile(file_name_out) and not force:
@@ -694,6 +696,7 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
         return
     TCK_out = LazyTractogram(file_name_out, mode='w', header=TCK_in.header )
     num_streamlines = int(TCK_in.header["count"])
+    ui.INFO(f"  - Number of input streamlines: {num_streamlines}")
 
     if atlas:
         chunk_size = int(num_streamlines/MAX_THREAD)
@@ -719,7 +722,7 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
                 chunks_asgn = [c for f in chunks_asgn for c in f]
 
         t1 = time.time()
-        ui.INFO(f"  - Time taken for connectivity: {t1-t0}")
+        ui.INFO(f"  - Time taken to create assignments: {t1-t0}")
         out_assignment_ext = os.path.splitext(save_assignments)[1]
 
         if out_assignment_ext not in ['.txt', '.npy']:
@@ -740,7 +743,7 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
                       weights_in=temp_idx, force=force)
         t1 = time.time()
         ui.set_verbose(verbose)
-        ui.INFO(f"  - Time bundles splitting: {t1-t0}")
+        ui.INFO(f"  - Time taken to split in bundles: {t1-t0}")
         
         bundles = {}
         for  dirpath, _, filenames in os.walk(output_bundles_folder):

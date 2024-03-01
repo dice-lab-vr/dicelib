@@ -151,7 +151,7 @@ def tractogram_cluster():
         [['file_name_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
         [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': 'Atlas used to compute streamlines connectivity'}],
         [['--conn_thr', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Threshold [in mm]'}],
-        [['--metric'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: "mean", "max (default: "mean").'}],
+        [['--metric'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: "mean", "max" (default: "mean").'}],
         [['--n_pts'], {'type': int, 'default': 10, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
         [['--output_folder', '-out'], {'type': str, 'metavar': 'OUT_FOLDER', 'help': 'Folder where to save the split clusters'}],
         [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform clustering'}],
@@ -182,6 +182,10 @@ def tractogram_cluster():
     if options.output_folder is not None:
         if not exists(options.output_folder):
             makedirs(options.output_folder)
+
+    # check if metric is valid
+    if options.metric not in ['mean', 'max']:
+        ERROR('Invalid metric, must be "mean" or "max"')
 
     # check if number of threads is valid
     if options.n_threads is not None:
