@@ -153,18 +153,13 @@ def tractogram_cluster():
         [['--conn_thr', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Threshold [in mm]'}],
         [['--metric'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: "mean", "max (default: "mean").'}],
         [['--n_pts'], {'type': int, 'default': 10, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
-        [['--save_assignments'], {'type': str, 'metavar': 'ASSIGNMENTS_FILE', 'help': 'Save the cluster assignments to file'}],
         [['--output_folder', '-out'], {'type': str, 'metavar': 'OUT_FOLDER', 'help': 'Folder where to save the split clusters'}],
         [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform clustering'}],
         [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
         [['--verbose', '-v'], {'type': int, 'default': 2, 'metavar': 'VERBOSE_LEVEL', 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}],
-        [['--delete_temp', '-d'], {'default': True, 'action': 'store_true', 'help': 'Delete temporary files'}]
+        [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
     ]
     options = setup_parser(run_clustering.__doc__.split('\n')[0], args)
-
-    # file_name_in: str, output_folder: str=None, file_name_out: str=None, atlas: str=None, conn_thr: float=2.0,
-    #                 clust_thr: float=2.0, metric: str="mean", n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
-    #                 n_threads: int=None, force: bool=False, verbose: int=1):
 
     # check the input parameters
     # check if path to input and output files are valid
@@ -177,17 +172,6 @@ def tractogram_cluster():
             ERROR('Invalid extension for the output tractogram')
         elif isfile(options.file_name_out) and not options.force:
             ERROR('Output tractogram already exists, use -f to overwrite')
-
-    # check if path to save assignments exists and create it if not
-    if options.save_assignments is not None:
-        out_assignment_ext = splitext(options.save_assignments)[1]
-        if out_assignment_ext not in ['.txt', '.npy']:
-            ERROR('Invalid extension for the output scalar file')
-        elif isfile(options.save_assignments) and not options.force:
-            ERROR('Output scalar file already exists, use -f to overwrite')
-
-        if not exists(dirname(options.save_assignments)):
-            makedirs(dirname(options.save_assignments))
 
     # check if atlas exists
     if options.atlas is not None:
@@ -223,11 +207,10 @@ def tractogram_cluster():
         clust_thr=options.clust_thr,
         metric=options.metric,
         n_pts=options.n_pts,
-        save_assignments=options.save_assignments,
         n_threads=options.n_threads,
         force=options.force,
         verbose=options.verbose,
-        delete_temp_files=options.delete_temp
+        keep_temp_files=options.keep_temp
     )
 
 def tractogram_compress():

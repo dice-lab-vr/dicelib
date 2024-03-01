@@ -225,7 +225,7 @@ cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_id
 
 
 cpdef cluster(filename_in: str, metric: str="mean", threshold: float=10.0, n_pts: int=10,
-              verbose: int=1):
+              verbose: int=2):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -345,7 +345,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=10.0, n_pts
     return clust_idx, set_centroids[:new_c]
 
 
-cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=1):
+cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=2):
     """
     Compute the distance between a fiber and a set of centroids
     
@@ -629,9 +629,9 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 
 
 
-def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: str=None, atlas: str=None, conn_thr: float=2.0,
-                    clust_thr: float=2.0, metric: str="mean", n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
-                    n_threads: int=None, force: bool=False, verbose: int=1, delete_temp_files: bool=True):
+def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=None, atlas: str=None, conn_thr: float=2.0,
+                    clust_thr: float=2.0, metric: str="mean", n_pts: int=10,
+                    n_threads: int=None, force: bool=False, verbose: int=2, keep_temp_files: bool=False):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -650,16 +650,14 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         Metric to use for the clustering. Either "mean" or "max" (default: "mean").
     n_pts : int, optional
         Number of points to resample the streamlines to (default: 10).
-    save_assignments : str, optional
-        Save the cluster assignments to file
-    temp_idx : str, optional
-        Path to the streamlines index file.
     n_threads : int, optional
         Number of threads to use for the clustering.
     force : bool, optional
         Whether to overwrite existing files.
     verbose : bool, optional
         Whether to print out additional information during the clustering.
+    keep_temp_files : bool, optional
+        Whether to keep temporary files.
     """
 
     ui.set_verbose(verbose)
@@ -675,25 +673,20 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
     MAX_THREAD = 3
 
     TCK_in = LazyTractogram( file_name_in, mode='r' )
-    if output_folder is None:
-        # # retrieve filename_in folder
-        output_folder = os.path.dirname(file_name_in)
-    
-    # check if output folder exists
-    if not os.path.isdir(output_folder):
-        if os.path.isdir(os.path.join(os.getcwd(), output_folder )):
-            pass
-        else:
-            if os.path.isabs(output_folder):
-                os.makedirs(output_folder, exist_ok=True)
-            else:
-                os.makedirs(os.path.join(os.getcwd(), output_folder), exist_ok=True)
 
-    if file_name_out is None:
-        file_name_out = os.path.join(output_folder,f'{os.path.basename(file_name_in)[:len(file_name_in)-4]}_clustered_thr_{float(clust_thr)}.tck')
-    else:
-        if not os.path.isabs(file_name_out):
-            file_name_out = os.path.join(output_folder, file_name_out)
+    if output_folder is not None:
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+    if not os.path.isabs(file_name_out) and output_folder is None:
+        output_folder = os.getcwd()
+        file_name_out = os.path.join(output_folder, file_name_out)
+    elif os.path.isabs(file_name_out) and output_folder is None:
+        output_folder = os.path.dirname(file_name_out)
+    elif not os.path.isabs(file_name_out) and output_folder is not None:
+        file_name_out = os.path.join(os.getcwd(), file_name_out)
+    
+        
 
     # check if file exists
     if os.path.isfile(file_name_out) and not force:
@@ -707,15 +700,10 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
 
         # check if save_assignments is None
-        if save_assignments is None:
-            save_assignments = os.path.join(output_folder, f'{os.path.basename(file_name_in)[:len(file_name_in)-4]}_assignments.txt')
-        else:
-            if not os.path.isabs(save_assignments):
-                save_assignments = os.path.join(output_folder, save_assignments)
-        if temp_idx is None:
-            temp_idx_arr = np.arange(num_streamlines)
-            temp_idx = os.path.join(output_folder, 'streamline_idx.npy')
-            np.save( temp_idx, temp_idx_arr )
+        save_assignments = os.path.join(output_folder, f'{os.path.basename(file_name_in)[:len(file_name_in)-4]}_assignments.txt')
+        temp_idx_arr = np.arange(num_streamlines)
+        temp_idx = os.path.join(output_folder, 'streamline_idx.npy')
+        np.save( temp_idx, temp_idx_arr )
 
         chunks_asgn = []
         t0 = time.time()
@@ -813,10 +801,10 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         ui.INFO(f"  - Time taken to cluster and find closest streamlines: {t1-t0}")
         ui.INFO(f"  - Number of computed centroids: {TCK_out_size}")
 
-        if delete_temp_files:
+        if not keep_temp_files:
             shutil.rmtree(output_bundles_folder)
             os.remove(save_assignments)
-            os.remove(temp_idx)
+        os.remove(temp_idx)
 
     else:
         t0 = time.time()

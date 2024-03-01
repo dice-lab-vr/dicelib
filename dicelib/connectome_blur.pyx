@@ -19,7 +19,7 @@ from dicelib.connectivity cimport streamline_assignment
 from dicelib.streamline import create_replicas
 
 
-def compute_connectome_blur( input_tractogram: str, output_connectome: str, weights_in: str, input_nodes: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, offset_thr: float=0.0, symmetric: bool=False, fiber_shift=0, verbose: int=1, force: bool=False ):
+def compute_connectome_blur( input_tractogram: str, output_connectome: str, weights_in: str, input_nodes: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, offset_thr: float=0.0, symmetric: bool=False, fiber_shift=0, verbose: int=2, force: bool=False ):
     """Build the connectome weighted by COMMITblur (only sum).
 
     Parameters
@@ -62,7 +62,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         The value is specified in voxel units, eg 0.5 translates by half voxel.
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 1).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
 
     force : boolean
         Force overwriting of the output (default : False).
@@ -339,7 +339,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
 
 
-def build_connectome( input_weights: str,  input_assignments: str, output_connectome: str, input_tractogram: str=None, input_nodes: str=None, threshold: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=1, force: bool=False ):
+def build_connectome( input_weights: str,  input_assignments: str, output_connectome: str, input_tractogram: str=None, input_nodes: str=None, threshold: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=2, force: bool=False ):
     """Build the weighted connectome having the assignements.
 
     Parameters
@@ -369,7 +369,7 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
         Make output connectome symmetric (default : False).
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 1).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
 
     force : boolean
         Force overwriting of the output (default : False).
