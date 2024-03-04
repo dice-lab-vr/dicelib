@@ -1,11 +1,16 @@
-from datetime import datetime as _datetime
-import sys as _sys
-from argparse import ArgumentParser as _ArgumentParser, ArgumentDefaultsHelpFormatter as _ArgumentDefaultsHelpFormatter
-import itertools
+from dicelib import __version__
+
 import numpy as np
-from threading import Thread
-from time import time, sleep
+
+from argparse import _UNRECOGNIZED_ARGS_ATTR, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser, HelpFormatter, Namespace, RawDescriptionHelpFormatter, SUPPRESS
+from datetime import datetime as _datetime
+import itertools
+import re as _re
 from shutil import get_terminal_size
+import sys as _sys
+import textwrap
+from threading import Thread
+from time import sleep, time
 
 def _in_notebook() -> bool:
     try:
@@ -147,90 +152,574 @@ def ERROR( message: str, stop: bool=True ):
 	if stop:
 		_sys.exit()
 
+ascii_art = f'''\
+    ██████╗ ██╗ ██████╗███████╗██╗     ██╗██████╗
+    ██╔══██╗██║██╔════╝██╔════╝██║     ██║██╔══██╗
+    ██║  ██║██║██║     █████╗  ██║     ██║██████╔╝
+    ██║  ██║██║██║     ██╔══╝  ██║     ██║██╔══██╗
+    ██████╔╝██║╚██████╗███████╗███████╗██║██████╔╝
+    ╚═════╝ ╚═╝ ╚═════╝╚══════╝╚══════╝╚═╝╚═════╝  [v{__version__}]
+'''
+esc = '\x1b['
+reset = f'{esc}0m'
 
-class ColoredArgParser( _ArgumentParser ):
-	"""Modification of 'argparse.ArgumentParser' to allow colored output.
-	"""
-	class _ColoredFormatter( _ArgumentDefaultsHelpFormatter ):
-		COLOR = fMagenta
+# text formatting
+text_underline = f'{esc}4m'
+text_underline_reset = f'{esc}24m'
 
-		def start_section(self, heading):
-			super().start_section( Underline+heading.capitalize()+Reset )
+# effects
+text_blink = f'{esc}5m'
 
-		def _format_action(self, action):
-			# determine the required width and the entry label
-			help_position = min(self._action_max_length + 2, self._max_help_position)
-			help_width = max(self._width - help_position, 11)
-			action_width = help_position - self._current_indent - 2
-			action_header = self._format_action_invocation(action)
+# colors
+fg = f'{esc}38;5;'
+fg_pink = f'{fg}5m'
+fg_orange = f'{fg}208m'
+fg_light_blue = f'{fg}31m'
+fg_light_green = f'{fg}77m'
+fg_blue = f'{fg}33m'
+fg_green = f'{fg}47m'
+fg_black = f'{fg}16m'
+fg_default = f'{esc}39m'
 
-			# no help; start on same line and add a final newline
-			if not action.help:
-				tup = self._current_indent, '', action_header
-				action_header = '%*s%s\n' % tup
+class ColoredFormatter(RawDescriptionHelpFormatter, ArgumentDefaultsHelpFormatter):
+    def _format_actions_usage(self, actions, groups):
+        # find group indices and identify actions in groups
+        group_actions = set()
+        inserts = {}
+        for group in groups:
+            if not group._group_actions:
+                raise ValueError(f'empty group {group}')
 
-			# short action name; start on the same line and pad two spaces
-			elif len(action_header) <= action_width:
-				tup = self._current_indent, '', action_width, action_header
-				action_header = '%*s%-*s  ' % tup
-				indent_first = 0
+            try:
+                start = actions.index(group._group_actions[0])
+            except ValueError:
+                continue
+            else:
+                group_action_count = len(group._group_actions)
+                end = start + group_action_count
+                if actions[start:end] == group._group_actions:
 
-			# long action name; start on the next line
-			else:
-				tup = self._current_indent, '', action_header
-				action_header = '%*s%s\n' % tup
-				indent_first = help_position
+                    suppressed_actions_count = 0
+                    for action in group._group_actions:
+                        group_actions.add(action)
+                        if action.help is SUPPRESS:
+                            suppressed_actions_count += 1
 
-			# collect the pieces of the action help
-			parts = [ action_header ]
+                    exposed_actions_count = group_action_count - suppressed_actions_count
 
-			# add color codes
-			for i in range(len(parts)):
-				tmp = parts[i].split(',')
-				parts[i] = ','.join( [self.COLOR+s+Reset for s in tmp] )
+                    if not group.required:
+                        if start in inserts:
+                            inserts[start] += ' ['
+                        else:
+                            inserts[start] = '['
+                        if end in inserts:
+                            inserts[end] += ']'
+                        else:
+                            inserts[end] = ']'
+                    elif exposed_actions_count > 1:
+                        if start in inserts:
+                            inserts[start] += ' ('
+                        else:
+                            inserts[start] = '('
+                        if end in inserts:
+                            inserts[end] += ')'
+                        else:
+                            inserts[end] = ')'
+                    for i in range(start + 1, end):
+                        inserts[i] = '|'
 
-			# if there was help for the action, add lines of help text
-			if action.help and action.help.strip():
-				help_text = self._expand_help(action)
-				if help_text:
-					help_lines = self._split_lines(help_text, help_width)
-					parts.append('%*s%s\n' % (indent_first, '', help_lines[0]))
-					for line in help_lines[1:]:
-						parts.append('%*s%s\n' % (help_position, '', line))
+        # collect all actions format strings
+        parts = []
+        for i, action in enumerate(actions):
 
-			# or add a newline if the description doesn't end with one
-			elif not action_header.endswith('\n'):
-				parts.append('\n')
+            # suppressed arguments are marked with None
+            # remove | separators for suppressed arguments
+            if action.help is SUPPRESS:
+                parts.append(None)
+                if inserts.get(i) == '|':
+                    inserts.pop(i)
+                elif inserts.get(i + 1) == '|':
+                    inserts.pop(i + 1)
 
-			# if there are any sub-actions, add their help as well
-			for subaction in self._iter_indented_subactions(action):
-				parts.append(self._format_action(subaction))
+            # produce all arg strings
+            elif not action.option_strings:
+                default = self._get_default_metavar_for_positional(action)
+                part = self._format_args(action, default)
 
-			# return a single string
-			return self._join_parts(parts)
+                # if it's in a group, strip the outer []
+                if action in group_actions:
+                    if part[0] == '[' and part[-1] == ']':
+                        part = part[1:-1]
 
-		def _format_usage(self, usage, actions, groups, prefix):
-			return super()._format_usage( usage, actions, groups, prefix='USAGE:  '+self.COLOR ) +Reset
+                # add the action string to the list
+                parts.append(part)
 
+            # produce the first way to invoke the option in brackets
+            else:
+                option_string = action.option_strings[0]
 
-	def __init__( self, *args, **kwargs ):
-		super().__init__( formatter_class=self._ColoredFormatter, *args, **kwargs )
+                # if the Optional doesn't take a value, format is:
+                #    -s or --long
+                if action.nargs == 0:
+                    part = action.format_usage()
 
+                # if the Optional takes a value, format is:
+                #    -s ARGS or --long ARGS
+                else:
+                    default = self._get_default_metavar_for_optional(action)
+                    args_string = self._format_args(action, default)
+                    part = '%s %s' % (option_string, args_string)
 
-	def parse_known_args(self, args=None, namespace=None):
-		if args is None:
-			args = _sys.argv[1:]
-		else:
-			args = list(args)
-		if len(args)==0:
-			self.print_help()
-			_sys.exit()
-		return super().parse_known_args(args, namespace)
+                # make it look optional if it's not required or in a group
+                if not action.required and action not in group_actions:
+                    part = '[%s]' % part
 
+                # add the action string to the list
+                parts.append(part)
 
-	def error( self, message ):
-		self.print_usage()
-		ERROR( message )
+        # insert things at the necessary indices
+        for i in sorted(inserts, reverse=True):
+            parts[i:i] = [inserts[i]]
+
+        # NOTE: add colors
+        # positional arguments
+        # if action.choices -> opt = {c1,c2}
+        #    opt
+        # ?  [opt]
+        # *  [opt ...]
+        # +  opt [opt ...]
+
+        # optional arguments
+        # if action.choices and no metavar -> var = {c1,c2}
+        #    [opt var]
+        # ?  [opt [var]]
+        # *  [opt [var ...]]
+        # +  [opt var [var ...]]
+        # r  opt var
+        # r? opt [var]
+        # r* opt [var ...]
+        # r+ opt var [var ...]
+        for i, part in enumerate(parts):
+            part = part.strip()
+            if part.startswith('['):
+                if part.endswith(']]'):
+                    spaces = part.count(' ')
+                    j = part.find(' ')
+                    if spaces == 1:
+                        # '[opt [{choices}]]' if action.choices else '[opt [var]]'
+                        parts[i] = f'{part[0]}{fg_blue}{part[1:j]}{fg_default} {part[j + 1:j + 3]}{fg_green}{part[j + 3:-3]}{fg_default}{part[-3:]}' if actions[i].choices else f'{part[0]}{fg_blue}{part[1:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:-2]}{fg_default}{part[-2:]}'
+                    elif spaces == 2:
+                        # '[opt [{choices} ...]]' if action.choices else '[opt [var ...]]'
+                        jj = part[j + 1:].find(' ') + j + 1
+                        parts[i] = f'{part[0]}{fg_blue}{part[1:j]}{fg_default} {part[j + 1:j + 3]}{fg_green}{part[j + 3:jj - 1]}{fg_default}{part[jj - 1]} {fg_light_green}{part[jj + 1:-2]}{fg_default}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_blue}{part[1:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:jj]}{fg_default} {fg_light_green}{part[jj + 1:-2]}{fg_default}{part[-2:]}'
+                    else:
+                        # '[opt {choices} [{choices} ...]]' if action.choices else '[opt var [var ...]]'
+                        jj = part[j + 1:].find(' ') + j + 1
+                        jjj = part[jj + 1:].find(' ') + jj + 1
+                        parts[i] = f'{part[0]}{fg_blue}{part[1:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:jj - 1]}{fg_default}{part[jj - 1]} {part[jj + 1:jj + 3]}{fg_green}{part[jj + 3:jjj - 1]}{fg_default}{part[jjj - 1]} {fg_light_green}{part[jjj + 1:-2]}{fg_default}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_blue}{part[1:j]}{fg_default} {fg_green}{part[j + 1:jj]}{fg_default} {part[jj + 1]}{fg_green}{part[jj + 2:jjj]}{fg_default} {fg_light_green}{part[jjj + 1:-2]}{fg_default}{part[-2:]}'
+                else:
+                    if ' ' in part:
+                        j = part.find(' ')
+                        if actions[i].nargs == '*':
+                            # '[{choices} ...]' if action.choices else '[opt ...]'
+                            parts[i] = f'{part[:2]}{fg_blue}{part[2:j - 1]}{fg_default}{part[j - 1]} {fg_light_blue}{part[j + 1:-1]}{fg_default}{part[-1]}' if actions[i].choices else f'{part[0]}{fg_blue}{part[1:j]}{fg_default} {fg_light_blue}{part[j + 1:-1]}{fg_default}{part[-1]}'
+                        else:
+                            # '[opt {choices}]' if action.choices else '[opt var]'
+                            parts[i] = f'{part[0]}{fg_blue}{part[1:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:-2]}{fg_default}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_blue}{part[1:j]}{fg_default} {fg_green}{part[j + 1:-1]}{fg_default}{part[-1]}'
+                    else:
+                        # '[{choices}]' if action.choices else '[opt]'
+                        parts[i] = f'{part[:2]}{fg_blue}{part[2:-2]}{fg_default}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_blue}{part[1:-1]}{fg_default}{part[-1]}'
+            elif part.endswith(']'):
+                spaces = part.count(' ')
+                j = part.find(' ')
+                if spaces == 1:
+                    # 'opt [{choices}]' if action.choices else 'opt [var]'
+                    parts[i] = f'{fg_blue}{part[:j]}{fg_default} {part[j + 1:j + 3]}{fg_green}{part[j + 3:-2]}{fg_default}{part[-2:]}' if actions[i].choices else f'{fg_blue}{part[:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:-1]}{fg_default}{part[-1]}'
+                elif spaces == 2:
+                    # 'opt [opt ...]' if action.nargs is + else 'opt [var ...]'
+                    jj = part[j + 1:].find(' ') + j + 1
+                    if actions[i].nargs == '+':
+                        # '{choices} [{choices} ...]' if action.choices else 'opt [opt ...]'
+                        parts[i] = f'{part[0]}{fg_blue}{part[1:j - 1]}{fg_default}{part[j - 1]} {part[j + 1:j + 3]}{fg_blue}{part[j + 3:jj - 1]}{fg_default}{part[jj - 1]} {fg_light_blue}{part[jj + 1:-1]}{fg_default}{part[-1]}' if actions[i].choices else f'{fg_blue}{part[:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:jj]}{fg_default} {fg_light_green}{part[jj + 1:-1]}{fg_default}{part[-1]}'
+                    else:
+                        # 'opt [{choices} ...]' if action.choices else 'opt [var ...]'
+                        parts[i] = f'{fg_blue}{part[:j]}{fg_default} {part[j + 1:j + 3]}{fg_green}{part[j + 3:jj - 1]}{fg_default}{part[jj - 1]} {fg_light_green}{part[jj + 1:-1]}{fg_default}{part[-1]}' if actions[i].choices else f'{fg_blue}{part[:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:jj]}{fg_default} {fg_light_green}{part[jj + 1:-1]}{fg_default}{part[-1]}'
+                else:
+                    # 'opt {choices} [{choices} ...]' if action.choices else 'opt var [var ...]'
+                    jj = part[j + 1:].find(' ') + j + 1
+                    jjj = part[jj + 1:].find(' ') + jj + 1
+                    parts[i] = f'{fg_blue}{part[:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:jj - 1]}{fg_default}{part[jj - 1]} {part[jj + 1:jj + 3]}{fg_green}{part[jj + 3:jjj - 1]}{fg_default}{part[jjj - 1]} {fg_light_green}{part[jjj + 1:-1]}{fg_default}{part[-1]}' if actions[i].choices else f'{fg_blue}{part[:j]}{fg_default} {fg_green}{part[j + 1:jj]}{fg_default} {part[jj + 1]}{fg_green}{part[jj + 2:jjj]}{fg_default} {fg_light_green}{part[jjj + 1:-1]}{fg_default}{part[-1]}'
+            else:
+                if ' ' in part:
+                    # 'opt {choices}' if action.choices else 'opt var'
+                    j = part.find(' ')
+                    parts[i] =f'{fg_blue}{part[:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:-1]}{fg_default}{part[-1]}' if actions[i].choices else f'{fg_blue}{part[:j]}{fg_default} {fg_green}{part[j + 1:]}{fg_default}'
+                else:
+                    # '{choices}' if action.choices else 'opt'
+                    parts[i] = f'{part[0]}{fg_blue}{part[1:-1]}{fg_default}{part[-1]}' if actions[i].choices else f'{fg_blue}{part}{fg_default}'
+
+        # join all the action items with spaces
+        text = ' '.join([item for item in parts if item is not None])
+
+        # clean up separators for mutually exclusive groups
+        open = r'[\[(]'
+        close = r'[\])]'
+        text = _re.sub(r'(%s) ' % open, r'\1', text)
+        text = _re.sub(r' (%s)' % close, r'\1', text)
+        text = _re.sub(r'%s *%s' % (open, close), r'', text)
+        text = text.strip()
+
+        # return the text
+        return text
+        
+    def _format_action(self, action):
+        # determine the required width and the entry label
+        help_position = min(self._action_max_length + 2,
+                            self._max_help_position)
+        help_width = max(self._width - help_position, 11)
+        action_width = help_position - self._current_indent - 2
+        action_header = self._format_action_invocation(action)
+
+        # no help; start on same line and add a final newline
+        if not action.help:
+            tup = self._current_indent, '', action_header
+            action_header = '%*s%s\n' % tup
+
+        # short action name; start on the same line and pad two spaces
+        elif len(action_header) <= action_width:
+            tup = self._current_indent, '', action_width, action_header
+            action_header = '%*s%-*s  ' % tup
+            indent_first = 0
+
+        # long action name; start on the next line
+        else:
+            tup = self._current_indent, '', action_header
+            action_header = '%*s%s\n' % tup
+            indent_first = help_position
+
+        # collect the pieces of the action help
+        parts = [action_header]
+
+        # NOTE: add colors
+        # positional arguments
+        # if action.choices -> opt = {c1,c2}
+        #    opt
+
+        # optional arguments (possibly multiple arguments separated by ', ')
+        # if action.choices and no metavar -> var = {c1,c2}
+        #    opt var
+        # ?  opt [var]
+        # *  opt [var ...]
+        # +  opt var [var ...]
+        for i, part in enumerate(parts):
+            part = part.strip()
+            if ',' in part:
+                k = 0
+                colored_text = ''
+                while k <= len(part):
+                    m = part[k:].find(', ')
+                    n = (m + k) if m != -1 else len(part)
+                    tmp_text = part[k:n]
+                    if tmp_text.endswith(']'):
+                        spaces = tmp_text.count(' ')
+                        j = tmp_text.find(' ')
+                        if spaces == 1:
+                            # 'opt [{choices}]' if action.choices else 'opt [var]'
+                            colored_text += f'{fg_blue}{tmp_text[:j]}{fg_default} {tmp_text[j + 1:j + 3]}{fg_green}{tmp_text[j + 3:-2]}{fg_default}{tmp_text[-2:]}' if action.choices else f'{fg_blue}{tmp_text[:j]}{fg_default} {tmp_text[j + 1]}{fg_green}{tmp_text[j + 2:-1]}{fg_default}{tmp_text[-1]}'
+                        elif spaces == 2:
+                            # 'opt [{choices} ...]' if action.choices else 'opt [var ...]'
+                            jj = tmp_text[j + 1:].find(' ') + j + 1
+                            colored_text += f'{fg_blue}{tmp_text[:j]}{fg_default} {tmp_text[j + 1:j + 3]}{fg_green}{tmp_text[j + 3:jj - 1]}{fg_default}{tmp_text[jj - 1]} {fg_light_green}{tmp_text[jj + 1:-1]}{fg_default}{tmp_text[-1]}' if action.choices else f'{fg_blue}{tmp_text[:j]}{fg_default} {tmp_text[j + 1]}{fg_green}{tmp_text[j + 2:jj]}{fg_default} {fg_light_green}{tmp_text[jj + 1:-1]}{fg_default}{tmp_text[-1]}'
+                        else:
+                            # 'opt {choices} [{choices} ...]' if action.choices else 'opt var [var ...]'
+                            jj = tmp_text[j + 1:].find(' ') + j + 1
+                            jjj = tmp_text[jj + 1:].find(' ') + jj + 1
+                            colored_text += f'{fg_blue}{tmp_text[:j]}{fg_default} {tmp_text[j + 1]}{fg_green}{tmp_text[j + 2:jj - 1]}{fg_default}{tmp_text[jj - 1]} {tmp_text[jj + 1:jj + 3]}{fg_green}{tmp_text[jj + 3:jjj - 1]}{fg_default}{tmp_text[jjj - 1]} {fg_light_green}{tmp_text[jjj + 1:-1]}{fg_default}{tmp_text[-1]}' if action.choices else f'{fg_blue}{tmp_text[:j]}{fg_default} {fg_green}{tmp_text[j + 1:jj]}{fg_default} {tmp_text[jj + 1]}{fg_green}{tmp_text[jj + 2:jjj]}{fg_default} {fg_light_green}{tmp_text[jjj + 1:-1]}{fg_default}{tmp_text[-1]}'
+                    else:
+                        if ' ' in tmp_text:
+                            # 'opt {choices}' if action.choices else 'opt var'
+                            j = tmp_text.find(' ')
+                            colored_text += f'{fg_blue}{tmp_text[:j]}{fg_default} {tmp_text[j + 1]}{fg_green}{tmp_text[j + 2:-1]}{fg_default}{tmp_text[-1]}' if action.choices else f'{fg_blue}{tmp_text[:j]}{fg_default} {fg_green}{tmp_text[j + 1:]}{fg_default}'
+                        else:
+                            # '{choices}' if action.choices else 'opt'
+                            colored_text += f'{tmp_text[0]}{fg_blue}{tmp_text[1:-1]}{fg_default}{tmp_text[-1]}' if action.choices else f'{fg_blue}{tmp_text}{fg_default}'
+                    if n != len(part):
+                        colored_text += ', '
+                    k = n + 2
+                parts[i] = parts[i].replace(part, colored_text)
+            elif part.endswith(']'):
+                spaces = part.count(' ')
+                j = part.find(' ')
+                if spaces == 1:
+                    # 'opt [{choices}]' if action.choices else 'opt [var]'
+                    parts[i] = parts[i].replace(part, f'{fg_blue}{part[:j]}{fg_default} {part[j + 1:j + 3]}{fg_green}{part[j + 3:-2]}{fg_default}{part[-2:]}' if action.choices else f'{fg_blue}{part[:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:-1]}{fg_default}{part[-1]}')
+                elif spaces == 2:
+                    # 'opt [{choices} ...]' if action.choices else 'opt [var ...]'
+                    jj = part[j + 1:].find(' ') + j + 1
+                    parts[i] = parts[i].replace(part, f'{fg_blue}{part[:j]}{fg_default} {part[j + 1:j + 3]}{fg_green}{part[j + 3:jj - 1]}{fg_default}{part[jj - 1]} {fg_light_green}{part[jj + 1:-1]}{fg_default}{part[-1]}' if action.choices else f'{fg_blue}{part[:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:jj]}{fg_default} {fg_light_green}{part[jj + 1:-1]}{fg_default}{part[-1]}')
+                else:
+                    # 'opt {choices} [{choices} ...]' if action.choices else 'opt var [var ...]'
+                    jj = part[j + 1:].find(' ') + j + 1
+                    jjj = part[jj + 1:].find(' ') + jj + 1
+                    parts[i] = parts[i].replace(part, f'{fg_blue}{part[:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:jj - 1]}{fg_default}{part[jj - 1]} {part[jj + 1:jj + 3]}{fg_green}{part[jj + 3:jjj - 1]}{fg_default}{part[jjj - 1]} {fg_light_green}{part[jjj + 1:-1]}{fg_default}{part[-1]}' if action.choices else f'{fg_blue}{part[:j]}{fg_default} {fg_green}{part[j + 1:jj]}{fg_default} {part[jj + 1]}{fg_green}{part[jj + 2:jjj]}{fg_default} {fg_light_green}{part[jjj + 1:-1]}{fg_default}{part[-1]}')
+            else:
+                if ' ' in part:
+                    # 'opt {choices}' if action.choices else 'opt var'
+                    j = part.find(' ')
+                    parts[i] = parts[i].replace(part, f'{fg_blue}{part[:j]}{fg_default} {part[j + 1]}{fg_green}{part[j + 2:-1]}{fg_default}{part[-1]}' if action.choices else f'{fg_blue}{part[:j]}{fg_default} {fg_green}{part[j + 1:]}{fg_default}')
+                else:
+                    # '{choices}' if action.choices else 'opt'
+                    parts[i] = parts[i].replace(part, f'{part[0]}{fg_blue}{part[1:-1]}{fg_default}{part[-1]}' if action.choices else f'{fg_blue}{part}{fg_default}')
+
+        # if there was help for the action, add lines of help text
+        if action.help and action.help.strip():
+            help_text = self._expand_help(action)
+            if help_text:
+                help_lines = self._split_lines(help_text, help_width)
+                parts.append('%*s%s\n' % (indent_first, '', help_lines[0]))
+                for line in help_lines[1:]:
+                    parts.append('%*s%s\n' % (help_position, '', line))
+
+        # or add a newline if the description doesn't end with one
+        elif not action_header.endswith('\n'):
+            parts.append('\n')
+
+        # if there are any sub-actions, add their help as well
+        for subaction in self._iter_indented_subactions(action):
+            parts.append(self._format_action(subaction))
+
+        # return a single string
+        return self._join_parts(parts)
+
+    class _Section(HelpFormatter._Section):
+        def format_help(self):
+            # format the indented section
+            if self.parent is not None:
+                self.formatter._indent()
+            join = self.formatter._join_parts
+            item_help = join([func(*args) for func, args in self.items])
+            if self.parent is not None:
+                self.formatter._dedent()
+
+            # return nothing if the section was empty
+            if not item_help:
+                return ''
+
+            # add the heading if the section was non-empty
+            if self.heading is not SUPPRESS and self.heading is not None:
+                current_indent = self.formatter._current_indent
+                heading = '%*s%s:\n' % (current_indent, '', f'{fg_orange}{text_underline}{self.heading.upper()}{text_underline_reset}{fg_default}') # NOTE: add format and color
+            else:
+                heading = ''
+
+            # join the section-initial newline, the heading and the help
+            return join(['\n', heading, item_help, '\n'])
+        
+    def _format_usage(self, usage, actions, groups, prefix):
+        if prefix is None:
+            prefix = 'usage' # NOTE: change default prefix
+
+        # if usage is specified, use that
+        if usage is not None:
+            usage = usage % dict(prog=self._prog)
+
+        # if no optionals or positionals are available, usage is just prog
+        elif usage is None and not actions:
+            usage = '%(prog)s' % dict(prog=self._prog)
+
+        # if optionals and positionals are available, calculate usage
+        elif usage is None:
+            prog = '%(prog)s' % dict(prog=self._prog)
+
+            # split optionals from positionals
+            optionals = []
+            positionals = []
+            for action in actions:
+                if action.option_strings:
+                    optionals.append(action)
+                else:
+                    positionals.append(action)
+
+            # build full usage string
+            format = self._format_actions_usage
+            action_usage = format(optionals + positionals, groups)
+            usage = ' '.join([s for s in [prog, action_usage] if s])
+
+            # wrap the usage parts if it's too long
+            text_width = self._width - self._current_indent
+            if len(prefix) + 2 + len(usage) > text_width: # NOTE: add 2 to account for ': '
+
+                # break usage into wrappable parts
+                part_regexp = (
+                    r'\(.*?\)+(?=\s|$)|'
+                    r'\[.*?\]+(?=\s|$)|'
+                    r'\S+'
+                )
+                opt_usage = format(optionals, groups)
+                pos_usage = format(positionals, groups)
+                opt_parts = _re.findall(part_regexp, opt_usage)
+                pos_parts = _re.findall(part_regexp, pos_usage)
+                assert ' '.join(opt_parts) == opt_usage
+                assert ' '.join(pos_parts) == pos_usage
+
+                # helper for wrapping lines
+                def get_lines(parts, indent, prefix=None):
+                    lines = []
+                    line = []
+                    if prefix is not None:
+                        line_len = len(prefix) - 1
+                    else:
+                        line_len = len(indent) - 1
+                    for part in parts:
+                        if line_len + 1 + len(part) > text_width and line:
+                            lines.append(indent + ' '.join(line))
+                            line = []
+                            line_len = len(indent) - 1
+                        line.append(part)
+                        line_len += len(part) + 1
+                    if line:
+                        lines.append(indent + ' '.join(line))
+                    if prefix is not None:
+                        lines[0] = lines[0][len(indent):]
+                    return lines
+
+                # if prog is short, follow it with optionals or positionals
+                if len(prefix) + 2 + len(prog) <= 0.75 * text_width: # NOTE: add 2 to account for ': '
+                    indent = ' ' * (len(prefix) + 2 + len(prog) + 1)
+                    if opt_parts:
+                        lines = get_lines([prog] + opt_parts, indent, prefix)
+                        lines.extend(get_lines(pos_parts, indent))
+                    elif pos_parts:
+                        lines = get_lines([prog] + pos_parts, indent, prefix)
+                    else:
+                        lines = [prog]
+
+                # if prog is long, put it on its own line
+                else:
+                    indent = ' ' * len(prefix) + 2 # NOTE: add 2 to account for ': '
+                    parts = opt_parts + pos_parts
+                    lines = get_lines(parts, indent)
+                    if len(lines) > 1:
+                        lines = []
+                        lines.extend(get_lines(opt_parts, indent))
+                        lines.extend(get_lines(pos_parts, indent))
+                    lines = [prog] + lines
+
+                # join lines into usage
+                usage = '\n'.join(lines)
+
+        # prefix with 'PREFIX: '
+        return f'{fg_orange}{text_underline}{prefix.upper()}{text_underline_reset}{fg_default}: {usage}\n\n' # NOTE: add format and color
+
+class ColoredArgumentParser(ArgumentParser):
+    def __init__(self,
+                 prog=None,
+                 usage=None,
+                 description=None,
+                 epilog=None,
+                 parents=[],
+                 formatter_class=ColoredFormatter,
+                 prefix_chars='-',
+                 fromfile_prefix_chars=None,
+                 argument_default=None,
+                 conflict_handler='error',
+                 add_help=False,
+                 allow_abbrev=True,
+                 exit_on_error=True):
+        super().__init__(prog,
+                         usage,
+                         textwrap.dedent(description) if description is not None else None, # NOTE: dedent description
+                         epilog,
+                         parents,
+                         formatter_class,
+                         prefix_chars,
+                         fromfile_prefix_chars,
+                         argument_default,
+                         conflict_handler,
+                         add_help,
+                         allow_abbrev,
+                         exit_on_error)
+    
+    def format_help(self):
+        formatter = self._get_formatter()
+
+        # ASCII art, version and script name
+        formatter.add_text(f'{text_blink}{textwrap.dedent(ascii_art)}{reset}{fg_pink}{self.prog}{fg_default}')
+
+        # description
+        formatter.add_text(textwrap.indent(self.description, '    ')) # NOTE: add indentation
+
+        # usage
+        formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
+
+        # positionals, optionals and user-defined groups
+        for action_group in self._action_groups:
+            formatter.start_section(action_group.title)
+            formatter.add_text(action_group.description)
+            formatter.add_arguments(action_group._group_actions)
+            formatter.end_section()
+
+        # epilog
+        formatter.add_text(self.epilog)
+
+        # determine help from format above
+        return formatter.format_help()
+    
+    def parse_known_args(self, args=None, namespace=None):
+        if args is None:
+            # args default to the system args
+            args = _sys.argv[1:]
+        else:
+            # make sure that args are mutable
+            args = list(args)
+        
+        # NOTE: print help if no arguments are given
+        if len(args) == 0:
+            self.print_help()
+            super().exit()
+
+        # default Namespace built from parser defaults
+        if namespace is None:
+            namespace = Namespace()
+
+        # add any action defaults that aren't present
+        for action in self._actions:
+            if action.dest is not SUPPRESS:
+                if not hasattr(namespace, action.dest):
+                    if action.default is not SUPPRESS:
+                        setattr(namespace, action.dest, action.default)
+
+        # add any parser defaults that aren't present
+        for dest in self._defaults:
+            if not hasattr(namespace, dest):
+                setattr(namespace, dest, self._defaults[dest])
+
+        # parse the arguments and exit if there are any errors
+        if self.exit_on_error:
+            try:
+                namespace, args = self._parse_known_args(args, namespace)
+            except ArgumentError as err:
+                self.error(str(err))
+        else:
+            namespace, args = self._parse_known_args(args, namespace)
+
+        if hasattr(namespace, _UNRECOGNIZED_ARGS_ATTR):
+            args.extend(getattr(namespace, _UNRECOGNIZED_ARGS_ATTR))
+            delattr(namespace, _UNRECOGNIZED_ARGS_ATTR)
+        return namespace, args
+    
+def setup_parser(description: str, args: list, add_force: bool=False, add_verbose: bool=False):
+    parser = ColoredArgumentParser(description=description)
+    # specific arguments
+    for arg in args:
+        parser.add_argument(*arg[0], **arg[1])
+    # common arguments
+    if add_force:
+        parser.add_argument('--force', '-f', action='store_true', help='Force overwriting of the output')
+    if add_verbose:
+        parser.add_argument('--verbose', '-v', type=int, default=2, metavar='VERBOSE_LEVEL', help='Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]')
+    parser.add_argument('--help', '-h', action='help', help='Show this help message and exit')
+    return parser.parse_args()
 
 class ProgressBar:
     """Class that provides a progress bar during long-running processes.

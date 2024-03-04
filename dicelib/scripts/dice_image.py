@@ -1,24 +1,19 @@
 from dicelib.image import extract
-from dicelib.ui import ColoredArgParser, ERROR
+from dicelib.ui import ERROR, setup_parser
 
 from os.path import isfile
 
 def image_extract():
     # parse the input parameters
-    parser = ColoredArgParser(description=extract.__doc__.split('\n')[0])
     args = [
         [["input_dwi"], {"help": "Input DWI data"}],
         [["input_scheme"], {"help": "Input scheme"}],
         [["output_dwi"], {"help": "Output DWI data"}],
         [["output_scheme"], {"help": "Output scheme"}],
-        [["--b", "-b"], {"type": float, "nargs": '+', "required": True, "help": "List of b-values to extract"}],
-        [["--round", "-r"], {"type": float, "default": 0.0, "help": "Round b-values to nearest integer multiple of this value"}],
-        [["--verbose", "-v"], {"default": 2, "type": int, "help": "Verbose level [ 0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress ]"}],
-        [["--force", "-f"], {"action": "store_true", "help": "Force overwriting of the output"}]
+        [["--b", "-b"], {"type": float, "nargs": '+', "metavar": "B", "required": True, "help": "List of b-values to extract"}],
+        [["--round", "-r"], {"type": float, "default": 0.0, "help": "Round b-values to nearest integer multiple of this value"}]
     ]
-    for arg in args:
-        parser.add_argument(*arg[0], **arg[1])
-    options = parser.parse_args()
+    options = setup_parser(extract.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check if path to input and output files are valid
     if not isfile(options.input_dwi):
