@@ -347,10 +347,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
     max_open : integer
         Maximum number of files opened at the same time (default : None).
-        If the specified value is greater than the system limit, the latter will be increased.
+        If the specified value exceeds the system limit, an attempt is made to increase the latter so that `max_open` equals the 90% of the system limit
         If None, the following values are used:
-            - on Windows: default system limit * 10
-            - on Unix: 50% of the default system hard limit
+            - on Unix: 90% of half the default system hard limit
+            - on Windows: 90% of twice the default system limit
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
@@ -397,20 +397,35 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         import win32file
         limit = win32file._getmaxstdio()
         if max_open is not None and max_open > limit:
-            win32file._setmaxstdio(int(max_open*2))
-        if max_open is None:
-            max_open = int(limit*10)
+            new_limit = int(max_open / 0.9)
+            ret = win32file._setmaxstdio(new_limit)
+            if ret == -1:
+                new_limit = int(limit * 2)
+                max_open = int(new_limit * 0.9)
+                win32file._setmaxstdio(new_limit)
+                ui.WARNING(f'`max_open` is greater than the system limit, using {max_open} instead')
+        elif max_open is None:
+            new_limit = int(limit * 2)
+            max_open = int(new_limit * 0.9)
             win32file._setmaxstdio(max_open)
     elif sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
         import resource
         limit, limit_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         if max_open is not None and max_open > limit:
-            resource.setrlimit(resource.RLIMIT_NOFILE, (int(max_open*2), limit_hard))
-        if max_open is None:
-            max_open = int(limit_hard*0.5)
-            resource.setrlimit(resource.RLIMIT_NOFILE, (max_open, limit_hard))
+            new_limit = int(max_open / 0.9)
+            if new_limit < limit_hard:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
+            else:
+                new_limit = int(limit_hard * 0.5)
+                max_open = int(new_limit * 0.9)
+                resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
+                ui.WARNING(f'`max_open` is greater than the system limit, using {max_open} instead')
+        elif max_open is None:
+            new_limit = int(limit_hard * 0.5)
+            max_open = int(new_limit * 0.9)
+            resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
     
-    ui.INFO( f'Using {max_open} files open simultaneously' )
+    ui.INFO(f'Using {max_open} files open simultaneously')
 
     #----- iterate over input streamlines -----
     TCK_in          = None
