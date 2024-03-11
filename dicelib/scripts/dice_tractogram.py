@@ -173,19 +173,6 @@ def tractogram_cluster():
         elif isfile(options.file_name_out) and not options.force:
             ERROR('Output tractogram already exists, use -f to overwrite')
 
-    # check if path to save assignments exists and create it if not
-    if options.save_assignments is not None:
-        out_assignment_ext = splitext(options.save_assignments)[1]
-        if out_assignment_ext not in ['.txt', '.npy']:
-            ERROR('Invalid extension for the output scalar file')
-        elif isfile(options.save_assignments) and not options.force:
-            ERROR('Output scalar file already exists, use -f to overwrite')
-
-        if not exists(dirname(options.save_assignments)):
-            makedirs(dirname(options.save_assignments))
-        else:
-            ERROR('Output folder already exists, use -f to overwrite')
-
     # check if atlas exists
     if options.atlas is not None:
         if not exists(options.atlas):
