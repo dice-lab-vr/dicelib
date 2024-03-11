@@ -771,22 +771,16 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
         else:
             MAX_THREAD = os.cpu_count()
 
-        # # NOTE: optimal
-        # MAX_THREAD = 6
-
         ref_indices = []
         TCK_out_size = 0
 
         # retreieve total memory available
         mem = psutil.virtual_memory()
         mem_avail = mem.available
-        time_chunk = time.time()
 
         while True:
-            print(f"MAX_THREAD: {MAX_THREAD}")
             if max_bytes>0:
                 if max_bytes > mem_avail:
-                    ui.WARNING(f"  - Maximum bytes set to {mem_avail} (available memory)")
                     MAX_BYTES = mem_avail//MAX_THREAD
                 else:
                     MAX_BYTES = max_bytes//MAX_THREAD
@@ -796,13 +790,11 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
             executor = tdp(max_workers=MAX_THREAD)
             t0 = time.time()
             chunk_list = []
-            total_mem = 0
 
             # compute base size of centroid array
             base_size = getsizeof(np.zeros((1,1,1000,n_pts,3), dtype=np.float32))
 
-            # NOTE: compute chunks
-            print(f"total number of bundles: {len(bundles.items())}")
+            # compute chunks
             while len(bundles.items()) > 0:
                 to_delete = []
                 new_chunk = []
@@ -818,12 +810,9 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
                         new_chunk.append(bundle[0])
                         new_chunk_num_streamlines.append(bundle[2])
                         to_delete.append(k)
-                        # bundles.pop(k)
                     else:
+                        # bundle too big
                         break
-                    # else:
-                    #     print(f"future_size: {future_size}, max_bundle_size: {max_bundle_size} total_mem + future_size: {total_mem + future_size} > mem_avail: {mem_avail}")
-                    #     ui.ERROR(f"  - Not enough memory to process the data")
                 # remove from bundles list
                 if len(new_chunk_num_streamlines) == 0:
                     MAX_THREAD -= 1
@@ -836,27 +825,6 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
                 ui.ERROR(f"  - Not enough memory to process the data")
             if len(bundles.items()) == 0:
                 break
-
-        print(f"time to compute chunks: {time.time()-time_chunk}")
-        print(f"total number of chunks: {len(chunk_list)}")
-        # compute total number of bundles in each chunk
-        n_bund = 0
-        for chunk in chunk_list:
-            n_bund += len(chunk[0])
-        print(f"total number of bundles after split in chunks: {n_bund}")
-
-        chunk_streamlines = 0
-        total_chunk_streamlines = []
-        for chunk in chunk_list:
-            chunk_streamlines = 0
-            for f in chunk[0]:
-                chunk_streamlines += int(info(f))
-            total_chunk_streamlines.append(chunk_streamlines)
-        print(f"average number of streamlines per chunk: {np.mean(total_chunk_streamlines)}")
-        print(f"min number of streamlines per chunk: {np.min(total_chunk_streamlines)}")
-        print(f"max number of streamlines per chunk: {np.max(total_chunk_streamlines)}")
-            
-            
                 
         with ui.ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3]), hide_on_exit=True) as pbar:
             future = [executor.submit(cluster_chunk,

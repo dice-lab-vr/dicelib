@@ -545,12 +545,13 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         # create individual weight files for each splitted tractogram
         if weights_in is not None:
             ui.INFO( f'Saving one weights file per bundle' )
-            for key in WEIGHTS_out_idx.keys():
-                w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ].astype(np.float32)
-                if weights_in_ext=='.txt':
-                    np.savetxt( os.path.join(output_folder,f'{key}.txt'), w_bundle, fmt='%.5e' )
-                else:
-                    np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle, allow_pickle=False )
+            with ui.ProgressBar(disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+                for key in WEIGHTS_out_idx.keys():
+                    w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ].astype(np.float32)
+                    if weights_in_ext=='.txt':
+                        np.savetxt( os.path.join(output_folder,f'{key}.txt'), w_bundle, fmt='%.5e' )
+                    else:
+                        np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle, allow_pickle=False )
 
         if unassigned_count:
             ui.INFO( f'{n_written-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
