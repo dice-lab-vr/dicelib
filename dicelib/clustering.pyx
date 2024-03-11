@@ -9,14 +9,18 @@ cimport numpy as np
 from dicelib.lazytractogram cimport LazyTractogram
 from dicelib.connectivity import assign
 from dicelib.tractogram import split as split_bundles
+from dicelib.tractogram import info
+from dicelib import ui
 from libc.math cimport sqrt
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool
-import time
+
 from concurrent.futures import ThreadPoolExecutor as tdp
 import concurrent.futures as cf
-from dicelib import ui
+import psutil
 import shutil
+from sys import getsizeof
+import time
 
 
 
@@ -432,7 +436,7 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     return centroids
 
 
-cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10, metric: str="mean"):
+cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, n_pts: int=10, metric: str="mean"):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -446,7 +450,7 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10, 
 
     """
 
-    cdef float[:,:,:,::1] set_centroids = np.zeros((len(filenames), 100000, n_pts, 3), dtype=np.float32)
+    cdef float[:,:,:,::1] set_centroids = np.zeros((len(filenames), num_fibs, n_pts, 3), dtype=np.float32)
     cdef LazyTractogram TCK_in
     cdef int [:] n_streamlines = np.zeros(len(filenames), dtype=np.int32)
     cdef int [:] header_params = np.zeros(len(filenames), dtype=np.intc)
@@ -455,7 +459,7 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10, 
     cdef size_t j = 0
     cdef size_t pp = 0
 
-    idx_cl = np.zeros((len(filenames), 100000), dtype=np.intc)
+    idx_cl = np.zeros((len(filenames), num_fibs), dtype=np.intc)
     cdef int[:,::1] idx_closest = idx_cl
     cdef float* vers = <float*>malloc(3*sizeof(float))
     cdef float* lengths = <float*>malloc(1000*sizeof(float))
@@ -631,7 +635,7 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 
 def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: str=None, atlas: str=None, conn_thr: float=2.0,
                     clust_thr: float=2.0, metric: str="mean", n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
-                    n_threads: int=None, force: bool=False, verbose: int=1, delete_temp_files: bool=True):
+                    n_threads: int=None, force: bool=False, verbose: int=1, delete_temp_files: bool=True, max_bytes: int=0):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -749,54 +753,127 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         t0 = time.time()
         output_bundles_folder = os.path.join(output_folder, 'bundles')
         split_bundles(input_tractogram=file_name_in, input_assignments=save_assignments, output_folder=output_bundles_folder,
-                      weights_in=temp_idx, force=force)
+                      weights_in=temp_idx, force=force, verbose=verbose)
         t1 = time.time()
         ui.set_verbose(verbose)
         ui.INFO(f"  - Time bundles splitting: {t1-t0}")
         
-        bundles = {}
-        for  dirpath, _, filenames in os.walk(output_bundles_folder):
-            for i, f in enumerate(filenames):
+        bundles = []
+        for dirpath, _, filenames in os.walk(output_bundles_folder):
+            for f in filenames:
                 if f.endswith('.tck') and not f.startswith('unassigned'):
                     filename = os.path.abspath(os.path.join(dirpath, f))
-                    bundles[i] = (filename, os.path.getsize(filename))
+                    bundles.append((filename, os.path.getsize(filename), int(info(filename))))
+
+        # Sort the list of tuples by the file size, which is the second element of each tuple
+        bundles.sort(key=lambda x: x[1])
+
+        # Convert the sorted list of tuples into a dictionary
+        bundles = {i: bundle for i, bundle in enumerate(bundles)}
+
+        bundles[len(bundles)-1] = (bundles[len(bundles)-1][0], bundles[len(bundles)-1][1], bundles[len(bundles)-1][2]*10)
+
+
 
         if n_threads:
             MAX_THREAD = n_threads
         else:
             MAX_THREAD = os.cpu_count()
 
-        # NOTE: optimal
-        MAX_THREAD = 6
-
+        # # NOTE: optimal
+        # MAX_THREAD = 6
 
         ref_indices = []
         TCK_out_size = 0
 
-        MAX_BYTES = 2e8
-        executor = tdp(max_workers=MAX_THREAD)
-        t0 = time.time()
-        chunk_list = []
+        # retreieve total memory available
+        mem = psutil.virtual_memory()
+        mem_avail = mem.available
+        time_chunk = time.time()
 
-        # NOTE: compute chunks
-        while len(bundles.items()) > 0:
-            to_delete = []
-            new_chunk = []
-            for k, bundle in bundles.items():
-                new_chunk_size = [os.path.getsize(f) for f in new_chunk]
-                new_chunk_size.append(bundle[1])
-                if max(new_chunk_size)*len(new_chunk) < MAX_BYTES:
-                    new_chunk.append(bundle[0])
-                    to_delete.append(k)
-            [bundles.pop(k) for k in to_delete]
-            chunk_list.append(new_chunk)
+        while True:
+            print(f"MAX_THREAD: {MAX_THREAD}")
+            if max_bytes>0:
+                if max_bytes > mem_avail:
+                    ui.WARNING(f"  - Maximum bytes set to {mem_avail} (available memory)")
+                    MAX_BYTES = mem_avail//MAX_THREAD
+                else:
+                    MAX_BYTES = max_bytes//MAX_THREAD
+            else:
+                MAX_BYTES = int(0.9 * mem_avail)//MAX_THREAD
+
+            executor = tdp(max_workers=MAX_THREAD)
+            t0 = time.time()
+            chunk_list = []
+            total_mem = 0
+
+            # compute base size of centroid array
+            base_size = getsizeof(np.zeros((1,1,1000,n_pts,3), dtype=np.float32))
+
+            # NOTE: compute chunks
+            print(f"total number of bundles: {len(bundles.items())}")
+            while len(bundles.items()) > 0:
+                to_delete = []
+                new_chunk = []
+                new_chunk_num_streamlines = []
+                max_bundle_size = 0
+                for k, bundle in bundles.items():
+                    new_chunk_size = [os.path.getsize(f) for f in new_chunk]
+                    if bundle[2] > max_bundle_size:
+                        max_bundle_size = bundle[2]
+                    future_size = len(new_chunk_size) * max_bundle_size * base_size
+                    
+                    if future_size < MAX_BYTES:
+                        new_chunk.append(bundle[0])
+                        new_chunk_num_streamlines.append(bundle[2])
+                        to_delete.append(k)
+                        # bundles.pop(k)
+                    else:
+                        break
+                    # else:
+                    #     print(f"future_size: {future_size}, max_bundle_size: {max_bundle_size} total_mem + future_size: {total_mem + future_size} > mem_avail: {mem_avail}")
+                    #     ui.ERROR(f"  - Not enough memory to process the data")
+                # remove from bundles list
+                if len(new_chunk_num_streamlines) == 0:
+                    MAX_THREAD -= 1
+                    break
+                
+                chunk_list.append([new_chunk, max(new_chunk_num_streamlines)])
+                for k in to_delete:
+                    bundles.pop(k)
+            if MAX_THREAD == 0:
+                ui.ERROR(f"  - Not enough memory to process the data")
+            if len(bundles.items()) == 0:
+                break
+
+        print(f"time to compute chunks: {time.time()-time_chunk}")
+        print(f"total number of chunks: {len(chunk_list)}")
+        # compute total number of bundles in each chunk
+        n_bund = 0
+        for chunk in chunk_list:
+            n_bund += len(chunk[0])
+        print(f"total number of bundles after split in chunks: {n_bund}")
+
+        chunk_streamlines = 0
+        total_chunk_streamlines = []
+        for chunk in chunk_list:
+            chunk_streamlines = 0
+            for f in chunk[0]:
+                chunk_streamlines += int(info(f))
+            total_chunk_streamlines.append(chunk_streamlines)
+        print(f"average number of streamlines per chunk: {np.mean(total_chunk_streamlines)}")
+        print(f"min number of streamlines per chunk: {np.min(total_chunk_streamlines)}")
+        print(f"max number of streamlines per chunk: {np.max(total_chunk_streamlines)}")
+            
+            
                 
         with ui.ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3]), hide_on_exit=True) as pbar:
             future = [executor.submit(cluster_chunk,
-                                        chunk,
-                                        clust_thr,
-                                        n_pts=n_pts,
-                                        metric=metric) for chunk in chunk_list]
+                                      chunk,
+                                      num_fibs,
+                                      clust_thr,
+                                      n_pts=n_pts,
+                                      metric=metric) for chunk, num_fibs in chunk_list]
             for i, f in enumerate(cf.as_completed(future)):
                 bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst = f.result()
 
@@ -809,11 +886,14 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
                 pbar.update()
             TCK_out.close( write_eof=True, count= TCK_out_size)
 
+        ui.set_verbose(verbose)
+
         t1 = time.time()
         ui.INFO(f"  - Time taken to cluster and find closest streamlines: {t1-t0}")
         ui.INFO(f"  - Number of computed centroids: {TCK_out_size}")
 
         if delete_temp_files:
+            ui.INFO(f"  - Deleting temporary files")
             shutil.rmtree(output_bundles_folder)
             os.remove(save_assignments)
             os.remove(temp_idx)
@@ -855,4 +935,3 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         TCK_in.close()
 
     return ref_indices
-

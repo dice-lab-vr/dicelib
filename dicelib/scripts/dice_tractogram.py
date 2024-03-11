@@ -188,6 +188,8 @@ def tractogram_cluster():
 
         if not exists(dirname(options.save_assignments)):
             makedirs(dirname(options.save_assignments))
+        else:
+            ERROR('Output folder already exists, use -f to overwrite')
 
     # check if atlas exists
     if options.atlas is not None:
