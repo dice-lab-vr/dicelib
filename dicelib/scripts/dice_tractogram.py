@@ -151,20 +151,15 @@ def tractogram_cluster():
         [['file_name_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
         [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': 'Atlas used to compute streamlines connectivity'}],
         [['--conn_thr', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Threshold [in mm]'}],
-        [['--metric'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: "mean", "max (default: "mean").'}],
+        [['--metric'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: "mean", "max" (default: "mean").'}],
         [['--n_pts'], {'type': int, 'default': 10, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
-        [['--save_assignments'], {'type': str, 'metavar': 'ASSIGNMENTS_FILE', 'help': 'Save the cluster assignments to file'}],
         [['--output_folder', '-out'], {'type': str, 'metavar': 'OUT_FOLDER', 'help': 'Folder where to save the split clusters'}],
         [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform clustering'}],
         [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
         [['--verbose', '-v'], {'type': int, 'default': 2, 'metavar': 'VERBOSE_LEVEL', 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}],
-        [['--delete_temp', '-d'], {'default': True, 'action': 'store_true', 'help': 'Delete temporary files'}]
+        [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
     ]
     options = setup_parser(run_clustering.__doc__.split('\n')[0], args)
-
-    # file_name_in: str, output_folder: str=None, file_name_out: str=None, atlas: str=None, conn_thr: float=2.0,
-    #                 clust_thr: float=2.0, metric: str="mean", n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
-    #                 n_threads: int=None, force: bool=False, verbose: int=1):
 
     # check the input parameters
     # check if path to input and output files are valid
@@ -201,6 +196,10 @@ def tractogram_cluster():
         if not exists(options.output_folder):
             makedirs(options.output_folder)
 
+    # check if metric is valid
+    if options.metric not in ['mean', 'max']:
+        ERROR('Invalid metric, must be "mean" or "max"')
+
     # check if number of threads is valid
     if options.n_threads is not None:
         if options.n_threads < 1:
@@ -225,11 +224,10 @@ def tractogram_cluster():
         clust_thr=options.clust_thr,
         metric=options.metric,
         n_pts=options.n_pts,
-        save_assignments=options.save_assignments,
         n_threads=options.n_threads,
         force=options.force,
         verbose=options.verbose,
-        delete_temp_files=options.delete_temp
+        keep_temp_files=options.keep_temp
     )
 
 def tractogram_compress():

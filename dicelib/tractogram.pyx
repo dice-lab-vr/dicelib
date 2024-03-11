@@ -21,7 +21,7 @@ from libcpp cimport bool as cbool
 from dicelib.space_transf import space_tovox
 
 
-def compute_lengths( input_tractogram: str, verbose: int=1 ) -> np.ndarray:
+def compute_lengths( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
     """Compute the lengths of the streamlines in a tractogram.
 
     Parameters
@@ -347,10 +347,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
     max_open : integer
         Maximum number of files opened at the same time (default : None).
-        If the specified value is greater than the system limit, the latter will be increased.
+        If the specified value exceeds the system limit, an attempt is made to increase the latter so that `max_open` equals the 90% of the system limit
         If None, the following values are used:
-            - on Windows: default system limit * 10
-            - on Unix: 50% of the default system hard limit
+            - on Unix: 90% of half the default system hard limit
+            - on Windows: 90% of twice the default system limit
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
@@ -397,20 +397,35 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         import win32file
         limit = win32file._getmaxstdio()
         if max_open is not None and max_open > limit:
-            win32file._setmaxstdio(int(max_open*2))
-        if max_open is None:
-            max_open = int(limit*10)
+            new_limit = int(max_open / 0.9)
+            ret = win32file._setmaxstdio(new_limit)
+            if ret == -1:
+                new_limit = int(limit * 2)
+                max_open = int(new_limit * 0.9)
+                win32file._setmaxstdio(new_limit)
+                ui.WARNING(f'`max_open` is greater than the system limit, using {max_open} instead')
+        elif max_open is None:
+            new_limit = int(limit * 2)
+            max_open = int(new_limit * 0.9)
             win32file._setmaxstdio(max_open)
     elif sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
         import resource
         limit, limit_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         if max_open is not None and max_open > limit:
-            resource.setrlimit(resource.RLIMIT_NOFILE, (int(max_open*2), limit_hard))
-        if max_open is None:
-            max_open = int(limit_hard)#*0.5)
-            resource.setrlimit(resource.RLIMIT_NOFILE, (max_open, limit_hard))
+            new_limit = int(max_open / 0.9)
+            if new_limit < limit_hard:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
+            else:
+                new_limit = int(limit_hard * 0.5)
+                max_open = int(new_limit * 0.9)
+                resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
+                ui.WARNING(f'`max_open` is greater than the system limit, using {max_open} instead')
+        elif max_open is None:
+            new_limit = int(limit_hard * 0.5)
+            max_open = int(new_limit * 0.9)
+            resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
     
-    ui.INFO( f'Using {max_open} files open simultaneously' )
+    ui.INFO(f'Using {max_open} files open simultaneously')
 
     #----- iterate over input streamlines -----
     TCK_in          = None
@@ -628,7 +643,7 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
         TCK_in.close()
 
-        with ui.ProgressBar( total=len(input_list), disable=(verbose in [0, 1, 3]) ) as pbar:
+        with ui.ProgressBar( total=len(input_list), disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
             for i,input_tractogram in enumerate(input_list):
 
                 # open the input file
@@ -840,7 +855,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
         if save_connecting_tck==True:
             TCK_con = LazyTractogram( conn_tractogram, mode='w', header=TCK_in.header )
 
-        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]) ) as pbar:
+        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True ) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -976,14 +991,13 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
         if TCK_con is not None:
             TCK_con.close( write_eof=True, count=n_in )
 
-    if verbose :
-        ui.INFO( f'- Save sanitized tractogram to "{output_tractogram}"' )
-        if save_connecting_tck: ui.INFO( f'- Save only connecting streamlines to "{conn_tractogram}"' )
-    if verbose :
-        ui.INFO( f'    * tot. streamlines: {n_tot}' )
-        ui.INFO( f'        + connecting (both ends in GM):          {n_in}' )
-        ui.INFO( f'        + half connecting (one ends in GM):      {n_half}' )
-        ui.INFO( f'        + non-connecting (both ends outside GM): {n_out}' )
+    ui.INFO( f'- Save sanitized tractogram to "{output_tractogram}"' )
+    if save_connecting_tck: ui.INFO( f'- Save only connecting streamlines to "{conn_tractogram}"' )
+
+    ui.INFO( f'    * tot. streamlines: {n_tot}' )
+    ui.INFO( f'        + connecting (both ends in GM):          {n_in}' )
+    ui.INFO( f'        + half connecting (one ends in GM):      {n_half}' )
+    ui.INFO( f'        + non-connecting (both ends outside GM): {n_out}' )
 
 
 def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=2, force=False ):
@@ -1055,27 +1069,26 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
-        if verbose :
-            ui.INFO( 'Input tractogram :' )
-            ui.INFO( f'\t- {input_tractogram}' )
-            ui.INFO( f'\t- {n_streamlines} streamlines' )
+        ui.INFO( 'Input tractogram :' )
+        ui.INFO( f'\t- {input_tractogram}' )
+        ui.INFO( f'\t- {n_streamlines} streamlines' )
 
-            mb = os.path.getsize( input_tractogram )/1.0E6
-            if mb >= 1E3:
-                ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
-            else:
-                ui.INFO( f'\t- {mb:.2f} MB' )
+        mb = os.path.getsize( input_tractogram )/1.0E6
+        if mb >= 1E3:
+            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        else:
+            ui.INFO( f'\t- {mb:.2f} MB' )
 
-            ui.INFO( 'Output tractogram :' )
-            ui.INFO( f'\t- {output_tractogram}' )
-            ui.INFO( f'\t- spline type : {spline_type}')
-            if not segment_len==None:
-                ui.INFO( f'\t- segment length : {segment_len:.2f}' )
-            if not streamline_pts==None:
-                ui.INFO( f'\t- number of points : {streamline_pts}' )
+        ui.INFO( 'Output tractogram :' )
+        ui.INFO( f'\t- {output_tractogram}' )
+        ui.INFO( f'\t- spline type : {spline_type}')
+        if not segment_len==None:
+            ui.INFO( f'\t- segment length : {segment_len:.2f}' )
+        if not streamline_pts==None:
+            ui.INFO( f'\t- number of points : {streamline_pts}' )
 
         # process each streamline
-        with ui.ProgressBar( total=n_streamlines ) as pbar:
+        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True ) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -1097,12 +1110,11 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         TCK_in.close()
         TCK_out.close()
 
-    if verbose :
-        mb = os.path.getsize( output_tractogram )/1.0E6
-        if mb >= 1E3:
-            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
-        else:
-            ui.INFO( f'\t- {mb:.2f} MB' )
+    mb = os.path.getsize( output_tractogram )/1.0E6
+    if mb >= 1E3:
+        ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+    else:
+        ui.INFO( f'\t- {mb:.2f} MB' )
 
 
 cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=2, force=False ):
@@ -1207,26 +1219,25 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
 
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
-        if verbose :
-            ui.INFO( 'Input tractogram :' )
-            ui.INFO( f'\t- {input_tractogram}' )
-            ui.INFO( f'\t- {n_streamlines} streamlines' )
+        ui.INFO( 'Input tractogram :' )
+        ui.INFO( f'\t- {input_tractogram}' )
+        ui.INFO( f'\t- {n_streamlines} streamlines' )
 
-            mb = os.path.getsize( input_tractogram )/1.0E6
-            if mb >= 1E3:
-                ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
-            else:
-                ui.INFO( f'\t- {mb:.2f} MB' )
+        mb = os.path.getsize( input_tractogram )/1.0E6
+        if mb >= 1E3:
+            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        else:
+            ui.INFO( f'\t- {mb:.2f} MB' )
 
-            ui.INFO( 'Output tractogram :' )
-            ui.INFO( f'\t- {output_tractogram}' )
-            ui.INFO( f'\t- spline type : {spline_type}')
-            if not segment_len==None:
-                ui.INFO( f'\t- segment length : {segment_len:.2f}' )
-            if not streamline_pts==None:
-                ui.INFO( f'\t- number of points : {streamline_pts}' )
-            if mask is not None:
-                ui.INFO( f'\t- mask : {mask}' )
+        ui.INFO( 'Output tractogram :' )
+        ui.INFO( f'\t- {output_tractogram}' )
+        ui.INFO( f'\t- spline type : {spline_type}')
+        if not segment_len==None:
+            ui.INFO( f'\t- segment length : {segment_len:.2f}' )
+        if not streamline_pts==None:
+            ui.INFO( f'\t- number of points : {streamline_pts}' )
+        if mask is not None:
+            ui.INFO( f'\t- mask : {mask}' )
 
         if streamline_pts!=None:
             n_pts_out = streamline_pts
@@ -1235,7 +1246,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
 
 
         # process each streamline
-        with ui.ProgressBar( total=n_streamlines ) as pbar:
+        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True ) as pbar:
             for i in range( n_streamlines ):
                 epsilon_tmp = epsilon
                 in_mask = False
@@ -1293,13 +1304,12 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         TCK_in.close()
         TCK_out.close()
 
-    if verbose :
-        mb = os.path.getsize( output_tractogram )/1.0E6
-        ui.INFO( f'\t- {attempts} attempts')
-        if mb >= 1E3:
-            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
-        else:
-            ui.INFO( f'\t- {mb:.2f} MB' )
+    mb = os.path.getsize( output_tractogram )/1.0E6
+    ui.INFO( f'\t- {attempts} attempts')
+    if mb >= 1E3:
+        ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+    else:
+        ui.INFO( f'\t- {mb:.2f} MB' )
 
 
 
@@ -1351,21 +1361,20 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
 
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
-        if verbose :
-            ui.INFO( 'Input tractogram :' )
-            ui.INFO( f'\t- {input_tractogram}' )
-            ui.INFO( f'\t- {n_streamlines} streamlines' )
+        ui.INFO( 'Input tractogram :' )
+        ui.INFO( f'\t- {input_tractogram}' )
+        ui.INFO( f'\t- {n_streamlines} streamlines' )
 
-            mb = os.path.getsize( input_tractogram )/1.0E6
-            if mb >= 1E3:
-                ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
-            else:
-                ui.INFO( f'\t- {mb:.2f} MB' )
+        mb = os.path.getsize( input_tractogram )/1.0E6
+        if mb >= 1E3:
+            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        else:
+            ui.INFO( f'\t- {mb:.2f} MB' )
 
-            ui.INFO( 'Output tractogram :' )
-            ui.INFO( f'\t- {output_tractogram}' )
-            ui.INFO( f'\t- control points : {control_point_ratio*100.0:.1f}%')
-            ui.INFO( f'\t- segment length : {segment_len:.2f}' )
+        ui.INFO( 'Output tractogram :' )
+        ui.INFO( f'\t- {output_tractogram}' )
+        ui.INFO( f'\t- control points : {control_point_ratio*100.0:.1f}%')
+        ui.INFO( f'\t- segment length : {segment_len:.2f}' )
 
         # process each streamline
         with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
@@ -1388,12 +1397,11 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         TCK_in.close()
         TCK_out.close()
 
-    if verbose :
-        mb = os.path.getsize( output_tractogram )/1.0E6
-        if mb >= 1E3:
-            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
-        else:
-            ui.INFO( f'\t- {mb:.2f} MB' )
+    mb = os.path.getsize( output_tractogram )/1.0E6
+    if mb >= 1E3:
+        ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+    else:
+        ui.INFO( f'\t- {mb:.2f} MB' )
 
 
 def recompute_indices(indices, dictionary_kept, verbose=2):
@@ -1420,8 +1428,7 @@ def recompute_indices(indices, dictionary_kept, verbose=2):
         ui.ERROR( '"verbose" must be in [0...4]' )
     ui.set_verbose( verbose )
 
-    if verbose==4:
-        ui.INFO( 'Recomputing indices' )
+    ui.INFO( 'Recomputing indices' )
 
     # open indices file and dictionary
     d = np.fromfile(dictionary_kept, dtype=np.uint8)
@@ -1572,7 +1579,7 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=2, force=Fal
         Number of points to set for each streamline.
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
 
     force : boolean
         Force overwriting of the output (default : False).
@@ -1596,20 +1603,19 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=2, force=Fal
 
     TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
-    if verbose :
-        ui.INFO( 'Input tractogram :' )
-        ui.INFO( f'\t- {input_tractogram}' )
-        ui.INFO( f'\t- {n_streamlines} streamlines' )
+    ui.INFO( 'Input tractogram :' )
+    ui.INFO( f'\t- {input_tractogram}' )
+    ui.INFO( f'\t- {n_streamlines} streamlines' )
 
-        mb = os.path.getsize( input_tractogram )/1.0E6
-        if mb >= 1E3:
-            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
-        else:
-            ui.INFO( f'\t- {mb:.2f} MB' )
+    mb = os.path.getsize( input_tractogram )/1.0E6
+    if mb >= 1E3:
+        ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+    else:
+        ui.INFO( f'\t- {mb:.2f} MB' )
 
-        ui.INFO( 'Output tractogram :' )
-        ui.INFO( f'\t- {output_tractogram}' )
-        ui.INFO( f'\t- nb_pts : {nb_pts}')
+    ui.INFO( 'Output tractogram :' )
+    ui.INFO( f'\t- {output_tractogram}' )
+    ui.INFO( f'\t- nb_pts : {nb_pts}')
 
     # process each streamline
     with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
@@ -1621,3 +1627,9 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=2, force=Fal
 
     TCK_in.close()
     TCK_out.close()
+
+    mb = os.path.getsize( output_tractogram )/1.0E6
+    if mb >= 1E3:
+        ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+    else:
+        ui.INFO( f'\t- {mb:.2f} MB' )
