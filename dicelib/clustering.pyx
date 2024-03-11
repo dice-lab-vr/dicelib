@@ -454,7 +454,6 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
     cdef LazyTractogram TCK_in
     cdef int [:] n_streamlines = np.zeros(len(filenames), dtype=np.int32)
     cdef int [:] header_params = np.zeros(len(filenames), dtype=np.intc)
-    cdef float[:,:,::1] resampled_fib = np.zeros((1,n_pts,3), dtype=np.float32)
     cdef size_t i = 0
     cdef size_t j = 0
     cdef size_t pp = 0
@@ -512,7 +511,6 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
     fib_centr_dist[:] = 1000
     clst_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), 1000, 3), dtype=np.float32)
     cdef float[:,:,:,::1] clst_streamlines_view = clst_streamlines
-    cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
     cdef int[:,::1] c_w = np.ones((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
     cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
@@ -792,7 +790,7 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
             chunk_list = []
 
             # compute base size of centroid array
-            base_size = getsizeof(np.zeros((1,1,1000,n_pts,3), dtype=np.float32))
+            base_size = getsizeof(np.zeros((1,1, 1000, 3), dtype=np.float32))
 
             # compute chunks
             while len(bundles.items()) > 0:
@@ -804,7 +802,7 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
                     new_chunk_size = [os.path.getsize(f) for f in new_chunk]
                     if bundle[2] > max_bundle_size:
                         max_bundle_size = bundle[2]
-                    future_size = len(new_chunk_size) * max_bundle_size * base_size
+                    future_size = len(new_chunk_size) * max_bundle_size * 4 * base_size
                     
                     if future_size < MAX_BYTES:
                         new_chunk.append(bundle[0])
