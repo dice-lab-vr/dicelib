@@ -266,7 +266,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=10.0, n_pts
     cdef float[:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
     cdef float* vers = <float*>malloc(3*sizeof(float))
     cdef float* lengths = <float*>malloc(1000*sizeof(float))
-    TCK_in._read_streamline() 
+    TCK_in._read_streamline()
     cdef size_t pp = 0
 
     if TCK_in.n_pts == nb_pts: # no need to resample

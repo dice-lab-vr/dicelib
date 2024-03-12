@@ -1,3 +1,5 @@
+import ast
+
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
 from dicelib.lazytractogram import LazyTractogram
@@ -13,10 +15,12 @@ from os import getcwd, makedirs, remove
 from os.path import dirname, exists, isabs, isfile, isdir, join as p_join, splitext 
 from time import time
 
+
 def compute_chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
+
 
 def create_color_scalar_file(streamline, num_streamlines):
         """
@@ -40,6 +44,7 @@ def create_color_scalar_file(streamline, num_streamlines):
                 scalar_list.extend([float(j)])
             # scalar_list.append(pt_list)
         return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
+
 
 def color_by_scalar_file(streamline, values, num_streamlines):
     """
@@ -87,15 +92,23 @@ def tractogram_assign():
 
     set_verbose(options.verbose)
 
+    # check if tractogram exists
+    if not exists(options.tractogram):
+        ERROR('Tractogram does not exist')
+
+    # check if path to save assignments is relative or absolute and create if necessary
+    if options.save_assignments:
+        if not isabs(options.save_assignments):
+            options.save_assignments = p_join(getcwd(), options.save_assignments)
+        if not isdir(dirname(options.save_assignments)):
+            makedirs(dirname(options.save_assignments))
+
     out_assignment_ext = splitext(options.save_assignments)[1]
     if out_assignment_ext not in ['.txt', '.npy']:
         ERROR('Invalid extension for the output scalar file')
     elif isfile(options.save_assignments) and not options.force:
         ERROR('Output scalar file already exists, use -f to overwrite')
 
-    # check if path to save assignments exists and create it if not
-    if not exists(dirname(options.save_assignments)):
-        makedirs(dirname(options.save_assignments))
 
     # check if atlas exists
     if not exists(options.atlas):
@@ -112,7 +125,7 @@ def tractogram_assign():
     chunk_size = int(num_streamlines / MAX_THREAD)
     chunk_groups = [e for e in compute_chunks(np.arange(num_streamlines), chunk_size)]
     chunks_asgn = []
-    
+
     pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
     t0 = time()
     with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=(options.verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
@@ -126,9 +139,7 @@ def tractogram_assign():
                     start_chunk=int(chunk_groups[i][0]),
                     end_chunk=int(chunk_groups[i][len(chunk_groups[i]) - 1] + 1),
                     gm_map_file=options.atlas,
-                    threshold=options.conn_threshold)
-                    for i in range(len(chunk_groups)
-                )
+                    threshold=options.conn_threshold) for i in range(len(chunk_groups))
             ]
             chunks_asgn = [f.result() for f in future]
             chunks_asgn = [c for f in chunks_asgn for c in f]
@@ -142,6 +153,7 @@ def tractogram_assign():
                 print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
     else:
         np.save(options.save_assignments, chunks_asgn, allow_pickle=False)
+
 
 def tractogram_cluster():
     # parse the input parameters
@@ -217,6 +229,7 @@ def tractogram_cluster():
         keep_temp_files=options.keep_temp
     )
 
+
 def tractogram_compress():
     # parse the input parameters
     args = [
@@ -234,6 +247,7 @@ def tractogram_compress():
     options = setup_parser('Not implemented', args)
 
     WARNING('This function is not implemented yet')
+
 
 def tractogram_convert():
     set_sft_logger_level("CRITICAL")
@@ -275,6 +289,7 @@ def tractogram_convert():
         save_tractogram(sft_in, options.output_tractogram)
     except (OSError, TypeError) as e:
         ERROR(f"Output not valid: {e}")
+
 
 def tractogram_filter():
     # parse the input parameters
@@ -340,6 +355,7 @@ def tractogram_filter():
         options.force
     )
 
+
 def tractogram_indices():
     # parse the input parameters
     args = [
@@ -371,6 +387,7 @@ def tractogram_indices():
     if options.indices_recomputed:
         np.savetxt(options.indices_recomputed, new_indices, fmt='%d')
 
+
 def tractogram_info():
     # parse the input parameters
     args = [
@@ -390,6 +407,7 @@ def tractogram_info():
         options.lengths,
         options.max_field_length
     )
+
 
 def tractogram_join():
     # parse the input parameters
@@ -452,6 +470,7 @@ def tractogram_join():
         options.force
     )
 
+
 def tractogram_lengths():
     # parse the input parameters
     args = [
@@ -486,6 +505,7 @@ def tractogram_lengths():
             remove(options.output_scalar_file)
         ERROR(e.__str__() if e.__str__() else 'A generic error has occurred')
 
+
 def tractogram_resample():
     # parse the input parameters
     args = [
@@ -517,6 +537,7 @@ def tractogram_resample():
         options.force,
     )
 
+
 def tractogram_sample():
     # parse the input parameters
     args = [
@@ -542,6 +563,7 @@ def tractogram_sample():
         options.force,
         options.verbose
     )
+
 
 def tractogram_sanitize():
     # parse the input parameters
@@ -570,6 +592,7 @@ def tractogram_sanitize():
         options.verbose,
         options.force
     )
+
 
 def tractogram_smooth():
     # parse the input parameters
@@ -614,13 +637,24 @@ def tractogram_smooth():
         options.force
     )
 
+
+def split_regions(input_string):
+    try:
+        # ast.literal_eval safely parses an input string to a Python literal structure
+        return ast.literal_eval(input_string)
+    except (SyntaxError, ValueError):
+        # Handle the exception if the input string is not a valid Python literal structure
+        print("The input string is not a valid Python literal structure.")
+        return None
+
+
 def tractogram_split():
     # parse the input parameters
     args = [
         [['tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['assignments'], {'type': str, 'help': 'Text file with the streamline assignments'}],
         [['output_folder'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
-        [['regions'], {'type': int, 'nargs': '*', 'default': [], 'help': 'Streamline connecting the provided region(s) will be extracted'}],
+        [['--regions', '-r'], {'type': str, 'default': None, 'help': 'Streamline connecting the provided region(s) will be extracted'}],
         [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Text file with the input streamline weights'}],
         [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}],
         [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
@@ -643,12 +677,15 @@ def tractogram_split():
     if options.force:
         WARNING("Overwriting existing files")
 
-    if len(options.regions) > 2:
-        ERROR("Too many regions provided, only 2 are allowed")
-    if len(options.regions) == 0:
-        regions = []
+    if options.regions is not None:
+        if not isinstance(split_regions(options.regions), (list, tuple)):
+            ERROR("Invalid regions input")
+        else:
+            regions = []
+            for r in split_regions(options.regions):
+                regions.append(r)
     else:
-        regions = [int(i) for i in options.regions]
+        regions = []
 
     # call actual function
     split(

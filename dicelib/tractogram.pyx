@@ -237,7 +237,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         ui.INFO( f'Keep streamlines with weight >= {minweight} mm' )
         if maxweight is not None and maxweight<0:
             ui.ERROR( '"maxweight" must be >= 0' )
-        if minweight is not None and minweight>maxweight:
+        if minweight is not None and maxweight is not None and minweight>maxweight:
             ui.ERROR( '"minweight" must be <= "maxweight"' )
         ui.INFO( f'Keep streamlines with weight <= {maxweight} mm' )
     else:
@@ -322,7 +322,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.close( write_eof=True, count=n_written )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions: list[int]=[], weights_in: str=None, max_open: int=None, verbose: int=2, force: bool=False ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions: list=[], weights_in: str=None, max_open: int=None, verbose: int=2, force: bool=False ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -464,13 +464,17 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         # create empty tractograms for unique assignments
         if len(regions)==0:
             unique_assignments = np.unique(assignments, axis=0)
-        elif len(regions)==1:
+        else:
+            unique_assignments = []
             assignments.sort()
-            unique_assignments = np.unique(assignments[assignments[:,0]==regions[0]], axis=0)
-        elif len(regions)==2:
-            assignments.sort()
-            regions.sort()
-            unique_assignments = np.unique(assignments[np.logical_and(assignments[:,0]==regions[0], assignments[:,1]==regions[1])], axis=0)
+            for r in regions:
+                if isinstance(r, int):
+                    unique_assignments.extend(np.unique(assignments[assignments[:,0]==r], axis=0))
+                elif isinstance(r, list):
+                    r.sort()
+                    unique_assignments.extend(np.unique(assignments[np.logical_and(assignments[:,0]==r[0], assignments[:,1]==r[1])], axis=0))
+            # unique_assignments = np.concatenate(unique_assignments, axis=0)
+            unique_assignments = np.array(unique_assignments)
 
         for i in range( unique_assignments.shape[0] ):
             if unique_assignments[i,0]==0 or unique_assignments[i,1]==0:
@@ -507,18 +511,31 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
                     break # no more data, stop reading
-                # skip assignments not in the region list
-                elif len(regions)==1 and assignments[i,0]!=regions[0]:
-                    continue
-                elif len(regions)==2 and (assignments[i,0]!=regions[0] or assignments[i,1]!=regions[1]):
-                    continue                
-                # get the key of the dictionary
-                if assignments[i,0]==0 or assignments[i,1]==0:
-                    key = 'unassigned'
-                elif assignments[i,0] <= assignments[i,1]:
+                # skip assignments not in the regions
+                if len(regions) > 0:
+                    skip = True
+                    for r in regions:
+                        if isinstance(r, int):
+                            if (assignments[i,0]==r):
+                                skip = False
+                                break
+                        elif isinstance(r, list):
+                            if (assignments[i,0]==r[0] and assignments[i,1]==r[1]):
+                                skip = False
+                                break
+                    if skip:
+                        continue
+
                     key = f'{assignments[i,0]}-{assignments[i,1]}'
+
                 else:
-                    key = f'{assignments[i,1]}-{assignments[i,0]}'
+                    # get the key of the dictionary
+                    if assignments[i,0]==0 or assignments[i,1]==0:
+                        key = 'unassigned'
+                    elif assignments[i,0] <= assignments[i,1]:
+                        key = f'{assignments[i,0]}-{assignments[i,1]}'
+                    else:
+                        key = f'{assignments[i,1]}-{assignments[i,0]}'
 
                 # check if need to open file
                 if TCK_outs[key] is None:
