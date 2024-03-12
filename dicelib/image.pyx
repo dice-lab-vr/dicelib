@@ -8,7 +8,7 @@ import nibabel as nib
 from . import ui
 
 
-def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: str, b: list, b_step: float=0.0, verbose: int=1, force: bool=False ):
+def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: str, b: list, b_step: float=0.0, verbose: int=2, force: bool=False ):
     """Extract volumes from a DWI dataset.
 
     Parameters
@@ -28,8 +28,8 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
     b_step : float
         Round b-values to nearest integer multiple of b_step (default : don't round).
 
-    verbose : boolean
-        Print information messages (default : False).
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
 
     force : boolean
         Force overwriting of the output (default : False).

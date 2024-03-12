@@ -143,12 +143,11 @@ def tractogram_cluster():
         [['file_name_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
         [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': 'Atlas used to compute streamlines connectivity'}],
         [['--conn_thr', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Threshold [in mm]'}],
-        [['--metric'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: "mean", "max (default: "mean").'}],
+        [['--metric'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: "mean", "max" (default: "mean").'}],
         [['--n_pts'], {'type': int, 'default': 10, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
-        [['--save_assignments'], {'type': str, 'metavar': 'ASSIGNMENTS_FILE', 'help': 'Save the cluster assignments to file'}],
         [['--output_folder', '-out'], {'type': str, 'metavar': 'OUT_FOLDER', 'help': 'Folder where to save the split clusters'}],
         [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform clustering'}],
-        [['--delete_temp', '-d'], {'default': True, 'action': 'store_true', 'help': 'Delete temporary files'}]
+        [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
     ]
     options = setup_parser(run_clustering.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -164,17 +163,6 @@ def tractogram_cluster():
         elif isfile(options.file_name_out) and not options.force:
             ERROR('Output tractogram already exists, use -f to overwrite')
 
-    # check if path to save assignments exists and create it if not
-    if options.save_assignments is not None:
-        out_assignment_ext = splitext(options.save_assignments)[1]
-        if out_assignment_ext not in ['.txt', '.npy']:
-            ERROR('Invalid extension for the output scalar file')
-        elif isfile(options.save_assignments) and not options.force:
-            ERROR('Output scalar file already exists, use -f to overwrite')
-
-        if not exists(dirname(options.save_assignments)):
-            makedirs(dirname(options.save_assignments))
-
     # check if atlas exists
     if options.atlas is not None:
         if not exists(options.atlas):
@@ -184,6 +172,10 @@ def tractogram_cluster():
     if options.output_folder is not None:
         if not exists(options.output_folder):
             makedirs(options.output_folder)
+
+    # check if metric is valid
+    if options.metric not in ['mean', 'max']:
+        ERROR('Invalid metric, must be "mean" or "max"')
 
     # check if number of threads is valid
     if options.n_threads is not None:
@@ -209,11 +201,10 @@ def tractogram_cluster():
         clust_thr=options.clust_thr,
         metric=options.metric,
         n_pts=options.n_pts,
-        save_assignments=options.save_assignments,
         n_threads=options.n_threads,
         force=options.force,
         verbose=options.verbose,
-        delete_temp_files=options.delete_temp
+        keep_temp_files=options.keep_temp
     )
 
 def tractogram_compress():

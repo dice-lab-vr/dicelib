@@ -9,14 +9,18 @@ cimport numpy as np
 from dicelib.lazytractogram cimport LazyTractogram
 from dicelib.connectivity import assign
 from dicelib.tractogram import split as split_bundles
+from dicelib.tractogram import info
+from dicelib import ui
 from libc.math cimport sqrt
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool
-import time
+
 from concurrent.futures import ThreadPoolExecutor as tdp
 import concurrent.futures as cf
-from dicelib import ui
+import psutil
 import shutil
+from sys import getsizeof
+import time
 
 
 
@@ -225,7 +229,7 @@ cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_id
 
 
 cpdef cluster(filename_in: str, metric: str="mean", threshold: float=10.0, n_pts: int=10,
-              verbose: int=1):
+              verbose: int=2):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -345,7 +349,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=10.0, n_pts
     return clust_idx, set_centroids[:new_c]
 
 
-cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=1):
+cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=2):
     """
     Compute the distance between a fiber and a set of centroids
     
@@ -432,7 +436,7 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     return centroids
 
 
-cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10, metric: str="mean"):
+cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, n_pts: int=10, metric: str="mean"):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -446,16 +450,15 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10, 
 
     """
 
-    cdef float[:,:,:,::1] set_centroids = np.zeros((len(filenames), 100000, n_pts, 3), dtype=np.float32)
+    cdef float[:,:,:,::1] set_centroids = np.zeros((len(filenames), num_fibs, n_pts, 3), dtype=np.float32)
     cdef LazyTractogram TCK_in
     cdef int [:] n_streamlines = np.zeros(len(filenames), dtype=np.int32)
     cdef int [:] header_params = np.zeros(len(filenames), dtype=np.intc)
-    cdef float[:,:,::1] resampled_fib = np.zeros((1,n_pts,3), dtype=np.float32)
     cdef size_t i = 0
     cdef size_t j = 0
     cdef size_t pp = 0
 
-    idx_cl = np.zeros((len(filenames), 100000), dtype=np.intc)
+    idx_cl = np.zeros((len(filenames), num_fibs), dtype=np.intc)
     cdef int[:,::1] idx_closest = idx_cl
     cdef float* vers = <float*>malloc(3*sizeof(float))
     cdef float* lengths = <float*>malloc(1000*sizeof(float))
@@ -508,7 +511,6 @@ cpdef cluster_chunk(filenames: list[str], threshold: float=10.0, n_pts: int=10, 
     fib_centr_dist[:] = 1000
     clst_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), 1000, 3), dtype=np.float32)
     cdef float[:,:,:,::1] clst_streamlines_view = clst_streamlines
-    cdef float[:,::1] streamline_in = np.zeros((nb_pts, 3), dtype=np.float32)
     cdef int[:,::1] c_w = np.ones((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
     cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
@@ -629,9 +631,9 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 
 
 
-def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: str=None, atlas: str=None, conn_thr: float=2.0,
-                    clust_thr: float=2.0, metric: str="mean", n_pts: int=10, save_assignments: str=None, temp_idx: str=None,
-                    n_threads: int=None, force: bool=False, verbose: int=1, delete_temp_files: bool=True):
+def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=None, atlas: str=None, conn_thr: float=2.0,
+                    clust_thr: float=2.0, metric: str="mean", n_pts: int=10,
+                    n_threads: int=None, force: bool=False, verbose: int=2, keep_temp_files: bool=False, max_bytes: int=0):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -650,16 +652,14 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         Metric to use for the clustering. Either "mean" or "max" (default: "mean").
     n_pts : int, optional
         Number of points to resample the streamlines to (default: 10).
-    save_assignments : str, optional
-        Save the cluster assignments to file
-    temp_idx : str, optional
-        Path to the streamlines index file.
     n_threads : int, optional
         Number of threads to use for the clustering.
     force : bool, optional
         Whether to overwrite existing files.
     verbose : bool, optional
         Whether to print out additional information during the clustering.
+    keep_temp_files : bool, optional
+        Whether to keep temporary files.
     """
 
     ui.set_verbose(verbose)
@@ -675,25 +675,22 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
     MAX_THREAD = 3
 
     TCK_in = LazyTractogram( file_name_in, mode='r' )
-    if output_folder is None:
-        # # retrieve filename_in folder
-        output_folder = os.path.dirname(file_name_in)
-    
-    # check if output folder exists
-    if not os.path.isdir(output_folder):
-        if os.path.isdir(os.path.join(os.getcwd(), output_folder )):
-            pass
-        else:
-            if os.path.isabs(output_folder):
-                os.makedirs(output_folder, exist_ok=True)
-            else:
-                os.makedirs(os.path.join(os.getcwd(), output_folder), exist_ok=True)
 
-    if file_name_out is None:
-        file_name_out = os.path.join(output_folder,f'{os.path.basename(file_name_in)[:len(file_name_in)-4]}_clustered_thr_{float(clust_thr)}.tck')
-    else:
-        if not os.path.isabs(file_name_out):
-            file_name_out = os.path.join(output_folder, file_name_out)
+    if output_folder is not None:
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+    if not os.path.isabs(file_name_out) and output_folder is None:
+        output_folder = os.getcwd()
+        file_name_out = os.path.join(output_folder, file_name_out)
+    elif os.path.isabs(file_name_out) and output_folder is None:
+        output_folder = os.path.dirname(file_name_out)
+    elif not os.path.isabs(file_name_out) and output_folder is not None:
+        file_name_out = os.path.join(os.getcwd(), file_name_out)
+    
+    # check if metric is valid
+    if metric not in ['mean', 'max']:
+        ui.ERROR( f'Invalid metric, must be "mean" or "max"' )
 
     # check if file exists
     if os.path.isfile(file_name_out) and not force:
@@ -701,21 +698,17 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         return
     TCK_out = LazyTractogram(file_name_out, mode='w', header=TCK_in.header )
     num_streamlines = int(TCK_in.header["count"])
+    ui.INFO(f"  - Number of input streamlines: {num_streamlines}")
 
     if atlas:
         chunk_size = int(num_streamlines/MAX_THREAD)
         chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
 
         # check if save_assignments is None
-        if save_assignments is None:
-            save_assignments = os.path.join(output_folder, f'{os.path.basename(file_name_in)[:len(file_name_in)-4]}_assignments.txt')
-        else:
-            if not os.path.isabs(save_assignments):
-                save_assignments = os.path.join(output_folder, save_assignments)
-        if temp_idx is None:
-            temp_idx_arr = np.arange(num_streamlines)
-            temp_idx = os.path.join(output_folder, 'streamline_idx.npy')
-            np.save( temp_idx, temp_idx_arr )
+        save_assignments = os.path.join(output_folder, f'{os.path.basename(file_name_in)[:len(file_name_in)-4]}_assignments.txt')
+        temp_idx_arr = np.arange(num_streamlines)
+        temp_idx = os.path.join(output_folder, 'streamline_idx.npy')
+        np.save( temp_idx, temp_idx_arr )
 
         chunks_asgn = []
         t0 = time.time()
@@ -731,7 +724,7 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
                 chunks_asgn = [c for f in chunks_asgn for c in f]
 
         t1 = time.time()
-        ui.INFO(f"  - Time taken for connectivity: {t1-t0}")
+        ui.INFO(f"  - Time taken to create assignments: {t1-t0}")
         out_assignment_ext = os.path.splitext(save_assignments)[1]
 
         if out_assignment_ext not in ['.txt', '.npy']:
@@ -749,54 +742,95 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         t0 = time.time()
         output_bundles_folder = os.path.join(output_folder, 'bundles')
         split_bundles(input_tractogram=file_name_in, input_assignments=save_assignments, output_folder=output_bundles_folder,
-                      weights_in=temp_idx, force=force)
+                      weights_in=temp_idx, force=force, verbose=verbose)
         t1 = time.time()
         ui.set_verbose(verbose)
-        ui.INFO(f"  - Time bundles splitting: {t1-t0}")
+        ui.INFO(f"  - Time taken to split in bundles: {t1-t0}")
         
-        bundles = {}
-        for  dirpath, _, filenames in os.walk(output_bundles_folder):
-            for i, f in enumerate(filenames):
+        bundles = []
+        for dirpath, _, filenames in os.walk(output_bundles_folder):
+            for f in filenames:
                 if f.endswith('.tck') and not f.startswith('unassigned'):
                     filename = os.path.abspath(os.path.join(dirpath, f))
-                    bundles[i] = (filename, os.path.getsize(filename))
+                    bundles.append((filename, os.path.getsize(filename), int(info(filename))))
+
+        # Sort the list of tuples by the file size, which is the second element of each tuple
+        bundles.sort(key=lambda x: x[1])
+
+        # Convert the sorted list of tuples into a dictionary
+        bundles = {i: bundle for i, bundle in enumerate(bundles)}
+
+        bundles[len(bundles)-1] = (bundles[len(bundles)-1][0], bundles[len(bundles)-1][1], bundles[len(bundles)-1][2]*10)
+
+
 
         if n_threads:
             MAX_THREAD = n_threads
         else:
             MAX_THREAD = os.cpu_count()
 
-        # NOTE: optimal
-        MAX_THREAD = 6
-
-
         ref_indices = []
         TCK_out_size = 0
 
-        MAX_BYTES = 2e8
-        executor = tdp(max_workers=MAX_THREAD)
-        t0 = time.time()
-        chunk_list = []
+        # retreieve total memory available
+        mem = psutil.virtual_memory()
+        mem_avail = mem.available
 
-        # NOTE: compute chunks
-        while len(bundles.items()) > 0:
-            to_delete = []
-            new_chunk = []
-            for k, bundle in bundles.items():
-                new_chunk_size = [os.path.getsize(f) for f in new_chunk]
-                new_chunk_size.append(bundle[1])
-                if max(new_chunk_size)*len(new_chunk) < MAX_BYTES:
-                    new_chunk.append(bundle[0])
-                    to_delete.append(k)
-            [bundles.pop(k) for k in to_delete]
-            chunk_list.append(new_chunk)
+        while True:
+            if max_bytes>0:
+                if max_bytes > mem_avail:
+                    MAX_BYTES = mem_avail//MAX_THREAD
+                else:
+                    MAX_BYTES = max_bytes//MAX_THREAD
+            else:
+                MAX_BYTES = int(0.9 * mem_avail)//MAX_THREAD
+
+            executor = tdp(max_workers=MAX_THREAD)
+            t0 = time.time()
+            chunk_list = []
+
+            # compute base size of centroid array
+            base_size = getsizeof(np.zeros((1,1, 1000, 3), dtype=np.float32))
+
+            # compute chunks
+            while len(bundles.items()) > 0:
+                to_delete = []
+                new_chunk = []
+                new_chunk_num_streamlines = []
+                max_bundle_size = 0
+                for k, bundle in bundles.items():
+                    new_chunk_size = [os.path.getsize(f) for f in new_chunk]
+                    if bundle[2] > max_bundle_size:
+                        max_bundle_size = bundle[2]
+                    future_size = len(new_chunk_size) * max_bundle_size * 4 * base_size
+                    
+                    if future_size < MAX_BYTES:
+                        new_chunk.append(bundle[0])
+                        new_chunk_num_streamlines.append(bundle[2])
+                        to_delete.append(k)
+                    else:
+                        # bundle too big
+                        break
+                # remove from bundles list
+                if len(new_chunk_num_streamlines) == 0:
+                    MAX_THREAD -= 1
+                    break
+                
+                chunk_list.append([new_chunk, max(new_chunk_num_streamlines)])
+                for k in to_delete:
+                    bundles.pop(k)
+            if MAX_THREAD == 0:
+                ui.ERROR(f"  - Not enough memory to process the data")
+            if len(bundles.items()) == 0:
+                break
                 
         with ui.ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3]), hide_on_exit=True) as pbar:
             future = [executor.submit(cluster_chunk,
-                                        chunk,
-                                        clust_thr,
-                                        n_pts=n_pts,
-                                        metric=metric) for chunk in chunk_list]
+                                      chunk,
+                                      num_fibs,
+                                      clust_thr,
+                                      n_pts=n_pts,
+                                      metric=metric) for chunk, num_fibs in chunk_list]
             for i, f in enumerate(cf.as_completed(future)):
                 bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst = f.result()
 
@@ -809,14 +843,16 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
                 pbar.update()
             TCK_out.close( write_eof=True, count= TCK_out_size)
 
+        ui.set_verbose(verbose)
+
         t1 = time.time()
         ui.INFO(f"  - Time taken to cluster and find closest streamlines: {t1-t0}")
         ui.INFO(f"  - Number of computed centroids: {TCK_out_size}")
 
-        if delete_temp_files:
+        if not keep_temp_files:
             shutil.rmtree(output_bundles_folder)
             os.remove(save_assignments)
-            os.remove(temp_idx)
+        os.remove(temp_idx)
 
     else:
         t0 = time.time()
@@ -855,4 +891,3 @@ def run_clustering(file_name_in: str, output_folder: str=None, file_name_out: st
         TCK_in.close()
 
     return ref_indices
-

@@ -10,7 +10,9 @@ from dicelib.lazytractogram cimport LazyTractogram
 from dicelib.ui import ProgressBar
 from dicelib import ui
 
-cpdef split_clusters(tractogram, clust_idx, output_folder, verbose=3):
+cpdef split_clusters(tractogram, clust_idx, output_folder, verbose=2):
+    ui.set_verbose( verbose )
+
     TCK_in          = None
     TCK_out         = None
     TCK_outs        = {}
