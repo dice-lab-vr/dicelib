@@ -5,7 +5,7 @@ from dicelib.connectivity import assign
 from dicelib.lazytractogram import LazyTractogram
 from dicelib.tractogram import compute_lengths, filter as t_filter, info, join as t_join, recompute_indices, resample, sample, sanitize, spline_smoothing, split
 from dicelib.tsf import Tsf
-from dicelib.ui import ColoredArgParser, ERROR, INFO, ProgressBar, set_verbose, WARNING
+from dicelib.ui import ERROR, INFO, ProgressBar, set_verbose, setup_parser, WARNING
 
 from concurrent.futures import ThreadPoolExecutor
 from dipy.io.stateful_tractogram import set_sft_logger_level
@@ -73,22 +73,14 @@ def color_by_scalar_file(streamline, values, num_streamlines):
         scalar_list.extend(streamline_points)
     return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
 
-def setup_parser(description: str, args: list):
-    parser = ColoredArgParser(description=description)
-    for arg in args:
-        parser.add_argument(*arg[0], **arg[1])
-    return parser.parse_args()
-
 def tractogram_assign():
     args = [
         [['tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['atlas'], {'type': str, 'help': 'Atlas used to compute streamlines assignments'}],
         [['--conn_threshold', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Threshold [in mm]'}],
-        [['--save_assignments'], {'type': str, 'metavar': 'ASSIGNMENTS_FILE', 'help': 'Save the cluster assignments to file'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'metavar': 'VERBOSE_LEVEL', 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['--save_assignments'], {'type': str, 'metavar': 'ASSIGNMENTS_FILE', 'help': 'Save the cluster assignments to file'}]
     ]
-    options = setup_parser(assign.__doc__.split('\n')[0], args)
+    options = setup_parser(assign.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     set_verbose(options.verbose)
 
@@ -167,11 +159,9 @@ def tractogram_cluster():
         [['--n_pts'], {'type': int, 'default': 10, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
         [['--output_folder', '-out'], {'type': str, 'metavar': 'OUT_FOLDER', 'help': 'Folder where to save the split clusters'}],
         [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform clustering'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'metavar': 'VERBOSE_LEVEL', 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}],
         [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
     ]
-    options = setup_parser(run_clustering.__doc__.split('\n')[0], args)
+    options = setup_parser(run_clustering.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check the input parameters
     # check if path to input and output files are valid
@@ -240,11 +230,9 @@ def tractogram_compress():
         [['--minweight'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
         [['--maxweight'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
-        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'metavar': 'VERBOSE_LEVEL', 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}]
     ]
-    options = setup_parser('Not implemented', args)
+    options = setup_parser('Not implemented', args, add_force=True, add_verbose=True)
 
     WARNING('This function is not implemented yet')
 
@@ -254,10 +242,9 @@ def tractogram_convert():
     args = [
         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
-        [['--reference', '-r'], {'type': str, 'help': 'Space attributes used as reference for the input tractogram'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
+        [['--reference', '-r'], {'type': str, 'help': 'Space attributes used as reference for the input tractogram'}]
     ]
-    options = setup_parser("Tractogram conversion from and to '.tck', '.trk', '.fib', '.vtk' and 'dpy'. All the extensions except '.trk, need a NIFTI file as reference", args)
+    options = setup_parser("Tractogram conversion from and to '.tck', '.trk', '.fib', '.vtk' and 'dpy'. All the extensions except '.trk, need a NIFTI file as reference", args, add_force=True)
 
     if not isfile(options.input_tractogram):
         ERROR("No such file {}".format(options.input_tractogram))
@@ -302,11 +289,9 @@ def tractogram_filter():
         [['--maxweight'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
-        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': 'Randomly discard streamlines: 0=discard all, 1=keep all'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': 'Randomly discard streamlines: 0=discard all, 1=keep all'}]
     ]
-    options = setup_parser(t_filter.__doc__.split('\n')[0], args)
+    options = setup_parser(t_filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check if path to input and output files are valid
     if not isfile(options.input_tractogram):
@@ -361,11 +346,9 @@ def tractogram_indices():
     args = [
         [['indices'], {'type': str, 'help': 'Indices to recompute'}],
         [['dictionary_kept'], {'type': str, 'help': 'Dictionary of kept streamlines'}],
-        [['--output', '-o'], {'type': str, 'dest': 'indices_recomputed', 'help': 'Output indices file'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['--output', '-o'], {'type': str, 'dest': 'indices_recomputed', 'help': 'Output indices file'}]
     ]
-    options = setup_parser(recompute_indices.__doc__.split('\n')[0], args)
+    options = setup_parser(recompute_indices.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check if path to input and output files are valid
     if not isfile(options.indices):
@@ -415,11 +398,9 @@ def tractogram_join():
         [['input_tractograms'], {'type': str, 'nargs': '*', 'help': 'Input tractograms'}],
         [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
         [['--input_weights'], {'type': str, 'nargs': '*', 'default': [], 'help': 'Text files with the input streamline weights. NOTE: the order must be the same of the input tractograms'}],
-        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}]
     ]
-    options = setup_parser(t_join.__doc__.split('\n')[0], args)
+    options = setup_parser(t_join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     pwd = getcwd()
 
@@ -475,11 +456,9 @@ def tractogram_lengths():
     # parse the input parameters
     args = [
         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['output_scalar_file'], {'type': str, 'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['output_scalar_file'], {'type': str, 'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}]
     ]
-    options = setup_parser(compute_lengths.__doc__.split('\n')[0], args)
+    options = setup_parser(compute_lengths.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check for errors
     output_scalar_file_ext = splitext(options.output_scalar_file)[1]
@@ -511,11 +490,9 @@ def tractogram_resample():
     args = [
         [['tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['output'], {'type': str, 'help': 'Output tractogram'}],
-        [['--nb_points', '-n'], {'type': int, 'default': 20, 'help': 'Number of points per streamline'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Overwrite output file if it already exists'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['--nb_points', '-n'], {'type': int, 'default': 20, 'help': 'Number of points per streamline'}]
     ]
-    options = setup_parser(resample.__doc__.split('\n')[0], args)
+    options = setup_parser(resample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check if path to input and output files are valid
     if not isfile(options.tractogram):
@@ -546,11 +523,9 @@ def tractogram_sample():
         [['output_file'], {'type': str, 'help': 'File for the output'}],
         [['--mask', '-m'], {'type': str, 'default': None, 'help': 'Optional mask to restrict the sampling voxels'}],
         [['--space'], {'type': str, 'nargs': '?', 'default': None, 'choices': ['voxmm', 'rasmm', 'vox'], 'help': 'Current reference space of streamlines (rasmm, voxmm, vox), default rasmm'}],
-        [['--option'], {'type': str, 'nargs': '?', 'default': 'No_opt', 'choices': ['No_opt', 'mean', 'median', 'min', 'max'], 'help': 'Operation to apply on streamlines, default no operation applied'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['--option'], {'type': str, 'nargs': '?', 'default': 'No_opt', 'choices': ['No_opt', 'mean', 'median', 'min', 'max'], 'help': 'Operation to apply on streamlines, default no operation applied'}]
     ]
-    options = setup_parser(sample.__doc__.split('\n')[0], args)
+    options = setup_parser(sample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # call actual function
     sample(
@@ -574,11 +549,9 @@ def tractogram_sanitize():
         [['--output_tractogram', '-out'], {'type': str, 'help': 'Output tractogram (if None: "_sanitized" appended to the input filename)'}],
         [['--step'], {'type': float, 'default': 0.2, 'help': 'Step size [in mm]'}],
         [['--max_dist'], {'type': float, 'default': 2, 'help': 'Maximum distance [in mm]'}],
-        [['--save_connecting_tck', '-conn'], {'action': 'store_true', 'default': False, 'help': 'Save also tractogram with only the actual connecting streamlines (if True: "_only_connecting" appended to the output filename)'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['--save_connecting_tck', '-conn'], {'action': 'store_true', 'default': False, 'help': 'Save also tractogram with only the actual connecting streamlines (if True: "_only_connecting" appended to the output filename)'}]
     ]
-    options = setup_parser(sanitize.__doc__.split('\n')[0], args)
+    options = setup_parser(sanitize.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # call actual function
     sanitize(
@@ -600,11 +573,9 @@ def tractogram_smooth():
         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
         [['--ratio', '-r'], {'type': float, 'default': 0.25, 'help': 'Ratio of points to be kept/used as control points'}],
-        [['--step', '-s'], {'type': float, 'default': 1.0, 'help': 'Sampling step for the output streamlines [in mm]'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['--step', '-s'], {'type': float, 'default': 1.0, 'help': 'Sampling step for the output streamlines [in mm]'}]
     ]
-    options = setup_parser(spline_smoothing.__doc__.split('\n')[0], args)
+    options = setup_parser(spline_smoothing.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check if path to input and output files are valid
     if not isfile(options.input_tractogram):
@@ -656,11 +627,9 @@ def tractogram_split():
         [['output_folder'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
         [['--regions', '-r'], {'type': str, 'default': None, 'help': 'Streamline connecting the provided region(s) will be extracted'}],
         [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Text file with the input streamline weights'}],
-        [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}],
-        [['--verbose', '-v'], {'type': int, 'default': 2, 'help': 'Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]'}]
+        [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}]
     ]
-    options = setup_parser(split.__doc__.split('\n')[0], args)
+    options = setup_parser(split.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check if path to input and output files are valid
     if not isfile(options.tractogram):
@@ -705,10 +674,9 @@ def tractogram_tsf():
         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['output_tsf'], {'type': str, 'help': 'Output tsf filename'}],
         [['--orientation'], {'action': 'store_true', 'default': False, 'help': 'Color based on orientation'}],
-        [['--file'], {'type': str, 'help': 'Color based on given file'}],
-        [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
+        [['--file'], {'type': str, 'help': 'Color based on given file'}]
     ]
-    options = setup_parser('Create a tsf file for each streamline in order to color them.', args)
+    options = setup_parser('Create a tsf file for each streamline in order to color them.', args, add_force=True)
 
     # check if path to input and output files are valid
     if not isfile(options.input_tractogram):
