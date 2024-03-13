@@ -1,4 +1,4 @@
-from dicelib.connectome_blur import build_connectome
+from dicelib.connectivity import build_connectome
 from dicelib.ui import ERROR, setup_parser
 
 from os import getcwd
@@ -8,8 +8,8 @@ def connectome_build():
     # parse the input parameters
     args = [
         [["input_assignments"], {"help": "Input streamline assignments file"}],
-        [["output_connectome"], {"help": "Output connectome"}],
-        [["input_weights"], {"help": "Input streamline weights file"}],
+        [["output_connectome"], {"help": "Output connectome file"}],
+        [["input_weights"], {"help": "Input streamline weights file, used to compute the value of the edges"}],
         [["--metric", "-m"], {"default": 'sum', "help": "Operation to compute the value of the edges, options: sum, mean, min, max."}],
         [["--symmetric", "-s"], {"action": "store_true", "help": "Make output connectome symmetric"}]
     ]
