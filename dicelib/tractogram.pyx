@@ -361,22 +361,23 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
     ui.set_verbose( verbose )
 
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
-    if not os.path.isfile(input_assignments):
-        ui.ERROR( f'File "{input_assignments}" not found' )
-    if not os.path.isdir(output_folder):
-        os.mkdir( output_folder )
-    else:
-        if force:
-            for f in glob.glob( os.path.join(output_folder,'*.tck') ):
-                os.remove(f)
-            for f in glob.glob( os.path.join(output_folder,'*.txt') ):
-                os.remove(f)
-            for f in glob.glob( os.path.join(output_folder,'*.npy') ):
-                os.remove(f)
-        else:
-            ui.ERROR( 'Output folder already exists, use -f to overwrite' )
+    # if not os.path.isfile(input_tractogram):
+    #     ui.ERROR( f'File "{input_tractogram}" not found' )
+    # if not os.path.isfile(input_assignments):
+    #     ui.ERROR( f'File "{input_assignments}" not found' )
+    # if not os.path.isdir(output_folder):
+    #     os.mkdir( output_folder )
+    # else:
+    #     if force:
+    #         for f in glob.glob( os.path.join(output_folder,'*.tck') ):
+    #             os.remove(f)
+    #         for f in glob.glob( os.path.join(output_folder,'*.txt') ):
+    #             os.remove(f)
+    #         for f in glob.glob( os.path.join(output_folder,'*.npy') ):
+    #             os.remove(f)
+    #     else:
+    #         ui.ERROR( f'Output folder "{output_folder}" already exists, use -f to overwrite' )
+
     ui.INFO( f'Writing output tractograms to "{output_folder}"' )
 
     weights_in_ext = None

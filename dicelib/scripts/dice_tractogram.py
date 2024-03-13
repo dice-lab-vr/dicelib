@@ -7,12 +7,12 @@ from dicelib.tractogram import compute_lengths, filter as t_filter, info, join a
 from dicelib.tsf import Tsf
 from dicelib.ui import ERROR, INFO, ProgressBar, set_verbose, setup_parser, WARNING
 
+import glob
 from concurrent.futures import ThreadPoolExecutor
-from dipy.io.stateful_tractogram import set_sft_logger_level
-from dipy.io.streamline import load_tractogram, save_tractogram
 import numpy as np
 from os import getcwd, makedirs, remove
-from os.path import dirname, exists, isabs, isfile, isdir, join as p_join, splitext 
+from os.path import dirname, exists, isabs, isfile, isdir, join as p_join, splitext
+from shutil import rmtree
 from time import time
 
 
@@ -237,45 +237,46 @@ def tractogram_compress():
     WARNING('This function is not implemented yet')
 
 
-def tractogram_convert():
-    set_sft_logger_level("CRITICAL")
-    args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
-        [['--reference', '-r'], {'type': str, 'help': 'Space attributes used as reference for the input tractogram'}]
-    ]
-    options = setup_parser("Tractogram conversion from and to '.tck', '.trk', '.fib', '.vtk' and 'dpy'. All the extensions except '.trk, need a NIFTI file as reference", args, add_force=True)
+# def tractogram_convert():
+#     set_sft_logger_level("CRITICAL")
+#     args = [
+#         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+#         [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+#         [['--reference', '-r'], {'type': str, 'help': 'Space attributes used as reference for the input tractogram'}],
+#         [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
+#     ]
+#     options = setup_parser("Tractogram conversion from and to '.tck', '.trk', '.fib', '.vtk' and 'dpy'. All the extensions except '.trk, need a NIFTI file as reference", args)
 
-    if not isfile(options.input_tractogram):
-        ERROR("No such file {}".format(options.input_tractogram))
-    if isfile(options.output_tractogram) and not options.force:
-        ERROR("Output tractogram already exists, use -f to overwrite")
-    if options.reference is not None:
-        if not isfile(options.reference):
-            ERROR("No such file {}".format(options.reference))
+#     if not isfile(options.input_tractogram):
+#         ERROR("No such file {}".format(options.input_tractogram))
+#     if isfile(options.output_tractogram) and not options.force:
+#         ERROR("Output tractogram already exists, use -f to overwrite")
+#     if options.reference is not None:
+#         if not isfile(options.reference):
+#             ERROR("No such file {}".format(options.reference))
 
-    if not options.input_tractogram.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
-        ERROR("Invalid input tractogram format")
-    elif not options.output_tractogram.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
-        ERROR("Invalid input tractogram format")
-    elif options.reference is not None and not options.reference.endswith(('.nii', 'nii.gz')):
-        ERROR("Invalid reference format")
+#     if not options.input_tractogram.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
+#         ERROR("Invalid input tractogram format")
+#     elif not options.output_tractogram.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
+#         ERROR("Invalid input tractogram format")
+#     elif options.reference is not None and not options.reference.endswith(('.nii', 'nii.gz')):
+#         ERROR("Invalid reference format")
 
-    if options.input_tractogram.endswith('.tck') and options.reference is None:
-        ERROR("Reference is required if the input format is '.tck'")
+#     if options.input_tractogram.endswith('.tck') and options.reference is None:
+#         ERROR("Reference is required if the input format is '.tck'")
 
-    try:
-        sft_in = load_tractogram(
-            options.input_tractogram,
-            reference=options.reference if options.reference else "same"
-        )
-    except Exception:
-        raise ValueError("Error loading input tractogram")
+#     try:
+#         sft_in = load_tractogram(
+#             options.input_tractogram,
+#             reference=options.reference if options.reference else "same"
+#         )
+#     except Exception:
+#         raise ValueError("Error loading input tractogram")
     
-    try:
-        save_tractogram(sft_in, options.output_tractogram)
-    except (OSError, TypeError) as e:
-        ERROR(f"Output not valid: {e}")
+#     try:
+#         save_tractogram(sft_in, options.output_tractogram)
+#     except (OSError, TypeError) as e:
+#         ERROR(f"Output not valid: {e}")
 
 
 def tractogram_filter():
@@ -297,7 +298,7 @@ def tractogram_filter():
     if not isfile(options.input_tractogram):
         ERROR(f"Input tractogram file not found: {options.input_tractogram}")
     if isfile(options.output_tractogram) and not options.force:
-        ERROR(f"Output tractogram file already exists: {options.output_tractogram}")
+        ERROR(f"Output tractogram file already exists: {options.output_tractogram}, use -f to overwrite")
     # check if the output tractogram file has the correct extension
     output_tractogram_ext = splitext(options.output_tractogram)[1]
     if output_tractogram_ext not in ['.trk', '.tck']:
@@ -615,7 +616,7 @@ def split_regions(input_string):
         return ast.literal_eval(input_string)
     except (SyntaxError, ValueError):
         # Handle the exception if the input string is not a valid Python literal structure
-        print("The input string is not a valid Python literal structure.")
+        ERROR("The input string is not a valid Python literal structure.")
         return None
 
 
@@ -636,22 +637,43 @@ def tractogram_split():
         ERROR(f"Input tractogram file not found: {options.tractogram}")
     if not isfile(options.assignments):
         ERROR(f"Input assignments file not found: {options.assignments}")
-    if not isdir(options.output_folder):
-        makedirs(options.output_folder)
     if not isfile(options.assignments):
         ERROR(f"Input assignments file not found: {options.assignments}")
     if options.weights_in is not None:
         if not isfile(options.weights_in):
             ERROR(f"Input weights file not found: {options.weights_in}")
+
+    if options.output_folder is not None and not isabs(options.output_folder):
+        options.output_folder = p_join(getcwd(), options.output_folder)
+
+    if isdir(options.output_folder) and options.force:
+        # remove the output folder if it already exists
+        rmtree(options.output_folder)
+        makedirs(options.output_folder)
+    elif isdir(options.output_folder) and not options.force:
+        ERROR(f"Output folder already exists: {options.output_folder}, use -f to overwrite")
+    else:
+        # create the output folder if it does not exist
+        makedirs(options.output_folder)
+
     if options.force:
         WARNING("Overwriting existing files")
+        for f in glob.glob(p_join(options.output_folder, "*.tck")):
+            remove(f)
+        for f in glob.glob(p_join(options.output_folder, "*.txt")):
+            remove(f)
+        for f in glob.glob(p_join(options.output_folder, "*.npy")):
+            remove(f)
 
     if options.regions is not None:
         if not isinstance(split_regions(options.regions), (list, tuple)):
             ERROR("Invalid regions input")
         else:
             regions = []
+            options.regions = "[]," + options.regions
             for r in split_regions(options.regions):
+                if r == []:
+                    continue
                 regions.append(r)
     else:
         regions = []
