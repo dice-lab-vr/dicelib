@@ -812,7 +812,7 @@ class ProgressBar:
     def stop(self):
         self._done = True
         if not self.disable:
-            print(self._graphics['clear_line'], end='\r', flush=True)
+            print(clear_line, end='\r', flush=True)
             if not self.hide_on_exit:
                 if self.total is None:
                     print(f"\r   {fg_green}{'━' * self.ncols} 100.0%{reset}")
