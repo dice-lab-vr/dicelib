@@ -722,9 +722,9 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
 
 
 cdef float [:] apply_affine_1pt(float [:] orig_pt, double[::1,:] M, double[:] abc, float [:] moved_pt):
-    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[1,0] + orig_pt[2]*M[2,0]) + abc[0]) + .5
-    moved_pt[1] = float((orig_pt[0]*M[0,1] + orig_pt[1]*M[1,1] + orig_pt[2]*M[2,1]) + abc[1]) + .5
-    moved_pt[2] = float((orig_pt[0]*M[0,2] + orig_pt[1]*M[1,2] + orig_pt[2]*M[2,2]) + abc[2]) + .5
+    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[1,0] + orig_pt[2]*M[2,0]) + abc[0])
+    moved_pt[1] = float((orig_pt[0]*M[0,1] + orig_pt[1]*M[1,1] + orig_pt[2]*M[2,1]) + abc[1])
+    moved_pt[2] = float((orig_pt[0]*M[0,2] + orig_pt[1]*M[1,2] + orig_pt[2]*M[2,2]) + abc[2])
     return moved_pt
 
 cpdef compute_vect_vers(float [:] p0, float[:] p1):
@@ -1287,7 +1287,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
                         in_mask_count = 0 
                         for j in range(n_pts_out):
                             pt_aff = apply_affine_1pt(smoothed_fib[j,:], M_inv, abc_inv, pt_aff)
-                            if mask_view[<int>pt_aff[0],<int>pt_aff[1],<int>pt_aff[2]] > 0:
+                            if mask_view[<int>(pt_aff[0]+0.5), <int>(pt_aff[1]+0.5), <int>(pt_aff[2]+0.5)] > 0:
                                 in_mask_count += 1
                         if in_mask_count > threshold*n_pts_out:
                             in_mask = True
@@ -1555,9 +1555,9 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
                     npoints = TCK_in.n_pts
                     for ii in range(npoints):
                         moved_pt = apply_affine_1pt(TCK_in.streamline[ii], M_inv, abc_inv, moved_pt)
-                        vox_coords[0] = int(moved_pt[0])
-                        vox_coords[1] = int(moved_pt[1])
-                        vox_coords[2] = int(moved_pt[2])
+                        vox_coords[0] = int(moved_pt[0] + 0.5)
+                        vox_coords[1] = int(moved_pt[1] + 0.5)
+                        vox_coords[2] = int(moved_pt[2] + 0.5)
                         if mask_view[vox_coords[0], vox_coords[1], vox_coords[2]] == 0:
                             value[ii] = np.nan
                         else: 

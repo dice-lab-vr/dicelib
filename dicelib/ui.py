@@ -12,7 +12,7 @@ import sys
 import textwrap
 from threading import Thread
 from time import sleep, time
-from typing import Literal, NoReturn, TypeAlias
+from typing import Literal, NoReturn
 
 def _in_notebook() -> bool:
     try:
@@ -84,7 +84,7 @@ bg_yellow = f'{bg}{yellow}m'
 bg_cyan = f'{bg}{cyan}m'
 
 # Logger
-Mode: TypeAlias = Literal['console', 'file']
+Mode = Literal['console', 'file']
 class LoggerFormatter(logging.Formatter):
     def __init__(self, mode: Mode) -> NoReturn:
         self.levelname_len = 10
