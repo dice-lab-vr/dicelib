@@ -22,7 +22,6 @@ from dicelib.streamline import length as streamline_length
 from dicelib.streamline cimport apply_affine_1pt
 from dicelib.streamline import smooth, spline_smooth, apply_smoothing, set_number_of_points, rdp_reduction, length, resample as s_resample
 from . import ui
-from dicelib.space_transf import space_tovox
 from dicelib.utils import check_params, File, Num, Dir
 import ast
 
@@ -526,7 +525,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
         Maximum length allowed for printing a field value (default : all chars)
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
     """
     ui.set_verbose( verbose )
 
@@ -803,7 +802,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             # Handle the exception if the input string is not a valid Python literal structure
             ui.ERROR("The input string is not a valid Python literal structure.")
             return None
-    if regions is not None:
+
+    if len(regions)>0:
         if not isinstance(split_regions(regions), (list, tuple)):
             ui.ERROR("Invalid regions input")
         else:

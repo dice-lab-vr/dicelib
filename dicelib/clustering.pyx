@@ -763,7 +763,7 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
             for f in filenames:
                 if f.endswith('.tck') and not f.startswith('unassigned'):
                     filename = os.path.abspath(os.path.join(dirpath, f))
-                    bundles.append((filename, os.path.getsize(filename), int(info(filename))))
+                    bundles.append((filename, os.path.getsize(filename), int(info(filename,verbose=2))))
 
         # Sort the list of tuples by the file size, which is the second element of each tuple
         bundles.sort(key=lambda x: x[1])

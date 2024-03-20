@@ -501,6 +501,7 @@ def tractogram_split():
         options.force
     )
 
+
 def tractogram_tsf():
     # parse the input parameters
     args = [
