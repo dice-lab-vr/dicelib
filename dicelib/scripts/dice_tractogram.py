@@ -1,5 +1,3 @@
-import ast
-
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
 from dicelib.lazytractogram import LazyTractogram
@@ -294,38 +292,6 @@ def tractogram_filter():
     ]
     options = setup_parser(t_filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # check if path to input and output files are valid
-    if not isfile(options.input_tractogram):
-        ERROR(f"Input tractogram file not found: {options.input_tractogram}")
-    if isfile(options.output_tractogram) and not options.force:
-        ERROR(f"Output tractogram file already exists: {options.output_tractogram}, use -f to overwrite")
-    # check if the output tractogram file has the correct extension
-    output_tractogram_ext = splitext(options.output_tractogram)[1]
-    if output_tractogram_ext not in ['.trk', '.tck']:
-        ERROR("Invalid extension for the output tractogram file")
-
-    # check if output tractogram file has absolute path and if not, add the
-    # current working directory
-    if not isabs(options.output_tractogram):
-        options.output_tractogram = p_join(getcwd(), options.output_tractogram)
-
-    # check if the input weights file is valid
-    if options.weights_in:
-        if not isfile(options.weights_in):
-            ERROR(f"Input weights file not found: {options.weights_in}")
-        if options.weights_out and isfile(options.weights_out) and not options.force:
-            ERROR(f"Output weights file already exists: {options.weights_out}")
-
-    # check if the input weights file has absolute path and if not, add the
-    # current working directory
-    if options.weights_in and not isabs(options.weights_in):
-        options.weights_in = p_join(getcwd(), options.weights_in)
-
-    # check if the output weights file has absolute path and if not, add the
-    # current working directory
-    if options.weights_out and not isabs(options.weights_out):
-        options.weights_out = p_join(getcwd(), options.weights_out)
-
     # call actual function
     t_filter(
         options.input_tractogram,
@@ -345,31 +311,19 @@ def tractogram_filter():
 def tractogram_indices():
     # parse the input parameters
     args = [
-        [['indices'], {'type': str, 'help': 'Indices to recompute'}],
+        [['input_indices'], {'type': str, 'help': 'Indices to recompute'}],
         [['dictionary_kept'], {'type': str, 'help': 'Dictionary of kept streamlines'}],
-        [['--output', '-o'], {'type': str, 'dest': 'indices_recomputed', 'help': 'Output indices file'}]
+        [['output_indices'], {'type': str, 'help': 'Output indices file'}]
     ]
     options = setup_parser(recompute_indices.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # check if path to input and output files are valid
-    if not isfile(options.indices):
-        ERROR(f"Input indices file not found: {options.indices}")
-    if not isfile(options.dictionary_kept):
-        ERROR(f"Input dictionary file not found: {options.dictionary_kept}")
-    if isfile(options.indices_recomputed) and not options.force:
-        ERROR(
-            f"Output indices file already exists: {options.indices_recomputed}")
-
     # call actual function
-    new_indices = recompute_indices(
-        options.indices,
+    recompute_indices(
+        options.input_indices,
         options.dictionary_kept,
+        options.output_indices,
         verbose=options.verbose
     )
-
-    # save new indices
-    if options.indices_recomputed:
-        np.savetxt(options.indices_recomputed, new_indices, fmt='%d')
 
 
 def tractogram_info():
@@ -380,10 +334,6 @@ def tractogram_info():
         [['--max_field_length', '-m'], {'type': int, 'help': 'Maximum length allowed for printing a field value'}]
     ]
     options = setup_parser(info.__doc__.split('\n')[0], args)
-
-    # check if path to input and output files are valid
-    if not isfile(options.tractogram):
-        ERROR(f'Input tractogram file not found: {options.tractogram}')
     
     # call actual function
     info(
@@ -402,45 +352,6 @@ def tractogram_join():
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}]
     ]
     options = setup_parser(t_join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    pwd = getcwd()
-
-    # check if path to output file is valid
-    if isfile(options.output_tractogram) and not options.force:
-        ERROR(f"Output tractogram file already exists: {options.output_tractogram}")
-    # check if the output tractogram file has the correct extension
-    output_tractogram_ext = splitext(options.output_tractogram)[1]
-    if output_tractogram_ext != '.tck':
-        ERROR('Invalid extension for the output tractogram file, must be ".tck"')
-    # check if output tractogram file has absolute path and if not, add the
-    # current working directory
-    if not isabs(options.output_tractogram):
-        options.output_tractogram = p_join(pwd, options.output_tractogram)
-
-    # check if enough tractograms are given in input
-    if len(options.input_tractograms) < 2:
-        ERROR("Too few tractograms provided in input, only 2 or more are allowed")
-    # check if path to input files is valid
-    for f in options.input_tractograms:
-        if not isfile( f ):
-            ERROR(f"Input tractogram file not found: {f}")
-        if splitext(f)[1] != '.tck':
-            ERROR(f'Invalid extension for the input tractogram {f}, must be ".tck"')
-
-    if options.input_weights:
-        for i,w in enumerate(options.input_weights):
-            # check if the input weights file is valid
-            if not isfile(w):
-                ERROR(f"Input weights file not found: {w}")
-            # check if the input weights file has absolute path and if not, add the current working directory
-            if not isabs(w):
-                options.input_weights[i] = p_join(pwd, w)
-        if options.weights_out and isfile(options.weights_out) and not options.force:
-            # check if the output weights file is valid
-            ERROR(f"Output weights file already exists: {options.weights_out}")
-        # check if the output weights file has absolute path and if not, add the current working directory
-        if options.weights_out and not isabs(options.weights_out):
-            options.weights_out = p_join(pwd, options.weights_out)
 
     # call actual function
     t_join( 
@@ -461,55 +372,31 @@ def tractogram_lengths():
     ]
     options = setup_parser(compute_lengths.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # check for errors
-    output_scalar_file_ext = splitext(options.output_scalar_file)[1]
-    if output_scalar_file_ext not in ['.txt', '.npy']:
-        ERROR('Invalid extension for the output scalar file')
-    if isfile(options.output_scalar_file) and not options.force:
-        ERROR('Output scalar file already exists, use -f to overwrite')
-
     try:
         # call the actual function
-        lengths = compute_lengths(
+        compute_lengths(
             options.input_tractogram,
+            options.output_scalar_file,
             options.verbose,
+            options.force
         )
-        # save the lengths to file
-        if output_scalar_file_ext == '.txt':
-            np.savetxt(options.output_scalar_file, lengths, fmt='%.4f')
-        else:
-            np.save(options.output_scalar_file, lengths, allow_pickle=False)
-
     except Exception as e:
-        if isfile(options.output_scalar_file):
-            remove(options.output_scalar_file)
         ERROR(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def tractogram_resample():
     # parse the input parameters
     args = [
-        [['tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['output'], {'type': str, 'help': 'Output tractogram'}],
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
         [['--nb_points', '-n'], {'type': int, 'default': 20, 'help': 'Number of points per streamline'}]
     ]
     options = setup_parser(resample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # check if path to input and output files are valid
-    if not isfile(options.tractogram):
-        ERROR(f"Input tractogram file not found: {options.tractogram}")
-    if isfile(options.output):
-        if options.force:
-            WARNING(f"Overwriting output file: {options.output}")
-        else:
-            ERROR(f"Output file already exists: {options.output}")
-    if options.nb_points < 2:
-        ERROR(f"Number of points per streamline must be >= 2: {options.nb_points}")
-
     # call actual function
     resample(
-        options.tractogram,
-        options.output,
+        options.input_tractogram,
+        options.output_tractogram,
         options.nb_points,
         options.verbose,
         options.force,
@@ -578,27 +465,6 @@ def tractogram_smooth():
     ]
     options = setup_parser(spline_smoothing.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # check if path to input and output files are valid
-    if not isfile(options.input_tractogram):
-        ERROR(f"Input tractogram file not found: {options.input_tractogram}")
-    if isfile(options.output_tractogram) and not options.force:
-        ERROR(f"Output tractogram file already exists: {options.output_tractogram}")
-    # check if the output tractogram file has the correct extension
-    output_tractogram_ext = splitext(options.output_tractogram)[1]
-    if output_tractogram_ext not in ['.trk', '.tck']:
-        ERROR("Invalid extension for the output tractogram file")
-
-    # check if output tractogram file has absolute path and if not, add the
-    # current working directory
-    if not isabs(options.output_tractogram):
-        options.output_tractogram = p_join(getcwd(), options.output_tractogram)
-
-    # check if ratio and step are valid
-    if options.ratio < 0.0 or options.ratio > 1.0:
-        ERROR("Invalid ratio, must be between 0 and 1")
-    if options.step <= 0.0:
-        ERROR("Invalid step, must be greater than 0")
-
     # call actual function
     spline_smoothing(
         options.input_tractogram,
@@ -608,16 +474,6 @@ def tractogram_smooth():
         options.verbose,
         options.force
     )
-
-
-def split_regions(input_string):
-    try:
-        # ast.literal_eval safely parses an input string to a Python literal structure
-        return ast.literal_eval(input_string)
-    except (SyntaxError, ValueError):
-        # Handle the exception if the input string is not a valid Python literal structure
-        ERROR("The input string is not a valid Python literal structure.")
-        return None
 
 
 def tractogram_split():
@@ -632,58 +488,12 @@ def tractogram_split():
     ]
     options = setup_parser(split.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # check if path to input and output files are valid
-    if not isfile(options.tractogram):
-        ERROR(f"Input tractogram file not found: {options.tractogram}")
-    if not isfile(options.assignments):
-        ERROR(f"Input assignments file not found: {options.assignments}")
-    if not isfile(options.assignments):
-        ERROR(f"Input assignments file not found: {options.assignments}")
-    if options.weights_in is not None:
-        if not isfile(options.weights_in):
-            ERROR(f"Input weights file not found: {options.weights_in}")
-
-    if options.output_folder is not None and not isabs(options.output_folder):
-        options.output_folder = p_join(getcwd(), options.output_folder)
-
-    if isdir(options.output_folder) and options.force:
-        # remove the output folder if it already exists
-        rmtree(options.output_folder)
-        makedirs(options.output_folder)
-    elif isdir(options.output_folder) and not options.force:
-        ERROR(f"Output folder already exists: {options.output_folder}, use -f to overwrite")
-    else:
-        # create the output folder if it does not exist
-        makedirs(options.output_folder)
-
-    if options.force:
-        WARNING("Overwriting existing files")
-        for f in glob.glob(p_join(options.output_folder, "*.tck")):
-            remove(f)
-        for f in glob.glob(p_join(options.output_folder, "*.txt")):
-            remove(f)
-        for f in glob.glob(p_join(options.output_folder, "*.npy")):
-            remove(f)
-
-    if options.regions is not None:
-        if not isinstance(split_regions(options.regions), (list, tuple)):
-            ERROR("Invalid regions input")
-        else:
-            regions = []
-            options.regions = "[]," + options.regions
-            for r in split_regions(options.regions):
-                if r == []:
-                    continue
-                regions.append(r)
-    else:
-        regions = []
-
     # call actual function
     split(
         options.tractogram,
         options.assignments,
         options.output_folder,
-        regions,
+        options.regions,
         options.weights_in,
         options.max_open,
         options.verbose,
