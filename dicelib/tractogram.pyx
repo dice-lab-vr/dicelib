@@ -22,6 +22,9 @@ from dicelib.streamline import length as streamline_length
 from dicelib.streamline cimport apply_affine_1pt
 from dicelib.streamline import smooth, spline_smooth, apply_smoothing, set_number_of_points, rdp_reduction, length, resample as s_resample
 from . import ui
+from dicelib.space_transf import space_tovox
+from dicelib.utils import check_params, File, Num, Dir
+import ast
 
 
 cdef float[3] NAN3 = {NAN, NAN, NAN}
@@ -440,8 +443,7 @@ cdef class LazyTractogram:
         if self.is_open:
             fclose( self.fp )
 
-
-def compute_lengths( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
+def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbose: int=2, force: bool=False ) -> np.ndarray:
     """Compute the lengths of the streamlines in a tractogram.
 
     Parameters
@@ -460,8 +462,10 @@ def compute_lengths( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
 
     ui.set_verbose( verbose )
 
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
+    files = [File(name='input_tractogram', type_='input', path=input_tractogram)]
+    if output_scalar_file is not None:
+        files.append(File(name='output_scalar_file', type_='output', path=output_scalar_file, ext=['.txt', '.npy']))
+    check_params(files=files)
 
     #----- iterate over input streamlines -----
     TCK_in = None
@@ -490,7 +494,14 @@ def compute_lengths( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
         if n_streamlines>0:
             ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
 
-        return lengths
+        if output_scalar_file is None:
+            return length
+        else:
+            output_scalar_file_ext = os.path.splitext(output_scalar_file)[1]
+            if output_scalar_file_ext == '.txt':
+                np.savetxt(output_scalar_file, lengths, fmt='%.4f')
+            elif output_scalar_file_ext == '.npy':
+                np.save(output_scalar_file, lengths, allow_pickle=False)
 
     except Exception as e:
         ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
@@ -500,7 +511,7 @@ def compute_lengths( input_tractogram: str, verbose: int=2 ) -> np.ndarray:
             TCK_in.close()
 
 
-def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=2 ):
+def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=4 ):
     """Print some information about a tractogram.
 
     Parameters
@@ -517,14 +528,13 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
     """
-
     ui.set_verbose( verbose )
 
-    if max_field_length is not None and max_field_length<25:
-        ui.ERROR( '"max_field_length" must be >=25')
-
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
+    files = [File(name='input_tractogram', type_='input', path=input_tractogram)]
+    nums = None
+    if max_field_length is not None:
+        nums = [Num(name='max_field_length', value=max_field_length, min_=25)]
+    check_params(files=files, nums=nums)
 
     #----- iterate over input streamlines -----
     TCK_in  = None
@@ -542,10 +552,10 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
                 val = [val]
             for v in val:
                 if max_field_length is not None and len(v)>max_field_length:
-                    v = v[:max_field_length]+ui.hRed+'...'+ui.Reset
-                ui.PRINT( ui.hWhite+ '%0*s'%(max_len,key) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
+                    v = v[:max_field_length]+ui.fg_red+'...'+ui.reset
+                ui.PRINT( ui.fg_white+ '%0*s'%(max_len,key) +ui.reset+ui.fg_white+ ':  ' + v +ui.reset )
         if 'count' in TCK_in.header.keys():
-            ui.PRINT( ui.hWhite+ '%0*s'%(max_len,'count') +ui.Reset+ui.fWhite+ ':  ' + TCK_in.header['count'] +ui.Reset )
+            ui.PRINT( ui.fg_white+ '%0*s'%(max_len,'count') +ui.reset+ui.fg_white+ ':  ' + TCK_in.header['count'] +ui.reset )
         ui.PRINT( '' )
 
         # print stats on lengths
@@ -561,7 +571,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
                             break # no more data, stop reading
                         lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
                         pbar.update()
-                ui.PRINT( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
+                ui.PRINT( f'   {ui.fg_white}min{ui.reset}{ui.fg_white}={lengths.min():.3f}   {ui.fg_white}max{ui.reset}{ui.fg_white}={lengths.max():.3f}   {ui.fg_white}mean{ui.reset}{ui.fg_white}={lengths.mean():.3f}   {ui.fg_white}std{ui.reset}{ui.fg_white}={lengths.std():.3f}{ui.reset}' )
             else:
                 ui.WARNING( 'The tractogram is empty' )
 
@@ -618,55 +628,49 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     """
     ui.set_verbose( verbose )
 
+    files = [
+        File(name='input_tractogram', type_='input', path=input_tractogram),
+        File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
+    ]
+    if weights_in is not None:
+        files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
+        weights_in_ext = os.path.splitext(weights_in)[1]
+    if weights_out is not None:
+        weights_out_ext = os.path.splitext(weights_out)[1]
+        files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+    nums = [Num(name='random', value=random, min_=0.0, max_=1.0, include_min=False)]
+    if minlength is not None:
+        nums.append(Num(name='minlength', value=minlength, min_=0.0))
+        ui.INFO(f'Keeping streamlines with length >= {minlength}mm')
+    if maxlength is not None:
+        nums.append(Num(name='maxlength', value=maxlength, min_=0.0))
+        ui.INFO(f'Keeping streamlines with length <= {maxlength}mm')
+    if minweight is not None:
+        nums.append(Num(name='minweight', value=minweight, min_=0.0))
+        ui.INFO(f'Keeping streamlines with weight >= {minweight}mm')
+    if maxweight is not None:
+        nums.append(Num(name='maxweight', value=maxweight, min_=0.0))
+        ui.INFO(f'Keeping streamlines with weight <= {maxweight}mm')
+    if minlength is not None and maxlength is not None and minlength > maxlength:
+        ui.ERROR('\'minlength\' must be <= \'maxlength\'')
+    if minweight is not None and maxweight is not None and minweight > maxweight:
+        ui.ERROR('\'minweight\' must be <= \'maxweight\'')
+    if random != 1:
+        ui.INFO(f'Keeping streamlines with {random * 100:.2f}% probability')
+    check_params(files=files, nums=nums, force=force)
+
+    if weights_in is not None:
+        if weights_in_ext == '.txt':
+            w = np.loadtxt(weights_in).astype(np.float64)
+        elif weights_in_ext == '.npy':
+            w = np.load(weights_in, allow_pickle=False).astype(np.float64)
+        ui.INFO('Using streamline weights from text file')
+    else:
+        w = np.array([])
+
     n_written = 0
     TCK_in  = None
     TCK_out = None
-
-    # check input
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
-    if os.path.isfile(output_tractogram) and not force:
-        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
-
-    if minlength is not None:
-        if minlength<0:
-            ui.ERROR( '"minlength" must be >= 0' )
-        ui.INFO( f'Keep streamlines with length >= {minlength} mm' )
-    if maxlength is not None:
-        if maxlength<0:
-            ui.ERROR( '"maxlength" must be >= 0' )
-        if minlength and minlength>maxlength:
-            ui.ERROR( '"minlength" must be <= "maxlength"' )
-        ui.INFO( f'Keep streamlines with length <= {maxlength} mm' )
-
-    # read the streamline weights (if any)
-    if weights_in is not None:
-        if not os.path.isfile( weights_in ):
-            ui.ERROR( f'File "{weights_in}" not found' )
-        weights_in_ext = os.path.splitext(weights_in)[1]
-        if weights_in_ext=='.txt':
-            w = np.loadtxt( weights_in ).astype(np.float64)
-        elif weights_in_ext=='.npy':
-            w = np.load( weights_in, allow_pickle=False ).astype(np.float64)
-        else:
-            ui.ERROR( 'Invalid extension for the weights file' )
-
-        ui.INFO( 'Using streamline weights from text file' )
-        if minweight is not None and minweight<0:
-            ui.ERROR( '"minweight" must be >= 0' )
-        ui.INFO( f'Keep streamlines with weight >= {minweight} mm' )
-        if maxweight is not None and maxweight<0:
-            ui.ERROR( '"maxweight" must be >= 0' )
-        if minweight is not None and maxweight is not None and minweight>maxweight:
-            ui.ERROR( '"minweight" must be <= "maxweight"' )
-        ui.INFO( f'Keep streamlines with weight <= {maxweight} mm' )
-    else:
-        w = np.array( [] )
-
-    if random<=0 or random>1:
-        ui.ERROR( '"random" must be in (0,1]' )
-    if random!=1:
-        ui.INFO( f'Keep streamlines with {random*100:.2f}% probability ' )
 
     #----- iterate over input streamlines -----
     try:
@@ -717,11 +721,11 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
                 TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
                 pbar.update()
 
-            if weights_out is not None and w.size>0:
-                if weights_in_ext=='.txt':
-                    np.savetxt( weights_out, w[kept==True].astype(np.float32), fmt='%.5e' )
-                else:
-                    np.save( weights_out, w[kept==True].astype(np.float32), allow_pickle=False )
+            if weights_out is not None and w.size > 0:
+                if weights_out_ext == '.txt':
+                    np.savetxt(weights_out, w[kept == True].astype(np.float32), fmt='%.5e')
+                elif weights_out_ext == '.npy':
+                    np.save(weights_out, w[kept == True].astype(np.float32), allow_pickle=False)
 
         n_written = np.count_nonzero( kept )
         (ui.INFO if n_written>0 else ui.WARNING)( f'{n_written} streamlines in output tractogram' )
@@ -781,45 +785,52 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
     ui.set_verbose( verbose )
 
-    # if not os.path.isfile(input_tractogram):
-    #     ui.ERROR( f'File "{input_tractogram}" not found' )
-    # if not os.path.isfile(input_assignments):
-    #     ui.ERROR( f'File "{input_assignments}" not found' )
-    # if not os.path.isdir(output_folder):
-    #     os.mkdir( output_folder )
-    # else:
-    #     if force:
-    #         for f in glob.glob( os.path.join(output_folder,'*.tck') ):
-    #             os.remove(f)
-    #         for f in glob.glob( os.path.join(output_folder,'*.txt') ):
-    #             os.remove(f)
-    #         for f in glob.glob( os.path.join(output_folder,'*.npy') ):
-    #             os.remove(f)
-    #     else:
-    #         ui.ERROR( f'Output folder "{output_folder}" already exists, use -f to overwrite' )
-
-    ui.INFO( f'Writing output tractograms to "{output_folder}"' )
-
-    weights_in_ext = None
+    files = [
+        File(name='input_tractogram', type_='input', path=input_tractogram),
+        File(name='input_assignments', type_='input', path=input_assignments)
+    ]
     if weights_in is not None:
-        if not os.path.isfile( weights_in ):
-            ui.ERROR( f'File "{weights_in}" not found' )
+        files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
         weights_in_ext = os.path.splitext(weights_in)[1]
-        if weights_in_ext=='.txt':
-            w = np.loadtxt( weights_in ).astype(np.float32)
-        elif weights_in_ext=='.npy':
-            w = np.load( weights_in, allow_pickle=False ).astype(np.float64)
+    dirs = [Dir(name='output_folder', path=output_folder)]
+    check_params(files=files, dirs=dirs, force=force)
+
+    def split_regions(input_string):
+        try:
+            # ast.literal_eval safely parses an input string to a Python literal structure
+            return ast.literal_eval(input_string)
+        except (SyntaxError, ValueError):
+            # Handle the exception if the input string is not a valid Python literal structure
+            ui.ERROR("The input string is not a valid Python literal structure.")
+            return None
+    if regions is not None:
+        if not isinstance(split_regions(regions), (list, tuple)):
+            ui.ERROR("Invalid regions input")
         else:
-            ui.ERROR( 'Invalid extension for the weights file' )
-        w_idx = np.zeros_like( w, dtype=np.int32 )
-        ui.INFO( f'Loaded {w.size} streamline weights' )
+            regions = []
+            regions = "[]," + regions
+            for r in split_regions(regions):
+                if r == []:
+                    continue
+                regions.append(r)
+    else:
+        regions = []
+
+    if weights_in is not None:
+        if weights_in_ext == '.txt':
+            w = np.loadtxt(weights_in).astype(np.float64)
+        elif weights_in_ext == '.npy':
+            w = np.load(weights_in, allow_pickle=False).astype(np.float64)
+        w_idx = np.zeros_like(w, dtype=np.int32)
+        ui.INFO(f'Loaded {w.size} streamline weights')
+    ui.INFO(f'Writing output tractograms to \'{output_folder}\'')
 
     if sys.platform.startswith('win32'):
         import win32file
         limit = win32file._getmaxstdio()
         if max_open is not None and max_open > limit:
             new_limit = int(max_open / 0.9)
-            ret = win32file._setmaxstdio(new_limit)
+            ret = win32file._setmaxstdio(new_limit) # TODO: bug in the library? do not return -1 if not successful (max limit is 2048)
             if ret == -1:
                 new_limit = int(limit * 2)
                 max_open = int(new_limit * 0.9)
@@ -828,7 +839,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         elif max_open is None:
             new_limit = int(limit * 2)
             max_open = int(new_limit * 0.9)
-            win32file._setmaxstdio(max_open)
+            win32file._setmaxstdio(new_limit)
     elif sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
         import resource
         limit, limit_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -1046,30 +1057,21 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
     force : boolean
         Force overwriting of the output (default : False).
     """
-
     ui.set_verbose( verbose )
 
     if len(input_list) < 2:
-        ui.ERROR(f'Input list contains less than 2 items')
-    for f in input_list:
-        if not os.path.isfile( f ):
-            ui.ERROR( f'File "{f}" not found' )
-    if os.path.isfile(output_tractogram) and not force:
-        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
-
-    ui.INFO( f'Writing output tractogram to "{output_tractogram}"' )
-
-    weights_in_ext = None
+        ui.ERROR(f'Input list must contain at least 2 files')
+    files = [File(name=f'input_tractogram_{i}', type_='input', path=f) for i, f in enumerate(input_list)]
+    files.append(File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'))
     if weights_list:
         if len(input_list) != len(weights_list):
             ui.ERROR( f'Number of weights files is different from number of input trac tograms' )
-        for w in weights_list:
-            if not os.path.isfile( w ):
-                ui.ERROR( f'File "{w}" not found' )
-            weights_in_ext = os.path.splitext(w)[1]
-            if weights_in_ext not in ['.txt', '.npy']:
-                ui.ERROR( f'Invalid extension for the weights file "{w}"' )
-
+        for i, w in enumerate(weights_list):
+            files.append(File(name=f'weights_in_{i}', type_='input', path=w, ext=['.txt', '.npy']))
+    if weights_out is not None:
+        files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+    ui.INFO( f'Writing output tractogram to "{output_tractogram}"' )
+    check_params(files=files, force=force)
 
     #----- iterate over input files -----
     TCK_in    = None
@@ -1102,12 +1104,10 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
                 if weights_list:
                     # load weights file
                     weights_in_ext = os.path.splitext(weights_list[i])[1]
-                    if weights_in_ext=='.txt':
-                        w = np.loadtxt( weights_list[i] ).astype(np.float32)
-                    elif weights_in_ext=='.npy':
-                        w = np.load( weights_list[i], allow_pickle=False ).astype(np.float64)
-                    else:
-                        ui.ERROR( 'Invalid extension for the weights file' )
+                    if weights_in_ext == '.txt':
+                        w = np.loadtxt(weights_list[i]).astype(np.float32)
+                    elif weights_in_ext == '.npy':
+                        w = np.load(weights_list[i], allow_pickle=False).astype(np.float64)
                     # check if #(weights)==n_streamlines
                     if n_streamlines!=w.size:
                         ui.ERROR( f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) in file {input_tractogram}' )
@@ -1119,10 +1119,10 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
             if weights_out is not None and weights_tot.size>0:
                 ui.INFO( f'Writing output weights to    "{weights_out}"' )
                 weights_out_ext = os.path.splitext(weights_out)[1]
-                if weights_out_ext=='.txt':
-                    np.savetxt( weights_out, weights_tot.astype(np.float32), fmt='%.5e' )
-                else:
-                    np.save( weights_out, weights_tot.astype(np.float32), allow_pickle=False )
+                if weights_out_ext == '.txt':
+                    np.savetxt(weights_out, weights_tot.astype(np.float32), fmt='%.5e')
+                elif weights_out_ext == '.npy':
+                    np.save(weights_out, weights_tot.astype(np.float32), allow_pickle=False)
                 ui.INFO( f'Total output weigths:     {weights_tot.size}' )
 
         ui.INFO( f'Total output streamlines: {n_written}' )
@@ -1214,19 +1214,20 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
         ui.ERROR( '"verbose" must be in [0...4]' )
     ui.set_verbose( verbose )
 
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
-
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
         output_tractogram = basename+'_sanitized'+extension
-
-    if os.path.isfile(output_tractogram) and not force:
-        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
-
     if save_connecting_tck == True :
         basename, extension = os.path.splitext(output_tractogram)
         conn_tractogram = basename+'_only_connecting'+extension
+    files = [
+        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+        File(name='gray_matter', type_='input', path=gray_matter, ext=['.nii', '.nii.gz']),
+        File(name='white_matter', type_='input', path=white_matter, ext=['.nii', '.nii.gz']),
+        File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'),
+        File(name='conn_tractogram', type_='output', path=conn_tractogram, ext='.tck')
+    ]
+    check_params(files=files, force=force)
     
     wm_nii = nib.load(white_matter)
     cdef int[:,:,::1] wm = np.ascontiguousarray(wm_nii.get_fdata(), dtype=np.int32)
@@ -1471,10 +1472,10 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         ui.ERROR( '"verbose" must be in [0...4]' )
     ui.set_verbose( verbose )
 
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
-    if os.path.isfile(output_tractogram) and not force:
-        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+    # if not os.path.isfile(input_tractogram):
+    #     ui.ERROR( f'File "{input_tractogram}" not found' )
+    # if os.path.isfile(output_tractogram) and not force:
+    #     ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
 
     if segment_len==None and streamline_pts==None:
         ui.ERROR( "Either 'streamline_pts' or 'segment_len' must be set." )
@@ -1484,6 +1485,12 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
         output_tractogram = basename+'_smooth'+extension
+
+    files = [
+        {'type_': 'input', 'name': 'input_tractogram', 'path': input_tractogram},
+        {'type_': 'output', 'name': 'output_tractogram', 'path': output_tractogram}
+    ]
+    check_params(files=files, force=force)
 
     if spline_type == 'centripetal':
         alpha = 0.5
@@ -1594,10 +1601,10 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         ui.ERROR( '"verbose" must be in [0...4]' )
     ui.set_verbose( verbose )
 
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
-    if os.path.isfile(output_tractogram) and not force:
-        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+    # if not os.path.isfile(input_tractogram):
+    #     ui.ERROR( f'File "{input_tractogram}" not found' )
+    # if os.path.isfile(output_tractogram) and not force:
+    #     ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
 
     if segment_len==None and streamline_pts==None:
         ui.ERROR( "Either 'streamline_pts' or 'segment_len' must be set." )
@@ -1608,6 +1615,15 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         basename, extension = os.path.splitext(input_tractogram)
         output_tractogram = basename+'_smooth'+extension
 
+    files = [
+        {'type_': 'input', 'name': 'input_tractogram', 'path': input_tractogram},
+        {'type_': 'output', 'name': 'output_tractogram', 'path': output_tractogram}
+    ]
+    if mask is not None:
+        files.append( {'type_': 'input', 'name': 'mask', 'path': mask} )
+    nums = [{'type_': 'float', 'name': 'epsilon', 'value': epsilon, 'min': 0, 'max_': None, 'interval': None}]
+    check_params(files=files, nums=nums, force=force)
+
     if spline_type == 'centripetal':
         alpha = 0.5
     elif spline_type == 'chordal':
@@ -1617,8 +1633,8 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
     else:
         ui.ERROR("'spline_type' parameter must be 'centripetal', 'uniform' or 'chordal'")
 
-    if epsilon < 0 :
-        raise ValueError( "'epsilon' parameter must be non-negative" )
+    # if epsilon < 0 :
+    #     raise ValueError( "'epsilon' parameter must be non-negative" )
 
     # cdef float [:,:] smoothed_fib = np.zeros((1000,3), dtype=np.float32)
     # cdef float [:,:] resampled_fib = np.zeros((1000,3), dtype=np.float32)
@@ -1778,17 +1794,18 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         ui.ERROR( '"verbose" must be in [0...4]' )
     ui.set_verbose( verbose )
 
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
-    if os.path.isfile(output_tractogram) and not force:
-        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
-
-    if control_point_ratio <= 0 or control_point_ratio > 1 :
-        raise ValueError( "'control_point_ratio' parameter must be in (0..1]" )
-
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
         output_tractogram = basename+'_smooth'+extension
+    files = [
+        File(name='input_tractogram', type_='input', path=input_tractogram),
+        File(name='output_tractogram', type_='output', path=output_tractogram, ext=['.tck', '.trk'])
+    ]
+    nums = [
+        Num(name='control_point_ratio', value=control_point_ratio, min_=0.0, max_=1.0, include_min=False),
+        Num(name='segment_len', value=segment_len, min_=0.0, max_=None, include_min=False)
+    ]
+    check_params(files=files, nums=nums, force=force)
 
     try:
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
@@ -1839,12 +1856,12 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         ui.INFO( f'\t- {mb:.2f} MB' )
 
 
-def recompute_indices(indices, dictionary_kept, verbose=2):
+def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbose=2, force=False):
     """Recompute the indices of the streamlines in a tractogram after filtering.
 
     Parameters
     ----------
-    indices : array of integers
+    input_indices : array of integers
         Indices of the streamlines in the original tractogram.
 
     dictionary_kept : dictionary
@@ -1858,17 +1875,23 @@ def recompute_indices(indices, dictionary_kept, verbose=2):
     indices_recomputed : array of integers
         Recomputed indices of the streamlines.
     """
-
     if type(verbose) != int or verbose not in [0,1,2,3,4]:
         ui.ERROR( '"verbose" must be in [0...4]' )
     ui.set_verbose( verbose )
 
-    ui.INFO( 'Recomputing indices' )
+    files = [
+        File(name='input_indices', type_='input', path=input_indices),
+        File(name='dictionary_kept', type_='input', path=dictionary_kept)
+    ]
+    if output_indices is not None:
+        files.append( File(name='output_indices', type_='output', path=output_indices) )
+    ui.INFO('Recomputing indices')
+    check_params(files=files, force=force)
 
     # open indices file and dictionary
     d = np.fromfile(dictionary_kept, dtype=np.uint8)
 
-    idx = np.loadtxt(indices).astype(np.uint32)
+    idx = np.loadtxt(input_indices).astype(np.uint32)
     indices_recomputed = []
 
     # recompute indices
@@ -1881,8 +1904,7 @@ def recompute_indices(indices, dictionary_kept, verbose=2):
             if d[idx[i]]==1:
                 indices_recomputed.append( n )
             pbar.update()
-
-    return indices_recomputed
+    return indices_recomputed if output_indices is None else np.savetxt(output_indices, indices_recomputed, fmt='%d')
 
 
 cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=None , option="No_opt", force=False, verbose=2):
@@ -1913,21 +1935,18 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
 
 
     """
-    
+    files = [
+        File(name='input_tractogram', type_='input', path=input_tractogram),
+        File(name='input_image', type_='input', path=input_image),
+        File(name='output_file', type_='output', path=output_file)
+    ]
+    if mask_file is not None:
+        files.append(File(name='mask_file', type_='input', path=mask_file))
+    if option not in ['min', 'max', 'median', 'No_opt', 'mean']:
+        ui.ERROR(f'Option {option} not valid, please choose between min, max, median, mean or No_opt')
+    check_params(files=files, force=force)
+
     TCK_in  = None
-
-    # check input and output 
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
-    if not os.path.isfile(input_image):
-        ui.ERROR( f'File "{input_image}" not found' )
-    if mask_file != None and not os.path.isfile(mask_file):
-        ui.ERROR( f'File "{mask_file}" not found' )
-    if os.path.isfile(output_file) and not force:
-        ui.ERROR( 'Output file {} already exists, use -f to overwrite'.format(output_file) )
-    if option not in ["min","max","median","No_opt","mean"]:
-        ui.ERROR( 'The selected option {} is not present!'.format(option))
-
 
     #open the image
     Img = nib.load(input_image)
@@ -2016,14 +2035,20 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=2, force=Fal
         Force overwriting of the output (default : False).
     """
 
-    if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
-    if os.path.isfile(output_tractogram) and not force:
-        ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+    # if not os.path.isfile(input_tractogram):
+    #     ui.ERROR( f'File "{input_tractogram}" not found' )
+    # if os.path.isfile(output_tractogram) and not force:
+    #     ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
 
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
         output_tractogram = basename+'_nbpts'+extension
+    files = [
+        File(name='input_tractogram', type_='input', path=input_tractogram),
+        File(name='output_tractogram', type_='output', path=output_tractogram)
+    ]
+    nums = [Num(name='nb_pts', value=nb_pts, min_=2)]
+    check_params(files=files, nums=nums, force=force)
 
     cdef float [::1] lengths = np.empty( 1000, dtype=np.float32 )
     cdef float [:,::1] s0 = np.empty( (nb_pts, 3), dtype=np.float32 )
