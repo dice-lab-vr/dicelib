@@ -6,7 +6,7 @@
 import os, sys
 import numpy as np
 cimport numpy as np
-from dicelib.lazytractogram cimport LazyTractogram
+from dicelib.tractogram cimport LazyTractogram
 from dicelib.connectivity import assign
 from dicelib.tractogram import split as split_bundles
 from dicelib.tractogram import info
@@ -230,7 +230,7 @@ cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_id
 
 cpdef cluster(filename_in: str, metric: str="mean", threshold: float=10.0, n_pts: int=10,
               verbose: int=2):
-    """ Cluster streamlines in a tractogram based on average euclidean distance.
+    """ Cluster streamlines in a tractogram based on a given metric (mean or max distance to the centroids)
 
     Parameters
     ----------
@@ -634,7 +634,7 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=None, atlas: str=None, conn_thr: float=2.0,
                     clust_thr: float=2.0, metric: str="mean", n_pts: int=10,
                     n_threads: int=None, force: bool=False, verbose: int=2, keep_temp_files: bool=False, max_bytes: int=0):
-    """ Cluster streamlines in a tractogram based on average euclidean distance.
+    """ Cluster streamlines in a tractogram based on a given metric. Possible metrics are "mean" and "max" (default: "mean").
 
     Parameters
     ----------
@@ -676,9 +676,20 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
 
     TCK_in = LazyTractogram( file_name_in, mode='r' )
 
-    if output_folder is not None:
+    if output_folder is None:
+        output_folder = os.getcwd()
+        if not os.path.isabs(file_name_out):
+            file_name_out = os.path.join(output_folder, file_name_out)
+    else:
+        # check if output folder exists, if it's relative or absolute
+        if not os.path.isabs(output_folder):
+            output_folder = os.path.join(os.getcwd(), output_folder)
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
+        if not os.path.isabs(file_name_out):
+            file_name_out = os.path.join(output_folder, file_name_out)
+
+
 
     if not os.path.isabs(file_name_out) and output_folder is None:
         output_folder = os.getcwd()

@@ -10,7 +10,7 @@ from libc.string cimport strlen, strncmp, strchr
 from libcpp.string cimport string
 from libc.math cimport isnan, isinf, NAN
 import os
-from dicelib.lazytractogram import LazyTractogram
+from dicelib.tractogram import LazyTractogram
 import time
 
 cdef float[1] NAN1 = {NAN}

@@ -1,4 +1,3 @@
-from .lazytractogram import LazyTractogram
 from pathlib import Path
 from importlib import metadata
 

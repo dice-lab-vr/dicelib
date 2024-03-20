@@ -18,10 +18,9 @@ from libc.stdlib cimport malloc, free
 from libcpp.string cimport string
 from libc.math cimport isnan, isinf, NAN
 
-from dicelib.lazytractogram import LazyTractogram
 from dicelib.streamline import length as streamline_length
-from dicelib.streamline import smooth, apply_smoothing, set_number_of_points, rdp_reduction, length, resample as s_resample
-from dicelib.smoothing import spline_smooth
+from dicelib.streamline cimport apply_affine_1pt
+from dicelib.streamline import smooth, spline_smooth, apply_smoothing, set_number_of_points, rdp_reduction, length, resample as s_resample
 from . import ui
 
 
@@ -1142,11 +1141,6 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
             TCK_out.close( write_eof=True, count=n_written )
 
 
-cdef float [:] apply_affine_1pt(float [:] orig_pt, double[::1,:] M, double[:] abc, float [:] moved_pt):
-    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[1,0] + orig_pt[2]*M[2,0]) + abc[0]) + .5
-    moved_pt[1] = float((orig_pt[0]*M[0,1] + orig_pt[1]*M[1,1] + orig_pt[2]*M[2,1]) + abc[1]) + .5
-    moved_pt[2] = float((orig_pt[0]*M[0,2] + orig_pt[1]*M[1,2] + orig_pt[2]*M[2,2]) + abc[2]) + .5
-    return moved_pt
 
 cpdef compute_vect_vers(float [:] p0, float[:] p1):
     cdef float vec_x, vec_y, vec_z = 0
@@ -1179,6 +1173,7 @@ cpdef move_point_to_gm(float[:] point, float vers_x, float vers_y, float vers_z,
             ok = True
             break
     return ok, point
+
 
 def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_tractogram: str=None, step: float=0.2, max_dist: float=2, save_connecting_tck: bool=False, verbose: int=2, force: bool=False ):
     """Sanitize stramlines in order to end in the gray matter.
@@ -1573,7 +1568,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
     mask : string
         Path to the mask file (.nii) to constrain the smoothing to a specific region (default : None).
 
-    threshold : float
+    pts_cutoff : float
         Percentage of points of the streamline that must be inside the mask to be considered (default : 0.5).
 
     spline_type : string

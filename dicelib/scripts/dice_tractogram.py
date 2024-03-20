@@ -2,8 +2,8 @@ import ast
 
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.lazytractogram import LazyTractogram
-from dicelib.tractogram import compute_lengths, filter as t_filter, info, join as t_join, recompute_indices, resample, sample, sanitize, spline_smoothing, split
+from dicelib.tractogram import LazyTractogram
+from dicelib.tractogram import compute_lengths, filter as t_filter, info, join as t_join, recompute_indices, resample, sample, sanitize, spline_smoothing_v2, split
 from dicelib.tsf import Tsf
 from dicelib.ui import ERROR, INFO, ProgressBar, set_verbose, setup_parser, WARNING
 
@@ -75,17 +75,17 @@ def color_by_scalar_file(streamline, values, num_streamlines):
 
 def tractogram_assign():
     args = [
-        [['tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['atlas'], {'type': str, 'help': 'Atlas used to compute streamlines assignments'}],
-        [['--conn_threshold', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Threshold [in mm]'}],
-        [['--save_assignments'], {'type': str, 'metavar': 'ASSIGNMENTS_FILE', 'help': 'Save the cluster assignments to file'}]
+        [['save_assignments'], {'type': str, 'help': 'Save the cluster assignments to file'}]
+        [['--conn_threshold', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Threshold [in mm]'}]
     ]
     options = setup_parser(assign.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     set_verbose(options.verbose)
 
     # check if tractogram exists
-    if not exists(options.tractogram):
+    if not exists(options.input_tractogram):
         ERROR('Tractogram does not exist')
 
     # check if path to save assignments is relative or absolute and create if necessary
@@ -106,7 +106,7 @@ def tractogram_assign():
     if not exists(options.atlas):
         ERROR('Atlas does not exist')
 
-    num_streamlines = int(LazyTractogram(options.tractogram, mode='r').header["count"])
+    num_streamlines = int(LazyTractogram(options.input_tractogram, mode='r').header["count"])
     INFO(f"Computing assignments for {num_streamlines} streamlines")
 
     if num_streamlines > 3:
@@ -125,7 +125,7 @@ def tractogram_assign():
             future = [
                 executor.submit(
                     assign,
-                    options.tractogram,
+                    options.input_tractogram,
                     pbar_array,
                     i,
                     start_chunk=int(chunk_groups[i][0]),
@@ -150,7 +150,7 @@ def tractogram_assign():
 def tractogram_cluster():
     # parse the input parameters
     args = [
-        [['tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['clust_thr'], {'type': float, 'help': 'Distance threshold [in mm] used to cluster the streamlines'}],
         [['file_name_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
         [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': 'Atlas used to compute streamlines connectivity'}],
@@ -165,8 +165,8 @@ def tractogram_cluster():
 
     # check the input parameters
     # check if path to input and output files are valid
-    if not isfile(options.tractogram):
-        ERROR("Input file does not exist: %s" % options.tractogram)
+    if not isfile(options.input_tractogram):
+        ERROR("Input file does not exist: %s" % options.input_tractogram)
 
     if options.file_name_out is not None:
         out_ext = splitext(options.file_name_out)[1]
@@ -180,10 +180,6 @@ def tractogram_cluster():
         if not exists(options.atlas):
             ERROR('Atlas does not exist')
 
-    # check if output folder exists
-    if options.output_folder is not None:
-        if not exists(options.output_folder):
-            makedirs(options.output_folder)
 
     # check if metric is valid
     if options.metric not in ['mean', 'max']:
@@ -205,7 +201,7 @@ def tractogram_cluster():
             ERROR('Clustering threshold must be positive')
 
     run_clustering(
-        file_name_in=options.tractogram,
+        file_name_in=options.input_tractogram,
         output_folder=options.output_folder,
         file_name_out=options.file_name_out,
         atlas=options.atlas,
@@ -375,19 +371,19 @@ def tractogram_indices():
 def tractogram_info():
     # parse the input parameters
     args = [
-        [['tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['--lengths', '-l'], {'action': 'store_true', 'help': 'Show stats on streamline lengths'}],
         [['--max_field_length', '-m'], {'type': int, 'help': 'Maximum length allowed for printing a field value'}]
     ]
     options = setup_parser(info.__doc__.split('\n')[0], args)
 
     # check if path to input and output files are valid
-    if not isfile(options.tractogram):
-        ERROR(f'Input tractogram file not found: {options.tractogram}')
+    if not isfile(options.input_tractogram):
+        ERROR(f'Input tractogram file not found: {options.input_tractogram}')
     
     # call actual function
     info(
-        options.tractogram,
+        options.input_tractogram,
         options.lengths,
         options.max_field_length
     )
@@ -489,27 +485,27 @@ def tractogram_lengths():
 def tractogram_resample():
     # parse the input parameters
     args = [
-        [['tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['output'], {'type': str, 'help': 'Output tractogram'}],
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
         [['--nb_points', '-n'], {'type': int, 'default': 20, 'help': 'Number of points per streamline'}]
     ]
     options = setup_parser(resample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check if path to input and output files are valid
-    if not isfile(options.tractogram):
-        ERROR(f"Input tractogram file not found: {options.tractogram}")
-    if isfile(options.output):
+    if not isfile(options.input_tractogram):
+        ERROR(f"Input tractogram file not found: {options.input_tractogram}")
+    if isfile(options.output_tractogram):
         if options.force:
-            WARNING(f"Overwriting output file: {options.output}")
+            WARNING(f"Overwriting output file: {options.output_tractogram}")
         else:
-            ERROR(f"Output file already exists: {options.output}")
+            ERROR(f"Output file already exists: {options.output_tractogram}")
     if options.nb_points < 2:
         ERROR(f"Number of points per streamline must be >= 2: {options.nb_points}")
 
     # call actual function
     resample(
-        options.tractogram,
-        options.output,
+        options.input_tractogram,
+        options.output_tractogram,
         options.nb_points,
         options.verbose,
         options.force,
@@ -573,10 +569,13 @@ def tractogram_smooth():
     args = [
         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
-        [['--ratio', '-r'], {'type': float, 'default': 0.25, 'help': 'Ratio of points to be kept/used as control points'}],
-        [['--step', '-s'], {'type': float, 'default': 1.0, 'help': 'Sampling step for the output streamlines [in mm]'}]
+        [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': 'Type of spline to use for the smoothing'}],
+        [['--epsilon', '-e'], {'type': float, 'default': 0.3, 'help': 'Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).'}],
+        [['--segment_len', '-s'], {'type': float, 'default': None, 'help': 'Sampling resolution of the final streamline after interpolation. NOTE: either "segment_len" or "streamline_pts" must be set.'}],
+        [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': 'Number of points in each of the final streamlines. NOTE: either "streamline_pts" or "segment_len" must be set.'}]
     ]
-    options = setup_parser(spline_smoothing.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    options = setup_parser(spline_smoothing_v2.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check if path to input and output files are valid
     if not isfile(options.input_tractogram):
@@ -600,11 +599,13 @@ def tractogram_smooth():
         ERROR("Invalid step, must be greater than 0")
 
     # call actual function
-    spline_smoothing(
+    spline_smoothing_v2(
         options.input_tractogram,
         options.output_tractogram,
-        options.ratio,
-        options.step,
+        options.type,
+        options.epsilon,
+        options.segment_len,
+        options.streamline_pts,
         options.verbose,
         options.force
     )
@@ -623,7 +624,7 @@ def split_regions(input_string):
 def tractogram_split():
     # parse the input parameters
     args = [
-        [['tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['assignments'], {'type': str, 'help': 'Text file with the streamline assignments'}],
         [['output_folder'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
         [['--regions', '-r'], {'type': str, 'default': None, 'help': 'Streamline connecting the provided region(s) will be extracted'}],
@@ -633,8 +634,8 @@ def tractogram_split():
     options = setup_parser(split.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # check if path to input and output files are valid
-    if not isfile(options.tractogram):
-        ERROR(f"Input tractogram file not found: {options.tractogram}")
+    if not isfile(options.input_tractogram):
+        ERROR(f"Input tractogram file not found: {options.input_tractogram}")
     if not isfile(options.assignments):
         ERROR(f"Input assignments file not found: {options.assignments}")
     if not isfile(options.assignments):
@@ -680,7 +681,7 @@ def tractogram_split():
 
     # call actual function
     split(
-        options.tractogram,
+        options.input_tractogram,
         options.assignments,
         options.output_folder,
         regions,

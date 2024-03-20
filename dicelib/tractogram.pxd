@@ -26,6 +26,3 @@ cdef class LazyTractogram:
     cpdef _write_header( self, header )
     cdef void _seek_origin( self, int header_param ) nogil
     cdef void move_to( self, int pts ) nogil
-
-
-cdef float [:] apply_affine_1pt(float [:] orig_pt, double[::1,:] M, double[:] abc, float [:] moved_pt)

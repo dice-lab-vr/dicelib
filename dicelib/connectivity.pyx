@@ -14,24 +14,10 @@ import nibabel as nib
 
 from scipy.linalg import inv
 
-from dicelib.lazytractogram cimport LazyTractogram
+from dicelib.tractogram cimport LazyTractogram
 from dicelib.streamline import create_replicas
+from dicelib.streamline cimport apply_affine
 from . import ui
-
-
-cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
-                                float [:] abc, float [:,::1] end_pts_trans) noexcept nogil:
-
-    # N.B. use this function only to move from RASmm to VOX, not the inverse (because of +0.5)
-    end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0]) +0.5
-    end_pts_trans[0][1] = ((end_pts[0][0]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1]) +0.5
-    end_pts_trans[0][2] = ((end_pts[0][0]*M[0,2] + end_pts[0][1]*M[1,2] + end_pts[0][2]*M[2,2]) + abc[2]) +0.5
-    end_pts_trans[1][0] = ((end_pts[1][0]*M[0,0] + end_pts[1][1]*M[1,0] + end_pts[1][2]*M[2,0]) + abc[0]) +0.5
-    end_pts_trans[1][1] = ((end_pts[1][0]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1]) +0.5
-    end_pts_trans[1][2] = ((end_pts[1][0]*M[0,2] + end_pts[1][1]*M[1,2] + end_pts[1][2]*M[2,2]) + abc[2]) +0.5
-
-
-    return end_pts_trans
 
 
 cdef compute_grid( float thr, float[:] vox_dim ) :
