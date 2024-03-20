@@ -66,6 +66,7 @@ light_blue = '128;128;255'
 
 # foreground colors
 fg_black = f'{fg}{black}m'
+fg_white = f'{fg}{white}m'
 fg_red = f'{fg}{red}m'
 fg_green = f'{fg}{green}m'
 fg_blue = f'{fg}{blue}m'

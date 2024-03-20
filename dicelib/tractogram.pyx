@@ -122,10 +122,10 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
                 val = [val]
             for v in val:
                 if max_field_length is not None and len(v)>max_field_length:
-                    v = v[:max_field_length]+ui.hRed+'...'+ui.Reset
-                ui.PRINT( ui.hWhite+ '%0*s'%(max_len,key) +ui.Reset+ui.fWhite+ ':  ' + v +ui.Reset )
+                    v = v[:max_field_length]+ui.fg_red+'...'+ui.reset
+                ui.PRINT( ui.fg_white+ '%0*s'%(max_len,key) +ui.reset+ui.fg_white+ ':  ' + v +ui.reset )
         if 'count' in TCK_in.header.keys():
-            ui.PRINT( ui.hWhite+ '%0*s'%(max_len,'count') +ui.Reset+ui.fWhite+ ':  ' + TCK_in.header['count'] +ui.Reset )
+            ui.PRINT( ui.fg_white+ '%0*s'%(max_len,'count') +ui.reset+ui.fg_white+ ':  ' + TCK_in.header['count'] +ui.reset )
         ui.PRINT( '' )
 
         # print stats on lengths
@@ -141,7 +141,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
                             break # no more data, stop reading
                         lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
                         pbar.update()
-                ui.PRINT( f'   {ui.hWhite}min{ui.Reset}{ui.fWhite}={lengths.min():.3f}   {ui.hWhite}max{ui.Reset}{ui.fWhite}={lengths.max():.3f}   {ui.hWhite}mean{ui.Reset}{ui.fWhite}={lengths.mean():.3f}   {ui.hWhite}std{ui.Reset}{ui.fWhite}={lengths.std():.3f}{ui.Reset}' )
+                ui.PRINT( f'   {ui.fg_white}min{ui.reset}{ui.fg_white}={lengths.min():.3f}   {ui.fg_white}max{ui.reset}{ui.fg_white}={lengths.max():.3f}   {ui.fg_white}mean{ui.reset}{ui.fg_white}={lengths.mean():.3f}   {ui.fg_white}std{ui.reset}{ui.fg_white}={lengths.std():.3f}{ui.reset}' )
             else:
                 ui.WARNING( 'The tractogram is empty' )
 
