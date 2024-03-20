@@ -71,9 +71,10 @@ def color_by_scalar_file(streamline, values, num_streamlines):
         scalar_list.extend(streamline_points)
     return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
 
+
 def tractogram_assign():
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['atlas'], {'type': str, 'help': 'Atlas used to compute streamlines assignments'}],
         [['save_assignments'], {'type': str, 'help': 'Save the cluster assignments to file'}],
         [['--conn_threshold', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Threshold [in mm]'}]
@@ -83,7 +84,7 @@ def tractogram_assign():
     set_verbose(options.verbose)
 
     # check if tractogram exists
-    if not exists(options.input_tractogram):
+    if not exists(options.tractogram_in):
         ERROR('Tractogram does not exist')
 
     # check if path to save assignments is relative or absolute and create if necessary
@@ -104,7 +105,7 @@ def tractogram_assign():
     if not exists(options.atlas):
         ERROR('Atlas does not exist')
 
-    num_streamlines = int(LazyTractogram(options.input_tractogram, mode='r').header["count"])
+    num_streamlines = int(LazyTractogram(options.tractogram_in, mode='r').header["count"])
     INFO(f"Computing assignments for {num_streamlines} streamlines")
 
     if num_streamlines > 3:
@@ -123,7 +124,7 @@ def tractogram_assign():
             future = [
                 executor.submit(
                     assign,
-                    options.input_tractogram,
+                    options.tractogram_in,
                     pbar_array,
                     i,
                     start_chunk=int(chunk_groups[i][0]),
@@ -148,14 +149,14 @@ def tractogram_assign():
 def tractogram_cluster():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['clust_thr'], {'type': float, 'help': 'Distance threshold [in mm] used to cluster the streamlines'}],
-        [['file_name_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
-        [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': 'Atlas used to compute streamlines connectivity'}],
-        [['--conn_thr', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Threshold [in mm]'}],
-        [['--metric'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: "mean", "max" (default: "mean").'}],
-        [['--n_pts'], {'type': int, 'default': 10, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
-        [['--output_folder', '-out'], {'type': str, 'metavar': 'OUT_FOLDER', 'help': 'Folder where to save the split clusters'}],
+        [['tractogram_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
+        [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': 'Path to the atlas file used to split the streamlines into bundles for parallel clustering'}],
+        [['--conn_thr', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Distance threshold [in mm] used for hierarchical clustering (default: 2.0)'}],
+        [['--metric'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: "mean", "max" (default: "mean")'}],
+        [['--n_pts'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
+        [['--temp_folder', '-temp'], {'type': str, 'metavar': 'OUT_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files.'}],
         [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform clustering'}],
         [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
     ]
@@ -163,14 +164,14 @@ def tractogram_cluster():
 
     # check the input parameters
     # check if path to input and output files are valid
-    if not isfile(options.input_tractogram):
-        ERROR("Input file does not exist: %s" % options.input_tractogram)
+    if not isfile(options.tractogram_in):
+        ERROR("Input file does not exist: %s" % options.tractogram_in)
 
-    if options.file_name_out is not None:
-        out_ext = splitext(options.file_name_out)[1]
+    if options.tractogram_out is not None:
+        out_ext = splitext(options.tractogram_out)[1]
         if out_ext not in ['.trk', '.tck']:
             ERROR('Invalid extension for the output tractogram')
-        elif isfile(options.file_name_out) and not options.force:
+        elif isfile(options.tractogram_out) and not options.force:
             ERROR('Output tractogram already exists, use -f to overwrite')
 
     # check if atlas exists
@@ -199,9 +200,9 @@ def tractogram_cluster():
             ERROR('Clustering threshold must be positive')
 
     run_clustering(
-        file_name_in=options.input_tractogram,
-        output_folder=options.output_folder,
-        file_name_out=options.file_name_out,
+        tractogram_in=options.tractogram_in,
+        temp_folder=options.temp_folder,
+        tractogram_out=options.tractogram_out,
         atlas=options.atlas,
         conn_thr=options.conn_thr,
         clust_thr=options.clust_thr,
@@ -217,8 +218,8 @@ def tractogram_cluster():
 def tractogram_compress():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
         [['--minlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
         [['--maxlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
         [['--minweight'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
@@ -234,41 +235,41 @@ def tractogram_compress():
 # def tractogram_convert():
 #     set_sft_logger_level("CRITICAL")
 #     args = [
-#         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-#         [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+#         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+#         [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
 #         [['--reference', '-r'], {'type': str, 'help': 'Space attributes used as reference for the input tractogram'}],
 #         [['--force', '-f'], {'action': 'store_true', 'help': 'Force overwriting of the output'}]
 #     ]
 #     options = setup_parser("Tractogram conversion from and to '.tck', '.trk', '.fib', '.vtk' and 'dpy'. All the extensions except '.trk, need a NIFTI file as reference", args)
 
-#     if not isfile(options.input_tractogram):
-#         ERROR("No such file {}".format(options.input_tractogram))
-#     if isfile(options.output_tractogram) and not options.force:
+#     if not isfile(options.tractogram_in):
+#         ERROR("No such file {}".format(options.tractogram_in))
+#     if isfile(options.tractogram_out) and not options.force:
 #         ERROR("Output tractogram already exists, use -f to overwrite")
 #     if options.reference is not None:
 #         if not isfile(options.reference):
 #             ERROR("No such file {}".format(options.reference))
 
-#     if not options.input_tractogram.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
+#     if not options.tractogram_in.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
 #         ERROR("Invalid input tractogram format")
-#     elif not options.output_tractogram.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
+#     elif not options.tractogram_out.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
 #         ERROR("Invalid input tractogram format")
 #     elif options.reference is not None and not options.reference.endswith(('.nii', 'nii.gz')):
 #         ERROR("Invalid reference format")
 
-#     if options.input_tractogram.endswith('.tck') and options.reference is None:
+#     if options.tractogram_in.endswith('.tck') and options.reference is None:
 #         ERROR("Reference is required if the input format is '.tck'")
 
 #     try:
 #         sft_in = load_tractogram(
-#             options.input_tractogram,
+#             options.tractogram_in,
 #             reference=options.reference if options.reference else "same"
 #         )
 #     except Exception:
 #         raise ValueError("Error loading input tractogram")
     
 #     try:
-#         save_tractogram(sft_in, options.output_tractogram)
+#         save_tractogram(sft_in, options.tractogram_out)
 #     except (OSError, TypeError) as e:
 #         ERROR(f"Output not valid: {e}")
 
@@ -276,8 +277,8 @@ def tractogram_compress():
 def tractogram_filter():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
         [['--minlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
         [['--maxlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
         [['--minweight'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
@@ -290,8 +291,8 @@ def tractogram_filter():
 
     # call actual function
     t_filter(
-        options.input_tractogram,
-        options.output_tractogram,
+        options.tractogram_in,
+        options.tractogram_out,
         options.minlength,
         options.maxlength,
         options.minweight,
@@ -325,7 +326,7 @@ def tractogram_indices():
 def tractogram_info():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['--lengths', '-l'], {'action': 'store_true', 'help': 'Show stats on streamline lengths'}],
         [['--max_field_length', '-m'], {'type': int, 'help': 'Maximum length allowed for printing a field value'}]
     ]
@@ -333,7 +334,7 @@ def tractogram_info():
     
     # call actual function
     info(
-        options.input_tractogram,
+        options.tractogram_in,
         options.lengths,
         options.max_field_length
     )
@@ -343,7 +344,7 @@ def tractogram_join():
     # parse the input parameters
     args = [
         [['input_tractograms'], {'type': str, 'nargs': '*', 'help': 'Input tractograms'}],
-        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
         [['--input_weights'], {'type': str, 'nargs': '*', 'default': [], 'help': 'Text files with the input streamline weights. NOTE: the order must be the same of the input tractograms'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}]
     ]
@@ -352,7 +353,7 @@ def tractogram_join():
     # call actual function
     t_join( 
         options.input_tractograms,
-        options.output_tractogram, 
+        options.tractogram_out, 
         options.input_weights,
         options.weights_out,
         options.verbose,
@@ -363,7 +364,7 @@ def tractogram_join():
 def tractogram_lengths():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['output_scalar_file'], {'type': str, 'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}]
     ]
     options = setup_parser(compute_lengths.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
@@ -371,7 +372,7 @@ def tractogram_lengths():
     try:
         # call the actual function
         compute_lengths(
-            options.input_tractogram,
+            options.tractogram_in,
             options.output_scalar_file,
             options.verbose,
             options.force
@@ -383,16 +384,16 @@ def tractogram_lengths():
 def tractogram_resample():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
         [['--nb_points', '-n'], {'type': int, 'default': 20, 'help': 'Number of points per streamline'}]
     ]
     options = setup_parser(resample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # call actual function
     resample(
-        options.input_tractogram,
-        options.output_tractogram,
+        options.tractogram_in,
+        options.tractogram_out,
         options.nb_points,
         options.verbose,
         options.force,
@@ -402,8 +403,8 @@ def tractogram_resample():
 def tractogram_sample():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['input_image'], {'type': str, 'help': 'Input image'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['image_in'], {'type': str, 'help': 'Input image'}],
         [['output_file'], {'type': str, 'help': 'File for the output'}],
         [['--mask', '-m'], {'type': str, 'default': None, 'help': 'Optional mask to restrict the sampling voxels'}],
         [['--space'], {'type': str, 'nargs': '?', 'default': None, 'choices': ['voxmm', 'rasmm', 'vox'], 'help': 'Current reference space of streamlines (rasmm, voxmm, vox), default rasmm'}],
@@ -413,8 +414,8 @@ def tractogram_sample():
 
     # call actual function
     sample(
-        options.input_tractogram,
-        options.input_image,
+        options.tractogram_in,
+        options.image_in,
         options.output_file,
         options.mask,
         options.space,
@@ -427,10 +428,10 @@ def tractogram_sample():
 def tractogram_sanitize():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['gray_matter'], {'type': str, 'help': 'Gray matter'}],
         [['white_matter'], {'type': str, 'help': 'White matter'}],
-        [['--output_tractogram', '-out'], {'type': str, 'help': 'Output tractogram (if None: "_sanitized" appended to the input filename)'}],
+        [['--tractogram_out', '-out'], {'type': str, 'help': 'Output tractogram (if None: "_sanitized" appended to the input filename)'}],
         [['--step'], {'type': float, 'default': 0.2, 'help': 'Step size [in mm]'}],
         [['--max_dist'], {'type': float, 'default': 2, 'help': 'Maximum distance [in mm]'}],
         [['--save_connecting_tck', '-conn'], {'action': 'store_true', 'default': False, 'help': 'Save also tractogram with only the actual connecting streamlines (if True: "_only_connecting" appended to the output filename)'}]
@@ -439,10 +440,10 @@ def tractogram_sanitize():
 
     # call actual function
     sanitize(
-        options.input_tractogram,
+        options.tractogram_in,
         options.gray_matter,
         options.white_matter,
-        options.output_tractogram,
+        options.tractogram_out,
         options.step,
         options.max_dist,
         options.save_connecting_tck,
@@ -454,8 +455,8 @@ def tractogram_sanitize():
 def tractogram_smooth():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['output_tractogram'], {'type': str, 'help': 'Output tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
         [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': 'Type of spline to use for the smoothing'}],
         [['--epsilon', '-e'], {'type': float, 'default': 0.3, 'help': 'Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).'}],
         [['--segment_len', '-s'], {'type': float, 'default': None, 'help': 'Sampling resolution of the final streamline after interpolation. NOTE: either "segment_len" or "streamline_pts" must be set.'}],
@@ -466,8 +467,8 @@ def tractogram_smooth():
 
     # call actual function
     spline_smoothing_v2(
-        options.input_tractogram,
-        options.output_tractogram,
+        options.tractogram_in,
+        options.tractogram_out,
         options.type,
         options.epsilon,
         options.segment_len,
@@ -480,7 +481,7 @@ def tractogram_smooth():
 def tractogram_split():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['assignments'], {'type': str, 'help': 'Text file with the streamline assignments'}],
         [['output_folder'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
         [['--regions', '-r'], {'type': str, 'default': None, 'help': 'Streamline connecting the provided region(s) will be extracted'}],
@@ -491,7 +492,7 @@ def tractogram_split():
 
     # call actual function
     split(
-        options.input_tractogram,
+        options.tractogram_in,
         options.assignments,
         options.output_folder,
         options.regions,
@@ -505,7 +506,7 @@ def tractogram_split():
 def tractogram_tsf():
     # parse the input parameters
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['output_tsf'], {'type': str, 'help': 'Output tsf filename'}],
         [['--orientation'], {'action': 'store_true', 'default': False, 'help': 'Color based on orientation'}],
         [['--file'], {'type': str, 'help': 'Color based on given file'}]
@@ -513,8 +514,8 @@ def tractogram_tsf():
     options = setup_parser('Create a tsf file for each streamline in order to color them.', args, add_force=True)
 
     # check if path to input and output files are valid
-    if not isfile(options.input_tractogram):
-        ERROR(f"Input tractogram file not found: {options.input_tractogram}")
+    if not isfile(options.tractogram_in):
+        ERROR(f"Input tractogram file not found: {options.tractogram_in}")
     if isfile(options.output_tsf) and not options.force:
         ERROR(
             f"Output tsf file already exists: {options.output_tsf}, "
@@ -525,7 +526,7 @@ def tractogram_tsf():
         if not isfile(options.file):
             ERROR(f"Input file not found: {options.file}")
 
-    streamline = LazyTractogram(options.input_tractogram, mode='r')
+    streamline = LazyTractogram(options.tractogram_in, mode='r')
     num_streamlines = streamline.header['count']
 
     if options.orientation:

@@ -349,13 +349,13 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=10.0, n_pts
     return clust_idx, set_centroids[:new_c]
 
 
-cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=2):
+cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=2):
     """
     Compute the distance between a fiber and a set of centroids
     
     Parameters
     ----------
-    file_name_in : str
+    tractogram_in : str
         Path to the input tractogram file.
     target : float[:,:,::1]
         Centroids to compare the streamlines to.
@@ -385,7 +385,7 @@ cpdef closest_streamline(file_name_in: str, float[:,:,::1] target, int [:] clust
     cdef float[:,::1] fib_in = np.zeros((num_pt,3), dtype=np.float32)
     cdef float[:,::1] resampled_fib = np.zeros((num_pt,3), dtype=np.float32)
     cdef float [:,:,::1] centroids = np.zeros((num_c, 3000,3), dtype=np.float32)
-    cdef LazyTractogram TCK_in = LazyTractogram( file_name_in, mode='r' )
+    cdef LazyTractogram TCK_in = LazyTractogram( tractogram_in, mode='r' )
     cdef int n_streamlines = int( TCK_in.header['count'] )
     cdef float* vers = <float*>malloc(3*sizeof(float))
     cdef float* lengths = <float*>malloc(1000*sizeof(float))
@@ -631,23 +631,23 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 
 
 
-def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=None, atlas: str=None, conn_thr: float=2.0,
-                    clust_thr: float=2.0, metric: str="mean", n_pts: int=10,
+def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=None, atlas: str=None, conn_thr: float=2.0,
+                    clust_thr: float=2.0, metric: str="mean", n_pts: int=12,
                     n_threads: int=None, force: bool=False, verbose: int=2, keep_temp_files: bool=False, max_bytes: int=0):
     """ Cluster streamlines in a tractogram based on a given metric. Possible metrics are "mean" and "max" (default: "mean").
 
     Parameters
     ----------
-    file_name_in : str
+    tractogram_in : str
         Path to the input tractogram file.
-    output_folder : str
-        Path to the output folder. If None, files are saved in the input tractogram folder.
+    temp_folder : str
+        Path to the temporary folder used to store the intermediate files.
     atlas : str, optional
-        Path to the atlas file.
+        Path to the atlas file used to split the streamlines into bundles for parallel clustering.
     conn_thr : float, optional
-        Threshold for the connectivity assignment (default: 2.0).
+        Distance threshold used for hierarchical clustering (default: 2.0).
     clust_thr : float, optional
-        Threshold for the clustering (default: 2.0).
+        Distance threshold used for the final clustering (default: 2.0).
     metric : str, optional
         Metric to use for the clustering. Either "mean" or "max" (default: "mean").
     n_pts : int, optional
@@ -674,40 +674,40 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
 
     MAX_THREAD = 3
 
-    TCK_in = LazyTractogram( file_name_in, mode='r' )
+    TCK_in = LazyTractogram( tractogram_in, mode='r' )
 
-    if output_folder is None:
-        output_folder = os.getcwd()
-        if not os.path.isabs(file_name_out):
-            file_name_out = os.path.join(output_folder, file_name_out)
+    if temp_folder is None:
+        temp_folder = os.getcwd()
+        if not os.path.isabs(tractogram_out):
+            tractogram_out = os.path.join(temp_folder, tractogram_out)
     else:
         # check if output folder exists, if it's relative or absolute
-        if not os.path.isabs(output_folder):
-            output_folder = os.path.join(os.getcwd(), output_folder)
-        if not os.path.exists(output_folder):
-            os.makedirs(output_folder)
-        if not os.path.isabs(file_name_out):
-            file_name_out = os.path.join(output_folder, file_name_out)
+        if not os.path.isabs(temp_folder):
+            temp_folder = os.path.join(os.getcwd(), temp_folder)
+        if not os.path.exists(temp_folder):
+            os.makedirs(temp_folder)
+        if not os.path.isabs(tractogram_out):
+            tractogram_out = os.path.join(temp_folder, tractogram_out)
 
 
 
-    if not os.path.isabs(file_name_out) and output_folder is None:
-        output_folder = os.getcwd()
-        file_name_out = os.path.join(output_folder, file_name_out)
-    elif os.path.isabs(file_name_out) and output_folder is None:
-        output_folder = os.path.dirname(file_name_out)
-    elif not os.path.isabs(file_name_out) and output_folder is not None:
-        file_name_out = os.path.join(os.getcwd(), file_name_out)
+    if not os.path.isabs(tractogram_out) and temp_folder is None:
+        temp_folder = os.getcwd()
+        tractogram_out = os.path.join(temp_folder, tractogram_out)
+    elif os.path.isabs(tractogram_out) and temp_folder is None:
+        temp_folder = os.path.dirname(tractogram_out)
+    elif not os.path.isabs(tractogram_out) and temp_folder is not None:
+        tractogram_out = os.path.join(os.getcwd(), tractogram_out)
     
     # check if metric is valid
     if metric not in ['mean', 'max']:
         ui.ERROR( f'Invalid metric, must be "mean" or "max"' )
 
     # check if file exists
-    if os.path.isfile(file_name_out) and not force:
+    if os.path.isfile(tractogram_out) and not force:
         ui.ERROR( 'Output tractogram file already exists, use -f to overwrite' )
         return
-    TCK_out = LazyTractogram(file_name_out, mode='w', header=TCK_in.header )
+    TCK_out = LazyTractogram(tractogram_out, mode='w', header=TCK_in.header )
     num_streamlines = int(TCK_in.header["count"])
     ui.INFO(f"  - Number of input streamlines: {num_streamlines}")
 
@@ -716,9 +716,9 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
         chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
 
         # check if save_assignments is None
-        save_assignments = os.path.join(output_folder, f'{os.path.basename(file_name_in)[:len(file_name_in)-4]}_assignments.txt')
+        save_assignments = os.path.join(temp_folder, f'{os.path.basename(tractogram_in)[:len(tractogram_in)-4]}_assignments.txt')
         temp_idx_arr = np.arange(num_streamlines)
-        temp_idx = os.path.join(output_folder, 'streamline_idx.npy')
+        temp_idx = os.path.join(temp_folder, 'streamline_idx.npy')
         np.save( temp_idx, temp_idx_arr )
 
         chunks_asgn = []
@@ -728,7 +728,7 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
 
         with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=(verbose in [0,1,3]), hide_on_exit=True) as pbar:
             with tdp(max_workers=MAX_THREAD) as executor:
-                future = [executor.submit( assign, file_name_in, pbar_array, i, start_chunk=int(chunk_groups[i][0]),
+                future = [executor.submit( assign, tractogram_in, pbar_array, i, start_chunk=int(chunk_groups[i][0]),
                                             end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
                                             gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
                 chunks_asgn = [f.result() for f in future]
@@ -751,8 +751,8 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
             np.save( save_assignments, chunks_asgn, allow_pickle=False )
 
         t0 = time.time()
-        output_bundles_folder = os.path.join(output_folder, 'bundles')
-        split_bundles(input_tractogram=file_name_in, input_assignments=save_assignments, output_folder=output_bundles_folder,
+        output_bundles_folder = os.path.join(temp_folder, 'bundles')
+        split_bundles(input_tractogram=tractogram_in, input_assignments=save_assignments, output_folder=output_bundles_folder,
                       weights_in=temp_idx, force=force, verbose=verbose)
         t1 = time.time()
         ui.set_verbose(verbose)
@@ -876,14 +876,14 @@ def run_clustering(file_name_in: str, file_name_out: str, output_folder: str=Non
         TCK_in.close()
 
 
-        clust_idx, set_centroids = cluster(file_name_in,
+        clust_idx, set_centroids = cluster(tractogram_in,
                                             metric=metric,
                                             threshold=clust_thr,
                                             n_pts=n_pts,
                                             verbose=verbose
                                             )
         centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
-        new_c = closest_streamline(file_name_in, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
+        new_c = closest_streamline(tractogram_in, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
         
         TCK_out_size = 0
         ref_indices = []
