@@ -75,7 +75,7 @@ def tractogram_assign():
     args = [
         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['atlas'], {'type': str, 'help': 'Atlas used to compute streamlines assignments'}],
-        [['save_assignments'], {'type': str, 'help': 'Save the cluster assignments to file'}]
+        [['save_assignments'], {'type': str, 'help': 'Save the cluster assignments to file'}],
         [['--conn_threshold', '-t'], {'type': float, 'default': 2, 'metavar': 'CONN_THR', 'help': 'Threshold [in mm]'}]
     ]
     options = setup_parser(assign.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
