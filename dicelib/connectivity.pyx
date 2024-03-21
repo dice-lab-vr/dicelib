@@ -228,7 +228,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
 
 cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_file: str, threshold: 2 ):
 
-    """ Compute the assignments of the streamlines based on a GM map.
+    """ Compute the assignments of the streamlines based on a GM atlas.
     
     Parameters
     ----------

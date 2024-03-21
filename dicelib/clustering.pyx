@@ -257,7 +257,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=10.0, n_pts
     # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
     cdef int n_streamlines = int( TCK_in.header['count'] )
     if n_streamlines == 0: return
-    ui.INFO( f'  - {n_streamlines} streamlines found' )
+    # ui.INFO( f'  - {n_streamlines} streamlines found' )
 
     cdef int nb_pts = n_pts
     cdef bool metric_mean = metric == 'mean'
@@ -678,25 +678,13 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
     if temp_folder is None:
         temp_folder = os.getcwd()
-        if not os.path.isabs(tractogram_out):
-            tractogram_out = os.path.join(temp_folder, tractogram_out)
     else:
-        # check if output folder exists, if it's relative or absolute
         if not os.path.isabs(temp_folder):
             temp_folder = os.path.join(os.getcwd(), temp_folder)
         if not os.path.exists(temp_folder):
             os.makedirs(temp_folder)
-        if not os.path.isabs(tractogram_out):
-            tractogram_out = os.path.join(temp_folder, tractogram_out)
 
-
-
-    if not os.path.isabs(tractogram_out) and temp_folder is None:
-        temp_folder = os.getcwd()
-        tractogram_out = os.path.join(temp_folder, tractogram_out)
-    elif os.path.isabs(tractogram_out) and temp_folder is None:
-        temp_folder = os.path.dirname(tractogram_out)
-    elif not os.path.isabs(tractogram_out) and temp_folder is not None:
+    if not os.path.isabs(tractogram_out):
         tractogram_out = os.path.join(os.getcwd(), tractogram_out)
     
     # check if metric is valid
@@ -716,7 +704,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
 
         # check if save_assignments is None
-        save_assignments = os.path.join(temp_folder, f'{os.path.basename(tractogram_in)[:len(tractogram_in)-4]}_assignments.txt')
+        save_assignments = os.path.join(temp_folder, f'{os.path.basename(tractogram_in)[:-4]}_assignments.txt')
         temp_idx_arr = np.arange(num_streamlines)
         temp_idx = os.path.join(temp_folder, 'streamline_idx.npy')
         np.save( temp_idx, temp_idx_arr )
@@ -860,10 +848,13 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         ui.INFO(f"  - Time taken to cluster and find closest streamlines: {t1-t0}")
         ui.INFO(f"  - Number of computed centroids: {TCK_out_size}")
 
+        os.remove(temp_idx)
         if not keep_temp_files:
             shutil.rmtree(output_bundles_folder)
             os.remove(save_assignments)
-        os.remove(temp_idx)
+            # remove temp_folder of different from current
+            if temp_folder != os.getcwd():
+                shutil.rmtree(temp_folder)            
 
     else:
         t0 = time.time()

@@ -745,7 +745,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.close( write_eof=True, count=n_written )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions: list=[], weights_in: str=None, max_open: int=None, verbose: int=2, force: bool=False ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, verbose: int=2, force: bool=False ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -760,7 +760,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
     output_folder : string
         Output folder for the splitted tractograms.
 
-    regions : list of integers
+    regions_in : list of integers
         If a single integer is provided, only streamlines assigned to that region will be extracted.
         If two integers are provided, only streamlines connecting those two regions will be extracted.
 
@@ -803,13 +803,14 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             ui.ERROR("The input string is not a valid Python literal structure.")
             return None
 
-    if len(regions)>0:
-        if not isinstance(split_regions(regions), (list, tuple)):
+    if not regions_in==None:
+        if not isinstance(split_regions(regions_in), (list, tuple, int)):
+            print(split_regions(regions_in))
             ui.ERROR("Invalid regions input")
         else:
+            regions_str = "[]," + regions_in
             regions = []
-            regions = "[]," + regions
-            for r in split_regions(regions):
+            for r in split_regions(regions_str):
                 if r == []:
                     continue
                 regions.append(r)
@@ -1217,16 +1218,16 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
         output_tractogram = basename+'_sanitized'+extension
-    if save_connecting_tck == True :
-        basename, extension = os.path.splitext(output_tractogram)
-        conn_tractogram = basename+'_only_connecting'+extension
     files = [
         File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
         File(name='gray_matter', type_='input', path=gray_matter, ext=['.nii', '.nii.gz']),
         File(name='white_matter', type_='input', path=white_matter, ext=['.nii', '.nii.gz']),
-        File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'),
-        File(name='conn_tractogram', type_='output', path=conn_tractogram, ext='.tck')
+        File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
     ]
+    if save_connecting_tck == True :
+        basename, extension = os.path.splitext(output_tractogram)
+        conn_tractogram = basename+'_only_connecting'+extension
+        files.append(File(name='conn_tractogram', type_='output', path=conn_tractogram, ext='.tck'))
     check_params(files=files, force=force)
     
     wm_nii = nib.load(white_matter)
@@ -1487,8 +1488,8 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         output_tractogram = basename+'_smooth'+extension
 
     files = [
-        {'type_': 'input', 'name': 'input_tractogram', 'path': input_tractogram},
-        {'type_': 'output', 'name': 'output_tractogram', 'path': output_tractogram}
+        File(name='input_tractogram', type_='input', path=input_tractogram),
+        File(name='output_tractogram', type_='output', path=output_tractogram, ext=['.tck', '.trk'])
     ]
     check_params(files=files, force=force)
 
@@ -1616,12 +1617,14 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         output_tractogram = basename+'_smooth'+extension
 
     files = [
-        {'type_': 'input', 'name': 'input_tractogram', 'path': input_tractogram},
-        {'type_': 'output', 'name': 'output_tractogram', 'path': output_tractogram}
+        File(name='input_tractogram', type_='input', path=input_tractogram),
+        File(name='output_tractogram', type_='output', path=output_tractogram, ext=['.tck', '.trk'])
     ]
     if mask is not None:
         files.append( {'type_': 'input', 'name': 'mask', 'path': mask} )
-    nums = [{'type_': 'float', 'name': 'epsilon', 'value': epsilon, 'min': 0, 'max_': None, 'interval': None}]
+    nums = [
+        Num(name='epsilon', value=epsilon, min_=0.0, max_=None,)
+    ]
     check_params(files=files, nums=nums, force=force)
 
     if spline_type == 'centripetal':
@@ -1908,30 +1911,30 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
 
 
 cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=None , option="No_opt", force=False, verbose=2):
-    """dicelib.tractogram.sample 
-    Sample underlying values of a tractogram along its points from the corresponding image:
-    (ATTENTION: this method does not use interpolation during sampling)
+    """Sample underlying values of a tractogram along its points from the corresponding image (ATTENTION: this method does not use interpolation during sampling)
 
-    Parameters:
-
-    -----------
-
+    Parameters
+    ----------
     input_tractogram : string 
         Path to the file (.tck) containing the streamlines to process.
-    input image : string 
+    input_image : string 
         Path to the image where the method has to sample values.
     output_file : string 
         Path to the file (.txt in needed) where the method saves values
+    mask_file : string (default None)
+        Path to the mask file (.nii) to constrain the sampling to a specific region
     space : string (default rasmm)
         space reference of streamline coordinates
-    option : string ( default None)
+    option : string (default None)
         apply some operation on values 
+    force : boolean
+        Force overwriting of the output (default : False).
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
 
-    ------------
-
-    Return:
-
-    Txt file with values of input tractogram in the referred input image. 
+    Returns
+    -------
+    Text file with values of input tractogram in the referred input image. 
 
 
     """
