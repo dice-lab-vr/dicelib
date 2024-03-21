@@ -529,7 +529,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
     """
     ui.set_verbose( verbose )
 
-    files = [File(name='input_tractogram', type_='input', path=input_tractogram)]
+    files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck')]
     nums = None
     if max_field_length is not None:
         nums = [Num(name='max_field_length', value=max_field_length, min_=25)]

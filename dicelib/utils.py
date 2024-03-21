@@ -7,16 +7,15 @@ from typing import List, Literal, Optional, Union
 from dicelib import ui
 
 FileType = Literal['input', 'output']
-FileExtension = Literal['.tck', '.txt', '.csv']
 @dataclass
 class File:
     """File dataclass"""
     name: str
     type_: FileType
     path: pathlib.Path
-    ext: Optional[Union[FileExtension, List[FileExtension]]] = None
+    ext: Optional[Union[str, List[str]]] = None
 
-    def __init__(self, name: str, type_: FileType, path: str, ext: Optional[FileExtension] = None):
+    def __init__(self, name: str, type_: FileType, path: str, ext: Optional[Union[str, List[str]]] = None):
         self.name = name
         self.type_ = type_
         self.path = pathlib.Path(path)
@@ -46,7 +45,8 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
             if file.ext is not None:
                 if isinstance(file.ext, str):
                     file.ext = [file.ext]
-                if os.path.splitext(file.path)[1] not in file.ext or os.path.splitext(file.path)[1] == '':
+                suffix = ''.join(pathlib.Path(file.path).suffixes)
+                if suffix not in file.ext or suffix == '':
                     exts = ' | '.join(file.ext)
                     ui.ERROR(f'Invalid extension for {file.name} file \'{file.path}\', must be {exts}')
             if file.type_ == 'input':
