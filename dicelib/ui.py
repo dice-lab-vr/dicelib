@@ -1,4 +1,4 @@
-from dicelib import __version__
+from dicelib.utils import get_version
 
 import numpy as np
 
@@ -34,7 +34,7 @@ ascii_art = f'''\
     ██║  ██║██║██║     █████╗  ██║     ██║██████╔╝
     ██║  ██║██║██║     ██╔══╝  ██║     ██║██╔══██╗
     ██████╔╝██║╚██████╗███████╗███████╗██║██████╔╝
-    ╚═════╝ ╚═╝ ╚═════╝╚══════╝╚══════╝╚═╝╚═════╝  [v{__version__}]
+    ╚═════╝ ╚═╝ ╚═════╝╚══════╝╚══════╝╚═╝╚═════╝  [v{get_version()}]
 '''
 
 # ANSI escape codes

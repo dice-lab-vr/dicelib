@@ -1,10 +1,8 @@
-from pathlib import Path
-from importlib import metadata
+from dicelib.utils import get_version
 
-try:
-    __version__ = metadata.version('dmri-dicelib')
-except metadata.PackageNotFoundError:
-    __version__ = 'not installed'
+from pathlib import Path
+
+__version__ = get_version()
 
 def get_include():
     include_dirs = []

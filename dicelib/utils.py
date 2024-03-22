@@ -1,9 +1,16 @@
 from dataclasses import dataclass
+from importlib import metadata
 import os
 import pathlib
 from shutil import rmtree
 from typing import List, Literal, Optional, Union
 
+def get_version() -> str:
+    try:
+        version = metadata.version('dmri-dicelib')
+    except metadata.PackageNotFoundError:
+        version = 'not installed'
+    return version
 
 FileType = Literal['input', 'output']
 @dataclass
