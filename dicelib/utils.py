@@ -52,7 +52,12 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
             if file.ext is not None:
                 if isinstance(file.ext, str):
                     file.ext = [file.ext]
-                suffix = ''.join(pathlib.Path(file.path).suffixes)
+                suffixes = pathlib.Path(file.path).suffixes
+                if len(suffixes) == 0:
+                    logger.error(f'No extension for {file.name} file \'{file.path}\', must be {file.ext}')
+                elif len(suffixes) > 1:
+                    suffixes = suffixes[-2:]
+                suffix = ''.join(suffixes)
                 if suffix not in file.ext or suffix == '':
                     exts = ' | '.join(file.ext)
                     logger.error(f'Invalid extension for {file.name} file \'{file.path}\', must be {exts}')
