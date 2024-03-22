@@ -488,7 +488,7 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
             ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
 
         if output_scalar_file is None:
-            return length
+            return streamline_length
         else:
             output_scalar_file_ext = os.path.splitext(output_scalar_file)[1]
             if output_scalar_file_ext == '.txt':
