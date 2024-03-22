@@ -1,35 +1,26 @@
-#!python
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
-
-
-import numpy as np
-cimport numpy as np
-import os, random as rnd
-
-import nibabel as nib
-import sys
-
-from libc.math cimport sqrt
-from libc.stdlib cimport malloc, free
-from libcpp cimport bool as cbool
-from libc.stdio cimport fopen, fclose, fseek, SEEK_END, SEEK_SET, SEEK_CUR
-from libc.stdio cimport fgets, fread, fwrite
-from libc.stdlib cimport malloc, free
-from libcpp.string cimport string
-from libc.math cimport isnan, isinf, NAN
 
 from dicelib.streamline import length as streamline_length
 from dicelib.streamline cimport apply_affine_1pt
 from dicelib.streamline import smooth, spline_smooth, apply_smoothing, set_number_of_points, rdp_reduction, length, resample as s_resample
-from . import ui
-from dicelib.utils import check_params, File, Num, Dir
-import ast
-
 from dicelib.ui import __logger__ as logger, set_verbose
+from dicelib.utils import check_params, Dir, File, Num
 
+import ast
+import os
+import random as rnd
+import sys
+
+import nibabel as nib
+import numpy as np
+
+from libc.math cimport isinf, isnan, NAN, sqrt
+from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
+from libc.stdlib cimport malloc, free
+from libcpp cimport bool as cbool
+from libcpp.string cimport string
 
 cdef float[3] NAN3 = {NAN, NAN, NAN}
-
 
 cdef class LazyTractogram:
     """Class to 'lazyly' read/write streamlines from tractogram one by one.
