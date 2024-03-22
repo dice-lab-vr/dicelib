@@ -186,9 +186,9 @@ class Logger(logging.Logger):
                         self.handlers[i].terminator = '\n'
 
 __logger__ = None
-__CONSOLE_VERBOSE__ = logging.INFO
-__FILE_VERBOSE__ = logging.WARNING
-def setup_logger(console_lvl=logging.NOTSET, file_lvl=logging.WARNING) -> NoReturn:
+__CONSOLE_LVL__ = logging.INFO
+__FILE_LVL__ = logging.WARNING
+def setup_logger(console_lvl=logging.DEBUG, file_lvl=logging.WARNING) -> NoReturn:
     global __logger__
     
     __logger__ = Logger(name = __name__, level = logging.NOTSET)
@@ -204,19 +204,60 @@ def setup_logger(console_lvl=logging.NOTSET, file_lvl=logging.WARNING) -> NoRetu
     file_handler.emit(__logger__.makeRecord(__name__, logging.DEBUG, abspath(''), 0, 'Log created', None, None))
     __logger__.addHandler(file_handler)
 
-def set_verbose(console_lvl=logging.INFO, file_lvl=logging.WARNING) -> NoReturn:
-    global __CONSOLE_VERBOSE__
-    global __FILE_VERBOSE__
+def set_verbose(console_lvl: int=4, file_lvl: int=1) -> NoReturn:
+    '''Set the verbosity level for the logger.
 
-    __CONSOLE_VERBOSE__ = console_lvl
-    __FILE_VERBOSE__ = file_lvl
+    Parameters
+    ----------
+    console_lvl : int, optional
+        The verbosity level for the console, by default 4
+    file_lvl : int, optional
+        The verbosity level for the log file, by default 1
 
-    if not __logger__:
-        setup_logger(console_lvl, file_lvl)
+    Raises
+    ------
+    ValueError
+        If `console_lvl` or `file_lvl` is not 0, 1, 2, 3, or 4
+
+    Notes
+    -----
+    Verbosity levels:
+    - 0: errors
+    - 1: warnings, errors
+    - 2: info, warnings, errors
+    - 3: info, warnings, errors (with progressbars)
+    - 4: debug, info, warnings, errors (with progressbars)
+    '''
+    global __logger__
+    global __CONSOLE_LVL__
+    global __FILE_LVL__
+    if console_lvl not in [0, 1, 2, 3, 4]:
+        raise ValueError('\'console_lvl\' must be 0, 1, 2, 3, or 4')
+    if file_lvl not in [0, 1, 2, 3, 4]:
+        raise ValueError('\'file_lvl\' must be 0, 1, 2, 3, or 4')
+    if console_lvl == 0:
+        __CONSOLE_LVL__ = logging.ERROR
+    elif console_lvl == 1:
+        __CONSOLE_LVL__ = logging.WARNING
+    elif console_lvl == 2 or console_lvl == 3:
+        __CONSOLE_LVL__ = logging.INFO
+    elif console_lvl == 4:
+        __CONSOLE_LVL__ = logging.DEBUG
+    if file_lvl == 0:
+        __FILE_LVL__ = logging.ERROR
+    elif file_lvl == 1:
+        __FILE_LVL__ = logging.WARNING
+    elif file_lvl == 2 or file_lvl == 3:
+        __FILE_LVL__ = logging.INFO
+    elif file_lvl == 4:
+        __FILE_LVL__ = logging.DEBUG
+
+    if __logger__ is None:
+        setup_logger(__CONSOLE_LVL__, __FILE_LVL__)
     else:
-        __logger__.handlers[0].setLevel(console_lvl)
-        __logger__.handlers[1].setLevel(file_lvl)
-setup_logger()
+        __logger__.handlers[0].setLevel(__CONSOLE_LVL__)
+        __logger__.handlers[1].setLevel(__FILE_LVL__)
+setup_logger()# TODO: move to __init__.py
 
 # Argument parser
 class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
