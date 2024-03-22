@@ -1,7 +1,8 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, spline_smooth
-from dicelib.ui import __logger__ as logger, set_verbose
+from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
+from dicelib import ui # TODO: remove this import
 from dicelib.utils import check_params, Dir, File, Num
 
 import ast
