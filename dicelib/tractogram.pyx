@@ -564,7 +564,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
             n_streamlines = int( TCK_in.header['count'] )
             if n_streamlines>0:
                 lengths = np.empty( n_streamlines, dtype=np.double )
-                with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True ) as pbar:
+                with ui.ProgressBar( total=n_streamlines, disable=(verbose < 3), hide_on_exit=True ) as pbar:
                     for i in range( n_streamlines ):
                         TCK_in.read_streamline()
                         if TCK_in.n_pts==0:
