@@ -25,6 +25,8 @@ from . import ui
 from dicelib.utils import check_params, File, Num, Dir
 import ast
 
+from dicelib.ui import __logger__ as logger, set_verbose
+
 
 cdef float[3] NAN3 = {NAN, NAN, NAN}
 
@@ -527,7 +529,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
     """
-    ui.set_verbose( verbose )
+    set_verbose(verbose)
 
     files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck')]
     nums = None
@@ -542,7 +544,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
 
         # print the header
-        ui.INFO( 'HEADER content')
+        logger.info('HEADER content')
         max_len = max([len(k) for k in TCK_in.header.keys()])
         for key, val in TCK_in.header.items():
             if key=='count':
@@ -551,15 +553,14 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
                 val = [val]
             for v in val:
                 if max_field_length is not None and len(v)>max_field_length:
-                    v = v[:max_field_length]+ui.fg_red+'...'+ui.reset
-                ui.PRINT( ui.fg_white+ '%0*s'%(max_len,key) +ui.reset+ui.fg_white+ ':  ' + v +ui.reset )
+                    v = v[:max_field_length] + '...'
+                logger.subinfo('%0*s'%(max_len,key) + ':  ' + v)
         if 'count' in TCK_in.header.keys():
-            ui.PRINT( ui.fg_white+ '%0*s'%(max_len,'count') +ui.reset+ui.fg_white+ ':  ' + TCK_in.header['count'] +ui.reset )
-        ui.PRINT( '' )
+            logger.subinfo('%0*s'%(max_len,'count') + ':  ' + TCK_in.header['count'] + '\n')
 
         # print stats on lengths
         if compute_lengths:
-            ui.INFO( 'Streamline lengths')
+            logger.info('Streamline lengths')
             n_streamlines = int( TCK_in.header['count'] )
             if n_streamlines>0:
                 lengths = np.empty( n_streamlines, dtype=np.double )
@@ -570,12 +571,12 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
                             break # no more data, stop reading
                         lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
                         pbar.update()
-                ui.PRINT( f'   {ui.fg_white}min{ui.reset}{ui.fg_white}={lengths.min():.3f}   {ui.fg_white}max{ui.reset}{ui.fg_white}={lengths.max():.3f}   {ui.fg_white}mean{ui.reset}{ui.fg_white}={lengths.mean():.3f}   {ui.fg_white}std{ui.reset}{ui.fg_white}={lengths.std():.3f}{ui.reset}' )
+                logger.subinfo(f'min={lengths.min():.3f}  max={lengths.max():.3f}  mean={lengths.mean():.3f}  std={lengths.std():.3f}')
             else:
-                ui.WARNING( 'The tractogram is empty' )
+                logger.warning('The tractogram is empty')
 
     except Exception as e:
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
         if TCK_in is not None:
