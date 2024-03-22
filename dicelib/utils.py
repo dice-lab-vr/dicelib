@@ -4,7 +4,6 @@ import pathlib
 from shutil import rmtree
 from typing import List, Literal, Optional, Union
 
-from dicelib import ui
 
 FileType = Literal['input', 'output']
 @dataclass
@@ -39,6 +38,7 @@ class Num:
     include_max: Optional[bool] = True
     
 def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=None, nums: Optional[List[Num]]=None, force: bool=False):
+    from dicelib.ui import __logger__ as logger
     # files
     if files is not None:
         for file in files:
@@ -48,18 +48,17 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
                 suffix = ''.join(pathlib.Path(file.path).suffixes)
                 if suffix not in file.ext or suffix == '':
                     exts = ' | '.join(file.ext)
-                    ui.ERROR(f'Invalid extension for {file.name} file \'{file.path}\', must be {exts}')
+                    logger.error(f'Invalid extension for {file.name} file \'{file.path}\', must be {exts}')
             if file.type_ == 'input':
                 if not os.path.isfile(file.path):
-                    ui.ERROR(f'{file.name} file \'{file.path}\' not found')
+                    logger.error(f'{file.name} file \'{file.path}\' not found')
             elif file.type_ == 'output':
-                # TODO: what if output file has no extension?
                 if force:
                     if os.path.isfile(file.path):
                         os.remove(file.path)
                 else:
                     if os.path.isfile(file.path):
-                        ui.ERROR(f'{file.name} file \'{file.path}\' already exists, use --force to overwrite')
+                        logger.error(f'{file.name} file \'{file.path}\' already exists, use --force to overwrite')
 
     # dirs
     if dirs is not None:
@@ -71,7 +70,7 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
                     rmtree(dir.path)
                     os.mkdir(dir.path)
                 else:
-                    ui.ERROR(f'{dir.name} folder \'{dir.path}\' already exists, use --force to overwrite')
+                    logger.error(f'{dir.name} folder \'{dir.path}\' already exists, use --force to overwrite')
 
     # numeric
     if nums is not None:
@@ -79,27 +78,27 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
             if num.min_ is not None and num.max_ is not None:
                 if num.include_min and num.include_max:
                     if num.value < num.min_ or num.value > num.max_:
-                        ui.ERROR(f'\'{num.name}\' is not in the range ({num.min_}, {num.max_})')
+                        logger.error(f'\'{num.name}\' is not in the range ({num.min_}, {num.max_})')
                 elif num.include_min and not num.include_max:
                     if num.value < num.min_ or num.value >= num.max_:
-                        ui.ERROR(f'\'{num.name}\' is not in the range [{num.min_}, {num.max_})')
+                        logger.error(f'\'{num.name}\' is not in the range [{num.min_}, {num.max_})')
                 elif not num.include_min and num.include_max:
                     if num.value <= num.min_ or num.value > num.max_:
-                        ui.ERROR(f'\'{num.name}\' is not in the range ({num.min_}, {num.max_}]')
+                        logger.error(f'\'{num.name}\' is not in the range ({num.min_}, {num.max_}]')
                 elif not num.include_min and not num.include_max:
                     if num.value <= num.min_ or num.value >= num.max_:
-                        ui.ERROR(f'\'{num.name}\' is not in the range [{num.min_}, {num.max_}]')
+                        logger.error(f'\'{num.name}\' is not in the range [{num.min_}, {num.max_}]')
             elif num.min_ is not None:
                 if num.include_min:
                     if num.value < num.min_:
-                        ui.ERROR(f'\'{num.name}\' must be >= {num.min_}')
+                        logger.error(f'\'{num.name}\' must be >= {num.min_}')
                 else:
                     if num.value <= num.min_:
-                        ui.ERROR(f'\'{num.name}\' must be > {num.min_}')
+                        logger.error(f'\'{num.name}\' must be > {num.min_}')
             elif num.max_ is not None:
                 if num.include_max:
                     if num.value > num.max_:
-                        ui.ERROR(f'\'{num.name}\' must be <= {num.max_}')
+                        logger.error(f'\'{num.name}\' must be <= {num.max_}')
                 else:
                     if num.value >= num.max_:
-                        ui.ERROR(f'\'{num.name}\' must be < {num.max_}')
+                        logger.error(f'\'{num.name}\' must be < {num.max_}')
