@@ -485,10 +485,10 @@ def tractogram_split():
         [['assignments_in'], {'type': str, 'help': 'Text file with the streamline assignments'}],
         [['--output_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
         [['--regions', '-r'], {'type': str, 'default': None, 'help': '''\
-                               Streamline connecting the provided region(s) will be extracted. \n
-                               If None, all the bundles (plus the unassigned streamlines) will be extracted. \n
-                               If a single region is provided, all bundles connecting this region with any other will be extracted. \n
-                               If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted. \n
+                               Streamline connecting the provided region(s) will be extracted.
+                               If None, all the bundles (plus the unassigned streamlines) will be extracted.
+                               If a single region is provided, all bundles connecting this region with any other will be extracted.
+                               If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
                                If list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.'''}],
         [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
         [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}]
