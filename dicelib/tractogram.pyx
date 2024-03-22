@@ -1,8 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
-from dicelib.streamline import length as streamline_length
-from dicelib.streamline cimport apply_affine_1pt
-from dicelib.streamline import smooth, spline_smooth, apply_smoothing, set_number_of_points, rdp_reduction, length, resample as s_resample
+from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, spline_smooth
 from dicelib.ui import __logger__ as logger, set_verbose
 from dicelib.utils import check_params, Dir, File, Num
 
@@ -13,6 +11,8 @@ import sys
 
 import nibabel as nib
 import numpy as np
+
+from dicelib.streamline cimport apply_affine_1pt
 
 from libc.math cimport isinf, isnan, NAN, sqrt
 from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
@@ -1728,7 +1728,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
                                 in_mask = True
 
                     # compute streamline length
-                    fib_len = length( smoothed_fib, n_pts_out )
+                    fib_len = streamline_length( smoothed_fib, n_pts_out )
 
                     if segment_len!=None:
                         n_pts_out = int(fib_len / segment_len)
