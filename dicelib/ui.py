@@ -712,7 +712,9 @@ class ArgumentParser(argparse.ArgumentParser):
                  argument_default=None,
                  conflict_handler='error',
                  add_help=False,
-                 allow_abbrev=True):
+                 allow_abbrev=True,
+                 exit_on_error=True):
+        self.exit_on_error = exit_on_error
         super().__init__(prog,
                          usage,
                          textwrap.dedent(description) if description is not None else None, # NOTE: dedent description
@@ -725,7 +727,6 @@ class ArgumentParser(argparse.ArgumentParser):
                          conflict_handler,
                          add_help,
                          allow_abbrev)
-    
     def format_help(self):
         formatter = self._get_formatter()
 
@@ -785,7 +786,11 @@ class ArgumentParser(argparse.ArgumentParser):
             try:
                 namespace, args = self._parse_known_args(args, namespace)
             except argparse.ArgumentError as err:
-                self.error(str(err))
+                # self.error(str(err))
+                if __logger__ is not None:
+                    __logger__.error(str(err))
+                else:
+                    self.error(str(err))
         else:
             namespace, args = self._parse_known_args(args, namespace)
 
