@@ -33,7 +33,6 @@ class Dir:
     name: str
     path: str
 
-Interval = Literal['()', '(]', '[)', '[]']
 @dataclass
 class Num:
     """Num dataclass"""

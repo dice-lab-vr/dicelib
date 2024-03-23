@@ -46,9 +46,9 @@ bg = f'{esc}48;5;'
 
 # text formatting and effects
 text_underline = f'{esc}4m'
-clear_line = f'{esc}2K'
-# terminal_size = ' ' * get_terminal_size().columns * 2
-# clear_line = f'{esc}2K' if not _in_notebook() else f'\r{terminal_size}'
+# clear_line = f'{esc}2K'
+terminal_size = ' ' * get_terminal_size().columns * 2
+clear_line = f'{esc}2K' if not _in_notebook() else f'\r{terminal_size}'
 
 # base colors (256)
 black = '0'
@@ -261,7 +261,6 @@ def set_verbose(console_lvl: int=4, file_lvl: int=1) -> NoReturn:
     else:
         __logger__.handlers[0].setLevel(__CONSOLE_LVL__)
         __logger__.handlers[1].setLevel(__FILE_LVL__)
-setup_logger()# TODO: move to __init__.py
 
 # Argument parser
 class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
@@ -1040,3 +1039,5 @@ def ERROR(message: str, stop: bool=True) -> NoReturn:
         print(f'{bg_red}{fg_black}[ ERROR ]{reset} {message}')
     if stop:
         sys.exit()
+
+setup_logger()# TODO: move to __init__.py

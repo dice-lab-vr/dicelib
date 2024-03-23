@@ -257,7 +257,6 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=10.0, n_pts
     # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
     cdef int n_streamlines = int( TCK_in.header['count'] )
     if n_streamlines == 0: return
-    # ui.INFO( f'  - {n_streamlines} streamlines found' )
 
     cdef int nb_pts = n_pts
     cdef bool metric_mean = metric == 'mean'
