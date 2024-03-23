@@ -56,7 +56,10 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
                 if len(suffixes) == 0:
                     logger.error(f'No extension for {file.name} file \'{file.path}\', must be {file.ext}')
                 elif len(suffixes) > 1:
-                    suffixes = suffixes[-2:]
+                    if suffixes[-1] == '.gz':
+                        suffixes = suffixes[-2:]
+                    else:
+                        suffixes = suffixes[-1]
                 suffix = ''.join(suffixes)
                 if suffix not in file.ext or suffix == '':
                     exts = ' | '.join(file.ext)
