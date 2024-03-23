@@ -168,7 +168,7 @@ class LoggerFormatter(logging.Formatter):
         return s
 
 class Logger(logging.Logger):
-    def subinfo(self, msg, indent_lvl=0, indent_char='', with_progress=False, *args, **kwargs):
+    def subinfo(self, msg, indent_lvl=0, indent_char='', with_progress=False, stacklevel=2, *args, **kwargs):
         if self.isEnabledFor(SUBINFO):
             stream_handler_indices = []
             for i, handler in enumerate(self.handlers):
@@ -180,10 +180,14 @@ class Logger(logging.Logger):
             if indent_lvl >= 0 and indent_char is not None:
                 indent = '   ' * indent_lvl
                 msg = f'{indent}{msg}' if indent_char == '' else f'{indent}{indent_char} {msg}'
-            self._log(SUBINFO, msg, args, **kwargs)
+            self._log(SUBINFO, msg, stacklevel=stacklevel, *args, **kwargs)
             if with_progress:
                 for i in stream_handler_indices:
                         self.handlers[i].terminator = '\n'
+    
+    def error(self, msg, stacklevel=2, *args, **kwargs):
+        super().error(msg, stacklevel=stacklevel, *args, **kwargs)
+        sys.exit(1)
 
 __logger__ = None
 __CONSOLE_LVL__ = logging.INFO
