@@ -180,7 +180,7 @@ class Logger(logging.Logger):
             if indent_lvl >= 0 and indent_char is not None:
                 indent = '   ' * indent_lvl
                 msg = f'{indent}{msg}' if indent_char == '' else f'{indent}{indent_char} {msg}'
-            self._log(SUBINFO, msg, stacklevel=stacklevel, *args, **kwargs)
+            self._log(SUBINFO, msg, args, stacklevel=stacklevel, **kwargs)
             if with_progress:
                 for i in stream_handler_indices:
                         self.handlers[i].terminator = '\n'
