@@ -192,7 +192,7 @@ class Logger(logging.Logger):
 __logger__ = None
 __CONSOLE_LVL__ = logging.INFO
 __FILE_LVL__ = logging.WARNING
-def setup_logger(console_lvl=logging.DEBUG, file_lvl=logging.WARNING) -> NoReturn:
+def setup_logger(console_lvl=logging.DEBUG, file_lvl=logging.DEBUG) -> NoReturn:
     global __logger__
     
     __logger__ = Logger(name = __name__, level = logging.NOTSET)
@@ -910,7 +910,7 @@ class ProgressBar:
                 if self.subinfo:
                     print(f'{esc}1D{step}', end='', flush=True)
                 else:
-                    print(f"\r   |{step}{reset}|", end='', flush=True)
+                    print(f"\r|{step}{reset}|", end='', flush=True)
                 sleep(self.refresh)
         else:
             if self.subinfo:
@@ -928,7 +928,7 @@ class ProgressBar:
                     print(f'{esc}{self._percent_len}D{percent_str}', end='', flush=True)
                     self._percent_len = len(percent_str)
                 else:
-                    print(f"\r   |{fg_pink}{'━' * int(self.ncols * self._progress / self.total)}{fg_bright_black}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}{reset}| {fg_green}[{100 * self._progress / self.total:.1f}%] {fg_cyan}{self._eta}{reset}", end='', flush=True)
+                    print(f"\r|{fg_pink}{'━' * int(self.ncols * self._progress / self.total)}{fg_bright_black}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}{reset}| {fg_green}[{100 * self._progress / self.total:.1f}%] {fg_cyan}{self._eta}{reset}", end='', flush=True)
                 sleep(self.refresh)
 
     def start(self):
@@ -947,11 +947,11 @@ class ProgressBar:
                 print(clear_line, end='\r', flush=True)
                 if not self.hide_on_exit:
                     if self.total is None:
-                        print(f"\r   {fg_green}|{'━' * self.ncols}| [100.0%]{reset}")
+                        print(f"\r{fg_green}|{'━' * self.ncols}| [100.0%]{reset}")
                     else:
                         if self.multithread_progress is not None:
                             self._progress = np.sum(self.multithread_progress)
-                        print(f"\r   {fg_green}|{'━' * int(self.ncols * self._progress / self.total)}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}| [{100 * self._progress / self.total:.1f}%]{reset}")
+                        print(f"\r{fg_green}|{'━' * int(self.ncols * self._progress / self.total)}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}| [{100 * self._progress / self.total:.1f}%]{reset}")
 
     def update(self):
         self._progress += 1

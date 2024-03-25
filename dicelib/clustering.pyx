@@ -250,14 +250,14 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     """
 
     if not os.path.isfile(filename_in):
-        logger.error( f'File "{filename_in}" not found' )
+        logger.error(f'File \'{filename_in}\' not found')
 
 
     if np.isscalar( threshold ) :
         threshold = threshold
     
     cdef LazyTractogram TCK_in = LazyTractogram( filename_in, mode='r', max_points=1000 )
-    ui.set_verbose( verbose )
+    set_verbose( verbose )
 
     # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
     cdef int n_streamlines = int( TCK_in.header['count'] )
@@ -395,7 +395,7 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
     cdef size_t p = 0
 
     
-    with ui.ProgressBar(total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+    with ProgressBar(total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
         for i_f in xrange(n_streamlines):
             TCK_in._read_streamline()
             c_i = clust_idx[i_f]
@@ -665,7 +665,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         Whether to keep temporary files.
     """
 
-    ui.set_verbose(verbose)
+    set_verbose(verbose)
 
     logger.info(f"Clustering {tractogram_in} with threshold: {clust_thr}, using {n_pts} points")
 
@@ -692,7 +692,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
     
     # check if metric is valid
     if metric not in ['mean', 'max']:
-        logger.error( f'Invalid metric, must be "mean" or "max"' )
+        logger.error(f'Invalid metric, must be \'mean\' or \'max\'')
 
     # check if file exists
     if os.path.isfile(tractogram_out) and not force:
@@ -742,6 +742,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         else:
             np.save( save_assignments, chunks_asgn, allow_pickle=False )
 
+        logger.info(f'Split')
         t0 = time.time()
         output_bundles_folder = os.path.join(temp_folder, 'bundles')
         logger.subinfo(f"Splitting the bundles into separate files", indent_char='*', with_progress=True)
@@ -825,7 +826,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 for k in to_delete:
                     bundles.pop(k)
             if MAX_THREAD == 0:
-                logger.error(f"  - Not enough memory to process the data")
+                logger.error(f'Not enough memory to process the data')
             if len(bundles.items()) == 0:
                 break
         
@@ -849,7 +850,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 pbar.update()
             TCK_out.close( write_eof=True, count= TCK_out_size)
 
-        ui.set_verbose(verbose)
+        set_verbose(verbose)
 
         t1 = time.time()
         
@@ -865,6 +866,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 shutil.rmtree(temp_folder)            
 
     else:
+        logger.info(f'Clustering')
         t0 = time.time()
 
         hash_superset = np.empty( num_streamlines, dtype=int)
