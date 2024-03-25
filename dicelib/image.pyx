@@ -1,12 +1,12 @@
-#!python
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
-import cython
-import numpy as np
-cimport numpy as np
-import os
-import nibabel as nib
-from . import ui
 
+from dicelib.ui import __logger__ as logger, set_verbose
+from dicelib.utils import check_params, File, Num
+
+import os
+
+import nibabel as nib
+import numpy as np
 
 def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: str, b: list, b_step: float=0.0, verbose: int=2, force: bool=False ):
     """Extract volumes from a DWI dataset.
@@ -34,32 +34,37 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
     force : boolean
         Force overwriting of the output (default : False).
     """
-    ui.set_verbose( verbose )
-    if not os.path.isfile(input_dwi):
-        ui.ERROR( f'File "{input_dwi}" not found' )
-    if not os.path.isfile(input_scheme):
-        ui.ERROR( f'File "{input_scheme}" not found' )
-    if not force:
-        if os.path.isfile(output_dwi):
-            ui.ERROR( 'Output DWI images already exist, use -f to overwrite' )
-        if os.path.isfile(output_scheme):
-            ui.ERROR( 'Output scheme already exists, use -f to overwrite' )
+    set_verbose(verbose)
 
+    files = [
+        File(name='dwi_in', type_='input', path=input_dwi),
+        File(name='scheme_in', type_='input', path=input_scheme),
+        File(name='dwi_out', type_='output', path=output_dwi),
+        File(name='scheme_out', type_='output', path=output_scheme)
+    ]
+    nums = [Num(name='round', value=b_step, min_=0.0)]
+    if len(b) == 0:
+        logger.error('No b-values specified')
+    else:
+        nums.extend([Num(name='b', value=i, min_=0.0) for i in b])
+    check_params(files, nums, force)
+
+    logger.info('Extracting volumes from DWI dataset')
     try:
         # load the data
         niiDWI = nib.load( input_dwi )
         if niiDWI.ndim!=4:
-            ui.ERROR( 'DWI data is not 4D' )
+            logger.error('DWI data is not 4D')
 
         # load the corresponding acquisition details
         scheme = np.loadtxt( 'DWI.txt' )
         if scheme.ndim!=2 or scheme.shape[1]!=4 or scheme.shape[0]!=niiDWI.shape[3]:
-            ui.ERROR( 'DWI and scheme files are incorrect/incompatible' )
+            logger.error('DWI and scheme files are incorrect/incompatible')
         bvals = scheme[:,3]
 
         # if requested, round the b-values
         if b_step>0.0:
-            ui.INFO( f'Rounding b-values to nearest multiple of {b_step:.1f}' )
+            logger.subinfo(f'Rounding b-values to nearest multiple of {b_step:.1f}', indent_char='*')
             bvals = np.round(bvals/b_step) * b_step
 
         # extract selected volumes
@@ -67,9 +72,9 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
         for i in b:
             idx[ bvals==i ] = True
         n = np.count_nonzero(idx)
-        ui.INFO( f'Extracted {n} volumes' )
+        logger.subinfo(f'Extracted {n} volumes', indent_char='*')
         if n==0:
-            ui.ERROR( 'The specified criterion selects 0 volumes' )
+            logger.error('The specified criterion selects 0 volumes')
         niiDWI_img = np.asanyarray(niiDWI.dataobj,dtype=niiDWI.get_data_dtype())[:,:,:,idx]
         scheme = scheme[idx,:]
 
@@ -82,4 +87,4 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
             os.remove( output_dwi )
         if os.path.isfile( output_scheme ):
             os.remove( output_scheme )
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
