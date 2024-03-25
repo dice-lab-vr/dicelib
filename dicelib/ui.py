@@ -192,7 +192,7 @@ class Logger(logging.Logger):
 __logger__ = None
 __CONSOLE_LVL__ = logging.INFO
 __FILE_LVL__ = logging.WARNING
-def setup_logger(console_lvl=logging.DEBUG, file_lvl=logging.WARNING) -> NoReturn:
+def setup_logger(console_lvl=logging.DEBUG, file_lvl=logging.DEBUG) -> NoReturn:
     global __logger__
     
     __logger__ = Logger(name = __name__, level = logging.NOTSET)
