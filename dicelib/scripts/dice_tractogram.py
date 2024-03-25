@@ -1,16 +1,13 @@
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
 from dicelib.tractogram import LazyTractogram
-from dicelib.tractogram import compute_lengths, filter as t_filter, info, join as t_join, recompute_indices, resample, sample, sanitize, spline_smoothing_v2, split
+from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, resample, sample, sanitize, spline_smoothing_v2, split
 from dicelib.tsf import Tsf
-from dicelib.ui import ERROR, INFO, ProgressBar, set_verbose, setup_parser, WARNING
+from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose, setup_parser
 
-import glob
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
-from os import getcwd, makedirs, remove
-from os.path import dirname, exists, isabs, isfile, isdir, join as p_join, splitext
-from shutil import rmtree
+import os
 from time import time
 
 
@@ -84,29 +81,29 @@ def tractogram_assign():
     set_verbose(options.verbose)
 
     # check if tractogram exists
-    if not exists(options.tractogram_in):
-        ERROR('Tractogram does not exist')
+    if not os.path.exists(options.tractogram_in):
+        logger.error('Tractogram does not exist')
 
     # check if path to save assignments is relative or absolute and create if necessary
     if options.assignments_out:
-        if not isabs(options.assignments_out):
-            options.assignments_out = p_join(getcwd(), options.assignments_out)
-        if not isdir(dirname(options.assignments_out)):
-            makedirs(dirname(options.assignments_out))
+        if not os.path.isabs(options.assignments_out):
+            options.assignments_out = os.path.join(os.getcwd(), options.assignments_out)
+        if not os.path.isdir(os.path.dirname(options.assignments_out)):
+            os.makedirs(os.path.dirname(options.assignments_out))
 
-    out_assignment_ext = splitext(options.assignments_out)[1]
+    out_assignment_ext = os.path.splitext(options.assignments_out)[1]
     if out_assignment_ext not in ['.txt', '.npy']:
-        ERROR('Invalid extension for the output scalar file')
-    elif isfile(options.assignments_out) and not options.force:
-        ERROR('Output scalar file already exists, use -f to overwrite')
+        logger.error('Invalid extension for the output scalar file')
+    elif os.path.isfile(options.assignments_out) and not options.force:
+        logger.error('Output scalar file already exists, use -f to overwrite')
 
 
     # check if atlas exists
-    if not exists(options.atlas):
-        ERROR('Atlas does not exist')
+    if not os.path.exists(options.atlas):
+        logger.error('Atlas does not exist')
 
     num_streamlines = int(LazyTractogram(options.tractogram_in, mode='r').header["count"])
-    INFO(f"Computing assignments for {num_streamlines} streamlines")
+    logger.info(f'Computing assignments for {num_streamlines} streamlines')
 
     if num_streamlines > 3:
         MAX_THREAD = 3
@@ -119,7 +116,7 @@ def tractogram_assign():
 
     pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
     t0 = time()
-    with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=(options.verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+    with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
         with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
             future = [
                 executor.submit(
@@ -136,7 +133,7 @@ def tractogram_assign():
             chunks_asgn = [c for f in chunks_asgn for c in f]
 
     t1 = time()
-    INFO(f"Time taken to compute assignments: {np.round((t1-t0),2)} seconds")
+    logger.subinfo(f'[ {np.round((t1 - t0), 2)} seconds ]')
 
     if out_assignment_ext == '.txt':
         with open(options.assignments_out, "w") as text_file:
@@ -164,40 +161,40 @@ def tractogram_cluster():
 
     # check the input parameters
     # check if path to input and output files are valid
-    if not isfile(options.tractogram_in):
-        ERROR("Input file does not exist: %s" % options.tractogram_in)
+    if not os.path.isfile(options.tractogram_in):
+        logger.error(f'Input file does not exist: {options.tractogram_in}')
 
     if options.tractogram_out is not None:
-        out_ext = splitext(options.tractogram_out)[1]
+        out_ext = os.path.splitext(options.tractogram_out)[1]
         if out_ext not in ['.trk', '.tck']:
-            ERROR('Invalid extension for the output tractogram')
-        elif isfile(options.tractogram_out) and not options.force:
-            ERROR('Output tractogram already exists, use -f to overwrite')
+            logger.error('Invalid extension for the output tractogram')
+        elif os.path.isfile(options.tractogram_out) and not options.force:
+            logger.error('Output tractogram already exists, use -f to overwrite')
 
     # check if atlas exists
     if options.atlas is not None:
-        if not exists(options.atlas):
-            ERROR('Atlas does not exist')
+        if not os.path.exists(options.atlas):
+            logger.error('Atlas does not exist')
 
 
     # check if metric is valid
     if options.metric not in ['mean', 'max']:
-        ERROR('Invalid metric, must be "mean" or "max"')
+        logger.error('Invalid metric, must be "mean" or "max"')
 
     # check if number of threads is valid
     if options.n_threads is not None:
         if options.n_threads < 1:
-            ERROR('Number of threads must be at least 1')
+            logger.error('Number of threads must be at least 1')
 
     # check if connectivity threshold is valid
     if options.atlas_dist is not None:
         if options.atlas_dist < 0:
-            ERROR('Connectivity threshold must be positive')
+            logger.error('Connectivity threshold must be positive')
 
     # check if clustering threshold is valid
     if options.clust_thr is not None:
         if options.clust_thr < 0:
-            ERROR('Clustering threshold must be positive')
+            logger.error('Clustering threshold must be positive')
 
     run_clustering(
         tractogram_in=options.tractogram_in,
@@ -229,7 +226,7 @@ def tractogram_compress():
     ]
     options = setup_parser('Not implemented', args, add_force=True, add_verbose=True)
 
-    WARNING('This function is not implemented yet')
+    logger.error('This function is not implemented yet')
 
 
 # def tractogram_convert():
@@ -242,12 +239,12 @@ def tractogram_compress():
 #     ]
 #     options = setup_parser("Tractogram conversion from and to '.tck', '.trk', '.fib', '.vtk' and 'dpy'. All the extensions except '.trk, need a NIFTI file as reference", args)
 
-#     if not isfile(options.tractogram_in):
+#     if not os.path.isfile(options.tractogram_in):
 #         ERROR("No such file {}".format(options.tractogram_in))
-#     if isfile(options.tractogram_out) and not options.force:
+#     if os.path.isfile(options.tractogram_out) and not options.force:
 #         ERROR("Output tractogram already exists, use -f to overwrite")
 #     if options.reference is not None:
-#         if not isfile(options.reference):
+#         if not os.path.isfile(options.reference):
 #             ERROR("No such file {}".format(options.reference))
 
 #     if not options.tractogram_in.endswith(('.tck', '.trk', '.fib', '.vtk', 'dpy')):
@@ -287,10 +284,10 @@ def tractogram_filter():
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
         [['--random', '-r'], {'type': float, 'default': 1.0, 'help': 'Randomly discard streamlines: 0=discard all, 1=keep all'}]
     ]
-    options = setup_parser(t_filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+    options = setup_parser(tract_filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # call actual function
-    t_filter(
+    tract_filter(
         options.tractogram_in,
         options.tractogram_out,
         options.minlength,
@@ -348,10 +345,10 @@ def tractogram_join():
         [['--weights_in'], {'type': str, 'nargs': '*', 'default': [], 'help': 'Input streamline weights (.txt or .npy). NOTE: the order must be the same of the input tractograms'}],
         [['--weights_out'], {'type': str, 'help': 'Output streamline weights (.txt or .npy)'}]
     ]
-    options = setup_parser(t_join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+    options = setup_parser(tract_join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # call actual function
-    t_join( 
+    tract_join( 
         options.tractograms_in,
         options.tractogram_out, 
         options.weights_in,
@@ -378,7 +375,7 @@ def tractogram_lengths():
             options.force
         )
     except Exception as e:
-        ERROR(e.__str__() if e.__str__() else 'A generic error has occurred')
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def tractogram_resample():
@@ -519,17 +516,15 @@ def tractogram_tsf():
     options = setup_parser('Create a tsf file for each streamline in order to color them.', args, add_force=True)
 
     # check if path to input and output files are valid
-    if not isfile(options.tractogram_in):
-        ERROR(f"Input tractogram file not found: {options.tractogram_in}")
-    if isfile(options.output_tsf) and not options.force:
-        ERROR(
-            f"Output tsf file already exists: {options.output_tsf}, "
-            "use -f to overwrite")
+    if not os.path.isfile(options.tractogram_in):
+        logger.error(f'Input tractogram file not found: {options.tractogram_in}')
+    if os.path.isfile(options.output_tsf) and not options.force:
+        logger.error('Output file already exists. Use -f to overwrite.')
     if not options.orientation and not options.file:
-        ERROR("Please specify a color option")
+        logger.error("Please specify a color option")
     if options.file:
-        if not isfile(options.file):
-            ERROR(f"Input file not found: {options.file}")
+        if not os.path.isfile(options.file):
+            logger.error(f"Input file not found: {options.file}")
 
     streamline = LazyTractogram(options.tractogram_in, mode='r')
     num_streamlines = streamline.header['count']
@@ -543,8 +538,8 @@ def tractogram_tsf():
         raise ValueError("Please specify a color option")
 
     # check if output file exists
-    if isfile(options.output_tsf) and not options.force:
-        raise IOError("Output file already exists. Use -f to overwrite.")
+    if os.path.isfile(options.output_tsf) and not options.force:
+        logger.error('Output file already exists. Use -f to overwrite.')
 
     tsf = Tsf(options.tsf_out, 'w', header=streamline.header)
     tsf.write_scalar(scalar_arr, n_pts_list)

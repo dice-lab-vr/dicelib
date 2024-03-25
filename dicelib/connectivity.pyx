@@ -18,7 +18,7 @@ from dicelib.tractogram cimport LazyTractogram
 from dicelib.streamline import create_replicas
 from dicelib.streamline cimport apply_affine
 from . import ui
-
+from dicelib.ui import __logger__ as logger
 
 cdef compute_grid( float thr, float[:] vox_dim ) :
 
@@ -252,9 +252,9 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
 
 
     if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
+        logger.error(f'File \'{input_tractogram}\' not found')
     if not os.path.isfile(gm_map_file):
-        ui.ERROR( f'File "{gm_map_file}" not found' )
+        logger.error(f'File \'{gm_map_file}\' not found')
 
     
     # Load of the gm map

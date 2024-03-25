@@ -2,7 +2,6 @@
 
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, spline_smooth
 from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
-from dicelib import ui # TODO: remove this import
 from dicelib.utils import check_params, Dir, File, Num
 
 import ast
@@ -453,12 +452,12 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
         Lengths of all streamlines in the tractogram [in mm]
     """
 
-    ui.set_verbose( verbose )
+    set_verbose(verbose)
 
     files = [File(name='input_tractogram', type_='input', path=input_tractogram)]
     if output_scalar_file is not None:
         files.append(File(name='output_scalar_file', type_='output', path=output_scalar_file, ext=['.txt', '.npy']))
-    check_params(files=files)
+    check_params(files=files, force=force)
 
     #----- iterate over input streamlines -----
     TCK_in = None
@@ -468,14 +467,13 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
 
         n_streamlines = int( TCK_in.header['count'] )
-        if n_streamlines>0:
-            ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
-        else:
-            ui.WARNING( 'The tractogram is empty' )
+        if n_streamlines <= 0:
+            logger.error('The tractogram is empty')
 
+        logger.info('Streamline lengths')
         lengths = np.empty( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
-            with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+            with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
                 for i in range( n_streamlines ):
                     TCK_in.read_streamline()
                     if TCK_in.n_pts==0:
@@ -485,7 +483,8 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
                     pbar.update()
 
         if n_streamlines>0:
-            ui.INFO( f'min={lengths.min():.3f}   max={lengths.max():.3f}   mean={lengths.mean():.3f}   std={lengths.std():.3f}' )
+            logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*')
+            logger.subinfo(f'min={lengths.min():.3f}  max={lengths.max():.3f}  mean={lengths.mean():.3f}  std={lengths.std():.3f}', indent_char='*')
 
         if output_scalar_file is None:
             return streamline_length
@@ -497,7 +496,7 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
                 np.save(output_scalar_file, lengths, allow_pickle=False)
 
     except Exception as e:
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+        logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:
         if TCK_in is not None:
@@ -546,9 +545,9 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
             for v in val:
                 if max_field_length is not None and len(v)>max_field_length:
                     v = v[:max_field_length] + '...'
-                logger.subinfo('%0*s'%(max_len,key) + ':  ' + v)
+                logger.subinfo('%0*s'%(max_len,key) + ':  ' + v, indent_char='*')
         if 'count' in TCK_in.header.keys():
-            logger.subinfo('%0*s'%(max_len,'count') + ':  ' + TCK_in.header['count'] + '\n')
+            logger.subinfo('%0*s'%(max_len,'count') + ':  ' + TCK_in.header['count'] + '\n', indent_char='*')
 
         # print stats on lengths
         if compute_lengths:
@@ -556,16 +555,16 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
             n_streamlines = int( TCK_in.header['count'] )
             if n_streamlines>0:
                 lengths = np.empty( n_streamlines, dtype=np.double )
-                with ui.ProgressBar( total=n_streamlines, disable=(verbose < 3), hide_on_exit=True ) as pbar:
+                with ProgressBar( total=n_streamlines, disable=(verbose < 3), hide_on_exit=True ) as pbar:
                     for i in range( n_streamlines ):
                         TCK_in.read_streamline()
                         if TCK_in.n_pts==0:
                             break # no more data, stop reading
                         lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
                         pbar.update()
-                logger.subinfo(f'min={lengths.min():.3f}  max={lengths.max():.3f}  mean={lengths.mean():.3f}  std={lengths.std():.3f}')
+                logger.subinfo(f'min={lengths.min():.3f}  max={lengths.max():.3f}  mean={lengths.mean():.3f}  std={lengths.std():.3f}', indent_char='*')
             else:
-                logger.warning('The tractogram is empty')
+                logger.error('The tractogram is empty')
 
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
@@ -618,7 +617,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     force : boolean
         Force overwriting of the output (default : False).
     """
-    ui.set_verbose( verbose )
+    set_verbose(verbose)
 
     files = [
         File(name='input_tractogram', type_='input', path=input_tractogram),
@@ -631,32 +630,37 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         weights_out_ext = os.path.splitext(weights_out)[1]
         files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
     nums = [Num(name='random', value=random, min_=0.0, max_=1.0, include_min=False)]
+    messages = []
     if minlength is not None:
         nums.append(Num(name='minlength', value=minlength, min_=0.0))
-        ui.INFO(f'Keeping streamlines with length >= {minlength}mm')
+        messages.append(f'Keeping streamlines with length >= {minlength}mm')
     if maxlength is not None:
         nums.append(Num(name='maxlength', value=maxlength, min_=0.0))
-        ui.INFO(f'Keeping streamlines with length <= {maxlength}mm')
+        messages.append(f'Keeping streamlines with length <= {maxlength}mm')
     if minweight is not None:
         nums.append(Num(name='minweight', value=minweight, min_=0.0))
-        ui.INFO(f'Keeping streamlines with weight >= {minweight}mm')
+        messages.append(f'Keeping streamlines with weight >= {minweight}mm')
     if maxweight is not None:
         nums.append(Num(name='maxweight', value=maxweight, min_=0.0))
-        ui.INFO(f'Keeping streamlines with weight <= {maxweight}mm')
+        messages.append(f'Keeping streamlines with weight <= {maxweight}mm')
     if minlength is not None and maxlength is not None and minlength > maxlength:
-        ui.ERROR('\'minlength\' must be <= \'maxlength\'')
+        logger.error('\'minlength\' must be <= \'maxlength\'')
     if minweight is not None and maxweight is not None and minweight > maxweight:
-        ui.ERROR('\'minweight\' must be <= \'maxweight\'')
+        logger.error('\'minweight\' must be <= \'maxweight\'')
     if random != 1:
-        ui.INFO(f'Keeping streamlines with {random * 100:.2f}% probability')
+        messages.append(f'Keeping streamlines with {random * 100:.2f}% probability')
     check_params(files=files, nums=nums, force=force)
+
+    logger.info('Filtering criteria')
+    for msg in messages:
+        logger.subinfo(msg, indent_char='*')
 
     if weights_in is not None:
         if weights_in_ext == '.txt':
             w = np.loadtxt(weights_in).astype(np.float64)
         elif weights_in_ext == '.npy':
             w = np.load(weights_in, allow_pickle=False).astype(np.float64)
-        ui.INFO('Using streamline weights from text file')
+        logger.info('Using streamline weights from text file')
     else:
         w = np.array([])
 
@@ -670,17 +674,17 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
 
         n_streamlines = int( TCK_in.header['count'] )
-        ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
 
         # check if #(weights)==n_streamlines
         if weights_in is not None and n_streamlines!=w.size:
-            ui.ERROR( f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) ' )
+            logger.error(f'# of weights {w.size} is different from # of streamlines ({n_streamlines})')
 
         # open the outut file
+        logger.info('Filtering {n_streamlines} streamlines')
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         kept = np.ones( n_streamlines, dtype=bool )
-        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+        with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -720,7 +724,10 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
                     np.save(weights_out, w[kept == True].astype(np.float32), allow_pickle=False)
 
         n_written = np.count_nonzero( kept )
-        (ui.INFO if n_written>0 else ui.WARNING)( f'{n_written} streamlines in output tractogram' )
+        if n_written > 0:
+            logger.subinfo(f'{n_written} streamlines in output tractogram', indent_char='*')
+        else:
+            logger.warning('No streamlines in output tractogram')
 
     except Exception as e:
         if TCK_out is not None:
@@ -729,7 +736,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             os.remove( output_tractogram )
         if weights_out is not None and os.path.isfile( weights_out ):
             os.remove( weights_out )
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
         if TCK_in is not None:
@@ -775,7 +782,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         Force overwriting of the output (default : False).
     """
 
-    ui.set_verbose( verbose )
+    set_verbose(verbose)
 
     files = [
         File(name='input_tractogram', type_='input', path=input_tractogram),
@@ -793,13 +800,13 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             return ast.literal_eval(input_string)
         except (SyntaxError, ValueError):
             # Handle the exception if the input string is not a valid Python literal structure
-            ui.ERROR("The input string is not a valid Python literal structure.")
+            logger.error('The input string is not a valid Python literal structure.')
             return None
 
     if not regions_in==None:
         if not isinstance(split_regions(regions_in), (list, tuple, int)):
             print(split_regions(regions_in))
-            ui.ERROR("Invalid regions input")
+            logger.error('Invalid regions input')
         else:
             regions_str = "[]," + regions_in
             regions = []
@@ -816,8 +823,6 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         elif weights_in_ext == '.npy':
             w = np.load(weights_in, allow_pickle=False).astype(np.float64)
         w_idx = np.zeros_like(w, dtype=np.int32)
-        ui.INFO(f'Loaded {w.size} streamline weights')
-    ui.INFO(f'Writing output tractograms to \'{output_folder}\'')
 
     if sys.platform.startswith('win32'):
         import win32file
@@ -829,7 +834,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 new_limit = int(limit * 2)
                 max_open = int(new_limit * 0.9)
                 win32file._setmaxstdio(new_limit)
-                ui.WARNING(f'`max_open` is greater than the system limit, using {max_open} instead')
+                logger.warning(f'`max_open` is greater than the system limit, using {max_open} instead')
         elif max_open is None:
             new_limit = int(limit * 2)
             max_open = int(new_limit * 0.9)
@@ -845,13 +850,19 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 new_limit = int(limit_hard * 0.5)
                 max_open = int(new_limit * 0.9)
                 resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
-                ui.WARNING(f'`max_open` is greater than the system limit, using {max_open} instead')
+                logger.warning(f'`max_open` is greater than the system limit, using {max_open} instead')
         elif max_open is None:
             new_limit = int(limit_hard * 0.5)
             max_open = int(new_limit * 0.9)
             resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
     
-    ui.INFO(f'Using {max_open} files open simultaneously')
+    logger.info('Splitting criteria')
+    try:
+        logger.subinfo(f'Loaded {w.size} streamline weights', indent_char='*')
+    except UnboundLocalError:
+        pass
+    logger.subinfo(f'Writing output tractograms to \'{output_folder}\'', indent_char='*')
+    logger.subinfo(f'Using {max_open} files open simultaneously', indent_char='*')
 
     #----- iterate over input streamlines -----
     TCK_in          = None
@@ -866,7 +877,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         # open the tractogram
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
-        ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+        logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*')
 
         # open the assignments
         if os.path.splitext(input_assignments)[1]=='.txt':
@@ -874,18 +885,18 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         elif os.path.splitext(input_assignments)[1]=='.npy':
             assignments = np.load( input_assignments, allow_pickle=False ).astype(np.int32)
         else:
-            ui.ERROR( 'Invalid extension for the assignments file' )
+            logger.error('Invalid extension for the assignments file')
         if assignments.ndim!=2 or assignments.shape[1]!=2:
             print( (assignments.ndim, assignments.shape))
-            ui.ERROR( 'Unable to open assignments file' )
-        ui.INFO( f'{assignments.shape[0]} assignments in input file' )
+            logger.error('Unable to open assignments file')
+        logger.subinfo(f'{assignments.shape[0]} assignments in input file', indent_char='*')
 
         # check if #(assignments)==n_streamlines
         if n_streamlines!=assignments.shape[0]:
-            ui.ERROR( f'# of assignments ({assignments.shape[0]}) is different from # of streamlines ({n_streamlines}) ' )
+            logger.error(f'# of assignments ({assignments.shape[0]}) is different from # of streamlines ({n_streamlines})')
         # check if #(weights)==n_streamlines
         if weights_in is not None and n_streamlines!=w.size:
-            ui.ERROR( f'# of weights ({w.size}) is different from # of streamlines ({n_streamlines}) ' )
+            logger.error(f'# of weights ({w.size}) is different from # of streamlines ({n_streamlines})')
 
         # create empty tractograms for unique assignments
         if len(regions)==0:
@@ -927,12 +938,12 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             if weights_in is not None:
                 WEIGHTS_out_idx[key] = 0
 
-        ui.INFO( f'Created {len(TCK_outs)} empty files for output tractograms' )
+        logger.subinfo(f'Created {len(TCK_outs)} empty files for output tractograms', indent_char='*')
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
-        ui.INFO( f'Splitting tractogram...' )
-        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+        logger.info(f'Splitting tractogram')
+        with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -987,8 +998,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
         # create individual weight files for each splitted tractogram
         if weights_in is not None:
-            ui.INFO( f'Saving one weights file per bundle' )
-            with ui.ProgressBar(disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+            logger.subinfo(f'Saving one weights file per bundle', indent_char='*')
+            with ProgressBar(disable=verbose < 3, hide_on_exit=True) as pbar:
                 for key in WEIGHTS_out_idx.keys():
                     w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ].astype(np.float32)
                     if weights_in_ext=='.txt':
@@ -997,9 +1008,9 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                         np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle, allow_pickle=False )
 
         if unassigned_count:
-            ui.INFO( f'{n_written-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting' )
+            logger.subinfo(f'{n_written-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting', indent_char='*')
         else:
-            ui.INFO( f'{n_written} connecting, {0} non-connecting' )
+            logger.subinfo(f'{n_written} connecting', indent_char='*')
 
     except Exception as e:
         if os.path.isdir(output_folder):
@@ -1010,11 +1021,11 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 if weights_in is not None and os.path.isfile(basename+weights_in_ext):
                     os.remove(basename+weights_in_ext)
 
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
-        ui.INFO( 'Closing files' )
-        with ui.ProgressBar(disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+        logger.info('Closing files')
+        with ProgressBar(total=len(TCK_outs), disable=verbose < 3, hide_on_exit=True) as pbar:
             if TCK_in is not None:
                 TCK_in.close()
             for key in TCK_outs.keys():
@@ -1026,6 +1037,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 # Update 'count' and write EOF marker
                 tmp = LazyTractogram( f, mode='a' )
                 tmp.close( write_eof=True, count=TCK_outs_size[key] )
+                pbar.update()
 
 
 def join( input_list: list[str], output_tractogram: str, weights_list: list[str]=[], weights_out: str=None, verbose: int=2, force: bool=False ):
@@ -1051,23 +1063,24 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
     force : boolean
         Force overwriting of the output (default : False).
     """
-    ui.set_verbose( verbose )
+    set_verbose(verbose)
 
     if len(input_list) < 2:
-        ui.ERROR(f'Input list must contain at least 2 files')
+        logger.error(f'Input list must contain at least 2 files')
     files = [File(name=f'input_tractogram_{i}', type_='input', path=f) for i, f in enumerate(input_list)]
     files.append(File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'))
     if weights_list:
         if len(input_list) != len(weights_list):
-            ui.ERROR( f'Number of weights files is different from number of input trac tograms' )
+            logger.error(f'Number of weights files is different from number of input trac tograms')
         for i, w in enumerate(weights_list):
             files.append(File(name=f'weights_in_{i}', type_='input', path=w, ext=['.txt', '.npy']))
     if weights_out is not None:
         files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
-    ui.INFO( f'Writing output tractogram to "{output_tractogram}"' )
     check_params(files=files, force=force)
 
     #----- iterate over input files -----
+    logger.info('Joining tractograms')
+    logger.subinfo(f'Writing output tractogram to \'{output_tractogram}\'', indent_char='*')
     TCK_in    = None
     TCK_out   = None
     n_written = 0
@@ -1078,14 +1091,14 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
         TCK_in.close()
 
-        with ui.ProgressBar( total=len(input_list), disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+        with ProgressBar( total=len(input_list), disable=verbose < 3, hide_on_exit=True) as pbar:
             for i,input_tractogram in enumerate(input_list):
 
                 # open the input file
                 TCK_in = LazyTractogram( input_tractogram, mode='r' )
                 n_streamlines = int( TCK_in.header['count'] )
                 if n_streamlines == 0:
-                    ui.WARNING( f'NO streamlines found in tractogram {input_tractogram}' )
+                    logger.warning(f'No streamlines found in tractogram {input_tractogram}')
                 else:
                     for s in range( n_streamlines ):
                         TCK_in.read_streamline()
@@ -1104,22 +1117,22 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
                         w = np.load(weights_list[i], allow_pickle=False).astype(np.float64)
                     # check if #(weights)==n_streamlines
                     if n_streamlines!=w.size:
-                        ui.ERROR( f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) in file {input_tractogram}' )
+                        logger.error(f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) in file {input_tractogram}')
                     # append weights
                     weights_tot = np.append(weights_tot, w)
 
                 pbar.update()
 
             if weights_out is not None and weights_tot.size>0:
-                ui.INFO( f'Writing output weights to    "{weights_out}"' )
+                logger.subinfo(f'Writing output weights to \'{weights_out}\'', indent_char='*')
                 weights_out_ext = os.path.splitext(weights_out)[1]
                 if weights_out_ext == '.txt':
                     np.savetxt(weights_out, weights_tot.astype(np.float32), fmt='%.5e')
                 elif weights_out_ext == '.npy':
                     np.save(weights_out, weights_tot.astype(np.float32), allow_pickle=False)
-                ui.INFO( f'Total output weigths:     {weights_tot.size}' )
+                logger.subinfo(f'Total output weigths: {weights_tot.size}', indent_char='*')
 
-        ui.INFO( f'Total output streamlines: {n_written}' )
+        logger.info(f'Total output streamlines: {n_written}', indent_char='*')
     except Exception as e:
         if TCK_out is not None:
             TCK_out.close()
@@ -1127,7 +1140,7 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
             os.remove( output_tractogram )
         if weights_out is not None and os.path.isfile( weights_out ):
             os.remove( weights_out )
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+        logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
     finally:
         if TCK_in is not None:
             TCK_in.close()
@@ -1205,8 +1218,8 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
      """
 
     if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        ui.ERROR( '"verbose" must be in [0...4]' )
-    ui.set_verbose( verbose )
+        logger.error('\'verbose\' must be in [0...4]')
+    set_verbose(verbose)
 
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
@@ -1237,10 +1250,10 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     gm_header = gm_nii.header
     
     if wm.shape[0] != gm.shape[0] or wm.shape[1] != gm.shape[1] or wm.shape[2] != gm.shape[2]:
-        ui.ERROR( 'Images have different shapes' )
+        logger.error('Images have different shapes')
 
     if wm_header['pixdim'][1] != gm_header['pixdim'][1] or wm_header['pixdim'][2] != gm_header['pixdim'][2] or wm_header['pixdim'][3] != gm_header['pixdim'][3]:
-        ui.ERROR( 'Images have different pixel size' )
+        logger.error('Images have different pixel size')
 
     """Modify the streamline in order to reach the GM.
     """
@@ -1276,16 +1289,17 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
         n_streamlines = int( TCK_in.header['count'] )
 
         if n_streamlines == 0:
-            ui.ERROR( 'NO streamlines found' )
-
-        ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+            logger.error('No streamlines found')
 
         # open the output file
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
         if save_connecting_tck==True:
             TCK_con = LazyTractogram( conn_tractogram, mode='w', header=TCK_in.header )
 
-        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True ) as pbar:
+        logger.info('Tractogram sanitize')
+        logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*')
+
+        with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -1421,13 +1435,13 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
         if TCK_con is not None:
             TCK_con.close( write_eof=True, count=n_in )
 
-    ui.INFO( f'- Save sanitized tractogram to "{output_tractogram}"' )
-    if save_connecting_tck: ui.INFO( f'- Save only connecting streamlines to "{conn_tractogram}"' )
-
-    ui.INFO( f'    * tot. streamlines: {n_tot}' )
-    ui.INFO( f'        + connecting (both ends in GM):          {n_in}' )
-    ui.INFO( f'        + half connecting (one ends in GM):      {n_half}' )
-    ui.INFO( f'        + non-connecting (both ends outside GM): {n_out}' )
+    logger.subinfo(f'Save sanitized tractogram to \'{output_tractogram}\'', indent_char='*')
+    if save_connecting_tck:
+        logger.subinfo(f'Save only connecting streamlines to \'{conn_tractogram}\'', indent_char='*')
+    logger.subinfo(f'Tot. streamlines: {n_tot}', indent_char='*')
+    logger.subinfo(f'Connecting (both ends in GM): {n_in}', indent_lvl=1, indent_char='-')
+    logger.subinfo(f'Half connecting (one ends in GM): {n_half}', indent_lvl=1, indent_char='-')
+    logger.subinfo(f'Non-connecting (both ends outside GM): {n_out}', indent_lvl=1, indent_char='-')
 
 
 def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=2, force=False ):
@@ -1463,18 +1477,13 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
     """
 
     if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        ui.ERROR( '"verbose" must be in [0...4]' )
-    ui.set_verbose( verbose )
-
-    # if not os.path.isfile(input_tractogram):
-    #     ui.ERROR( f'File "{input_tractogram}" not found' )
-    # if os.path.isfile(output_tractogram) and not force:
-    #     ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+        logger.error('\'verbose\' must be in [0...4]')
+    set_verbose(verbose)
 
     if segment_len==None and streamline_pts==None:
-        ui.ERROR( "Either 'streamline_pts' or 'segment_len' must be set." )
+        logger.error('Either \'streamline_pts\' or \'segment_len\' must be set.')
     if segment_len!=None and streamline_pts!=None:
-        ui.ERROR( "Either 'streamline_pts' or 'segment_len' must be set, not both." )
+        logger.error('Either \'streamline_pts\' or \'segment_len\' must be set, not both.')
 
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
@@ -1493,11 +1502,10 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
     elif spline_type == 'uniform':
         alpha = 0.0
     else:
-        ui.ERROR("'spline_type' parameter must be 'centripetal', 'uniform' or 'chordal'")
+        logger.error('\'spline_type\' parameter must be \'centripetal\', \'uniform\' or \'chordal\'')
 
     if epsilon < 0 :
-        raise ValueError( "'epsilon' parameter must be non-negative" )
-
+        logger.error('\'epsilon\' parameter must be non-negative')
 
     try:
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
@@ -1505,26 +1513,27 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
-        ui.INFO( 'Input tractogram :' )
-        ui.INFO( f'\t- {input_tractogram}' )
-        ui.INFO( f'\t- {n_streamlines} streamlines' )
+        logger.info('Smoothing tractogram')
+        logger.subinfo(f'Input tractogram', indent_char='*')
+        logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
+        logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
 
         mb = os.path.getsize( input_tractogram )/1.0E6
         if mb >= 1E3:
-            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+            logger.subinfo(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
         else:
-            ui.INFO( f'\t- {mb:.2f} MB' )
+            logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
-        ui.INFO( 'Output tractogram :' )
-        ui.INFO( f'\t- {output_tractogram}' )
-        ui.INFO( f'\t- spline type : {spline_type}')
+        logger.subinfo(f'Output tractogram', indent_char='*')
+        logger.subinfo(f'{output_tractogram}', indent_lvl=1, indent_char='-')
+        logger.subinfo(f'Spline type: {spline_type}', indent_lvl=1, indent_char='-')
         if not segment_len==None:
-            ui.INFO( f'\t- segment length : {segment_len:.2f}' )
+            logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
         if not streamline_pts==None:
-            ui.INFO( f'\t- number of points : {streamline_pts}' )
+            logger.subinfo(f'Number of points: {streamline_pts}', indent_lvl=1, indent_char='-')
 
         # process each streamline
-        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True ) as pbar:
+        with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -1540,7 +1549,7 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         TCK_out.close()
         if os.path.exists( output_tractogram ):
             os.remove( output_tractogram )
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
         TCK_in.close()
@@ -1548,9 +1557,9 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 
     mb = os.path.getsize( output_tractogram )/1.0E6
     if mb >= 1E3:
-        ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        logger.subinfo(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
     else:
-        ui.INFO( f'\t- {mb:.2f} MB' )
+        logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
 
 cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=2, force=False ):
@@ -1592,18 +1601,13 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
     """
 
     if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        ui.ERROR( '"verbose" must be in [0...4]' )
-    ui.set_verbose( verbose )
-
-    # if not os.path.isfile(input_tractogram):
-    #     ui.ERROR( f'File "{input_tractogram}" not found' )
-    # if os.path.isfile(output_tractogram) and not force:
-    #     ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
+        logger.error('\'verbose\' must be in [0...4]')
+    set_verbose(verbose)
 
     if segment_len==None and streamline_pts==None:
-        ui.ERROR( "Either 'streamline_pts' or 'segment_len' must be set." )
+        logger.error('Either \'streamline_pts\' or \'segment_len\' must be set.')
     if segment_len!=None and streamline_pts!=None:
-        ui.ERROR( "Either 'streamline_pts' or 'segment_len' must be set, not both." )
+        logger.error('Either \'streamline_pts\' or \'segment_len\' must be set, not both.')
 
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
@@ -1627,7 +1631,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
     elif spline_type == 'uniform':
         alpha = 0.0
     else:
-        ui.ERROR("'spline_type' parameter must be 'centripetal', 'uniform' or 'chordal'")
+        logger.error('\'spline_type\' parameter must be \'centripetal\', \'uniform\' or \'chordal\'')
 
     # if epsilon < 0 :
     #     raise ValueError( "'epsilon' parameter must be non-negative" )
@@ -1653,7 +1657,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
 
     if mask is not None:
         if not os.path.isfile(mask):
-            ui.ERROR( f'File "{mask}" not found' )
+            logger.error(f'File \'mask\' not found')
         mask_nii = nib.load(mask)
         mask_view = np.ascontiguousarray(mask_nii.get_fdata(), dtype=np.int32)
         mask_aff_inv = np.linalg.inv(mask_nii.affine)
@@ -1666,25 +1670,26 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
 
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
-        ui.INFO( 'Input tractogram :' )
-        ui.INFO( f'\t- {input_tractogram}' )
-        ui.INFO( f'\t- {n_streamlines} streamlines' )
+        logger.info('Smoothing tractogram')
+        logger.subinfo('Input tractogram', indent_char='*')
+        logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
+        logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
 
         mb = os.path.getsize( input_tractogram )/1.0E6
         if mb >= 1E3:
-            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+            logger.subinfo(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
         else:
-            ui.INFO( f'\t- {mb:.2f} MB' )
+            logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
-        ui.INFO( 'Output tractogram :' )
-        ui.INFO( f'\t- {output_tractogram}' )
-        ui.INFO( f'\t- spline type : {spline_type}')
+        logger.subinfo('Output tractogram', indent_char='*')
+        logger.subinfo(f'{output_tractogram}', indent_lvl=1, indent_char='-')
+        logger.subinfo(f'Spline type: {spline_type}', indent_lvl=1, indent_char='-')
         if not segment_len==None:
-            ui.INFO( f'\t- segment length : {segment_len:.2f}' )
+            logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
         if not streamline_pts==None:
-            ui.INFO( f'\t- number of points : {streamline_pts}' )
+            logger.subinfo(f'Number of points: {streamline_pts}', indent_lvl=1, indent_char='-')
         if mask is not None:
-            ui.INFO( f'\t- mask : {mask}' )
+            logger.subinfo(f'Mask: {mask}', indent_lvl=1, indent_char='-')
 
         if streamline_pts!=None:
             n_pts_out = streamline_pts
@@ -1693,7 +1698,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
 
 
         # process each streamline
-        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True ) as pbar:
+        with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
             for i in range( n_streamlines ):
                 epsilon_tmp = epsilon
                 in_mask = False
@@ -1745,18 +1750,18 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         TCK_out.close()
         if os.path.exists( output_tractogram ):
             os.remove( output_tractogram )
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
         TCK_in.close()
         TCK_out.close()
 
     mb = os.path.getsize( output_tractogram )/1.0E6
-    ui.INFO( f'\t- {attempts} attempts')
+    logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
     if mb >= 1E3:
-        ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        logger.subinfo(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
     else:
-        ui.INFO( f'\t- {mb:.2f} MB' )
+        logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
 
 
@@ -1787,8 +1792,8 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
     """
 
     if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        ui.ERROR( '"verbose" must be in [0...4]' )
-    ui.set_verbose( verbose )
+        logger.error('\'verbose\' must be in [0...4]')
+    set_verbose(verbose)
 
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
@@ -1809,23 +1814,24 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
 
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
-        ui.INFO( 'Input tractogram :' )
-        ui.INFO( f'\t- {input_tractogram}' )
-        ui.INFO( f'\t- {n_streamlines} streamlines' )
+        logger.info('Smoothing tractogram')
+        logger.subinfo('Input tractogram', indent_char='*')
+        logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
+        logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
 
         mb = os.path.getsize( input_tractogram )/1.0E6
         if mb >= 1E3:
-            ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+            logger.subinfo(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
         else:
-            ui.INFO( f'\t- {mb:.2f} MB' )
+            logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
-        ui.INFO( 'Output tractogram :' )
-        ui.INFO( f'\t- {output_tractogram}' )
-        ui.INFO( f'\t- control points : {control_point_ratio*100.0:.1f}%')
-        ui.INFO( f'\t- segment length : {segment_len:.2f}' )
+        logger.subinfo('Output tractogram', indent_char='*')
+        logger.subinfo(f'{output_tractogram}', indent_lvl=1, indent_char='-')
+        logger.subinfo(f'Control points: {control_point_ratio*100.0:.1f}%', indent_lvl=1, indent_char='-')
+        logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
 
         # process each streamline
-        with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+        with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
             for i in range( n_streamlines ):
 
                 TCK_in.read_streamline()
@@ -1839,7 +1845,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         TCK_out.close()
         if os.path.exists( output_tractogram ):
             os.remove( output_tractogram )
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
         TCK_in.close()
@@ -1847,9 +1853,9 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
 
     mb = os.path.getsize( output_tractogram )/1.0E6
     if mb >= 1E3:
-        ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        logger.subinfo(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
     else:
-        ui.INFO( f'\t- {mb:.2f} MB' )
+        logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
 
 def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbose=2, force=False):
@@ -1872,8 +1878,8 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
         Recomputed indices of the streamlines.
     """
     if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        ui.ERROR( '"verbose" must be in [0...4]' )
-    ui.set_verbose( verbose )
+        logger.error('\'verbose\' must be in [0...4]')
+    set_verbose(verbose)
 
     files = [
         File(name='input_indices', type_='input', path=input_indices),
@@ -1881,7 +1887,6 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
     ]
     if output_indices is not None:
         files.append( File(name='output_indices', type_='output', path=output_indices) )
-    ui.INFO('Recomputing indices')
     check_params(files=files, force=force)
 
     # open indices file and dictionary
@@ -1891,7 +1896,8 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
     indices_recomputed = []
 
     # recompute indices
-    with ui.ProgressBar( total=idx.size, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+    logger.info('Recomputing indices')
+    with ProgressBar( total=idx.size, disable=verbose < 3, hide_on_exit=True) as pbar:
         for i in range( idx.size ):
             #count the number of streamlines before the current one
             n = np.count_nonzero( d[:idx[i]] )
@@ -1939,7 +1945,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
     if mask_file is not None:
         files.append(File(name='mask_file', type_='input', path=mask_file))
     if option not in ['min', 'max', 'median', 'No_opt', 'mean']:
-        ui.ERROR(f'Option {option} not valid, please choose between min, max, median, mean or No_opt')
+        logger.error(f'Option {option} not valid, please choose between min, max, median, mean or No_opt')
     check_params(files=files, force=force)
 
     TCK_in  = None
@@ -1972,15 +1978,16 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
 
         n_streamlines = int( TCK_in.header['count'] )
-        ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+        logger.info(f'Tractogram sampling')
+        logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*')
 
         pixdim = Img.header['pixdim'] [1:4] 
-        ui.INFO( 'Image resolution : {}'.format(pixdim) )
-        ui.INFO("**Applying --> vox transformation**")
+        logger.subinfo('Image resolution : {}'.format(pixdim), indent_char='*')
+        logger.subinfo('Applying vox transformation', indent_char='*')
 
         with open(output_file,'w') as file:
             file.write("# dicelib.tractogram.sample option={} {} {} {}**\n".format(option,input_tractogram,input_image,output_file))
-            with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+            with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
                 for i in range(n_streamlines):
                     TCK_in.read_streamline()
                     npoints = TCK_in.n_pts
@@ -2001,11 +2008,10 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
     except Exception as e:
         if TCK_in is not None:
             TCK_in.close()
-            ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+            logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
     finally:
         if TCK_in is not None:
             TCK_in.close()
-            ui.INFO( 'Closing files' )
         file.close()
 
 
@@ -2030,12 +2036,6 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=2, force=Fal
     force : boolean
         Force overwriting of the output (default : False).
     """
-
-    # if not os.path.isfile(input_tractogram):
-    #     ui.ERROR( f'File "{input_tractogram}" not found' )
-    # if os.path.isfile(output_tractogram) and not force:
-    #     ui.ERROR( 'Output tractogram already exists, use -f to overwrite' )
-
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
         output_tractogram = basename+'_nbpts'+extension
@@ -2055,22 +2055,23 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=2, force=Fal
 
     TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
-    ui.INFO( 'Input tractogram :' )
-    ui.INFO( f'\t- {input_tractogram}' )
-    ui.INFO( f'\t- {n_streamlines} streamlines' )
+    logger.info('Resampling')
+    logger.subinfo('Input tractogram', indent_char='*')
+    logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
+    logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
 
     mb = os.path.getsize( input_tractogram )/1.0E6
     if mb >= 1E3:
-        ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        logger.subinfo(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
     else:
-        ui.INFO( f'\t- {mb:.2f} MB' )
+        logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
-    ui.INFO( 'Output tractogram :' )
-    ui.INFO( f'\t- {output_tractogram}' )
-    ui.INFO( f'\t- nb_pts : {nb_pts}')
+    logger.subinfo('Output tractogram', indent_char='*')
+    logger.subinfo(f'{output_tractogram}', indent_lvl=1, indent_char='-')
+    logger.subinfo(f'nb_pts : {nb_pts}', indent_lvl=1, indent_char='-')
 
     # process each streamline
-    with ui.ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+    with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
         for i in range( n_streamlines ):
             TCK_in.read_streamline() 
             set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0, vers, lengths)
@@ -2082,6 +2083,6 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=2, force=Fal
 
     mb = os.path.getsize( output_tractogram )/1.0E6
     if mb >= 1E3:
-        ui.INFO( f'\t- {mb/1.0E3:.2f} GB' )
+        logger.subinfo( f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
     else:
-        ui.INFO( f'\t- {mb:.2f} MB' )
+        logger.subinfo( f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
