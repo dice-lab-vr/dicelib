@@ -757,7 +757,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             for f in filenames:
                 if f.endswith('.tck') and not f.startswith('unassigned'):
                     filename = os.path.abspath(os.path.join(dirpath, f))
-                    bundles.append((filename, os.path.getsize(filename), int(info(filename,verbose=2))))
+                    bundles.append((filename, os.path.getsize(filename), int(info(filename,verbose=1))))
 
         # Sort the list of tuples by the file size, which is the second element of each tuple
         bundles.sort(key=lambda x: x[1])

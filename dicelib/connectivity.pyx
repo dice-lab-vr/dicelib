@@ -18,6 +18,7 @@ from dicelib.tractogram cimport LazyTractogram
 from dicelib.streamline import create_replicas
 from dicelib.streamline cimport apply_affine
 from . import ui
+from dicelib.ui import __logger__ as logger
 
 
 cdef compute_grid( float thr, float[:] vox_dim ) :
@@ -252,9 +253,9 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
 
 
     if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
+        logger.error( f'File "{input_tractogram}" not found' )
     if not os.path.isfile(gm_map_file):
-        ui.ERROR( f'File "{gm_map_file}" not found' )
+        logger.error( f'File "{gm_map_file}" not found' )
 
     
     # Load of the gm map
@@ -377,48 +378,50 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
     ui.set_verbose( verbose )
 
+    logger.info( 'Compute connectome weighted by COMMITblur' )    
+
     # check input tractogram
     if not os.path.isfile(input_tractogram):
-        ui.ERROR( f'File "{input_tractogram}" not found' )
-    ui.INFO( f'Input tractogram: "{input_tractogram}"' )
+        logger.error( f'File "{input_tractogram}" not found' )
+    ui.subinfo( f'Input tractogram: "{input_tractogram}"', indent_char='*')
 
     # output
     if os.path.isfile(output_connectome) and not force:
-        ui.ERROR( 'Output connectome already exists, use -f to overwrite' )
+        logger.error( 'Output connectome already exists, use -f to overwrite' )
     conn_out_ext = os.path.splitext(output_connectome)[1]
     if conn_out_ext not in ['.csv', '.npy']:
-        ui.ERROR('Invalid extension for the output connectome file')
+        logger.error('Invalid extension for the output connectome file')
 
     # streamline weights
     if not os.path.isfile( weights_in ):
-        ui.ERROR( f'File "{weights_in}" not found' )
+        logger.error( f'File "{weights_in}" not found' )
     weights_in_ext = os.path.splitext(weights_in)[1]
     if weights_in_ext=='.txt':
         w = np.loadtxt( weights_in ).astype(np.float64)
     elif weights_in_ext=='.npy':
         w = np.load( weights_in, allow_pickle=False ).astype(np.float64)
     else:
-        ui.ERROR( 'Invalid extension for the weights file' )
+        logger.error( 'Invalid extension for the weights file' )
 
     # parcellation
     if not os.path.isfile(input_nodes):
-        ui.ERROR( f'File "{input_nodes}" not found' )
-    ui.INFO( f'Input parcellation: "{input_nodes}"' )
+        logger.error( f'File "{input_nodes}" not found' )
+    ui.subinfo( f'Input parcellation: "{input_nodes}"', indent_char='*')
 
     # blur parameters
     if blur_core_extent<0:
-        ui.ERROR( '"blur_core_extent" must be >= 0' )
+        logger.error( '"blur_core_extent" must be >= 0' )
     if blur_gauss_extent<0:
-        ui.ERROR( '"blur_gauss_extent" must be >= 0' )
+        logger.error( '"blur_gauss_extent" must be >= 0' )
     if blur_spacing<=0:
-        ui.ERROR( '"blur_spacing" must be > 0' )
+        logger.error( '"blur_spacing" must be > 0' )
     if blur_gauss_min<=0:
-        ui.ERROR( '"blur_gauss_min" must be > 0' )
-    ui.INFO( 'Blur parameters:')
-    ui.INFO( f'- blur_core_extent:  {blur_core_extent}' )
-    ui.INFO( f'- blur_gauss_extent: {blur_gauss_extent}' )
-    ui.INFO( f'- blur_spacing:      {blur_spacing}' )
-    ui.INFO( f'- blur_gauss_min:    {blur_gauss_min}' )
+        logger.error( '"blur_gauss_min" must be > 0' )
+    ui.subinfo( 'Blur parameters:', indent_char='*')
+    ui.subinfo( f'- blur_core_extent:  {blur_core_extent}', indent_lvl=1, indent_char='-')
+    ui.subinfo( f'- blur_gauss_extent: {blur_gauss_extent}', indent_lvl=1, indent_char='-')
+    ui.subinfo( f'- blur_spacing:      {blur_spacing}', indent_lvl=1, indent_char='-')
+    ui.subinfo( f'- blur_gauss_min:    {blur_gauss_min}', indent_lvl=1, indent_char='-')
 
     # fiber_shift
     if np.isscalar(fiber_shift) :
@@ -430,7 +433,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         fiber_shiftY = fiber_shift[1]
         fiber_shiftZ = fiber_shift[2]
     else :
-        ui.ERROR( '"fiber_shift" must be a scalar or a vector with 3 elements' )
+        logger.error( '"fiber_shift" must be a scalar or a vector with 3 elements' )
 
     # load parcellation
     gm_nii = nib.load(input_nodes)
@@ -474,7 +477,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
                 blurWeights[i_r] = 1.0
             else:
                 blurWeights[i_r] = np.exp( -(blurRho[i_r] - core_extent)**2 / (2.0*blur_sigma**2) )
-    ui.INFO(f'Number of replicas for each streamline = {nReplicas}')
+    ui.subinfo(f'Number of replicas for each streamline = {nReplicas}', indent_lvl=1, indent_char='-')
 
     # compute the grid of voxels for the radial search
     threshold = core_extent + gauss_extent
@@ -487,7 +490,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
     thr += 0.005 # to take into accound rounding errors in the distance of the replicas
     # print(f'core+gauss = {core_extent + gauss_extent}')
-    ui.INFO(f'Threshold to use when computing assignments (in VOX space) = {thr:.3f}')
+    ui.subinfo(f'Threshold to use when computing assignments (in VOX space) = {thr:.3f}', indent_lvl=1, indent_char='-')
 
     # variables for transformations 
     cdef float [:,::1] pts_start = np.zeros((2,3), dtype=np.float32)
@@ -530,11 +533,11 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         # str_count = 0
 
         n_streamlines = int( TCK_in.header['count'] )
-        ui.INFO( f'{n_streamlines} streamlines in input tractogram' )
+        ui.subinfo( f'{n_streamlines} streamlines in input tractogram', indent_char='*')
 
         # check if #(weights)==n_streamlines
         if n_streamlines!=w.size:
-            ui.ERROR( f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) ' )
+            logger.error( f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) ' )
 
         zeros_count = 0
 
@@ -580,27 +583,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
                                                 [replicas_end[j][0], replicas_end[j][1], replicas_end[j][2]]],
                                                 dtype=np.float32)
                         asgn_view[j][:] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret, points_mat, grid, gm_map, thr, count_neighbours)
-                        # if asgn[j][0] == 0 and asgn[j][1] == 0:
-                        #     one_replica = np.array([[replicas_start[j][0]-0.5, replicas_start[j][1]-0.5, replicas_start[j][2]-0.5], 
-                        #                             [replicas_end[j][0]-0.5, replicas_end[j][1]-0.5, replicas_end[j][2]-0.5]],
-                        #                             dtype=np.float32)
-                        #     TCK_out.write_streamline( one_replica, 2 )
-                        #     str_count += 1
-                        # if asgn[j][0] == 0 and asgn[j][1] > 0:
-                        #     print(f'in connectome, replica = [{replicas_start[j][0]}, {replicas_start[j][1]}, {replicas_start[j][2]}')
-                        #     one_replica = np.array([[replicas_start[j][0]-0.5, replicas_start[j][1]-0.5, replicas_start[j][2]-0.5]],
-                        #                             dtype=np.float32)
-                        #     TCK_out.write_streamline( one_replica, 1 )
-                        #     str_count += 1
-                        #     d_s = sqrt((replicas_start[j][0] - pts_start_vox[0,0])**2 + (replicas_start[j][1] - pts_start_vox[0,1])**2 + (replicas_start[j][2] - pts_start_vox[0,2])**2)
-                        #     # print(f'dist_s: {d_s}, roi_pt = {gm_map[<int>(pts_start_vox[0,0]), <int>(pts_start_vox[0,1]), <int>(pts_start_vox[0,2])]}, roi_repl = {gm_map[<int>(replicas_start[j][0]), <int>(replicas_start[j][1]), <int>(replicas_start[j][2])]}, roi_asgn={asgn[j][0]}, roi_ret={roi_ret[0]}, pt = [{pts_start_vox[0,0]}, {pts_start_vox[0,1]}, {pts_start_vox[0,2]}], streamline_n = {i}')
-                        # if asgn[j][1] == 0 and asgn[j][0] > 0:
-                        #     one_replica = np.array([[replicas_end[j][0]-0.5, replicas_end[j][1]-0.5, replicas_end[j][2]-0.5]],
-                        #                             dtype=np.float32)
-                        #     TCK_out.write_streamline( one_replica, 1 )
-                        #     str_count += 1
-                        #     d_e = sqrt((replicas_end[j][0] - pts_end_vox[0,0])**2 + (replicas_end[j][1] - pts_end_vox[0,1])**2 + (replicas_end[j][2] - pts_end_vox[0,2])**2)
-                        #     # print(f'dist_e: {d_e}, roi_pt = {gm_map[<int>(pts_end_vox[0,0]), <int>(pts_end_vox[0,1]), <int>(pts_end_vox[0,2])]}, roi_repl = {gm_map[<int>(replicas_end[j][0]), <int>(replicas_end[j][1]), <int>(replicas_end[j][2])]}, roi_asgn={asgn[j][1]}, roi_ret={roi_ret[1]},, pt = [{pts_start_vox[0,0]}, {pts_start_vox[0,1]}, {pts_start_vox[0,2]}], streamline_n = {i}')
+                        
                     zeros_count += (asgn.size - np.count_nonzero(asgn))
 
                     # find unique assignments and sum the weights of their replicas
@@ -619,11 +602,11 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
                 pbar.update()
 
-        if zeros_count > 0 : ui.WARNING(f'Some replicas are not assigned to any region (tot. {zeros_count})')
+        if zeros_count > 0 : logger.warning(f'Some replicas are not assigned to any region (tot. {zeros_count})')
 
 
     except Exception as e:
-        ui.ERROR( e.__str__() if e.__str__() else 'A generic error has occurred' )
+        logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:
         if TCK_in is not None:
@@ -642,12 +625,12 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
                 np.savetxt(output_connectome, conn, delimiter=",")
             else:
                 np.save(output_connectome, conn, allow_pickle=False)
-    ui.INFO( f'Writing output connectome to "{output_connectome}"' )
+    ui.subinfo( f'Writing output connectome to "{output_connectome}"', indent_char='*')
 
 
 
 def build_connectome( input_weights: str,  input_assignments: str, output_connectome: str, input_tractogram: str=None, input_nodes: str=None, threshold: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=2, force: bool=False ):
-    """Build the weighted connectome having the assignements.
+    """Build the weighted connectome having the assignments.
 
     Parameters
     ----------
@@ -684,40 +667,42 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
 
     ui.set_verbose( verbose )
 
+    logger.info( 'Computing connectome' ) 
+
     # streamline weights
     if not os.path.isfile( input_weights ):
-        ui.ERROR( f'File "{input_weights}" not found' )
+        logger.error( f'File "{input_weights}" not found' )
     input_weights_ext = os.path.splitext(input_weights)[1]
     if input_weights_ext=='.txt':
         w = np.loadtxt( input_weights ).astype(np.float64)
     elif input_weights_ext=='.npy':
         w = np.load( input_weights, allow_pickle=False ).astype(np.float64)
     else:
-        ui.ERROR( 'Invalid extension for the weights file' )
-    ui.INFO( f'Input weights: "{input_weights}"' )
+        logger.error( 'Invalid extension for the weights file' )
+    ui.subinfo( f'Input weights: "{input_weights}"', indent_char='*')
 
     # output
     if os.path.isfile(output_connectome) and not force:
-        ui.ERROR( 'Output connectome already exists, use -f to overwrite' )
+        logger.error( 'Output connectome already exists, use -f to overwrite' )
     conn_out_ext = os.path.splitext(output_connectome)[1]
     if conn_out_ext not in ['.csv', '.npy']:
-        ui.ERROR('Invalid extension for the output connectome file')
+        logger.error('Invalid extension for the output connectome file')
 
     # streamline assignments
     input_assignments_ext = os.path.splitext(input_assignments)[1]
     if input_assignments_ext not in ['.txt', '.npy']:
-        ui.ERROR( 'Invalid extension for the assignments file' )
+        logger.error( 'Invalid extension for the assignments file' )
 
     if not os.path.isfile( input_assignments ):
         # check input tractogram
         if input_tractogram is None or not os.path.isfile(input_tractogram):
-            ui.ERROR( f'Tractogram file "{input_tractogram}" not found. Required if the assignments are not provided.' )
-        ui.INFO( f'Input tractogram: "{input_tractogram}"' )
+            logger.error( f'Tractogram file "{input_tractogram}" not found. Required if the assignments are not provided.' )
+        ui.subinfo( f'Input tractogram: "{input_tractogram}"', indent_char='*')
 
         # parcellation
         if input_nodes is None or not os.path.isfile(input_nodes):
-            ui.ERROR( f'Nodes file "{input_nodes}" not found. Required if the assignments are not provided.' )
-        ui.INFO( f'Input parcellation: "{input_nodes}"' )
+            logger.error( f'Nodes file "{input_nodes}" not found. Required if the assignments are not provided.' )
+        ui.subinfo( f'Input parcellation: "{input_nodes}"', indent_char='*')
 
         # compute assignments
         os.system(f'dice_tractogram_assign.py {input_tractogram} {input_nodes} --save_assignments {input_assignments} -t {threshold} -v {verbose}')
@@ -729,26 +714,26 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
 
     n_streamlines = asgn.shape[0]
     asgn_sort = np.sort(asgn, axis=1) # shape = (n_streamlines, 2)
-    ui.INFO( f'Input assignments: "{input_assignments}"' )
+    ui.subinfo( f'Input assignments: "{input_assignments}"', indent_char='*')
 
     # check if #(weights)==n_streamlines
     if n_streamlines!=w.size:
-        ui.ERROR( f'# of weights ({w.size}) is different from # of streamline assignments ({n_streamlines})' )
+        logger.error( f'# of weights ({w.size}) is different from # of streamline assignments ({n_streamlines})' )
 
     # metric
     if metric not in ['sum', 'mean', 'min', 'max']:
-        ui.ERROR('Invalid type of metric for the edges')
-    ui.INFO( f'Chosen metric to weight the edges: {metric}' )
+        logger.error('Invalid type of metric for the edges')
+    ui.subinfo( f'Chosen metric to weight the edges: {metric}', indent_char='*')
 
     # create connectome to fill
     if input_nodes is not None:
         gm_nii = nib.load(input_nodes)
         gm = gm_nii.get_fdata()
         n_rois = np.max(gm).astype(np.int32)
-        ui.INFO(f'Number of regions: {n_rois}')
+        ui.subinfo(f'Number of regions: {n_rois}', indent_char='*')
     else:
         n_rois = np.max(asgn).astype(np.int32)
-        ui.INFO(f'Number of regions: {n_rois}')
+        ui.INFO(f'Number of regions: {n_rois}', indent_char='*')
 
     if metric == 'min':
         conn = np.triu(np.full((n_rois, n_rois), 1000000000, dtype=np.float64))
@@ -774,7 +759,7 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
             conn_nos[asgn_sort[i][0]-1, asgn_sort[i][1]-1] += 1
         pbar.update()
     if count_unconn > 0:
-        ui.WARNING(f'Number of non-connecting streamlines {count_unconn}')
+        logger.warning(f'Number of non-connecting streamlines {count_unconn}')
 
     if metric == 'mean':
         conn[conn_nos>0] = conn[conn_nos>0]/conn_nos[conn_nos>0]
@@ -795,4 +780,4 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
         else:
             np.save(output_connectome, conn, allow_pickle=False)
 
-    ui.INFO( f'Writing output connectome to "{output_connectome}"' )
+    ui.subinfo( f'Writing output connectome to "{output_connectome}"', indent_char='*')
