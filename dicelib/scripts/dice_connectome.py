@@ -1,8 +1,9 @@
-from dicelib.connectivity import build_connectome
-from dicelib.ui import ERROR, setup_parser
-
 from os import getcwd
 from os.path import isabs, isfile, join as p_join, splitext
+
+from dicelib.connectivity import build_connectome
+from dicelib.ui import setup_parser
+from dicelib.ui import __logger__ as logger
 
 def connectome_build():
     # parse the input parameters
@@ -18,13 +19,13 @@ def connectome_build():
 
     # check if path to input and output files are valid
     if not isfile(options.input_assignments):
-        ERROR(f"Input assignments file not found: {options.input_assignments}")
+        logger.error(f"Input assignments file not found: {options.input_assignments}")
     if isfile(options.output_connectome) and not options.force:
-        ERROR(f"Output conncetome file already exists: {options.output_connectome}")
+        logger.error(f"Output conncetome file already exists: {options.output_connectome}")
     # check if the output connectome file has the correct extension
     output_connectome_ext = splitext(options.output_connectome)[1]
     if output_connectome_ext not in ['.csv', '.npy']:
-        ERROR("Invalid extension for the output connectome file")
+        logger.error("Invalid extension for the output connectome file")
 
     # check if the output connectome file has absolute path and if not, add the current working directory
     if options.output_connectome and not isabs(options.output_connectome):
