@@ -19,10 +19,7 @@ from dicelib.streamline import create_replicas
 from dicelib.streamline cimport apply_affine
 from . import ui
 from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
-<<<<<<< HEAD
 
-=======
->>>>>>> 1fef4f7f2a5126a071f7ba19c4473e718914634c
 
 cdef compute_grid( float thr, float[:] vox_dim ) :
 
@@ -256,15 +253,9 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
 
 
     if not os.path.isfile(input_tractogram):
-<<<<<<< HEAD
         logger.error( f'File "{input_tractogram}" not found' )
     if not os.path.isfile(gm_map_file):
         logger.error( f'File "{gm_map_file}" not found' )
-=======
-        logger.error(f'File \'{input_tractogram}\' not found')
-    if not os.path.isfile(gm_map_file):
-        logger.error(f'File \'{gm_map_file}\' not found')
->>>>>>> 1fef4f7f2a5126a071f7ba19c4473e718914634c
 
     
     # Load of the gm map
