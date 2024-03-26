@@ -1,33 +1,25 @@
-#!python
 # cython: boundscheck=False, wraparound=False, profile=False, language_level=3
 
 """Functions to perform clustering of tractograms"""
 
-import concurrent.futures as cf
-from concurrent.futures import ThreadPoolExecutor as tdp
+from dicelib.connectivity import assign
+from dicelib.tractogram import info, split as split_bundles
+from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
 
-from libc.math cimport sqrt
-from libc.stdlib cimport malloc, free
-from libcpp cimport bool
-
+from concurrent.futures import as_completed, ThreadPoolExecutor
 import os
-
-import numpy as np
-cimport numpy as np
-
-import psutil
 import shutil
 from sys import getsizeof
 import time
 
+import numpy as np
+import psutil
+
 from dicelib.tractogram cimport LazyTractogram
-from dicelib.connectivity import assign
-from dicelib.tractogram import split as split_bundles
-from dicelib.tractogram import info
-from dicelib import ui
-from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
 
-
+from libc.math cimport sqrt
+from libc.stdlib cimport free, malloc
+from libcpp cimport bool
 
 cdef void tot_lenght(float[:,::1] fib_in, float* length) noexcept nogil:
     cdef size_t i = 0
@@ -304,7 +296,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     cdef int [:] clust_idx = np.zeros(n_streamlines, dtype=np.int32)
     t1 = time.time()
  
-    with ui.ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
+    with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
         for i in xrange(1, n_streamlines, 1):
             TCK_in._read_streamline()
             if TCK_in.n_pts == nb_pts: # no need to resample
@@ -718,8 +710,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
         logger.subinfo(f"Dividing the streamlines into anatomical bundles using the atlas {atlas}", indent_char='*',  with_progress=True)
-        with ui.ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=(verbose in [0,1,3]), hide_on_exit=True, subinfo=True) as pbar:
-            with tdp(max_workers=MAX_THREAD) as executor:
+        with ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=(verbose in [0,1,3]), hide_on_exit=True, subinfo=True) as pbar:
+            with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
                 future = [executor.submit( assign, tractogram_in, pbar_array, i, start_chunk=int(chunk_groups[i][0]),
                                             end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
                                             gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
@@ -746,11 +738,11 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         t0 = time.time()
         output_bundles_folder = os.path.join(temp_folder, 'bundles')
         logger.subinfo(f"Splitting the bundles into separate files", indent_char='*', with_progress=True)
-        with ui.ProgressBar(disable=verbose<3, hide_on_exit=True, subinfo=True) as pbar:
+        with ProgressBar(disable=verbose<3, hide_on_exit=True, subinfo=True) as pbar:
             split_bundles(input_tractogram=tractogram_in, input_assignments=save_assignments, output_folder=output_bundles_folder,
                         weights_in=temp_idx, force=force, verbose=1)
         t1 = time.time()
-        ui.set_verbose(verbose)
+        set_verbose(verbose)
         logger.subinfo(f"[ {np.round(t1-t0, 2)} seconds ]")
         
         bundles = []
@@ -791,7 +783,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             else:
                 MAX_BYTES = int(0.9 * mem_avail)//MAX_THREAD
 
-            executor = tdp(max_workers=MAX_THREAD)
+            executor = ThreadPoolExecutor(max_workers=MAX_THREAD)
             t0 = time.time()
             chunk_list = []
 
@@ -831,14 +823,14 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 break
         
         logger.subinfo(f"Parallel bundles clustering", indent_char='*', with_progress=True)
-        with ui.ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3]), hide_on_exit=True, subinfo=True) as pbar:
+        with ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3]), hide_on_exit=True, subinfo=True) as pbar:
             future = [executor.submit(cluster_chunk,
                                       chunk,
                                       num_fibs,
                                       clust_thr,
                                       n_pts=n_pts,
                                       metric=metric) for chunk, num_fibs in chunk_list]
-            for i, f in enumerate(cf.as_completed(future)):
+            for i, f in enumerate(as_completed(future)):
                 bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst = f.result()
 
                 for i_b in range(len(bundle_num_c)):

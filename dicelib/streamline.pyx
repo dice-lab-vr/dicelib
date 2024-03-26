@@ -1,13 +1,10 @@
-#!python
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
-import cython
+
 from bisect import bisect_right
-from libc.math cimport sqrt, floor
+
 import numpy as np
-cimport numpy as np
 
-
-
+from libc.math cimport floor, sqrt
 
 cdef extern from "streamline.hpp":
     int smooth_c(

@@ -1,17 +1,15 @@
-#!python
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
-cimport cython
-import numpy as np
-cimport numpy as np
-from libc.stdio cimport fopen, fclose, FILE, fseek, SEEK_END, SEEK_SET
-from libc.stdio cimport fgets, fread, fwrite
-from libc.stdlib cimport malloc, free
-from libc.string cimport strlen, strncmp, strchr
-from libcpp.string cimport string
-from libc.math cimport isnan, isinf, NAN
-import os
+
 from dicelib.tractogram import LazyTractogram
+
+import os
 import time
+
+from libc.math cimport isinf, isnan, NAN
+from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_END, SEEK_SET
+from libc.stdlib cimport free, malloc
+from libc.string cimport strchr, strlen, strncmp 
+from libcpp.string cimport string
 
 cdef float[1] NAN1 = {NAN}
 

@@ -1,15 +1,14 @@
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import LazyTractogram
-from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, resample, sample, sanitize, spline_smoothing_v2, split
+from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, LazyTractogram, recompute_indices, resample, sample, sanitize, spline_smoothing_v2, split
 from dicelib.tsf import Tsf
 from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose, setup_parser
 
 from concurrent.futures import ThreadPoolExecutor
-import numpy as np
 import os
 from time import time
 
+import numpy as np
 
 def compute_chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
