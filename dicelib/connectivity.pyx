@@ -18,7 +18,7 @@ from dicelib.tractogram cimport LazyTractogram
 from dicelib.streamline import create_replicas
 from dicelib.streamline cimport apply_affine
 from . import ui
-from dicelib.ui import __logger__ as logger
+from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
 <<<<<<< HEAD
 
 =======
