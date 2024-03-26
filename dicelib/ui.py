@@ -46,7 +46,6 @@ bg = f'{esc}48;5;'
 
 # text formatting and effects
 text_underline = f'{esc}4m'
-# clear_line = f'{esc}2K'
 terminal_size = ' ' * get_terminal_size().columns * 2
 clear_line = f'{esc}2K' if not _in_notebook() else f'\r{terminal_size}'
 
@@ -951,7 +950,8 @@ class ProgressBar:
         self._done = True
         if not self.disable:
             if self.subinfo:
-                print(f'{esc}1D [OK]') if self.total is None else print(f'{esc}{self._percent_len}D [OK]')
+                end_str = f'{esc}1D{esc}0K' if self.total is None else f'{esc}{self._percent_len}D{esc}0K'
+                print(end_str) if self.hide_on_exit else print(f'{end_str}[OK]')
             else:
                 print(clear_line, end='\r', flush=True)
                 if not self.hide_on_exit:
