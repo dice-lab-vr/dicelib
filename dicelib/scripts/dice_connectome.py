@@ -1,42 +1,34 @@
-from os import getcwd
-from os.path import isabs, isfile, join as p_join, splitext
-
 from dicelib.connectivity import build_connectome
 from dicelib.ui import setup_parser
-from dicelib.ui import __logger__ as logger
 
 def connectome_build():
     # parse the input parameters
     args = [
-        [["input_assignments"], {"help": "Input streamline assignments file"}],
-        [["output_connectome"], {"help": "Output connectome file"}],
-        [["input_weights"], {"help": "Input streamline weights file, used to compute the value of the edges"}],
-        [["--metric", "-m"], {"default": 'sum', "help": "Operation to compute the value of the edges, options: sum, mean, min, max."}],
-        [["--symmetric", "-s"], {"action": "store_true", "help": "Make output connectome symmetric"}]
+        [['assignments_in'], {'type': str, 'help': 'Input streamline assignments file'}],
+        [['connectome_out'], {'type': str, 'help': 'Output connectome file'}],
+        [['weights_in'], {'type': str, 'help': 'Input streamline weights file, used to compute the value of the edges'}],
+        [['--tractogram_in', '-t'], {'type': str, 'help': '''\
+                                     Input tractogram file, used to compute the assignments.
+                                     Required if \'assignments_in\' does not exist'''}],
+        [['--nodes_in', '-n'], {'type': str, 'help': '''\
+                                Input nodes file, used to compute the assignments.
+                                Required if \'assignments_in\' does not exist'''}],
+        [['--threshold', '-thr'], {'type': float, 'default': 2.0, 'help': '''\Threshold used to compute the assignments.
+                                   Required if \'assignments_in\' does not exist'''}],
+        [['--metric', '-m'], {'type': str, 'default': 'sum', 'help': 'Operation to compute the value of the edges, options: sum, mean, min, max.'}],
+        [['--symmetric', '-s'], {'action': 'store_true', 'help': 'Make output connectome symmetric'}]
     ]
     options = setup_parser(build_connectome.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-
-    # check if path to input and output files are valid
-    if not isfile(options.input_assignments):
-        logger.error(f"Input assignments file not found: {options.input_assignments}")
-    if isfile(options.output_connectome) and not options.force:
-        logger.error(f"Output conncetome file already exists: {options.output_connectome}")
-    # check if the output connectome file has the correct extension
-    output_connectome_ext = splitext(options.output_connectome)[1]
-    if output_connectome_ext not in ['.csv', '.npy']:
-        logger.error("Invalid extension for the output connectome file")
-
-    # check if the output connectome file has absolute path and if not, add the current working directory
-    if options.output_connectome and not isabs(options.output_connectome):
-        options.output_connectome = p_join(getcwd(), options.output_connectome)
-
     # call actual function
-    build_connectome( 
-        options.input_assignments,
-        options.output_connectome,
-        options.input_weights, 
-        options.metric, 
+    build_connectome(
+        options.weights_in,
+        options.assignments_in,
+        options.connectome_out,
+        options.tractogram_in,
+        options.nodes_in,
+        options.threshold,
+        options.metric,
         options.symmetric,
         options.verbose,
         options.force
