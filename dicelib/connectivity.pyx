@@ -685,7 +685,6 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
 
         # compute assignments
         os.system(f'dice_tractogram_assign {input_tractogram} {input_nodes} --save_assignments {input_assignments} -t {threshold} -v {verbose}')
-        tractogram_assign
     check_params(files=files, force=force)
 
     # streamline weights
