@@ -6,6 +6,7 @@ import argparse
 from datetime import datetime as _datetime
 import itertools
 import logging
+from os.path import abspath
 import re as _re
 from shutil import get_terminal_size
 import sys
@@ -13,7 +14,6 @@ import textwrap
 from threading import Thread
 from time import sleep, time
 from typing import Literal, NoReturn
-from os.path import abspath
 
 def _in_notebook() -> bool:
     try:
@@ -87,9 +87,9 @@ SUBINFO = 21
 Mode = Literal['console', 'file']
 class LoggerFormatter(logging.Formatter):
     def __init__(self, mode: Mode) -> NoReturn:
-        self.levelname_len = 10
-        self.message_len = 60
-        self.levelname_sep = '-'
+        # self.levelname_len = 10
+        self.msg_len = 60
+        # self.levelname_sep = '-'
         self.message_sep = ' '
         asctime = '{asctime}'
         levelname = '{levelname}'
@@ -98,27 +98,25 @@ class LoggerFormatter(logging.Formatter):
         lineno = '{lineno}'
 
         if mode == 'console':
-            self.message_indent = 13
+            # self.message_indent = 13
             self.formats = {
-                logging.DEBUG: f'{bg_green}{fg_black}-{levelname}>{reset}  {message}  {fg_green}<module:{module}, line:{lineno}> [{asctime}]{reset}',
-                logging.INFO: f'{bg_cyan}{fg_black}-{levelname}>{reset}  {message}',
+                logging.DEBUG: f'{fg_cyan}{message}  <module:{module}, line:{lineno}> [{asctime}]{reset}',
+                logging.INFO: f'{fg_green}{message}{reset}',
                 SUBINFO: f'{message}',
-                logging.WARNING: f'{bg_yellow}{fg_black}-{levelname}>{reset}  {message}  {fg_yellow}<module:{module}, line:{lineno}>{reset}',
-                logging.ERROR: f'{bg_red}{fg_black}-{levelname}>{reset}  {message}  {fg_red}<module:{module}, line:{lineno}>{reset}',
-                logging.CRITICAL: f'{bg_red}{fg_black}-{levelname}>{reset}  {message}  {fg_red}<module:{module}, line:{lineno}>{reset}'
+                logging.WARNING: f'{bg_yellow}{fg_black}{levelname}{reset} {fg_yellow}{message}{reset}',
+                logging.ERROR: f'{bg_red}{fg_black}{levelname}{reset} {fg_red}{message}  <module:{module}, line:{lineno}>{reset}'
             }
-            self.format_levelname = lambda text: f'{text}'.ljust(self.levelname_len - 1, self.levelname_sep)
+            # self.format_levelname = lambda text: f'{text}'.ljust(self.levelname_len - 1, self.levelname_sep)
         elif mode == 'file':
-            self.message_indent = 14
+            # self.message_indent = 14
             self.formats = {
-                logging.DEBUG: f'[{levelname}]  {message}  <module:{module}, line:{lineno}> [{asctime}]',
-                logging.INFO: f'[{levelname}]  {message}',
+                logging.DEBUG: f'[{levelname}] {message}  <module:{module}, line:{lineno}> [{asctime}]',
+                logging.INFO: f'[{levelname}] {message}',
                 SUBINFO: f'{message}',
-                logging.WARNING: f'[{levelname}]  {message}  <module:{module}, line:{lineno}>',
-                logging.ERROR: f'[{levelname}]  {message}  <module:{module}, line:{lineno}>',
-                logging.CRITICAL: f'[{levelname}]  {message}  <module:{module}, line:{lineno}>'
+                logging.WARNING: f'[{levelname}] {message}',
+                logging.ERROR: f'[{levelname}] {message}  <module:{module}, line:{lineno}>'
             }
-            self.format_levelname = lambda text: f'{text}'.center(self.levelname_len, self.levelname_sep)
+            # self.format_levelname = lambda text: f'{text}'.center(self.levelname_len, self.levelname_sep)
         else:
             raise ValueError('\'mode\' must be \'console\' or \'file\'')
         super().__init__(fmt=self.formats[logging.DEBUG], datefmt='%Y-%m-%d, %H:%M:%S', style='{')
@@ -128,27 +126,38 @@ class LoggerFormatter(logging.Formatter):
         record.message = record.getMessage()
         if self.usesTime():
             record.asctime = self.formatTime(record, self.datefmt)
-        record.levelname = self.format_levelname(logging.getLevelName(record.levelno))
+        # record.levelname = self.format_levelname(logging.getLevelName(record.levelno))
+        record.levelname = logging.getLevelName(record.levelno)
 
         if record.levelno == SUBINFO:
-            s = textwrap.indent(record.message, self.message_sep * self.message_indent)
+            # s = textwrap.indent(record.message, self.message_sep * self.message_indent)
+            s = textwrap.indent(record.message, '   ')
             record.message = s
         else:
-            if len(record.message) > self.message_len:
+            msg_len = self.msg_len - len(record.levelname) - 1 if record.levelno == logging.WARNING or record.levelno == logging.ERROR else self.msg_len
+            if len(record.message) > msg_len:
                 rows = []
-                for line in textwrap.dedent(record.message).split('\n'):
-                    if len(line) > self.message_len:
-                        rows.extend(textwrap.wrap(line, width=self.message_len))
+                for i, line in enumerate(textwrap.dedent(record.message).split('\n')):
+                    if i == 0:
+                        if len(line) + len(record.levelname) + 1 > msg_len:
+                            first_row = textwrap.wrap(line, width=msg_len)[0]
+                            rows.append(first_row)
+                            rows.extend(textwrap.wrap(line.replace(first_row, '').strip(), width=msg_len))
+                        else:
+                            rows.append(line)
                     else:
-                        rows.append(line)
-                s = f'{rows[0].ljust(self.message_len, self.message_sep)}\n'
+                        if len(line) > msg_len:
+                            rows.extend(textwrap.wrap(line, width=msg_len))
+                        else:
+                            rows.append(line)
+                s = f'{rows[0].ljust(msg_len, self.message_sep)}\n'
                 for row in rows[1:-1]:
-                    s += f'{self.message_sep * self.message_indent}{row.ljust(self.message_len, self.message_sep)}\n'
-                s += f'{self.message_sep * self.message_indent}{rows[-1].ljust(self.message_len, self.message_sep)}'
+                    s += f'{row.ljust(msg_len, self.message_sep)}\n'
+                s += f'{rows[-1].ljust(msg_len, self.message_sep)}'
                 record.message = s
             else:
                 s = textwrap.dedent(record.message.strip())
-                s = s.ljust(self.message_len, self.message_sep)
+                s = s.ljust(msg_len, self.message_sep)
                 record.message = s
         
         s = self.formatMessage(record)
@@ -942,7 +951,7 @@ class ProgressBar:
         self._done = True
         if not self.disable:
             if self.subinfo:
-                print(f'{esc}1D [-OK-]') if self.total is None else print(f'{esc}{self._percent_len}D [-OK-]')
+                print(f'{esc}1D [OK]') if self.total is None else print(f'{esc}{self._percent_len}D [OK]')
             else:
                 print(clear_line, end='\r', flush=True)
                 if not self.hide_on_exit:
