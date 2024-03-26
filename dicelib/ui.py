@@ -217,7 +217,7 @@ def setup_logger(console_lvl=logging.DEBUG, file_lvl=logging.DEBUG) -> NoReturn:
     file_handler.emit(__logger__.makeRecord(__name__, logging.DEBUG, abspath(''), 0, 'Log created', None, None))
     __logger__.addHandler(file_handler)
 
-def set_verbose(console_lvl: int=4, file_lvl: int=1) -> NoReturn:
+def set_verbose(console_lvl: int=4, file_lvl: int=4) -> NoReturn:
     '''Set the verbosity level for the logger.
 
     Parameters
