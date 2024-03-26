@@ -116,7 +116,7 @@ def tractogram_assign():
 
     pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
     t0 = time()
-    with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+    with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=options.verbose < 3, hide_on_exit=True) as pbar:
         with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
             future = [
                 executor.submit(
