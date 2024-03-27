@@ -136,10 +136,11 @@ class LoggerFormatter(logging.Formatter):
                 rows = []
                 for i, line in enumerate(textwrap.dedent(record.message).split('\n')):
                     if i == 0:
-                        if len(line) + len(record.levelname) + 3 > msg_len:
+                        if len(line) > msg_len:
+                        # if len(line) + len(record.levelname) + 3 > msg_len:
                             first_row = textwrap.wrap(line, width=msg_len)[0]
                             rows.append(first_row)
-                            rows.extend(textwrap.wrap(line.replace(first_row, '').strip(), width=msg_len))
+                            rows.extend(textwrap.wrap(line.replace(first_row, '').strip(), width=self.msg_len))
                         else:
                             rows.append(line)
                     else:
@@ -147,14 +148,15 @@ class LoggerFormatter(logging.Formatter):
                             rows.extend(textwrap.wrap(line, width=self.msg_len))
                         else:
                             rows.append(line)
-                s = f'{rows[0].ljust(msg_len, self.message_sep)}\n'
-                for row in rows[1:-1]:
-                    s += f'{row.ljust(self.msg_len, self.message_sep)}\n'
-                s += f'{rows[-1].ljust(self.msg_len, self.message_sep)}'
+                s = f'{rows[0].ljust(msg_len, self.message_sep)}\n' if len(rows) > 1 else f'{rows[0].ljust(msg_len, self.message_sep)}'
+                if len(rows) > 1:
+                    for row in rows[1:-1]:
+                        s += f'{row.ljust(self.msg_len, self.message_sep)}\n'
+                    s += f'{rows[-1].ljust(self.msg_len, self.message_sep)}'
                 record.message = s
             else:
                 s = textwrap.dedent(record.message.strip())
-                s = s.ljust(self.msg_len, self.message_sep)
+                s = s.ljust(msg_len, self.message_sep)
                 record.message = s
         
         s = self.formatMessage(record)
