@@ -351,7 +351,8 @@ class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.Arg
                 # if the Optional doesn't take a value, format is:
                 #    -s or --long
                 if action.nargs == 0:
-                    part = action.format_usage()
+                    # part = action.format_usage()
+                    part = f'{option_string}' # NOTE: for Python 3.8 compatibility
 
                 # if the Optional takes a value, format is:
                 #    -s ARGS or --long ARGS
