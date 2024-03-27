@@ -29,13 +29,11 @@ def _in_notebook() -> bool:
 
 # ASCII art
 ascii_art = f'''\
-    ██████╗ ██╗ ██████╗███████╗██╗     ██╗██████╗
-    ██╔══██╗██║██╔════╝██╔════╝██║     ██║██╔══██╗
-    ██║  ██║██║██║     █████╗  ██║     ██║██████╔╝
-    ██║  ██║██║██║     ██╔══╝  ██║     ██║██╔══██╗
-    ██████╔╝██║╚██████╗███████╗███████╗██║██████╔╝
-    ╚═════╝ ╚═╝ ╚═════╝╚══════╝╚══════╝╚═╝╚═════╝  [v{get_version()}]
-'''
+       ___           ___ __  
+  ____/ (_)_______  / (_) /_ 
+ / __  / / ___/ _ \/ / / __ \\
+/ /_/ / / /__/  __/ / / /_/ /
+\__,_/_/\___/\___/_/_/_.___/ [v{get_version()}]'''
 
 # ANSI escape codes
 esc = '\x1b['
@@ -87,7 +85,7 @@ Mode = Literal['console', 'file']
 class LoggerFormatter(logging.Formatter):
     def __init__(self, mode: Mode) -> NoReturn:
         # self.levelname_len = 10
-        self.msg_len = 60
+        self.msg_len = 70
         # self.levelname_sep = '-'
         self.message_sep = ' '
         asctime = '{asctime}'
@@ -99,11 +97,11 @@ class LoggerFormatter(logging.Formatter):
         if mode == 'console':
             # self.message_indent = 13
             self.formats = {
-                logging.DEBUG: f'{fg_cyan}{message}  <module:{module}, line:{lineno}> [{asctime}]{reset}',
+                logging.DEBUG: f'{bg_cyan}{fg_black} {levelname} {reset} {fg_cyan}{message}  <module:{module}, line:{lineno}> [{asctime}]{reset}',
                 logging.INFO: f'{fg_green}{message}{reset}',
                 SUBINFO: f'{message}',
-                logging.WARNING: f'{bg_yellow}{fg_black}{levelname}{reset} {fg_yellow}{message}{reset}',
-                logging.ERROR: f'{bg_red}{fg_black}{levelname}{reset} {fg_red}{message}  <module:{module}, line:{lineno}>{reset}'
+                logging.WARNING: f'{bg_yellow}{fg_black} {levelname} {reset} {fg_yellow}{message}{reset}',
+                logging.ERROR: f'{bg_red}{fg_black} {levelname} {reset} {fg_red}{message}  <module:{module}, line:{lineno}>{reset}'
             }
             # self.format_levelname = lambda text: f'{text}'.ljust(self.levelname_len - 1, self.levelname_sep)
         elif mode == 'file':
@@ -133,30 +131,30 @@ class LoggerFormatter(logging.Formatter):
             s = textwrap.indent(record.message, '   ')
             record.message = s
         else:
-            msg_len = self.msg_len - len(record.levelname) - 1 if record.levelno == logging.WARNING or record.levelno == logging.ERROR else self.msg_len
+            msg_len = self.msg_len - len(record.levelname) - 3 if record.levelno != logging.INFO else self.msg_len
             if len(record.message) > msg_len:
                 rows = []
                 for i, line in enumerate(textwrap.dedent(record.message).split('\n')):
                     if i == 0:
-                        if len(line) + len(record.levelname) + 1 > msg_len:
+                        if len(line) + len(record.levelname) + 3 > msg_len:
                             first_row = textwrap.wrap(line, width=msg_len)[0]
                             rows.append(first_row)
                             rows.extend(textwrap.wrap(line.replace(first_row, '').strip(), width=msg_len))
                         else:
                             rows.append(line)
                     else:
-                        if len(line) > msg_len:
-                            rows.extend(textwrap.wrap(line, width=msg_len))
+                        if len(line) > self.msg_len:
+                            rows.extend(textwrap.wrap(line, width=self.msg_len))
                         else:
                             rows.append(line)
                 s = f'{rows[0].ljust(msg_len, self.message_sep)}\n'
                 for row in rows[1:-1]:
-                    s += f'{row.ljust(msg_len, self.message_sep)}\n'
-                s += f'{rows[-1].ljust(msg_len, self.message_sep)}'
+                    s += f'{row.ljust(self.msg_len, self.message_sep)}\n'
+                s += f'{rows[-1].ljust(self.msg_len, self.message_sep)}'
                 record.message = s
             else:
                 s = textwrap.dedent(record.message.strip())
-                s = s.ljust(msg_len, self.message_sep)
+                s = s.ljust(self.msg_len, self.message_sep)
                 record.message = s
         
         s = self.formatMessage(record)
@@ -398,56 +396,56 @@ class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.Arg
                     j = part.find(' ')
                     if spaces == 1:
                         # '[opt [{choices}]]' if action.choices else '[opt [var]]'
-                        parts[i] = f'{part[0]}{fg_cyan}{part[1:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:-3]}{part[-3:]}' if actions[i].choices else f'{part[0]}{fg_cyan}{part[1:j]}{reset} {part[j + 1]}{part[j + 2:-2]}{part[-2:]}'
+                        parts[i] = f'{part[0]}{fg_pink}{part[1:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:-3]}{part[-3:]}' if actions[i].choices else f'{part[0]}{fg_pink}{part[1:j]}{reset} {part[j + 1]}{part[j + 2:-2]}{part[-2:]}'
                     elif spaces == 2:
                         # '[opt [{choices} ...]]' if action.choices else '[opt [var ...]]'
                         jj = part[j + 1:].find(' ') + j + 1
-                        parts[i] = f'{part[0]}{fg_cyan}{part[1:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:jj - 1]}{part[jj - 1]} {part[jj + 1:-2]}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_cyan}{part[1:j]}{reset} {part[j + 1]}{part[j + 2:jj]} {part[jj + 1:-2]}{part[-2:]}'
+                        parts[i] = f'{part[0]}{fg_pink}{part[1:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:jj - 1]}{part[jj - 1]} {part[jj + 1:-2]}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_pink}{part[1:j]}{reset} {part[j + 1]}{part[j + 2:jj]} {part[jj + 1:-2]}{part[-2:]}'
                     else:
                         # '[opt {choices} [{choices} ...]]' if action.choices else '[opt var [var ...]]'
                         jj = part[j + 1:].find(' ') + j + 1
                         jjj = part[jj + 1:].find(' ') + jj + 1
-                        parts[i] = f'{part[0]}{fg_cyan}{part[1:j]}{reset} {part[j + 1]}{part[j + 2:jj - 1]}{part[jj - 1]} {part[jj + 1:jj + 3]}{part[jj + 3:jjj - 1]}{part[jjj - 1]} {part[jjj + 1:-2]}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_cyan}{part[1:j]}{reset} {part[j + 1:jj]} {part[jj + 1]}{part[jj + 2:jjj]} {part[jjj + 1:-2]}{part[-2:]}'
+                        parts[i] = f'{part[0]}{fg_pink}{part[1:j]}{reset} {part[j + 1]}{part[j + 2:jj - 1]}{part[jj - 1]} {part[jj + 1:jj + 3]}{part[jj + 3:jjj - 1]}{part[jjj - 1]} {part[jjj + 1:-2]}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_pink}{part[1:j]}{reset} {part[j + 1:jj]} {part[jj + 1]}{part[jj + 2:jjj]} {part[jjj + 1:-2]}{part[-2:]}'
                 else:
                     if ' ' in part:
                         j = part.find(' ')
                         if actions[i].nargs == '*':
                             # '[{choices} ...]' if action.choices else '[opt ...]'
-                            parts[i] = f'{part[:2]}{fg_cyan}{part[2:j - 1]}{reset}{part[j - 1]} {part[j + 1:-1]}{part[-1]}' if actions[i].choices else f'{part[0]}{fg_cyan}{part[1:j]}{reset} {part[j + 1:-1]}{part[-1]}'
+                            parts[i] = f'{part[:2]}{fg_pink}{part[2:j - 1]}{reset}{part[j - 1]} {part[j + 1:-1]}{part[-1]}' if actions[i].choices else f'{part[0]}{fg_pink}{part[1:j]}{reset} {part[j + 1:-1]}{part[-1]}'
                         else:
                             # '[opt {choices}]' if action.choices else '[opt var]'
-                            parts[i] = f'{part[0]}{fg_cyan}{part[1:j]}{reset} {part[j + 1]}{part[j + 2:-2]}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_cyan}{part[1:j]}{reset} {part[j + 1:-1]}{reset}{part[-1]}'
+                            parts[i] = f'{part[0]}{fg_pink}{part[1:j]}{reset} {part[j + 1]}{part[j + 2:-2]}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_pink}{part[1:j]}{reset} {part[j + 1:-1]}{reset}{part[-1]}'
                     else:
                         # '[{choices}]' if action.choices else '[opt]'
-                        parts[i] = f'{part[:2]}{fg_cyan}{part[2:-2]}{reset}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_cyan}{part[1:-1]}{reset}{part[-1]}'
+                        parts[i] = f'{part[:2]}{fg_pink}{part[2:-2]}{reset}{part[-2:]}' if actions[i].choices else f'{part[0]}{fg_pink}{part[1:-1]}{reset}{part[-1]}'
             elif part.endswith(']'):
                 spaces = part.count(' ')
                 j = part.find(' ')
                 if spaces == 1:
                     # 'opt [{choices}]' if action.choices else 'opt [var]'
-                    parts[i] = f'{fg_cyan}{part[:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:-2]}{part[-2:]}' if actions[i].choices else f'{fg_cyan}{part[:j]}{reset} {part[j + 1]}{part[j + 2:-1]}{part[-1]}'
+                    parts[i] = f'{fg_pink}{part[:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:-2]}{part[-2:]}' if actions[i].choices else f'{fg_pink}{part[:j]}{reset} {part[j + 1]}{part[j + 2:-1]}{part[-1]}'
                 elif spaces == 2:
                     # 'opt [opt ...]' if action.nargs is + else 'opt [var ...]'
                     jj = part[j + 1:].find(' ') + j + 1
                     if actions[i].nargs == '+':
                         # '{choices} [{choices} ...]' if action.choices else 'opt [opt ...]'
-                        parts[i] = f'{part[0]}{fg_cyan}{part[1:j - 1]}{reset}{part[j - 1]} {part[j + 1:j + 3]}{fg_cyan}{part[j + 3:jj - 1]}{reset}{part[jj - 1]} {part[jj + 1:-1]}{part[-1]}' if actions[i].choices else f'{fg_cyan}{part[:j]}{reset} {part[j + 1]}{part[j + 2:jj]} {part[jj + 1:-1]}{part[-1]}'
+                        parts[i] = f'{part[0]}{fg_pink}{part[1:j - 1]}{reset}{part[j - 1]} {part[j + 1:j + 3]}{fg_pink}{part[j + 3:jj - 1]}{reset}{part[jj - 1]} {part[jj + 1:-1]}{part[-1]}' if actions[i].choices else f'{fg_pink}{part[:j]}{reset} {part[j + 1]}{part[j + 2:jj]} {part[jj + 1:-1]}{part[-1]}'
                     else:
                         # 'opt [{choices} ...]' if action.choices else 'opt [var ...]'
-                        parts[i] = f'{fg_cyan}{part[:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:jj - 1]}{part[jj - 1]} {part[jj + 1:-1]}{part[-1]}' if actions[i].choices else f'{fg_cyan}{part[:j]}{reset} {part[j + 1]}{part[j + 2:jj]} {part[jj + 1:-1]}{part[-1]}'
+                        parts[i] = f'{fg_pink}{part[:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:jj - 1]}{part[jj - 1]} {part[jj + 1:-1]}{part[-1]}' if actions[i].choices else f'{fg_pink}{part[:j]}{reset} {part[j + 1]}{part[j + 2:jj]} {part[jj + 1:-1]}{part[-1]}'
                 else:
                     # 'opt {choices} [{choices} ...]' if action.choices else 'opt var [var ...]'
                     jj = part[j + 1:].find(' ') + j + 1
                     jjj = part[jj + 1:].find(' ') + jj + 1
-                    parts[i] = f'{fg_cyan}{part[:j]}{reset} {part[j + 1]}{part[j + 2:jj - 1]}{part[jj - 1]} {part[jj + 1:jj + 3]}{part[jj + 3:jjj - 1]}{part[jjj - 1]} {part[jjj + 1:-1]}{part[-1]}' if actions[i].choices else f'{fg_cyan}{part[:j]}{reset} {part[j + 1:jj]} {part[jj + 1]}{part[jj + 2:jjj]} {part[jjj + 1:-1]}{part[-1]}'
+                    parts[i] = f'{fg_pink}{part[:j]}{reset} {part[j + 1]}{part[j + 2:jj - 1]}{part[jj - 1]} {part[jj + 1:jj + 3]}{part[jj + 3:jjj - 1]}{part[jjj - 1]} {part[jjj + 1:-1]}{part[-1]}' if actions[i].choices else f'{fg_pink}{part[:j]}{reset} {part[j + 1:jj]} {part[jj + 1]}{part[jj + 2:jjj]} {part[jjj + 1:-1]}{part[-1]}'
             else:
                 if ' ' in part:
                     # 'opt {choices}' if action.choices else 'opt var'
                     j = part.find(' ')
-                    parts[i] =f'{fg_cyan}{part[:j]}{reset} {part[j + 1]}{part[j + 2:-1]}{part[-1]}' if actions[i].choices else f'{fg_cyan}{part[:j]}{reset} {part[j + 1:]}'
+                    parts[i] =f'{fg_pink}{part[:j]}{reset} {part[j + 1]}{part[j + 2:-1]}{part[-1]}' if actions[i].choices else f'{fg_pink}{part[:j]}{reset} {part[j + 1:]}'
                 else:
                     # '{choices}' if action.choices else 'opt'
-                    parts[i] = f'{part[0]}{fg_cyan}{part[1:-1]}{reset}{part[-1]}' if actions[i].choices else f'{fg_cyan}{part}{reset}'
+                    parts[i] = f'{part[0]}{fg_pink}{part[1:-1]}{reset}{part[-1]}' if actions[i].choices else f'{fg_pink}{part}{reset}'
 
         # join all the action items with spaces
         text = ' '.join([item for item in parts if item is not None])
@@ -516,24 +514,24 @@ class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.Arg
                         j = tmp_text.find(' ')
                         if spaces == 1:
                             # 'opt [{choices}]' if action.choices else 'opt [var]'
-                            colored_text += f'{fg_cyan}{tmp_text[:j]}{reset} {tmp_text[j + 1:j + 3]}{tmp_text[j + 3:-2]}{tmp_text[-2:]}' if action.choices else f'{fg_cyan}{tmp_text[:j]}{reset} {tmp_text[j + 1]}{tmp_text[j + 2:-1]}{tmp_text[-1]}'
+                            colored_text += f'{fg_pink}{tmp_text[:j]}{reset} {tmp_text[j + 1:j + 3]}{tmp_text[j + 3:-2]}{tmp_text[-2:]}' if action.choices else f'{fg_pink}{tmp_text[:j]}{reset} {tmp_text[j + 1]}{tmp_text[j + 2:-1]}{tmp_text[-1]}'
                         elif spaces == 2:
                             # 'opt [{choices} ...]' if action.choices else 'opt [var ...]'
                             jj = tmp_text[j + 1:].find(' ') + j + 1
-                            colored_text += f'{fg_cyan}{tmp_text[:j]}{reset} {tmp_text[j + 1:j + 3]}{tmp_text[j + 3:jj - 1]}{tmp_text[jj - 1]} {tmp_text[jj + 1:-1]}{tmp_text[-1]}' if action.choices else f'{fg_cyan}{tmp_text[:j]}{reset} {tmp_text[j + 1]}{tmp_text[j + 2:jj]} {tmp_text[jj + 1:-1]}{tmp_text[-1]}'
+                            colored_text += f'{fg_pink}{tmp_text[:j]}{reset} {tmp_text[j + 1:j + 3]}{tmp_text[j + 3:jj - 1]}{tmp_text[jj - 1]} {tmp_text[jj + 1:-1]}{tmp_text[-1]}' if action.choices else f'{fg_pink}{tmp_text[:j]}{reset} {tmp_text[j + 1]}{tmp_text[j + 2:jj]} {tmp_text[jj + 1:-1]}{tmp_text[-1]}'
                         else:
                             # 'opt {choices} [{choices} ...]' if action.choices else 'opt var [var ...]'
                             jj = tmp_text[j + 1:].find(' ') + j + 1
                             jjj = tmp_text[jj + 1:].find(' ') + jj + 1
-                            colored_text += f'{fg_cyan}{tmp_text[:j]}{reset} {tmp_text[j + 1]}{tmp_text[j + 2:jj - 1]}{tmp_text[jj - 1]} {tmp_text[jj + 1:jj + 3]}{tmp_text[jj + 3:jjj - 1]}{tmp_text[jjj - 1]} {tmp_text[jjj + 1:-1]}{tmp_text[-1]}' if action.choices else f'{fg_cyan}{tmp_text[:j]}{reset} {tmp_text[j + 1:jj]} {tmp_text[jj + 1]}{tmp_text[jj + 2:jjj]} {tmp_text[jjj + 1:-1]}{tmp_text[-1]}'
+                            colored_text += f'{fg_pink}{tmp_text[:j]}{reset} {tmp_text[j + 1]}{tmp_text[j + 2:jj - 1]}{tmp_text[jj - 1]} {tmp_text[jj + 1:jj + 3]}{tmp_text[jj + 3:jjj - 1]}{tmp_text[jjj - 1]} {tmp_text[jjj + 1:-1]}{tmp_text[-1]}' if action.choices else f'{fg_pink}{tmp_text[:j]}{reset} {tmp_text[j + 1:jj]} {tmp_text[jj + 1]}{tmp_text[jj + 2:jjj]} {tmp_text[jjj + 1:-1]}{tmp_text[-1]}'
                     else:
                         if ' ' in tmp_text:
                             # 'opt {choices}' if action.choices else 'opt var'
                             j = tmp_text.find(' ')
-                            colored_text += f'{fg_cyan}{tmp_text[:j]}{reset} {tmp_text[j + 1]}{tmp_text[j + 2:-1]}{tmp_text[-1]}' if action.choices else f'{fg_cyan}{tmp_text[:j]}{reset} {tmp_text[j + 1:]}'
+                            colored_text += f'{fg_pink}{tmp_text[:j]}{reset} {tmp_text[j + 1]}{tmp_text[j + 2:-1]}{tmp_text[-1]}' if action.choices else f'{fg_pink}{tmp_text[:j]}{reset} {tmp_text[j + 1:]}'
                         else:
                             # '{choices}' if action.choices else 'opt'
-                            colored_text += f'{tmp_text[0]}{fg_cyan}{tmp_text[1:-1]}{reset}{tmp_text[-1]}' if action.choices else f'{fg_cyan}{tmp_text}{reset}'
+                            colored_text += f'{tmp_text[0]}{fg_pink}{tmp_text[1:-1]}{reset}{tmp_text[-1]}' if action.choices else f'{fg_pink}{tmp_text}{reset}'
                     if n != len(part):
                         colored_text += ', '
                     k = n + 2
@@ -543,24 +541,24 @@ class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.Arg
                 j = part.find(' ')
                 if spaces == 1:
                     # 'opt [{choices}]' if action.choices else 'opt [var]'
-                    parts[i] = parts[i].replace(part, f'{fg_cyan}{part[:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:-2]}{part[-2:]}' if action.choices else f'{fg_cyan}{part[:j]}{reset} {part[j + 1]}{part[j + 2:-1]}{part[-1]}')
+                    parts[i] = parts[i].replace(part, f'{fg_pink}{part[:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:-2]}{part[-2:]}' if action.choices else f'{fg_pink}{part[:j]}{reset} {part[j + 1]}{part[j + 2:-1]}{part[-1]}')
                 elif spaces == 2:
                     # 'opt [{choices} ...]' if action.choices else 'opt [var ...]'
                     jj = part[j + 1:].find(' ') + j + 1
-                    parts[i] = parts[i].replace(part, f'{fg_cyan}{part[:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:jj - 1]}{part[jj - 1]} {part[jj + 1:-1]}{part[-1]}' if action.choices else f'{fg_cyan}{part[:j]}{reset} {part[j + 1]}{part[j + 2:jj]} {part[jj + 1:-1]}{part[-1]}')
+                    parts[i] = parts[i].replace(part, f'{fg_pink}{part[:j]}{reset} {part[j + 1:j + 3]}{part[j + 3:jj - 1]}{part[jj - 1]} {part[jj + 1:-1]}{part[-1]}' if action.choices else f'{fg_pink}{part[:j]}{reset} {part[j + 1]}{part[j + 2:jj]} {part[jj + 1:-1]}{part[-1]}')
                 else:
                     # 'opt {choices} [{choices} ...]' if action.choices else 'opt var [var ...]'
                     jj = part[j + 1:].find(' ') + j + 1
                     jjj = part[jj + 1:].find(' ') + jj + 1
-                    parts[i] = parts[i].replace(part, f'{fg_cyan}{part[:j]}{reset} {part[j + 1]}{part[j + 2:jj - 1]}{part[jj - 1]} {part[jj + 1:jj + 3]}{part[jj + 3:jjj - 1]}{part[jjj - 1]} {part[jjj + 1:-1]}{part[-1]}' if action.choices else f'{fg_cyan}{part[:j]}{reset} {part[j + 1:jj]} {part[jj + 1]}{part[jj + 2:jjj]} {part[jjj + 1:-1]}{part[-1]}')
+                    parts[i] = parts[i].replace(part, f'{fg_pink}{part[:j]}{reset} {part[j + 1]}{part[j + 2:jj - 1]}{part[jj - 1]} {part[jj + 1:jj + 3]}{part[jj + 3:jjj - 1]}{part[jjj - 1]} {part[jjj + 1:-1]}{part[-1]}' if action.choices else f'{fg_pink}{part[:j]}{reset} {part[j + 1:jj]} {part[jj + 1]}{part[jj + 2:jjj]} {part[jjj + 1:-1]}{part[-1]}')
             else:
                 if ' ' in part:
                     # 'opt {choices}' if action.choices else 'opt var'
                     j = part.find(' ')
-                    parts[i] = parts[i].replace(part, f'{fg_cyan}{part[:j]}{reset} {part[j + 1]}{part[j + 2:-1]}{part[-1]}' if action.choices else f'{fg_cyan}{part[:j]}{reset} {part[j + 1:]}')
+                    parts[i] = parts[i].replace(part, f'{fg_pink}{part[:j]}{reset} {part[j + 1]}{part[j + 2:-1]}{part[-1]}' if action.choices else f'{fg_pink}{part[:j]}{reset} {part[j + 1:]}')
                 else:
                     # '{choices}' if action.choices else 'opt'
-                    parts[i] = parts[i].replace(part, f'{part[0]}{fg_cyan}{part[1:-1]}{reset}{part[-1]}' if action.choices else f'{fg_cyan}{part}{reset}')
+                    parts[i] = parts[i].replace(part, f'{part[0]}{fg_pink}{part[1:-1]}{reset}{part[-1]}' if action.choices else f'{fg_pink}{part}{reset}')
 
         # if there was help for the action, add lines of help text
         if action.help and action.help.strip():
@@ -604,7 +602,7 @@ class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.Arg
             # add the heading if the section was non-empty
             if self.heading is not argparse.SUPPRESS and self.heading is not None:
                 current_indent = self.formatter._current_indent
-                heading = '%*s%s:\n' % (current_indent, '', f'{fg_orange}{text_underline}{self.heading.upper()}{reset}') # NOTE: add format and color
+                heading = '%*s%s:\n' % (current_indent, '', f'{text_underline}{self.heading.upper()}{reset}') # NOTE: add format and color
             else:
                 heading = ''
 
@@ -705,7 +703,7 @@ class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.Arg
                 usage = '\n'.join(lines)
 
         # prefix with 'PREFIX: '
-        return f'{fg_orange}{text_underline}{prefix.upper()}{reset}: {usage}\n\n' # NOTE: add format and color
+        return f'{text_underline}{prefix.upper()}{reset}: {usage}\n\n' # NOTE: add format and color
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self,
@@ -739,7 +737,7 @@ class ArgumentParser(argparse.ArgumentParser):
         formatter = self._get_formatter()
 
         # ASCII art, version and script name
-        formatter.add_text(f'{textwrap.dedent(ascii_art)}{fg_pink}{self.prog}{reset}')
+        formatter.add_text(f'{textwrap.dedent(ascii_art)}')
 
         # description
         formatter.add_text(textwrap.indent(self.description, '    ')) # NOTE: add indentation
