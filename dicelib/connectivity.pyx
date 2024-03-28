@@ -47,8 +47,8 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
     # find the centers of each voxels
     centers = np.stack([mx.ravel() + x, my.ravel() + y, mz.ravel() + z], axis=1)
 
-    # sort the centers based on their distance from grid_center 
-    dist_grid = ((centers - grid_center)**2).sum(axis=1).argsort()
+    # sort the centers based on their distance from grid_center
+    dist_grid = ((centers - grid_center)**2).sum(axis=1).argsort().astype(np.int32)
     centers_c = centers[ dist_grid ].astype(np.float32)
 
     return centers_c

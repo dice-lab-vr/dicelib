@@ -148,56 +148,19 @@ def tractogram_cluster():
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['clust_thr'], {'type': float, 'help': 'Distance threshold [in mm] used to cluster the streamlines'}],
         [['tractogram_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
-        [['--metric', '-m'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: "mean", "max"'}],
+        [['--metric', '-m'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: \'mean\', \'max\''}],
         [['--n_pts', '-n'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
-        [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': 'Path to the atlas file used to split the streamlines into bundles for parallel clustering'}],
+        [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': 'Path to the atlas file used to split the streamlines into bundles. If provided, parallel clustering will be performed'}],
         [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': 'Distance [in mm] used to assign streamlines to the atlas\' nodes for hierarchical clustering'}],
-        [['--temp_folder', '-temp'], {'type': str, 'metavar': 'OUT_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
-        [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform clustering'}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
+        [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform parallel clustering. If None, all the available threads will be used'}],
         [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
     ]
     options = setup_parser(run_clustering.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # check the input parameters
-    # check if path to input and output files are valid
-    if not os.path.isfile(options.tractogram_in):
-        logger.error(f'Input file does not exist: {options.tractogram_in}')
-
-    if options.tractogram_out is not None:
-        out_ext = os.path.splitext(options.tractogram_out)[1]
-        if out_ext not in ['.trk', '.tck']:
-            logger.error('Invalid extension for the output tractogram')
-        elif os.path.isfile(options.tractogram_out) and not options.force:
-            logger.error('Output tractogram already exists, use -f to overwrite')
-
-    # check if atlas exists
-    if options.atlas is not None:
-        if not os.path.exists(options.atlas):
-            logger.error('Atlas does not exist')
-
-
-    # check if metric is valid
-    if options.metric not in ['mean', 'max']:
-        logger.error('Invalid metric, must be "mean" or "max"')
-
-    # check if number of threads is valid
-    if options.n_threads is not None:
-        if options.n_threads < 1:
-            logger.error('Number of threads must be at least 1')
-
-    # check if connectivity threshold is valid
-    if options.atlas_dist is not None:
-        if options.atlas_dist < 0:
-            logger.error('Connectivity threshold must be positive')
-
-    # check if clustering threshold is valid
-    if options.clust_thr is not None:
-        if options.clust_thr < 0:
-            logger.error('Clustering threshold must be positive')
-
     run_clustering(
         tractogram_in=options.tractogram_in,
-        temp_folder=options.temp_folder,
+        temp_folder=options.tmp_folder,
         tractogram_out=options.tractogram_out,
         atlas=options.atlas,
         conn_thr=options.atlas_dist,
