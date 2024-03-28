@@ -4,6 +4,7 @@
 
 from dicelib.connectivity import assign
 from dicelib.tractogram import info, split as split_bundles
+from dicelib.streamline import length as streamline_length
 from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
 from dicelib.utils import check_params, Dir, File, Num
 
@@ -866,29 +867,158 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         logger.info(f'Clustering using threshold {clust_thr} and {n_pts} points')
         t0 = time.time()
 
-        hash_superset = np.empty( num_streamlines, dtype=np.uint64)
+        if n_threads:
+            MAX_THREAD = n_threads
+        else:
+            MAX_THREAD = os.cpu_count()
 
-        for i in range(num_streamlines):
-            TCK_in._read_streamline()
-            hash_superset[i] = hash(np.array(TCK_in.streamline[:TCK_in.n_pts]).tobytes())
-        TCK_in.close()
+        # Compute length of the streamlines
+        n_streamlines = int( TCK_in.header['count'] )
+        lengths = np.empty( n_streamlines, dtype=np.double )
+        with ProgressBar( total=n_streamlines, disable=(verbose < 3), hide_on_exit=True ) as pbar:
+            for i in range( n_streamlines ):
+                TCK_in.read_streamline()
+                if TCK_in.n_pts==0:
+                    break # no more data, stop reading
+                lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
+                pbar.update()
 
-        clust_idx, set_centroids = cluster(tractogram_in, metric=metric, threshold=clust_thr, n_pts=n_pts, verbose=verbose)
-        centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
-        new_c = closest_streamline(tractogram_in, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
-        
-        TCK_out_size = 0
+        # Create assignments to divide streamline into different files based on their length
+        assignments = np.zeros( n_streamlines, dtype=np.int32 )
+        max_len = np.max( lengths )
+        min_len = np.min( lengths )
+
+        len_range = max_len - min_len
+        len_step = len_range / MAX_THREAD
+
+        # divide the streamlines into MAX_THREAD groups
+        for i in range( n_streamlines ):
+            assignments[i] = int( (lengths[i] - min_len) // len_step )
+    
+        # sum 1 to the assignments to avoid 0
+        assignments += 1
+
+        # save the assignments
+        save_assignments = os.path.join(temp_folder, f'{os.path.basename(tractogram_in)[:-4]}_assignments.txt')
+        temp_idx_arr = np.arange(n_streamlines)
+        temp_idx = os.path.join(temp_folder, 'streamline_idx.npy')
+        np.save( temp_idx, temp_idx_arr )
+
+        with open(save_assignments, "w") as text_file:
+            for i in range( n_streamlines ):
+                print('%d %d' % (int(assignments[i]), int(assignments[i])), file=text_file)
+
+        # Split the streamlines into different files based on their length
+        output_bundles_folder = os.path.join(temp_folder, 'bundles')
+        split_bundles(input_tractogram=tractogram_in, input_assignments=save_assignments, output_folder=output_bundles_folder,
+                      weights_in=temp_idx, force=force, verbose=1)
+        set_verbose(verbose)
+
+        bundles = []
+        for dirpath, _, filenames in os.walk(output_bundles_folder):
+            for f in filenames:
+                if f.endswith('.tck') and not f.startswith('unassigned'):
+                    filename = os.path.abspath(os.path.join(dirpath, f))
+                    bundles.append((filename, os.path.getsize(filename), int(info(filename,verbose=1))))
+        set_verbose(verbose)
+
+        # Sort the list of tuples by the file size, which is the second element of each tuple
+        bundles.sort(key=lambda x: x[1])
+
+        # Convert the sorted list of tuples into a dictionary
+        bundles = {i: bundle for i, bundle in enumerate(bundles)}
+
+        bundles[len(bundles)-1] = (bundles[len(bundles)-1][0], bundles[len(bundles)-1][1], bundles[len(bundles)-1][2]*10)
+
         ref_indices = []
-        for i, n_c in enumerate(new_c):
-            hash_val = hash(np.array(n_c[:centr_len[i]]).tobytes())
-            ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
-            TCK_out.write_streamline(n_c[:centr_len[i]], centr_len[i] )
-            TCK_out_size += 1
-        TCK_out.close( write_eof=True, count= TCK_out_size)
+        TCK_out_size = 0
+
+        # retreieve total memory available
+        mem = psutil.virtual_memory()
+        mem_avail = mem.available
+
+        while True:
+            if max_bytes>0:
+                if max_bytes > mem_avail:
+                    MAX_BYTES = mem_avail//MAX_THREAD
+                else:
+                    MAX_BYTES = max_bytes//MAX_THREAD
+            else:
+                MAX_BYTES = int(0.9 * mem_avail)//MAX_THREAD
+
+            executor = ThreadPoolExecutor(max_workers=MAX_THREAD)
+            t0 = time.time()
+            chunk_list = []
+
+            # compute base size of centroid array
+            base_size = getsizeof(np.zeros((1,1, 1000, 3), dtype=np.float32))
+
+            # compute chunks
+            while len(bundles.items()) > 0:
+                to_delete = []
+                new_chunk = []
+                new_chunk_num_streamlines = []
+                max_bundle_size = 0
+                for k, bundle in bundles.items():
+                    new_chunk_size = [os.path.getsize(f) for f in new_chunk]
+                    if bundle[2] > max_bundle_size:
+                        max_bundle_size = bundle[2]
+                    future_size = len(new_chunk_size) * max_bundle_size * 4 * base_size
+                    
+                    if future_size < MAX_BYTES:
+                        new_chunk.append(bundle[0])
+                        new_chunk_num_streamlines.append(bundle[2])
+                        to_delete.append(k)
+                    else:
+                        # bundle too big
+                        break
+                # remove from bundles list
+                if len(new_chunk_num_streamlines) == 0:
+                    MAX_THREAD -= 1
+                    break
+                
+                chunk_list.append([new_chunk, max(new_chunk_num_streamlines)])
+                for k in to_delete:
+                    bundles.pop(k)
+            if MAX_THREAD == 0:
+                logger.error(f'Not enough memory to process the data')
+            if len(bundles.items()) == 0:
+                break
+
+        logger.subinfo(f"Parallel bundles clustering", indent_char='*', with_progress=True)
+        with ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3]), hide_on_exit=True, subinfo=True) as pbar:
+            future = [executor.submit(cluster_chunk,
+                                      chunk,
+                                      num_fibs,
+                                      clust_thr,
+                                      n_pts=n_pts,
+                                      metric=metric) for chunk, num_fibs in chunk_list]
+            for i, f in enumerate(as_completed(future)):
+                bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst = f.result()
+
+                for i_b in range(len(bundle_num_c)):
+                    ref_indices.extend(idx_clst[i_b][:bundle_num_c[i_b]].tolist())
+                    new_centroids, new_centroids_len = bundle_new_c[i_b], bundle_centr_len[i_b]
+                    for i_s in range(bundle_num_c[i_b]):
+                        TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
+                        TCK_out_size += 1
+                pbar.update()
+            TCK_out.close( write_eof=True, count= TCK_out_size)
+
+        set_verbose(verbose)
 
         t1 = time.time()
-        logger.subinfo(f"Number of computed centroids: {TCK_out_size}", indent_char='*')
+
+        logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_char='*')
         logger.subinfo(f'[ {np.round(t1-t0, 2)} seconds ]')
+
+        os.remove(temp_idx)
+        if not keep_temp_files:
+            shutil.rmtree(output_bundles_folder)
+            os.remove(save_assignments)
+            # remove temp_folder of different from current
+            if temp_folder != os.getcwd():
+                shutil.rmtree(temp_folder)
 
     if TCK_in is not None:
         TCK_in.close()
