@@ -85,7 +85,7 @@ Mode = Literal['console', 'file']
 class LoggerFormatter(logging.Formatter):
     def __init__(self, mode: Mode) -> NoReturn:
         # self.levelname_len = 10
-        self.msg_len = 70
+        self.msg_len = 75
         # self.levelname_sep = '-'
         self.message_sep = ' '
         asctime = '{asctime}'
@@ -128,7 +128,7 @@ class LoggerFormatter(logging.Formatter):
 
         if record.levelno == SUBINFO:
             # s = textwrap.indent(record.message, self.message_sep * self.message_indent)
-            s = textwrap.indent(record.message, '   ')
+            s = textwrap.indent(record.message, '') # TODO: remove this
             record.message = s
         else:
             msg_len = self.msg_len - len(record.levelname) - 3 if record.levelno != logging.INFO else self.msg_len
@@ -816,7 +816,13 @@ def setup_parser(description: str, args: list, add_force: bool=False, add_verbos
     if add_force:
         parser.add_argument('--force', '-f', action='store_true', help='Force overwriting of the output')
     if add_verbose:
-        parser.add_argument('--verbose', '-v', type=int, default=2, metavar='VERBOSE_LEVEL', help='Verbose level [0 = no output, 1 = only errors/warnings, 2 = errors/warnings and progress, 3 = all messages, no progress, 4 = all messages and progress]')
+        parser.add_argument('--verbose', '-v', type=int, default=2, metavar='VERBOSE_LEVEL', help='''\
+                            Verbosity level:
+                            0 = only errors
+                            1 = warnings and errors
+                            2 = info, warnings and errors
+                            3 = info, warnings, errors and progressbars
+                            4 = debug, info, warnings, errors and progressbars''')
     parser.add_argument('--help', '-h', action='help', help='Show this help message and exit')
     return parser.parse_args()
 
