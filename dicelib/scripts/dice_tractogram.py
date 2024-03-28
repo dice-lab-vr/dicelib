@@ -132,7 +132,7 @@ def tractogram_assign():
             chunks_asgn = [c for f in chunks_asgn for c in f]
 
     t1 = time()
-    logger.subinfo(f'[ {np.round((t1 - t0), 2)} seconds ]')
+    logger.info(f'[ {np.round((t1 - t0), 2)} seconds ]')
 
     if out_assignment_ext == '.txt':
         with open(options.assignments_out, "w") as text_file:
