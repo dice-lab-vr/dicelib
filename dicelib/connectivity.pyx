@@ -36,7 +36,7 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
     cdef float y = 0
     cdef float z = 0
     cdef float[:,::1] centers_c
-    cdef long[:] dist_grid
+    cdef int[:] dist_grid
 
     grid_center[:] = [ x, y, z ]
 
