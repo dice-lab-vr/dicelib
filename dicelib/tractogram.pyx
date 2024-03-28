@@ -535,7 +535,6 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
 
         # print the header
-        logger.info('HEADER content')
         max_len = max([len(k) for k in TCK_in.header.keys()])
         for key, val in TCK_in.header.items():
             if key=='count':
@@ -545,9 +544,9 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
             for v in val:
                 if max_field_length is not None and len(v)>max_field_length:
                     v = v[:max_field_length] + '...'
-                logger.subinfo('%0*s'%(max_len,key) + ':  ' + v, indent_char='*')
+                logger.subinfo('%0*s'%(max_len,key) + ':  ' + v)
         if 'count' in TCK_in.header.keys():
-            logger.subinfo('%0*s'%(max_len,'count') + ':  ' + TCK_in.header['count'] + '\n', indent_char='*')
+            logger.subinfo('%0*s'%(max_len,'count') + ':  ' + TCK_in.header['count'] + '\n')
 
         # print stats on lengths
         if compute_lengths:
@@ -562,7 +561,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
                             break # no more data, stop reading
                         lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
                         pbar.update()
-                logger.subinfo(f'min={lengths.min():.3f}  max={lengths.max():.3f}  mean={lengths.mean():.3f}  std={lengths.std():.3f}', indent_char='*')
+                logger.subinfo(f'min={lengths.min():.3f}  max={lengths.max():.3f}  mean={lengths.mean():.3f}  std={lengths.std():.3f}')
             else:
                 logger.error('The tractogram is empty')
 
