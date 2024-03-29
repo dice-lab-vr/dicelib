@@ -781,6 +781,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         logger.info(f'Clustering')
         logger.subinfo(f'Using threshold {clust_thr} and {n_pts} points', indent_lvl=1, indent_char='*')
         logger.subinfo(f'Computing chunks for parallel clustering', indent_lvl=1, indent_char='*', with_progress=True)
+
+        chunk_list = []
         with ProgressBar(subinfo=True):
             while True:
                 if max_bytes>0:
@@ -793,7 +795,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
                 executor = ThreadPoolExecutor(max_workers=MAX_THREAD)
                 t0 = time.time()
-                chunk_list = []
 
                 # compute base size of centroid array
                 base_size = getsizeof(np.zeros((1,1, 1000, 3), dtype=np.float32))
@@ -805,10 +806,10 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                     new_chunk_num_streamlines = []
                     max_bundle_size = 0
                     for k, bundle in bundles.items():
-                        new_chunk_size = [os.path.getsize(f) for f in new_chunk]
+                        new_chunk_size = len(new_chunk) + 1
                         if bundle[2] > max_bundle_size:
                             max_bundle_size = bundle[2]
-                        future_size = len(new_chunk_size) * max_bundle_size * 4 * base_size
+                        future_size = new_chunk_size * max_bundle_size * 4 * base_size
                         
                         if future_size < MAX_BYTES:
                             new_chunk.append(bundle[0])
@@ -937,6 +938,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         mem = psutil.virtual_memory()
         mem_avail = mem.available
 
+        chunk_list = []
+
         while True:
             if max_bytes>0:
                 if max_bytes > mem_avail:
@@ -948,7 +951,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
             executor = ThreadPoolExecutor(max_workers=MAX_THREAD)
             t0 = time.time()
-            chunk_list = []
 
             # compute base size of centroid array
             base_size = getsizeof(np.zeros((1,1, 1000, 3), dtype=np.float32))
@@ -960,11 +962,11 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 new_chunk_num_streamlines = []
                 max_bundle_size = 0
                 for k, bundle in bundles.items():
-                    new_chunk_size = [os.path.getsize(f) for f in new_chunk]
+                    new_chunk_size = len(new_chunk) + 1
                     if bundle[2] > max_bundle_size:
                         max_bundle_size = bundle[2]
-                    future_size = len(new_chunk_size) * max_bundle_size * 4 * base_size
-                    
+                    future_size = new_chunk_size * max_bundle_size * 4 * base_size
+
                     if future_size < MAX_BYTES:
                         new_chunk.append(bundle[0])
                         new_chunk_num_streamlines.append(bundle[2])
