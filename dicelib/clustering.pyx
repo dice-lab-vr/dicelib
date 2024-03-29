@@ -723,7 +723,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
         t1 = time.time()
         logger.subinfo(f'Number of regions: {np.max(np.array(chunks_asgn))}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'[ {np.round(t1-t0, 2)} seconds ]')
+        logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
 
         out_assignment_ext = os.path.splitext(save_assignments)[1]
         if out_assignment_ext not in ['.txt', '.npy']:
@@ -764,7 +764,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
         t1 = time.time()
         set_verbose(verbose)
-        logger.subinfo(f'[ {np.round(t1-t0, 2)} seconds ]')
+        logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
 
         if n_threads:
             MAX_THREAD = n_threads
@@ -854,7 +854,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         set_verbose(verbose)
         t1 = time.time()
         logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'[ {np.round(t1-t0, 2)} seconds ]')
+        logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
 
         os.remove(temp_idx)
         if not keep_temp_files:
@@ -1012,7 +1012,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         t1 = time.time()
 
         logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_char='*')
-        logger.subinfo(f'[ {np.round(t1-t0, 2)} seconds ]')
+        logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
 
         os.remove(temp_idx)
         if not keep_temp_files:
