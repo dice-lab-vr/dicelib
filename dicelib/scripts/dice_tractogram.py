@@ -174,21 +174,21 @@ def tractogram_cluster():
     )
 
 
-def tractogram_compress():
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--minlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
-        [['--maxlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
-        [['--minweight'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
-        [['--maxweight'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
-        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
-        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}]
-    ]
-    options = setup_parser('Not implemented', args, add_force=True, add_verbose=True)
+# def tractogram_compress():
+#     # parse the input parameters
+#     args = [
+#         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+#         [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
+#         [['--minlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
+#         [['--maxlength'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
+#         [['--minweight'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
+#         [['--maxweight'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
+#         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
+#         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}]
+#     ]
+#     options = setup_parser('Not implemented', args, add_force=True, add_verbose=True)
 
-    logger.error('This function is not implemented yet')
+#     logger.error('This function is not implemented yet')
 
 
 # def tractogram_convert():
