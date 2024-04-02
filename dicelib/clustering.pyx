@@ -631,7 +631,7 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 
 def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=None, atlas: str=None, conn_thr: float=2.0,
                     clust_thr: float=2.0, metric: str="mean", n_pts: int=12,
-                    n_threads: int=None, force: bool=False, verbose: int=2, keep_temp_files: bool=False, max_bytes: int=0):
+                    n_threads: int=None, force: bool=False, verbose: int=3, keep_temp_files: bool=False, max_bytes: int=0, log_list=None):
     """Cluster streamlines in a tractogram based on a given metric. Possible metrics are "mean" and "max" (default: "mean").
 
     Parameters
@@ -710,9 +710,12 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
         logger.info('Dividing the streamlines into anatomical bundles')
-        logger.warning(f'Atlas data type is {nib.load(atlas).header.get_data_dtype()}. It is recommended to use int32')
+        atlas_dtype = nib.load(atlas).header.get_data_dtype()
+        if atlas_dtype.char != 'i':
+            warning_msg = f'Atlas data type is \'{atlas_dtype}\'. It is recommended to use integer data type.'
+            logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
         logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
-        with ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
+        with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
             with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
                 future = [executor.submit( assign, tractogram_in, pbar_array, i, start_chunk=int(chunk_groups[i][0]),
                                             end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
@@ -747,8 +750,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 output_folder=output_bundles_folder,
                 weights_in=temp_idx,
                 force=force,
-                verbose=1,
-                max_open=2000) # NOTE: max_open is forced to 2000
+                verbose=1)
             bundles = []
             for dirpath, _, filenames in os.walk(output_bundles_folder):
                 for f in filenames:
@@ -783,7 +785,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         chunk_list = []
         try:
             TCK_out = LazyTractogram(tractogram_out, mode='w', header=TCK_in.header)
-            with ProgressBar(subinfo=True):
+            with ProgressBar(subinfo=True, disable=verbose < 3):
                 while True:
                     if max_bytes>0:
                         if max_bytes > mem_avail:

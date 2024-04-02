@@ -192,6 +192,7 @@ class Logger(logging.Logger):
             if with_progress:
                 for i in stream_handler_indices:
                         self.handlers[i].terminator = '\n'
+        return msg
     
     def error(self, msg, stacklevel=2, *args, **kwargs):
         super().error(msg, stacklevel=stacklevel, *args, **kwargs)
@@ -816,7 +817,7 @@ def setup_parser(description: str, args: list, add_force: bool=False, add_verbos
     if add_force:
         parser.add_argument('--force', '-f', action='store_true', help='Force overwriting of the output')
     if add_verbose:
-        parser.add_argument('--verbose', '-v', type=int, default=2, metavar='VERBOSE_LEVEL', help='''\
+        parser.add_argument('--verbose', '-v', type=int, default=3, metavar='VERBOSE_LEVEL', help='''\
                             Verbosity level:
                             0 = only errors
                             1 = warnings and errors
@@ -847,6 +848,13 @@ class ProgressBar:
     multithread_progress : (nthreads,) np.ndarray or None
         Array that contains the progress of each thread. If None, the progress
 		is tracked as singlethreaded (default is None).
+    subinfo : str or bool
+        Whether to display the progress bar with next to a subinfo string. If
+        log_list is not empty, the subinfo must be a string (default is False).
+    log_list : list
+        List of log messages to be displayed during the progress bar (default is []).
+    hide_on_exit : bool
+        Whether to hide the progress bar on exit (default is True).
     disable : bool
         Whether to disable the progress bar (default is False).
 	
@@ -876,21 +884,22 @@ class ProgressBar:
 	...         progress[thread_id] += 1
     """
 
-    def __init__(self, total=None, ncols=None, refresh=0.05, eta_refresh=1, multithread_progress=None, subinfo=False, hide_on_exit=True, disable=False):
+    def __init__(self, total=None, ncols=None, refresh=0.05, eta_refresh=1, multithread_progress=None, subinfo=False, log_list=[], hide_on_exit=True, disable=False):
         self.total = total
         self.ncols = int(get_terminal_size().columns // 2) if ncols is None else ncols
         self.refresh = refresh
         self.eta_refresh = eta_refresh
         self.multithread_progress = multithread_progress
         self.subinfo = subinfo
+        self.log_list = log_list
         self.hide_on_exit = hide_on_exit
         self.disable = disable
         self._done = False
 
         if self.total is None:
-            if subinfo:
+            if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
                 self._steps = [f'{symbol}' for symbol in ['|', '/', '-', '\\']]
-            else:
+            elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                 bar_length = int(self.ncols // 2)
                 self._steps = []
                 for i in range(self.ncols - bar_length + 1):
@@ -922,13 +931,20 @@ class ProgressBar:
             for step in itertools.cycle(self._steps):
                 if self._done:
                     break
-                if self.subinfo:
-                    print(f'{esc}1D{step}', end='', flush=True)
-                else:
+                if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
+                    if self.log_list:
+                        print(clear_line, end='\r', flush=True)
+                        for log in self.log_list:
+                            __logger__.warning(log)
+                        print(f'{self.subinfo} {step}', end='', flush=True)
+                        self.log_list = []
+                    else:
+                        print(f'{esc}1D{step}', end='', flush=True)
+                elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                     print(f"\r|{step}{reset}|", end='', flush=True)
                 sleep(self.refresh)
         else:
-            if self.subinfo:
+            if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
                 print(f'{esc}1D[0.0%]', end='', flush=True)
                 self._percent_len = 6
             while True:
@@ -938,11 +954,18 @@ class ProgressBar:
                     self._update_eta()
                 if self.multithread_progress is not None:
                     self._progress = np.sum(self.multithread_progress)
-                if self.subinfo:
+                if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
                     percent_str = f'[{100 * self._progress / self.total:.1f}%]'
-                    print(f'{esc}{self._percent_len}D{percent_str}', end='', flush=True)
+                    if self.log_list:
+                        print(clear_line, end='\r', flush=True)
+                        for log in self.log_list:
+                            __logger__.warning(log)
+                        print(f'{self.subinfo} {percent_str}', end='', flush=True)
+                        self.log_list = []
+                    else:
+                        print(f'{esc}{self._percent_len}D{percent_str}', end='', flush=True)
                     self._percent_len = len(percent_str)
-                else:
+                elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                     print(f"\r|{fg_pink}{'━' * int(self.ncols * self._progress / self.total)}{fg_bright_black}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}{reset}| {fg_green}[{100 * self._progress / self.total:.1f}%] {fg_cyan}{self._eta}{reset}", end='', flush=True)
                 sleep(self.refresh)
 
@@ -956,10 +979,10 @@ class ProgressBar:
     def stop(self):
         self._done = True
         if not self.disable:
-            if self.subinfo:
+            if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
                 end_str = f'{esc}1D{esc}0K' if self.total is None else f'{esc}{self._percent_len}D{esc}0K'
                 print(end_str) if self.hide_on_exit else print(f'{end_str}[OK]')
-            else:
+            elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                 print(clear_line, end='\r', flush=True)
                 if not self.hide_on_exit:
                     if self.total is None:
