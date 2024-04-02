@@ -691,7 +691,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
     MAX_THREAD = 3
     TCK_in = LazyTractogram(tractogram_in, mode='r')
-    TCK_out = LazyTractogram(tractogram_out, mode='w', header=TCK_in.header)
     num_streamlines = int(TCK_in.header["count"])
     logger.info(f'Number of input streamlines: {num_streamlines}')
 
@@ -760,7 +759,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             bundles.sort(key=lambda x: x[1])
             # Convert the sorted list of tuples into a dictionary
             bundles = {i: bundle for i, bundle in enumerate(bundles)}
-            bundles[len(bundles)-1] = (bundles[len(bundles)-1][0], bundles[len(bundles)-1][1], bundles[len(bundles)-1][2]*10)
+            bundles[len(bundles)-1] = (bundles[len(bundles)-1][0], bundles[len(bundles)-1][1], bundles[len(bundles)-1][2])
 
         t1 = time.time()
         set_verbose(verbose)
@@ -781,79 +780,86 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         logger.info(f'Clustering')
         logger.subinfo(f'Using threshold {clust_thr} and {n_pts} points', indent_lvl=1, indent_char='*')
         logger.subinfo(f'Computing chunks for parallel clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
-
         chunk_list = []
-        with ProgressBar(subinfo=True):
-            while True:
-                if max_bytes>0:
-                    if max_bytes > mem_avail:
-                        MAX_BYTES = mem_avail//MAX_THREAD
-                    else:
-                        MAX_BYTES = max_bytes//MAX_THREAD
-                else:
-                    MAX_BYTES = int(0.9 * mem_avail)//MAX_THREAD
-
-                executor = ThreadPoolExecutor(max_workers=MAX_THREAD)
-                t0 = time.time()
-
-                # compute base size of centroid array
-                base_size = getsizeof(np.zeros((1,1, 1000, 3), dtype=np.float32))
-
-                # compute chunks
-                while len(bundles.items()) > 0:
-                    to_delete = []
-                    new_chunk = []
-                    new_chunk_num_streamlines = []
-                    max_bundle_size = 0
-                    for k, bundle in bundles.items():
-                        new_chunk_size = len(new_chunk) + 1
-                        if bundle[2] > max_bundle_size:
-                            max_bundle_size = bundle[2]
-                        future_size = new_chunk_size * max_bundle_size * 4 * base_size
-                        
-                        if future_size < MAX_BYTES:
-                            new_chunk.append(bundle[0])
-                            new_chunk_num_streamlines.append(bundle[2])
-                            to_delete.append(k)
+        try:
+            TCK_out = LazyTractogram(tractogram_out, mode='w', header=TCK_in.header)
+            with ProgressBar(subinfo=True):
+                while True:
+                    if max_bytes>0:
+                        if max_bytes > mem_avail:
+                            MAX_BYTES = mem_avail//MAX_THREAD
                         else:
-                            # bundle too big
+                            MAX_BYTES = max_bytes//MAX_THREAD
+                    else:
+                        MAX_BYTES = int(0.9 * mem_avail)//MAX_THREAD
+
+                    executor = ThreadPoolExecutor(max_workers=MAX_THREAD)
+                    t0 = time.time()
+
+                    # compute base size of centroid array
+                    base_size = getsizeof(np.zeros((1,1, 1000, 3), dtype=np.float32))
+
+                    # compute chunks
+                    while len(bundles.items()) > 0:
+                        to_delete = []
+                        new_chunk = []
+                        new_chunk_num_streamlines = []
+                        max_bundle_size = 0
+                        for k, bundle in bundles.items():
+                            new_chunk_size = len(new_chunk) + 1
+                            if bundle[2] > max_bundle_size:
+                                max_bundle_size = bundle[2]
+                            future_size = new_chunk_size * max_bundle_size * 4 * base_size
+                            
+                            if future_size < MAX_BYTES:
+                                new_chunk.append(bundle[0])
+                                new_chunk_num_streamlines.append(bundle[2])
+                                to_delete.append(k)
+                            else:
+                                # bundle too big
+                                break
+                        # remove from bundles list
+                        if len(new_chunk_num_streamlines) == 0:
+                            MAX_THREAD -= 1
                             break
-                    # remove from bundles list
-                    if len(new_chunk_num_streamlines) == 0:
-                        MAX_THREAD -= 1
+                        
+                        chunk_list.append([new_chunk, max(new_chunk_num_streamlines)])
+                        for k in to_delete:
+                            bundles.pop(k)
+
+                    if MAX_THREAD == 0:
+                        raise ValueError('Not enough memory to process the data')
+                    if len(bundles.items()) == 0:
                         break
-                    
-                    chunk_list.append([new_chunk, max(new_chunk_num_streamlines)])
-                    for k in to_delete:
-                        bundles.pop(k)
-                if MAX_THREAD == 0:
-                    logger.error(f'Not enough memory to process the data')
-                if len(bundles.items()) == 0:
-                    break
-        
-        logger.subinfo(f'Parallel bundles clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
-        with ProgressBar(total=len(chunk_list), disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
-            future = [executor.submit(cluster_chunk,
-                                      chunk,
-                                      num_fibs,
-                                      clust_thr,
-                                      n_pts=n_pts,
-                                      metric=metric) for chunk, num_fibs in chunk_list]
-            for i, f in enumerate(as_completed(future)):
-                bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst = f.result()
 
-                for i_b in range(len(bundle_num_c)):
-                    ref_indices.extend(idx_clst[i_b][:bundle_num_c[i_b]].tolist())
-                    new_centroids, new_centroids_len = bundle_new_c[i_b], bundle_centr_len[i_b]
-                    for i_s in range(bundle_num_c[i_b]):
-                        TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
-                        TCK_out_size += 1
-                pbar.update()
-            TCK_out.close( write_eof=True, count= TCK_out_size)
 
-        t1 = time.time()
-        logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_lvl=1, indent_char='*')
-        logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
+            logger.subinfo(f'Parallel bundles clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+            with ProgressBar(total=len(chunk_list), disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
+                future = [executor.submit(cluster_chunk,
+                                        chunk,
+                                        num_fibs,
+                                        clust_thr,
+                                        n_pts=n_pts,
+                                        metric=metric) for chunk, num_fibs in chunk_list]
+                for i, f in enumerate(as_completed(future)):
+                    bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst = f.result()
+
+                    for i_b in range(len(bundle_num_c)):
+                        ref_indices.extend(idx_clst[i_b][:bundle_num_c[i_b]].tolist())
+                        new_centroids, new_centroids_len = bundle_new_c[i_b], bundle_centr_len[i_b]
+                        for i_s in range(bundle_num_c[i_b]):
+                            TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
+                            TCK_out_size += 1
+                    pbar.update()
+                TCK_out.close( write_eof=True, count= TCK_out_size)
+
+            t1 = time.time()
+            logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_lvl=1, indent_char='*')
+            logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
+        except Exception as e:
+            logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
+            if os.path.isfile(tractogram_out):
+                os.remove(tractogram_out)
 
         os.remove(temp_idx)
         if not keep_temp_files:
@@ -928,7 +934,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         # Convert the sorted list of tuples into a dictionary
         bundles = {i: bundle for i, bundle in enumerate(bundles)}
 
-        bundles[len(bundles)-1] = (bundles[len(bundles)-1][0], bundles[len(bundles)-1][1], bundles[len(bundles)-1][2]*10)
+        bundles[len(bundles)-1] = (bundles[len(bundles)-1][0], bundles[len(bundles)-1][1], bundles[len(bundles)-1][2])
 
         ref_indices = []
         TCK_out_size = 0
@@ -937,79 +943,85 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         mem = psutil.virtual_memory()
         mem_avail = mem.available
 
-        chunk_list = []
-
-        while True:
-            if max_bytes>0:
-                if max_bytes > mem_avail:
-                    MAX_BYTES = mem_avail//MAX_THREAD
-                else:
-                    MAX_BYTES = max_bytes//MAX_THREAD
-            else:
-                MAX_BYTES = int(0.9 * mem_avail)//MAX_THREAD
-
-            executor = ThreadPoolExecutor(max_workers=MAX_THREAD)
-            t0 = time.time()
-
-            # compute base size of centroid array
-            base_size = getsizeof(np.zeros((1,1, 1000, 3), dtype=np.float32))
-
-            # compute chunks
-            while len(bundles.items()) > 0:
-                to_delete = []
-                new_chunk = []
-                new_chunk_num_streamlines = []
-                max_bundle_size = 0
-                for k, bundle in bundles.items():
-                    new_chunk_size = len(new_chunk) + 1
-                    if bundle[2] > max_bundle_size:
-                        max_bundle_size = bundle[2]
-                    future_size = new_chunk_size * max_bundle_size * 4 * base_size
-
-                    if future_size < MAX_BYTES:
-                        new_chunk.append(bundle[0])
-                        new_chunk_num_streamlines.append(bundle[2])
-                        to_delete.append(k)
+        try:
+            TCK_out = LazyTractogram(tractogram_out, mode='w', header=TCK_in.header)
+            chunk_list = []
+            while True:
+                if max_bytes>0:
+                    if max_bytes > mem_avail:
+                        MAX_BYTES = mem_avail//MAX_THREAD
                     else:
-                        # bundle too big
-                        break
-                # remove from bundles list
-                if len(new_chunk_num_streamlines) == 0:
-                    MAX_THREAD -= 1
-                    break
+                        MAX_BYTES = max_bytes//MAX_THREAD
+                else:
+                    MAX_BYTES = int(0.9 * mem_avail)//MAX_THREAD
                 
-                chunk_list.append([new_chunk, max(new_chunk_num_streamlines)])
-                for k in to_delete:
-                    bundles.pop(k)
-            if MAX_THREAD == 0:
-                logger.error(f'Not enough memory to process the data')
-            if len(bundles.items()) == 0:
-                break
+                executor = ThreadPoolExecutor(max_workers=MAX_THREAD)
+                t0 = time.time()
 
-        logger.subinfo(f"Parallel bundles clustering", indent_char='*', with_progress=verbose>2)
-        with ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3]), hide_on_exit=True, subinfo=True) as pbar:
-            future = [executor.submit(cluster_chunk,
-                                      chunk,
-                                      num_fibs,
-                                      clust_thr,
-                                      n_pts=n_pts,
-                                      metric=metric) for chunk, num_fibs in chunk_list]
-            for i, f in enumerate(as_completed(future)):
-                bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst = f.result()
+                # compute base size of centroid array
+                base_size = getsizeof(np.zeros((1,1, 1000, 3), dtype=np.float32))
 
-                for i_b in range(len(bundle_num_c)):
-                    ref_indices.extend(idx_clst[i_b][:bundle_num_c[i_b]].tolist())
-                    new_centroids, new_centroids_len = bundle_new_c[i_b], bundle_centr_len[i_b]
-                    for i_s in range(bundle_num_c[i_b]):
-                        TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
-                        TCK_out_size += 1
-                pbar.update()
-            TCK_out.close( write_eof=True, count= TCK_out_size)
+                # compute chunks
+                while len(bundles.items()) > 0:
+                    to_delete = []
+                    new_chunk = []
+                    new_chunk_num_streamlines = []
+                    max_bundle_size = 0
+                    for k, bundle in bundles.items():
+                        new_chunk_size = len(new_chunk) + 1
+                        if bundle[2] > max_bundle_size:
+                            max_bundle_size = bundle[2]
+                        future_size = new_chunk_size * max_bundle_size * 4 * base_size
+                        if future_size < MAX_BYTES:
+                            new_chunk.append(bundle[0])
+                            new_chunk_num_streamlines.append(bundle[2])
+                            to_delete.append(k)
+                        else:
+                            # bundle too big
+                            break
+                    # remove from bundles list
+                    if len(new_chunk_num_streamlines) == 0:
+                        MAX_THREAD -= 1
+                        break
+                    
+                    chunk_list.append([new_chunk, max(new_chunk_num_streamlines)])
+                    for k in to_delete:
+                        bundles.pop(k)
+                
+                if MAX_THREAD == 0:
+                    raise ValueError('Not enough memory to process the data')
+                if len(bundles.items()) == 0:
+                    break
 
-        t1 = time.time()
+            logger.subinfo(f"Parallel bundles clustering", indent_char='*', with_progress=verbose>2)
+            with ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3]), hide_on_exit=True, subinfo=True) as pbar:
+                future = [executor.submit(cluster_chunk,
+                                        chunk,
+                                        num_fibs,
+                                        clust_thr,
+                                        n_pts=n_pts,
+                                        metric=metric) for chunk, num_fibs in chunk_list]
+                for i, f in enumerate(as_completed(future)):
+                    bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst = f.result()
 
-        logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_char='*')
-        logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
+                    for i_b in range(len(bundle_num_c)):
+                        ref_indices.extend(idx_clst[i_b][:bundle_num_c[i_b]].tolist())
+                        new_centroids, new_centroids_len = bundle_new_c[i_b], bundle_centr_len[i_b]
+                        for i_s in range(bundle_num_c[i_b]):
+                            TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
+                            TCK_out_size += 1
+                    pbar.update()
+                TCK_out.close( write_eof=True, count= TCK_out_size)
+
+            t1 = time.time()
+
+            logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_char='*')
+            logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
+
+        except Exception as e:
+            logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
+            if os.path.isfile(tractogram_out):
+                os.remove(tractogram_out)
 
         os.remove(temp_idx)
         if not keep_temp_files:
