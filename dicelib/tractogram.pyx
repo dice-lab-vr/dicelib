@@ -905,12 +905,12 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             for r in regions:
                 if isinstance(r, int):
                     unique_assignments.extend(np.unique(assignments[assignments[:,0]==r], axis=0))
+                    unique_assignments.extend(np.unique(assignments[assignments[:,1]==r], axis=0))
                 elif isinstance(r, list):
                     r.sort()
                     unique_assignments.extend(np.unique(assignments[np.logical_and(assignments[:,0]==r[0], assignments[:,1]==r[1])], axis=0))
             # unique_assignments = np.concatenate(unique_assignments, axis=0)
             unique_assignments = np.array(unique_assignments)
-
         for i in range( unique_assignments.shape[0] ):
             if unique_assignments[i,0]==0 or unique_assignments[i,1]==0:
                 unassigned_count += 1
@@ -1004,10 +1004,11 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                     else:
                         np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle, allow_pickle=False )
 
-        if unassigned_count:
-            logger.subinfo(f'{n_written-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting', indent_char='*', indent_lvl=1)
-        else:
-            logger.subinfo(f'{n_written} connecting', indent_char='*', indent_lvl=1)
+        if len(regions)==0:
+            if unassigned_count:
+                logger.subinfo(f'{n_written-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting', indent_char='*', indent_lvl=1)
+            else:
+                logger.subinfo(f'{n_written} connecting', indent_char='*', indent_lvl=1)
 
     except Exception as e:
         if os.path.isdir(output_folder):

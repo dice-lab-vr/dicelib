@@ -674,7 +674,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
     ]
     nums = [
         Num(name='clust_thr', value=clust_thr, min_=0.0, include_min=False),
-        Num(name='atlas_dist', value=conn_thr, min_=0.0, include_min=False)
+        Num(name='atlas_dist', value=conn_thr, min_=0.0, include_min=True)
     ]
     if n_threads is not None:
         nums.append(Num(name='n_threads', value=n_threads, min_=1))
@@ -757,6 +757,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                     if f.endswith('.tck') and not f.startswith('unassigned'):
                         filename = os.path.abspath(os.path.join(dirpath, f))
                         bundles.append((filename, os.path.getsize(filename), int(info(filename,verbose=1))))
+                    if f.startswith('unassigned') and f.endswith('.tck'):
+                        logger.warning(f'{int(info(os.path.abspath(os.path.join(dirpath, f)),verbose=1))} streamlines were not assigned to any bundle')
             # Sort the list of tuples by the file size, which is the second element of each tuple
             bundles.sort(key=lambda x: x[1])
             # Convert the sorted list of tuples into a dictionary
@@ -995,7 +997,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 if len(bundles.items()) == 0:
                     break
 
-            logger.subinfo(f"Parallel bundles clustering", indent_char='*', with_progress=verbose>2)
+            logger.subinfo(f"Parallel bundles clustering", indent_char='*', indent_lvl=1, with_progress=verbose>2)
             with ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3]), hide_on_exit=True, subinfo=True) as pbar:
                 future = [executor.submit(cluster_chunk,
                                         chunk,
@@ -1017,7 +1019,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
             t1 = time.time()
 
-            logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_char='*')
+            logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_char='*', indent_lvl=1)
             logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
 
         except Exception as e:
