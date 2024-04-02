@@ -744,7 +744,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.close( write_eof=True, count=n_written )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, verbose: int=3, force: bool=False ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, prefix: str='bundle_', verbose: int=3, force: bool=False ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -773,6 +773,9 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         If None, the following values are used:
             - on Unix: 90% of half the default system hard limit
             - on Windows: 90% of twice the default system limit
+
+    prefix : string
+        Prefix for the output filenames (default : 'bundle_').
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
@@ -864,7 +867,6 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
     #----- iterate over input streamlines -----
     TCK_in          = None
-    TCK_out         = None
     TCK_outs        = {}
     TCK_outs_size   = {}
     if weights_in is not None:
@@ -921,7 +923,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 key = f'{unique_assignments[i,1]}-{unique_assignments[i,0]}'
             TCK_outs[key] = None
             TCK_outs_size[key] = 0
-            tmp = LazyTractogram( os.path.join(output_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
+            pref_key = f'{prefix}{key}'
+            tmp = LazyTractogram( os.path.join(output_folder,f'{pref_key}.tck'), mode='w', header=TCK_in.header )
             tmp.close( write_eof=False, count=0 )
             if weights_in is not None:
                 WEIGHTS_out_idx[key] = i+1
@@ -973,7 +976,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
                 # check if need to open file
                 if TCK_outs[key] is None:
-                    fname = os.path.join(output_folder,f'{key}.tck')
+                    pref_key = f'{prefix}{key}'
+                    fname = os.path.join(output_folder,f'{pref_key}.tck')
                     if n_file_open==max_open:
                         key_to_close = rnd.choice( [k for k,v in TCK_outs.items() if v!=None] )
                         TCK_outs[key_to_close].close( write_eof=False )
@@ -998,11 +1002,12 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             logger.subinfo(f'Saving one weights file per bundle', indent_char='*', indent_lvl=1)
             with ProgressBar(disable=verbose < 3, hide_on_exit=True) as pbar:
                 for key in WEIGHTS_out_idx.keys():
+                    pref_key = f'{prefix}{key}'
                     w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ].astype(np.float32)
                     if weights_in_ext=='.txt':
-                        np.savetxt( os.path.join(output_folder,f'{key}.txt'), w_bundle, fmt='%.5e' )
+                        np.savetxt( os.path.join(output_folder,f'{pref_key}.txt'), w_bundle, fmt='%.5e' )
                     else:
-                        np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle, allow_pickle=False )
+                        np.save( os.path.join(output_folder,f'{pref_key}.npy'), w_bundle, allow_pickle=False )
 
         if len(regions)==0:
             if unassigned_count:
@@ -1013,7 +1018,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
     except Exception as e:
         if os.path.isdir(output_folder):
             for key in TCK_outs.keys():
-                basename = os.path.join(output_folder,key)
+                pref_key = f'{prefix}{key}'
+                basename = os.path.join(output_folder,pref_key)
                 if os.path.isfile(basename+'.tck'):
                     os.remove(basename+'.tck')
                 if weights_in is not None and os.path.isfile(basename+weights_in_ext):
@@ -1027,7 +1033,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             if TCK_in is not None:
                 TCK_in.close()
             for key in TCK_outs.keys():
-                f = os.path.join(output_folder,f'{key}.tck')
+                pref_key = f'{prefix}{key}'
+                f = os.path.join(output_folder,f'{pref_key}.tck')
                 if not os.path.isfile(f):
                     continue
                 if TCK_outs[key] is not None:

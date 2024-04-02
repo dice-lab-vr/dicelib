@@ -450,7 +450,9 @@ def tractogram_split():
                                If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
                                If list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.'''}],
         [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
-        [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}]
+        [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}],
+        [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': 'Prefix for the output filenames'}]
+
     ]
     options = setup_parser(split.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -462,6 +464,7 @@ def tractogram_split():
         options.regions,
         options.weights_in,
         options.max_open,
+        options.prefix,
         options.verbose,
         options.force
     )
