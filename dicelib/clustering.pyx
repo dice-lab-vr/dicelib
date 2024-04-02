@@ -711,7 +711,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
         logger.info('Dividing the streamlines into anatomical bundles')
         atlas_dtype = nib.load(atlas).header.get_data_dtype()
-        if atlas_dtype.char != 'i':
+        if atlas_dtype.char not in ['b', 'B', 'i', 'u']:
             warning_msg = f'Atlas data type is \'{atlas_dtype}\'. It is recommended to use integer data type.'
             logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
         logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
