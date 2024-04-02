@@ -712,7 +712,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
         logger.info('Dividing the streamlines into anatomical bundles')
         logger.warning(f'Atlas data type is {nib.load(atlas).header.get_data_dtype()}. It is recommended to use int32')
-        logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=True)
+        logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
         with ProgressBar( multithread_progress=pbar_array, total=num_streamlines, disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
             with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
                 future = [executor.submit( assign, tractogram_in, pbar_array, i, start_chunk=int(chunk_groups[i][0]),
@@ -780,7 +780,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
         logger.info(f'Clustering')
         logger.subinfo(f'Using threshold {clust_thr} and {n_pts} points', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Computing chunks for parallel clustering', indent_lvl=1, indent_char='*', with_progress=True)
+        logger.subinfo(f'Computing chunks for parallel clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
 
         chunk_list = []
         with ProgressBar(subinfo=True):
@@ -831,7 +831,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 if len(bundles.items()) == 0:
                     break
         
-        logger.subinfo(f'Parallel bundles clustering', indent_lvl=1, indent_char='*', with_progress=True)
+        logger.subinfo(f'Parallel bundles clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
         with ProgressBar(total=len(chunk_list), disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
             future = [executor.submit(cluster_chunk,
                                       chunk,
@@ -851,7 +851,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 pbar.update()
             TCK_out.close( write_eof=True, count= TCK_out_size)
 
-        set_verbose(verbose)
         t1 = time.time()
         logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_lvl=1, indent_char='*')
         logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
@@ -987,7 +986,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             if len(bundles.items()) == 0:
                 break
 
-        logger.subinfo(f"Parallel bundles clustering", indent_char='*', with_progress=True)
+        logger.subinfo(f"Parallel bundles clustering", indent_char='*', with_progress=verbose>2)
         with ProgressBar(total=len(chunk_list), disable=(verbose in [0,1,3]), hide_on_exit=True, subinfo=True) as pbar:
             future = [executor.submit(cluster_chunk,
                                       chunk,
@@ -1006,8 +1005,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                         TCK_out_size += 1
                 pbar.update()
             TCK_out.close( write_eof=True, count= TCK_out_size)
-
-        set_verbose(verbose)
 
         t1 = time.time()
 

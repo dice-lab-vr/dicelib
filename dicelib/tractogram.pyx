@@ -1986,24 +1986,50 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
 
         with open(output_file,'w') as file:
             file.write("# dicelib.tractogram.sample option={} {} {} {}**\n".format(option,input_tractogram,input_image,output_file))
-            with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+            with ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
                 for i in range(n_streamlines):
                     TCK_in.read_streamline()
                     npoints = TCK_in.n_pts
+                    value = np.zeros(2000, dtype=np.float32)
                     for ii in range(npoints):
                         moved_pt = apply_affine_1pt(TCK_in.streamline[ii], M_inv, abc_inv, moved_pt)
-                        vox_coords[0] = int(moved_pt[0] + 0.5)
-                        vox_coords[1] = int(moved_pt[1] + 0.5)
-                        vox_coords[2] = int(moved_pt[2] + 0.5)
+                        vox_coords[0] = int(moved_pt[0])
+                        vox_coords[1] = int(moved_pt[1])
+                        vox_coords[2] = int(moved_pt[2])
                         if mask_view[vox_coords[0], vox_coords[1], vox_coords[2]] == 0:
                             value[ii] = np.nan
                         else: 
                             value[ii] = img_view[vox_coords[0], vox_coords[1], vox_coords[2]]
-                    np.savetxt(file, value[:npoints], fmt='%.3f', newline=' ')
-                    file.write("\n")
+                    if option == 'No_opt':
+                        np.savetxt(file, value[:npoints], fmt='%.3f', newline=' ')
+                        file.write("\n")
+                    elif option == 'mean':
+
+                        print('\n')
+                        print(ii+2)
+                        print('\n')
+                        print(value[:ii+1])
+                        print(np.nanmean(value[:ii+1]))
+                        value[ii+2] = np.nanmean(value[:ii+1])
+                    
+                        file.write(f'{value[ii+2]:.3f}')
+                        # np.savetxt(file, value[ii+2], fmt='%.3f', newline=' ')
+                        file.write("\n")
+                    elif option == 'median':
+                        value[ii+3] = np.nanmedian(value[:ii+1])
+                        # np.savetxt(file, value[ii+3], fmt='%.3f', newline=' ')
+                        file.write(f'{value[ii+3]:.3f}')
+                        file.write("\n")
+                    else:
+                        value[ii+4] = np.min(value[:ii+1])
+                        # np.savetxt(file, value[ii+4], fmt='%.3f', newline=' ')
+                        file.write(f'{value[ii+4]:.3f}')
+                        file.write("\n")
+
+                    # value[ii+5] = np.max(value[i][:ii+1])
                     pbar.update()            
 
-                
+
     except Exception as e:
         if TCK_in is not None:
             TCK_in.close()
