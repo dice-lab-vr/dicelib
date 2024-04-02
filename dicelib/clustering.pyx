@@ -229,7 +229,7 @@ cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_id
 
 
 cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts: int=12,
-              verbose: int=2):
+              verbose: int=3):
     """ Cluster streamlines in a tractogram based on a given metric (mean or max distance to the centroids)
 
     Parameters

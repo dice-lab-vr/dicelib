@@ -242,8 +242,6 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
         Path to the GM map file.
     threshold : int
         Threshold used to compute the grid of voxels to check.
-    verbose : bool
-        If True, display information about the processing.
     """
 
 
@@ -322,7 +320,10 @@ cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_
     return assignments
 
 
-def compute_connectome_blur( input_tractogram: str, output_connectome: str, weights_in: str, input_nodes: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, offset_thr: float=0.0, symmetric: bool=False, fiber_shift=0, verbose: int=2, force: bool=False ):
+def compute_connectome_blur( input_tractogram: str, output_connectome: str, weights_in: str, input_nodes: str,
+                            blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25,
+                            blur_gauss_min: float=0.1, offset_thr: float=0.0, symmetric: bool=False, fiber_shift=0,
+                            verbose: int=3, force: bool=False ):
     """Build the connectome weighted by COMMITblur (only sum).
 
     Parameters
@@ -365,7 +366,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         The value is specified in voxel units, eg 0.5 translates by half voxel.
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     force : boolean
         Force overwriting of the output (default : False).
@@ -536,7 +537,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
         zeros_count = 0
 
-        with ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+        with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -624,7 +625,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
 
 
-def build_connectome( input_weights: str,  input_assignments: str, output_connectome: str, input_tractogram: str=None, input_nodes: str=None, threshold: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=2, force: bool=False ):
+def build_connectome( input_weights: str,  input_assignments: str, output_connectome: str, input_tractogram: str=None, input_nodes: str=None, threshold: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=3, force: bool=False ):
     """Build the weighted connectome having the assignments.
 
     Parameters
@@ -654,7 +655,7 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
         Make output connectome symmetric (default : False).
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     force : boolean
         Force overwriting of the output (default : False).

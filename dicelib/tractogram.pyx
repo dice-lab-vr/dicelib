@@ -435,7 +435,7 @@ cdef class LazyTractogram:
         if self.is_open:
             fclose( self.fp )
 
-def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbose: int=2, force: bool=False ) -> np.ndarray:
+def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbose: int=3, force: bool=False ) -> np.ndarray:
     """Compute the lengths of the streamlines in a tractogram.
 
     Parameters
@@ -578,7 +578,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
         return 0
 
 
-def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random: float=1.0, verbose: int=2, force: bool=False ):
+def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random: float=1.0, verbose: int=3, force: bool=False ):
     """Filter out the streamlines in a tractogram according to some criteria.
 
     Parameters
@@ -744,7 +744,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_out.close( write_eof=True, count=n_written )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, verbose: int=2, force: bool=False ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, verbose: int=3, force: bool=False ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -1039,7 +1039,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 pbar.update()
 
 
-def join( input_list: list[str], output_tractogram: str, weights_list: list[str]=[], weights_out: str=None, verbose: int=2, force: bool=False ):
+def join( input_list: list[str], output_tractogram: str, weights_list: list[str]=[], weights_out: str=None, verbose: int=3, force: bool=False ):
     """Join different tractograms into a single file.
 
     Parameters
@@ -1181,7 +1181,7 @@ cpdef move_point_to_gm(float[:] point, float vers_x, float vers_y, float vers_z,
     return ok, point
 
 
-def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_tractogram: str=None, step: float=0.2, max_dist: float=2, save_connecting_tck: bool=False, verbose: int=2, force: bool=False ):
+def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_tractogram: str=None, step: float=0.2, max_dist: float=2, save_connecting_tck: bool=False, verbose: int=3, force: bool=False ):
     """Sanitize stramlines in order to end in the gray matter.
     
     Parameters
