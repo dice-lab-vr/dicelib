@@ -938,6 +938,7 @@ class ProgressBar:
                             __logger__.warning(log)
                         print(f'{self.subinfo} {step}', end='', flush=True)
                         self.log_list = []
+                        # self._handle_subinfo(step)
                     else:
                         print(f'{esc}1D{step}', end='', flush=True)
                 elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
@@ -962,12 +963,29 @@ class ProgressBar:
                             __logger__.warning(log)
                         print(f'{self.subinfo} {percent_str}', end='', flush=True)
                         self.log_list = []
+                        # self._handle_subinfo(percent_str)
                     else:
                         print(f'{esc}{self._percent_len}D{percent_str}', end='', flush=True)
                     self._percent_len = len(percent_str)
                 elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                     print(f"\r|{fg_pink}{'━' * int(self.ncols * self._progress / self.total)}{fg_bright_black}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}{reset}| {fg_green}[{100 * self._progress / self.total:.1f}%] {fg_cyan}{self._eta}{reset}", end='', flush=True)
                 sleep(self.refresh)
+    
+    def _handle_subinfo(self, step=''):
+        print(clear_line, end='\r', flush=True)
+        print(f'{esc}1A{clear_line}', end='\r', flush=True)
+        for log in self.log_list:
+            __logger__.warning(log)
+        print(f'{self.subinfo} {step}', end='', flush=True) if step != '' else print(f'{self.subinfo}', end='', flush=True)
+        self.log_list = []
+
+    def _animate_subinfo(self):
+        while True:
+            if self._done:
+                break
+            if self.log_list:
+                self._handle_subinfo()
+            sleep(self.refresh)
 
     def start(self):
         if not self.disable:
@@ -975,6 +993,9 @@ class ProgressBar:
                 self._start_time = time()
                 self._last_time = self._start_time
             Thread(target=self._animate, daemon=True).start()
+        else:
+            if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
+                Thread(target=self._animate_subinfo, daemon=True).start()
 
     def stop(self):
         self._done = True
