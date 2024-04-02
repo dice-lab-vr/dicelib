@@ -483,8 +483,8 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
                     pbar.update()
 
         if n_streamlines>0:
-            logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*')
-            logger.subinfo(f'min={lengths.min():.3f}  max={lengths.max():.3f}  mean={lengths.mean():.3f}  std={lengths.std():.3f}', indent_char='*')
+            logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*', indent_lvl=1)
+            logger.subinfo(f'min={lengths.min():.3f}  max={lengths.max():.3f}  mean={lengths.mean():.3f}  std={lengths.std():.3f}', indent_char='*', indent_lvl=1)
 
         if output_scalar_file is None:
             return streamline_length
@@ -652,7 +652,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
 
     logger.info('Filtering criteria')
     for msg in messages:
-        logger.subinfo(msg, indent_char='*')
+        logger.subinfo(msg, indent_char='*', indent_lvl=1)
 
     if weights_in is not None:
         if weights_in_ext == '.txt':
@@ -679,7 +679,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             logger.error(f'# of weights {w.size} is different from # of streamlines ({n_streamlines})')
 
         # open the outut file
-        logger.info('Filtering {n_streamlines} streamlines')
+        logger.info(f'Filtering {n_streamlines} streamlines')
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         kept = np.ones( n_streamlines, dtype=bool )
@@ -724,7 +724,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
 
         n_written = np.count_nonzero( kept )
         if n_written > 0:
-            logger.subinfo(f'{n_written} streamlines in output tractogram', indent_char='*')
+            logger.subinfo(f'{n_written} streamlines in output tractogram', indent_char='*', indent_lvl=1)
         else:
             logger.warning('No streamlines in output tractogram')
 
@@ -804,7 +804,6 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
     if not regions_in==None:
         if not isinstance(split_regions(regions_in), (list, tuple, int)):
-            print(split_regions(regions_in))
             logger.error('Invalid regions input')
         else:
             regions_str = "[]," + regions_in
@@ -855,13 +854,13 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             max_open = int(new_limit * 0.9)
             resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
     
-    logger.info('Splitting criteria')
+    logger.info(f'Splitting tractogram')
     try:
-        logger.subinfo(f'Loaded {w.size} streamline weights', indent_char='*')
+        logger.subinfo(f'Loaded {w.size} streamline weights', indent_char='*', indent_lvl=1)
     except UnboundLocalError:
         pass
-    logger.subinfo(f'Writing output tractograms to \'{output_folder}\'', indent_char='*')
-    logger.subinfo(f'Using {max_open} files open simultaneously', indent_char='*')
+    logger.subinfo(f'Writing output tractograms to \'{output_folder}\'', indent_char='*', indent_lvl=1)
+    logger.debug(f'Using {max_open} files open simultaneously')
 
     #----- iterate over input streamlines -----
     TCK_in          = None
@@ -876,7 +875,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         # open the tractogram
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
-        logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*')
+        logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*', indent_lvl=1)
 
         # open the assignments
         if os.path.splitext(input_assignments)[1]=='.txt':
@@ -888,7 +887,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         if assignments.ndim!=2 or assignments.shape[1]!=2:
             print( (assignments.ndim, assignments.shape))
             logger.error('Unable to open assignments file')
-        logger.subinfo(f'{assignments.shape[0]} assignments in input file', indent_char='*')
+        logger.subinfo(f'{assignments.shape[0]} assignments in input file', indent_char='*', indent_lvl=1)
 
         # check if #(assignments)==n_streamlines
         if n_streamlines!=assignments.shape[0]:
@@ -937,11 +936,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             if weights_in is not None:
                 WEIGHTS_out_idx[key] = 0
 
-        logger.subinfo(f'Created {len(TCK_outs)} empty files for output tractograms', indent_char='*')
+        logger.debug(f'Created {len(TCK_outs)} empty files for output tractograms')
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
-        logger.info(f'Splitting tractogram')
         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
@@ -997,7 +995,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
         # create individual weight files for each splitted tractogram
         if weights_in is not None:
-            logger.subinfo(f'Saving one weights file per bundle', indent_char='*')
+            logger.subinfo(f'Saving one weights file per bundle', indent_char='*', indent_lvl=1)
             with ProgressBar(disable=verbose < 3, hide_on_exit=True) as pbar:
                 for key in WEIGHTS_out_idx.keys():
                     w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ].astype(np.float32)
@@ -1007,9 +1005,9 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                         np.save( os.path.join(output_folder,f'{key}.npy'), w_bundle, allow_pickle=False )
 
         if unassigned_count:
-            logger.subinfo(f'{n_written-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting', indent_char='*')
+            logger.subinfo(f'{n_written-TCK_outs_size["unassigned"]} connecting, {TCK_outs_size["unassigned"]} non-connecting', indent_char='*', indent_lvl=1)
         else:
-            logger.subinfo(f'{n_written} connecting', indent_char='*')
+            logger.subinfo(f'{n_written} connecting', indent_char='*', indent_lvl=1)
 
     except Exception as e:
         if os.path.isdir(output_folder):
@@ -1079,7 +1077,7 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
 
     #----- iterate over input files -----
     logger.info('Joining tractograms')
-    logger.subinfo(f'Writing output tractogram to \'{output_tractogram}\'', indent_char='*')
+    logger.subinfo(f'Writing output tractogram to \'{output_tractogram}\'', indent_char='*', indent_lvl=1)
     TCK_in    = None
     TCK_out   = None
     n_written = 0
@@ -1123,15 +1121,15 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
                 pbar.update()
 
             if weights_out is not None and weights_tot.size>0:
-                logger.subinfo(f'Writing output weights to \'{weights_out}\'', indent_char='*')
+                logger.subinfo(f'Writing output weights to \'{weights_out}\'', indent_char='*', indent_lvl=1)
                 weights_out_ext = os.path.splitext(weights_out)[1]
                 if weights_out_ext == '.txt':
                     np.savetxt(weights_out, weights_tot.astype(np.float32), fmt='%.5e')
                 elif weights_out_ext == '.npy':
                     np.save(weights_out, weights_tot.astype(np.float32), allow_pickle=False)
-                logger.subinfo(f'Total output weigths: {weights_tot.size}', indent_char='*')
+                logger.subinfo(f'Total output weigths: {weights_tot.size}', indent_char='*', indent_lvl=1)
 
-        logger.info(f'Total output streamlines: {n_written}', indent_char='*')
+        logger.info(f'Total output streamlines: {n_written}', indent_char='*', indent_lvl=1)
     except Exception as e:
         if TCK_out is not None:
             TCK_out.close()
@@ -1296,7 +1294,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
             TCK_con = LazyTractogram( conn_tractogram, mode='w', header=TCK_in.header )
 
         logger.info('Tractogram sanitize')
-        logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*')
+        logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*', indent_lvl=1)
 
         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
             for i in range( n_streamlines ):
@@ -1434,16 +1432,16 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
         if TCK_con is not None:
             TCK_con.close( write_eof=True, count=n_in )
 
-    logger.subinfo(f'Save sanitized tractogram to \'{output_tractogram}\'', indent_char='*')
+    logger.subinfo(f'Save sanitized tractogram to \'{output_tractogram}\'', indent_char='*', indent_lvl=1)
     if save_connecting_tck:
-        logger.subinfo(f'Save only connecting streamlines to \'{conn_tractogram}\'', indent_char='*')
-    logger.subinfo(f'Tot. streamlines: {n_tot}', indent_char='*')
+        logger.subinfo(f'Save only connecting streamlines to \'{conn_tractogram}\'', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'Tot. streamlines: {n_tot}', indent_char='*', indent_lvl=1)
     logger.subinfo(f'Connecting (both ends in GM): {n_in}', indent_lvl=1, indent_char='-')
     logger.subinfo(f'Half connecting (one ends in GM): {n_half}', indent_lvl=1, indent_char='-')
     logger.subinfo(f'Non-connecting (both ends outside GM): {n_out}', indent_lvl=1, indent_char='-')
 
 
-def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=2, force=False ):
+def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=3, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
     More info at http://algorithmist.net/docs/catmullrom.pdf.
 
@@ -1513,7 +1511,7 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         logger.info('Smoothing tractogram')
-        logger.subinfo(f'Input tractogram', indent_char='*')
+        logger.subinfo(f'Input tractogram', indent_char='*', indent_lvl=1)
         logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
         logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
 
@@ -1523,7 +1521,7 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         else:
             logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
-        logger.subinfo(f'Output tractogram', indent_char='*')
+        logger.subinfo(f'Output tractogram', indent_char='*', indent_lvl=1)
         logger.subinfo(f'{output_tractogram}', indent_lvl=1, indent_char='-')
         logger.subinfo(f'Spline type: {spline_type}', indent_lvl=1, indent_char='-')
         if not segment_len==None:
@@ -1561,7 +1559,7 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
 
-cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=2, force=False ):
+cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=3, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
     More info at http://algorithmist.net/docs/catmullrom.pdf.
 
@@ -1670,7 +1668,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         logger.info('Smoothing tractogram')
-        logger.subinfo('Input tractogram', indent_char='*')
+        logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
         logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
         logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
 
@@ -1680,7 +1678,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         else:
             logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
-        logger.subinfo('Output tractogram', indent_char='*')
+        logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
         logger.subinfo(f'{output_tractogram}', indent_lvl=1, indent_char='-')
         logger.subinfo(f'Spline type: {spline_type}', indent_lvl=1, indent_char='-')
         if not segment_len==None:
@@ -1764,7 +1762,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
 
 
 
-cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=2, force=False ):
+cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=3, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
     More info at http://algorithmist.net/docs/catmullrom.pdf.
 
@@ -1814,7 +1812,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         logger.info('Smoothing tractogram')
-        logger.subinfo('Input tractogram', indent_char='*')
+        logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
         logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
         logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
 
@@ -1824,7 +1822,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         else:
             logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
-        logger.subinfo('Output tractogram', indent_char='*')
+        logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
         logger.subinfo(f'{output_tractogram}', indent_lvl=1, indent_char='-')
         logger.subinfo(f'Control points: {control_point_ratio*100.0:.1f}%', indent_lvl=1, indent_char='-')
         logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
@@ -1857,7 +1855,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
 
-def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbose=2, force=False):
+def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbose=3, force=False):
     """Recompute the indices of the streamlines in a tractogram after filtering.
 
     Parameters
@@ -1908,7 +1906,7 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
     return indices_recomputed if output_indices is None else np.savetxt(output_indices, indices_recomputed, fmt='%d')
 
 
-cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=None , option="No_opt", force=False, verbose=2):
+cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option="No_opt", force=False, verbose=3):
     """Sample underlying values of a tractogram along its points from the corresponding image (ATTENTION: this method does not use interpolation during sampling)
 
     Parameters
@@ -1920,15 +1918,13 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
     output_file : string 
         Path to the file (.txt in needed) where the method saves values
     mask_file : string (default None)
-        Path to the mask file (.nii) to constrain the sampling to a specific region
-    space : string (default rasmm)
-        space reference of streamline coordinates
+        Path to the mask file (.nii) to constrain the sampling to a specific region.
     option : string (default None)
         apply some operation on values 
     force : boolean
         Force overwriting of the output (default : False).
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     Returns
     -------
@@ -1978,11 +1974,11 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
 
         n_streamlines = int( TCK_in.header['count'] )
         logger.info(f'Tractogram sampling')
-        logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*')
+        logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*', indent_lvl=1)
 
         pixdim = Img.header['pixdim'] [1:4] 
-        logger.subinfo('Image resolution : {}'.format(pixdim), indent_char='*')
-        logger.subinfo('Applying vox transformation', indent_char='*')
+        logger.subinfo('Image resolution : {}'.format(pixdim), indent_char='*', indent_lvl=1)
+        logger.subinfo('Applying vox transformation', indent_char='*', indent_lvl=1)
 
         with open(output_file,'w') as file:
             file.write("# dicelib.tractogram.sample option={} {} {} {}**\n".format(option,input_tractogram,input_image,output_file))
@@ -2004,30 +2000,23 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
                         np.savetxt(file, value[:npoints], fmt='%.3f', newline=' ')
                         file.write("\n")
                     elif option == 'mean':
-
-                        print('\n')
-                        print(ii+2)
-                        print('\n')
-                        print(value[:ii+1])
-                        print(np.nanmean(value[:ii+1]))
                         value[ii+2] = np.nanmean(value[:ii+1])
-                    
                         file.write(f'{value[ii+2]:.3f}')
-                        # np.savetxt(file, value[ii+2], fmt='%.3f', newline=' ')
                         file.write("\n")
                     elif option == 'median':
                         value[ii+3] = np.nanmedian(value[:ii+1])
-                        # np.savetxt(file, value[ii+3], fmt='%.3f', newline=' ')
                         file.write(f'{value[ii+3]:.3f}')
                         file.write("\n")
-                    else:
+                    elif option == 'min':
                         value[ii+4] = np.min(value[:ii+1])
-                        # np.savetxt(file, value[ii+4], fmt='%.3f', newline=' ')
                         file.write(f'{value[ii+4]:.3f}')
                         file.write("\n")
+                    elif option == 'max':
+                        value[ii+5] = np.max(value[:ii+1])
+                        file.write(f'{value[ii+5]:.3f}')
+                        file.write("\n")
 
-                    # value[ii+5] = np.max(value[i][:ii+1])
-                    pbar.update()            
+                    pbar.update()
 
 
     except Exception as e:
@@ -2040,7 +2029,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, space=N
         file.close()
 
 
-cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=2, force=False):
+cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=False):
     """Set the number of points of each streamline in the input tractogram.
 
     Parameters
@@ -2081,7 +2070,7 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=2, force=Fal
     TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
     logger.info('Resampling')
-    logger.subinfo('Input tractogram', indent_char='*')
+    logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
     logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
     logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
 
@@ -2091,7 +2080,7 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=2, force=Fal
     else:
         logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
-    logger.subinfo('Output tractogram', indent_char='*')
+    logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
     logger.subinfo(f'{output_tractogram}', indent_lvl=1, indent_char='-')
     logger.subinfo(f'nb_pts : {nb_pts}', indent_lvl=1, indent_char='-')
 
