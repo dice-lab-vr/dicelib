@@ -348,7 +348,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     return clust_idx, set_centroids[:new_c]
 
 
-cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=2):
+cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=3):
     """
     Compute the distance between a fiber and a set of centroids
     
@@ -390,7 +390,7 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
     cdef size_t p = 0
 
     
-    with ProgressBar(total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+    with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
         for i_f in xrange(n_streamlines):
             TCK_in._read_streamline()
             c_i = clust_idx[i_f]

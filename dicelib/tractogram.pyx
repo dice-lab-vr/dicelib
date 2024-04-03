@@ -444,7 +444,7 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
         Path to the file (.tck) containing the streamlines to process.
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     Returns
     -------
@@ -611,7 +611,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         Probability to keep (randomly) each streamline; this filter is applied after all others (default : 1.0)
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     force : boolean
         Force overwriting of the output (default : False).
@@ -778,7 +778,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         Prefix for the output filenames (default : 'bundle_').
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     force : boolean
         Force overwriting of the output (default : False).
@@ -1063,7 +1063,7 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
         Scalar file (.txt or .npy) for the output streamline weights.
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     force : boolean
         Force overwriting of the output (default : False).
@@ -1216,14 +1216,12 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
         If True, the file will be created by appending '_only_connecting' to the input filename.
         
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     force : boolean
         Force overwriting of the output (default : False).
      """
 
-    if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        logger.error('\'verbose\' must be in [0...4]')
     set_verbose(verbose)
 
     if output_tractogram is None :
@@ -1475,14 +1473,12 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     force : boolean
         Force overwriting of the output (default : False).
     """
 
-    if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        logger.error('\'verbose\' must be in [0...4]')
     set_verbose(verbose)
 
     if segment_len==None and streamline_pts==None:
@@ -1599,14 +1595,12 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     force : boolean
         Force overwriting of the output (default : False).
     """
 
-    if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        logger.error('\'verbose\' must be in [0...4]')
     set_verbose(verbose)
 
     if segment_len==None and streamline_pts==None:
@@ -1790,14 +1784,12 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         Sampling resolution of the final streamline after interpolation (default : 1.0).
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     force : boolean
         Force overwriting of the output (default : False).
     """
 
-    if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        logger.error('\'verbose\' must be in [0...4]')
     set_verbose(verbose)
 
     if output_tractogram is None :
@@ -1875,15 +1867,13 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
         Dictionary of the streamlines kept after filtering.
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     Returns
     -------
     indices_recomputed : array of integers
         Recomputed indices of the streamlines.
     """
-    if type(verbose) != int or verbose not in [0,1,2,3,4]:
-        logger.error('\'verbose\' must be in [0...4]')
     set_verbose(verbose)
 
     files = [
@@ -2053,7 +2043,7 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
         Number of points to set for each streamline.
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 2).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
     force : boolean
         Force overwriting of the output (default : False).
