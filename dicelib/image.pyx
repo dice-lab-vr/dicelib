@@ -1,6 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
-from dicelib.ui import __logger__ as logger, set_verbose
+from dicelib.ui import set_verbose, setup_logger
 from dicelib.utils import check_params, File, Num
 
 import os
@@ -9,6 +9,8 @@ import nibabel as nib
 import numpy as np
 
 from time import time
+
+logger = setup_logger('image')
 
 def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: str, b: list, b_step: float=0.0, verbose: int=3, force: bool=False ):
     """Extract volumes from a DWI dataset.
@@ -36,7 +38,7 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
     force : boolean
         Force overwriting of the output (default : False).
     """
-    set_verbose(verbose)
+    set_verbose('image', verbose)
 
     files = [
         File(name='dwi_in', type_='input', path=input_dwi),

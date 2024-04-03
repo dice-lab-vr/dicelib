@@ -1,7 +1,7 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, spline_smooth
-from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
+from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num
 
 import ast
@@ -23,6 +23,8 @@ from libcpp.string cimport string
 from time import time
 
 cdef float[3] NAN3 = {NAN, NAN, NAN}
+
+logger = setup_logger('tractogram')
 
 cdef class LazyTractogram:
     """Class to 'lazyly' read/write streamlines from tractogram one by one.
@@ -454,7 +456,7 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
         Lengths of all streamlines in the tractogram [in mm]
     """
 
-    set_verbose(verbose)
+    set_verbose('tractogram', verbose)
 
     files = [File(name='input_tractogram', type_='input', path=input_tractogram)]
     if output_scalar_file is not None:
@@ -508,7 +510,7 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
     logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
-def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=4 ):
+def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=3 ):
     """Print some information about a tractogram.
 
     Parameters
@@ -523,9 +525,9 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
         Maximum length allowed for printing a field value (default : all chars)
 
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 4).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
     """
-    set_verbose(verbose)
+    set_verbose('tractogram', verbose)
 
     files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck')]
     nums = None
@@ -621,7 +623,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     force : boolean
         Force overwriting of the output (default : False).
     """
-    set_verbose(verbose)
+    set_verbose('tractogram', verbose)
 
     files = [
         File(name='input_tractogram', type_='input', path=input_tractogram),
@@ -792,7 +794,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         Force overwriting of the output (default : False).
     """
 
-    set_verbose(verbose)
+    set_verbose('tractogram', verbose)
 
     files = [
         File(name='input_tractogram', type_='input', path=input_tractogram),
@@ -1088,7 +1090,7 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
     force : boolean
         Force overwriting of the output (default : False).
     """
-    set_verbose(verbose)
+    set_verbose('tractogram', verbose)
 
     if len(input_list) < 2:
         logger.error(f'Input list must contain at least 2 files')
@@ -1245,7 +1247,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
         Force overwriting of the output (default : False).
      """
 
-    set_verbose(verbose)
+    set_verbose('tractogram', verbose)
 
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
@@ -1506,7 +1508,7 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         Force overwriting of the output (default : False).
     """
 
-    set_verbose(verbose)
+    set_verbose('tractogram', verbose)
 
     if segment_len==None and streamline_pts==None:
         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set.')
@@ -1631,7 +1633,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         Force overwriting of the output (default : False).
     """
 
-    set_verbose(verbose)
+    set_verbose('tractogram', verbose)
 
     if segment_len==None and streamline_pts==None:
         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set.')
@@ -1823,7 +1825,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         Force overwriting of the output (default : False).
     """
 
-    set_verbose(verbose)
+    set_verbose('tractogram', verbose)
 
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
@@ -1910,7 +1912,7 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
     indices_recomputed : array of integers
         Recomputed indices of the streamlines.
     """
-    set_verbose(verbose)
+    set_verbose('tractogram', verbose)
 
     files = [
         File(name='input_indices', type_='input', path=input_indices),

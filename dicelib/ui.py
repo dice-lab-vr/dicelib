@@ -4,6 +4,7 @@ import numpy as np
 
 import argparse
 from datetime import datetime as _datetime
+# import inspect
 import itertools
 import logging
 from os.path import abspath
@@ -175,7 +176,10 @@ class LoggerFormatter(logging.Formatter):
             s = s + self.formatStack(record.stack_info)
         return s
 
-class Logger(logging.Logger):
+class Logger(logging.getLoggerClass()):
+    def __init__(self, name, level=logging.NOTSET):
+        super().__init__(name, level)
+    
     def subinfo(self, msg, indent_lvl=0, indent_char='', with_progress=False, stacklevel=2, *args, **kwargs):
         if self.isEnabledFor(SUBINFO):
             stream_handler_indices = []
@@ -198,39 +202,60 @@ class Logger(logging.Logger):
         super().error(msg, stacklevel=stacklevel, *args, **kwargs)
         sys.exit(1)
 
-__logger__ = None
-__CONSOLE_LVL__ = logging.INFO
-__FILE_LVL__ = logging.WARNING
-def setup_logger(console_lvl=logging.DEBUG, file_lvl=logging.DEBUG) -> NoReturn:
-    global __logger__
-    
-    __logger__ = Logger(name = __name__, level = logging.NOTSET)
-    
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(console_lvl)
-    console_handler.setFormatter(LoggerFormatter('console'))
-    __logger__.addHandler(console_handler)
+def verbose2loglvl(verbose: int) -> int:
+    if verbose not in range(5):
+        raise ValueError('\'verbose\' must be an integer between 0 and 4')
+    if verbose == 0:
+        return logging.ERROR
+    elif verbose == 1:
+        return logging.WARNING
+    elif verbose == 2 or verbose == 3:
+        return logging.INFO
+    elif verbose == 4:
+        return logging.DEBUG
 
-    file_handler = logging.FileHandler(filename='log.log', mode='w')
-    file_handler.setLevel(file_lvl)
-    file_handler.setFormatter(LoggerFormatter('file'))
-    file_handler.emit(__logger__.makeRecord(__name__, logging.DEBUG, abspath(''), 0, 'Log created', None, None))
-    __logger__.addHandler(file_handler)
+def setup_logger(name, verbose=3, log_on_file=False, file_verbose=4):
+    try:
+        lvl = verbose2loglvl(verbose)
+        file_lvl = verbose2loglvl(file_verbose)
+    except ValueError as e:
+        print(e)
+    # name = inspect.getmodulename(inspect.stack()[1][1])
+    logging.setLoggerClass(Logger)
+    logger = logging.getLogger(name)
+    logger.setLevel(lvl)
+    if not logger.hasHandlers():
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(lvl)
+        console_handler.setFormatter(LoggerFormatter('console'))
+        logger.addHandler(console_handler)
+        if log_on_file:
+            file_handler = logging.FileHandler('log.log', mode='w')
+            file_handler.setLevel(file_lvl)
+            file_handler.emit(logger.makeRecord(name, logging.DEBUG, abspath(''), 0, 'Log created', None, None))
+            logger.addHandler(file_handler)
+    else:
+        for i, handler in enumerate(logger.handlers):
+            if type(handler) == logging.StreamHandler:
+                logger.handlers[i].setLevel(lvl)
+            if type(handler) == logging.FileHandler:
+                if log_on_file:
+                    logger.handlers[i].setLevel(file_lvl)
+                else:
+                    logger.removeHandler(handler)
+    return logger
 
-def set_verbose(console_lvl: int=4, file_lvl: int=4) -> NoReturn:
-    '''Set the verbosity level for the logger.
+logger = setup_logger('ui')
+
+def set_verbose(name, verbose: int = 3) -> NoReturn:
+    '''Set the verbosity level of the logger.
 
     Parameters
     ----------
-    console_lvl : int, optional
-        The verbosity level for the console, by default 4
-    file_lvl : int, optional
-        The verbosity level for the log file, by default 1
-
-    Raises
-    ------
-    ValueError
-        If `console_lvl` or `file_lvl` is not 0, 1, 2, 3, or 4
+    name : str
+        The name of the logger
+    verbose : int
+        The verbosity level (default is 3)
 
     Notes
     -----
@@ -241,35 +266,10 @@ def set_verbose(console_lvl: int=4, file_lvl: int=4) -> NoReturn:
     - 3: info, warnings, errors (with progressbars)
     - 4: debug, info, warnings, errors (with progressbars)
     '''
-    global __logger__
-    global __CONSOLE_LVL__
-    global __FILE_LVL__
-    if console_lvl not in [0, 1, 2, 3, 4]:
-        raise ValueError('\'console_lvl\' must be 0, 1, 2, 3, or 4')
-    if file_lvl not in [0, 1, 2, 3, 4]:
-        raise ValueError('\'file_lvl\' must be 0, 1, 2, 3, or 4')
-    if console_lvl == 0:
-        __CONSOLE_LVL__ = logging.ERROR
-    elif console_lvl == 1:
-        __CONSOLE_LVL__ = logging.WARNING
-    elif console_lvl == 2 or console_lvl == 3:
-        __CONSOLE_LVL__ = logging.INFO
-    elif console_lvl == 4:
-        __CONSOLE_LVL__ = logging.DEBUG
-    if file_lvl == 0:
-        __FILE_LVL__ = logging.ERROR
-    elif file_lvl == 1:
-        __FILE_LVL__ = logging.WARNING
-    elif file_lvl == 2 or file_lvl == 3:
-        __FILE_LVL__ = logging.INFO
-    elif file_lvl == 4:
-        __FILE_LVL__ = logging.DEBUG
-
-    if __logger__ is None:
-        setup_logger(__CONSOLE_LVL__, __FILE_LVL__)
-    else:
-        __logger__.handlers[0].setLevel(__CONSOLE_LVL__)
-        __logger__.handlers[1].setLevel(__FILE_LVL__)
+    try:
+        logging.getLogger(name).setLevel(verbose2loglvl(verbose))
+    except ValueError as e:
+        print(e)
 
 # Argument parser
 class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
@@ -796,8 +796,8 @@ class ArgumentParser(argparse.ArgumentParser):
                 namespace, args = self._parse_known_args(args, namespace)
             except argparse.ArgumentError as err:
                 # self.error(str(err))
-                if __logger__ is not None:
-                    __logger__.error(str(err))
+                if logger is not None:
+                    logger.error(str(err))
                 else:
                     self.error(str(err))
         else:
@@ -935,7 +935,7 @@ class ProgressBar:
                     if self.log_list:
                         print(clear_line, end='\r', flush=True)
                         for log in self.log_list:
-                            __logger__.warning(log)
+                            logger.warning(log)
                         print(f'{self.subinfo} {step}', end='', flush=True)
                         self.log_list = []
                         # self._handle_subinfo(step)
@@ -960,7 +960,7 @@ class ProgressBar:
                     if self.log_list:
                         print(clear_line, end='\r', flush=True)
                         for log in self.log_list:
-                            __logger__.warning(log)
+                            logger.warning(log)
                         print(f'{self.subinfo} {percent_str}', end='', flush=True)
                         self.log_list = []
                         # self._handle_subinfo(percent_str)
@@ -975,7 +975,7 @@ class ProgressBar:
         print(clear_line, end='\r', flush=True)
         print(f'{esc}1A{clear_line}', end='\r', flush=True)
         for log in self.log_list:
-            __logger__.warning(log)
+            logger.warning(log)
         print(f'{self.subinfo} {step}', end='', flush=True) if step != '' else print(f'{self.subinfo}', end='', flush=True)
         self.log_list = []
 
@@ -1017,7 +1017,7 @@ class ProgressBar:
         self._progress += 1
 
 # verbosity level of logging functions
-__UI_VERBOSE_LEVEL__ = 4
+# __UI_VERBOSE_LEVEL__ = 4
 
 # def set_verbose(verbose: int) -> NoReturn:
 # 	"""Set the verbosity of all functions.
@@ -1036,68 +1036,68 @@ __UI_VERBOSE_LEVEL__ = 4
 # 		raise TypeError('"verbose" must be either 0, 1, 2, 3 or 4')
 # 	__UI_VERBOSE_LEVEL__ = verbose
 
-def get_verbose():
-    return __UI_VERBOSE_LEVEL__
+# def get_verbose():
+#     return __UI_VERBOSE_LEVEL__
 
-def PRINT(*args, **kwargs):
-    if __UI_VERBOSE_LEVEL__ >= 3:
-        print(*args, **kwargs)
+# def PRINT(*args, **kwargs):
+#     if __UI_VERBOSE_LEVEL__ >= 3:
+#         print(*args, **kwargs)
 
-def INFO(message: str) -> NoReturn:
-    """Print a INFO message in blue.
-    Only shown if __UI_VERBOSE_LEVEL__ >= 3.
+# def INFO(message: str) -> NoReturn:
+#     """Print a INFO message in blue.
+#     Only shown if __UI_VERBOSE_LEVEL__ >= 3.
 
-    Parameters
-    ----------
-    message : string
-    Message to display.
-    """
-    if __UI_VERBOSE_LEVEL__ >= 3:
-        print(f'{bg_cyan}{fg_black}[ INFO ]{reset} {message}')
+#     Parameters
+#     ----------
+#     message : string
+#     Message to display.
+#     """
+#     if __UI_VERBOSE_LEVEL__ >= 3:
+#         print(f'{bg_cyan}{fg_black}[ INFO ]{reset} {message}')
 
-def LOG(message: str) -> NoReturn:
-    """Print a INFO message in green, reporting the time as well.
-    Only shown if __UI_VERBOSE_LEVEL__ >= 3.
+# def LOG(message: str) -> NoReturn:
+#     """Print a INFO message in green, reporting the time as well.
+#     Only shown if __UI_VERBOSE_LEVEL__ >= 3.
 
-    Parameters
-    ----------
-    message : string
-    Message to display.
-    """
-    if __UI_VERBOSE_LEVEL__ >= 3:
-        datetime_str = _datetime.now().strftime('%H:%M:%S')
-        print(f'{bg_green}{fg_black}[ {datetime_str} ]{reset} {message}')
+#     Parameters
+#     ----------
+#     message : string
+#     Message to display.
+#     """
+#     if __UI_VERBOSE_LEVEL__ >= 3:
+#         datetime_str = _datetime.now().strftime('%H:%M:%S')
+#         print(f'{bg_green}{fg_black}[ {datetime_str} ]{reset} {message}')
 
-def WARNING(message: str, stop: bool=False) -> NoReturn:
-    """Print a WARNING message in yellow.
-    Only shown if __UI_VERBOSE_LEVEL__ >= 1.
+# def WARNING(message: str, stop: bool=False) -> NoReturn:
+#     """Print a WARNING message in yellow.
+#     Only shown if __UI_VERBOSE_LEVEL__ >= 1.
 
-    Parameters
-    ----------
-    message : string
-    Message to display.
-    stop : boolean
-    If True, it stops the execution (default : False).
-    """
-    if __UI_VERBOSE_LEVEL__ >= 1:
-        print(f'{bg_yellow}{fg_black}[ WARNING ]{reset} {message}')
-        if stop:
-            sys.exit()
+#     Parameters
+#     ----------
+#     message : string
+#     Message to display.
+#     stop : boolean
+#     If True, it stops the execution (default : False).
+#     """
+#     if __UI_VERBOSE_LEVEL__ >= 1:
+#         print(f'{bg_yellow}{fg_black}[ WARNING ]{reset} {message}')
+#         if stop:
+#             sys.exit()
 
-def ERROR(message: str, stop: bool=True) -> NoReturn:
-    """Print an ERROR message in red.
-    Only shown if __UI_VERBOSE_LEVEL__ >= 1.
+# def ERROR(message: str, stop: bool=True) -> NoReturn:
+#     """Print an ERROR message in red.
+#     Only shown if __UI_VERBOSE_LEVEL__ >= 1.
 
-    Parameters
-    ----------
-    message : string
-        Message to display.
-    stop : boolean
-        If True, it stops the execution (default : True).
-    """
-    if __UI_VERBOSE_LEVEL__ >= 1:
-        print(f'{bg_red}{fg_black}[ ERROR ]{reset} {message}')
-    if stop:
-        sys.exit()
+#     Parameters
+#     ----------
+#     message : string
+#         Message to display.
+#     stop : boolean
+#         If True, it stops the execution (default : True).
+#     """
+#     if __UI_VERBOSE_LEVEL__ >= 1:
+#         print(f'{bg_red}{fg_black}[ ERROR ]{reset} {message}')
+#     if stop:
+#         sys.exit()
 
-setup_logger()# TODO: move to __init__.py
+# setup_logger()# TODO: move to __init__.py

@@ -44,7 +44,9 @@ class Num:
     include_max: Optional[bool] = True
     
 def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=None, nums: Optional[List[Num]]=None, force: bool=False):
-    from dicelib.ui import __logger__ as logger
+    from dicelib.ui import setup_logger
+    logger = setup_logger('utils')
+    
     # files
     if files is not None:
         for file in files:

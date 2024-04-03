@@ -5,7 +5,7 @@
 from dicelib.connectivity import _assign as assign
 from dicelib.tractogram import info, split as split_bundles
 from dicelib.streamline import length as streamline_length
-from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
+from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num
 
 from concurrent.futures import as_completed, ThreadPoolExecutor
@@ -23,6 +23,8 @@ from dicelib.tractogram cimport LazyTractogram
 from libc.math cimport sqrt
 from libc.stdlib cimport free, malloc
 from libcpp cimport bool
+
+logger = setup_logger('clustering')
 
 cdef void tot_lenght(float[:,::1] fib_in, float* length) noexcept nogil:
     cdef size_t i = 0
@@ -252,7 +254,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
         threshold = threshold
     
     cdef LazyTractogram TCK_in = LazyTractogram( filename_in, mode='r', max_points=1000 )
-    set_verbose( verbose )
+    set_verbose('clustering', verbose)
 
     # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
     cdef int n_streamlines = int( TCK_in.header['count'] )
@@ -660,7 +662,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         Whether to keep temporary files.
     """
 
-    set_verbose(verbose)
+    set_verbose('clustering', verbose)
 
     files = [
         File(name='tractogram_in', type_='input', path=tractogram_in, ext=['.tck']),
@@ -709,16 +711,26 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
         logger.info('Dividing the streamlines into anatomical bundles')
-        atlas_dtype = nib.load(atlas).header.get_data_dtype()
+        atlas_img = nib.load(atlas)
+        atlas_data = atlas_img.get_fdata()
+        atlas_dtype = atlas_img.header.get_data_dtype()
         if atlas_dtype.char not in ['b', 'B', 'i', 'u']:
             warning_msg = f'Atlas data type is \'{atlas_dtype}\'. It is recommended to use integer data type.'
             logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
         logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
         with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
             with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
-                future = [executor.submit( assign, tractogram_in, pbar_array, i, start_chunk=int(chunk_groups[i][0]),
-                                            end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
-                                            gm_map_file=atlas, threshold=conn_thr ) for i in range(len(chunk_groups))]
+                future = [
+                    executor.submit(
+                        assign,
+                        tractogram_in,
+                        pbar_array,
+                        i,
+                        start_chunk=int(chunk_groups[i][0]),
+                        end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
+                        gm_map_data=atlas_data,
+                        gm_map_img=atlas_img,
+                        threshold=conn_thr ) for i in range(len(chunk_groups))]
                 chunks_asgn = [f.result() for f in future]
                 chunks_asgn = [c for f in chunks_asgn for c in f]
 
@@ -765,7 +777,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             bundles[len(bundles)-1] = (bundles[len(bundles)-1][0], bundles[len(bundles)-1][1], bundles[len(bundles)-1][2])
 
         t1 = time.time()
-        set_verbose(verbose)
         logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
 
         if n_threads:

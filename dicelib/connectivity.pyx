@@ -16,11 +16,12 @@ from scipy.linalg import inv
 from time import time
 
 from dicelib.streamline import create_replicas
-from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
+from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, File, Num
 from dicelib.streamline cimport apply_affine
 from dicelib.tractogram cimport LazyTractogram
 
+logger = setup_logger('connectivity')
 
 def compute_chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
@@ -451,7 +452,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         Force overwriting of the output (default : False).
     """
 
-    set_verbose(verbose)
+    set_verbose('connectivity', verbose)
 
     logger.info( 'Compute connectome weighted by COMMITblur' )
     t0 = time()
@@ -743,7 +744,7 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
         Force overwriting of the output (default : False).
     """
 
-    set_verbose(verbose)
+    set_verbose('connectivity', verbose)
     logger.info('Computing connectome')
     t0 = time()
 

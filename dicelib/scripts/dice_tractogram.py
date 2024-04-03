@@ -2,13 +2,14 @@ from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
 from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, LazyTractogram, recompute_indices, resample, sample, sanitize, spline_smoothing_v2, split
 from dicelib.tsf import Tsf
-from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose, setup_parser
+from dicelib.ui import ProgressBar, set_verbose, setup_logger, setup_parser
 
 import os
 from time import time
 
 import numpy as np
 
+logger = setup_logger('dice_tractogram')
 
 def create_color_scalar_file(streamline, num_streamlines):
         """
