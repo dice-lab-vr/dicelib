@@ -4,16 +4,10 @@ from dicelib.tractogram import compute_lengths, filter as tract_filter, info, jo
 from dicelib.tsf import Tsf
 from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose, setup_parser
 
-from concurrent.futures import ThreadPoolExecutor
 import os
 from time import time
 
 import numpy as np
-
-def compute_chunks(lst, n):
-    """Yield successive n-sized chunks from lst."""
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
 
 
 def create_color_scalar_file(streamline, num_streamlines):
@@ -101,45 +95,10 @@ def tractogram_assign():
     if not os.path.exists(options.atlas):
         logger.error('Atlas does not exist')
 
-    num_streamlines = int(LazyTractogram(options.tractogram_in, mode='r').header["count"])
-    logger.info(f'Computing assignments for {num_streamlines} streamlines')
-
-    if num_streamlines > 3:
-        MAX_THREAD = 3
-    else:
-        MAX_THREAD = 1
-
-    chunk_size = int(num_streamlines / MAX_THREAD)
-    chunk_groups = [e for e in compute_chunks(np.arange(num_streamlines), chunk_size)]
-    chunks_asgn = []
-
-    pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
-    t0 = time()
-    with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=options.verbose < 3, hide_on_exit=True) as pbar:
-        with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
-            future = [
-                executor.submit(
-                    assign,
-                    options.tractogram_in,
-                    pbar_array,
-                    i,
-                    start_chunk=int(chunk_groups[i][0]),
-                    end_chunk=int(chunk_groups[i][len(chunk_groups[i]) - 1] + 1),
-                    gm_map_file=options.atlas,
-                    threshold=options.atlas_dist) for i in range(len(chunk_groups))
-            ]
-            chunks_asgn = [f.result() for f in future]
-            chunks_asgn = [c for f in chunks_asgn for c in f]
-
-    t1 = time()
-    logger.info(f'[ {np.round((t1 - t0), 2)} seconds ]')
-
-    if out_assignment_ext == '.txt':
-        with open(options.assignments_out, "w") as text_file:
-            for reg in chunks_asgn:
-                print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
-    else:
-        np.save(options.assignments_out, chunks_asgn, allow_pickle=False)
+    assign(options.tractogram_in,
+           options.assignments_out,
+           options.atlas,
+           options.atlas_dist)
 
 
 def tractogram_cluster():
