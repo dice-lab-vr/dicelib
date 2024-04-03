@@ -625,8 +625,8 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
 
 
-def build_connectome( input_weights: str,  input_assignments: str, output_connectome: str, input_tractogram: str=None, input_nodes: str=None, threshold: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=3, force: bool=False ):
-    """Build the weighted connectome having the assignments.
+def build_connectome( input_assignments: str, output_connectome: str, input_weights: str=None, input_tractogram: str=None, input_nodes: str=None, atlas_dist: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=3, force: bool=False ):
+    """Build the (weighted) connectome having the assignments or the tractogram and an atlas.
 
     Parameters
     ----------
@@ -645,8 +645,8 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
     input_nodes : string
         Path to the file containing the gray matter parcellation (nodes of the connectome).
 
-    threshold : float
-        Threshold used to compute the assignments of the streamlines (default: 2.0).
+    atlas_dist : float
+        Distance [in mm] used to assign streamlines to the atlas' nodes (default: 2.0).
 
     metric : string
         Operation to compute the value of the edges, options: sum, mean, min, max (default: sum).
@@ -662,11 +662,13 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
     """
 
     set_verbose(verbose)
+    logger.info('Computing connectome')
 
     files = [
-        File(name='weights_in', type_='input', path=input_weights, ext=['.txt', '.npy']),
         File(name='connectome_out', type_='output', path=output_connectome, ext=['.csv', '.npy'])
     ]
+    if input_weights is not None:
+        files.append(File(name='weights_in', type_='input', path=input_weights, ext=['.txt', '.npy']))
     if os.path.isfile(input_assignments):
         files.append(File(name='assignments_in', type_='input', path=input_assignments, ext=['.txt', '.npy']))
     else:
@@ -680,21 +682,18 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
             File(name='nodes_in', type_='input', path=input_nodes, ext=['.nii', '.nii.gz'])
         ])
 
-        logger.info('No assignments file found. Computing assignments')
-        logger.subinfo(f'Input tractogram: \'{input_tractogram}\'', indent_char='*')
-        logger.subinfo(f'Input parcellation: \'{input_nodes}\'', indent_char='*')
+        # logger.info('No assignments file found. Computing assignments')
+        logger.subinfo(f'Input tractogram: \'{input_tractogram}\'', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Input parcellation: \'{input_nodes}\'', indent_char='*', indent_lvl=1)
 
         # compute assignments
-        os.system(f'dice_tractogram_assign {input_tractogram} {input_nodes} --save_assignments {input_assignments} -t {threshold} -v {verbose}')
+        logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+        with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
+            os.system(f'dice_tractogram_assign {input_tractogram} {input_nodes} {input_assignments} -d {atlas_dist} -v 1')
+
     check_params(files=files, force=force)
 
-    # streamline weights
-    input_weights_ext = os.path.splitext(input_weights)[1]
-    if input_weights_ext=='.txt':
-        w = np.loadtxt( input_weights ).astype(np.float64)
-    elif input_weights_ext=='.npy':
-        w = np.load( input_weights, allow_pickle=False ).astype(np.float64)
-
+    # streamline assignments
     input_assignments_ext = os.path.splitext(input_assignments)[1]
     if input_assignments_ext=='.txt':
         asgn = np.loadtxt( input_assignments ).astype(np.int32)
@@ -703,37 +702,54 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
     n_streamlines = asgn.shape[0]
     asgn_sort = np.sort(asgn, axis=1) # shape = (n_streamlines, 2)
     
-    # check if #(weights)==n_streamlines
-    if n_streamlines != w.size:
-        logger.error(f'# of weights ({w.size}) is different from # of streamline assignments ({n_streamlines})')
+    # streamline weights
+    if input_weights is None:
+        w = np.ones( n_streamlines, dtype=np.int32 )
+    else:
+        input_weights_ext = os.path.splitext(input_weights)[1]
+        if input_weights_ext=='.txt':
+            w = np.loadtxt( input_weights ).astype(np.float64)
+        elif input_weights_ext=='.npy':
+            w = np.load( input_weights, allow_pickle=False ).astype(np.float64)
+        # check if #(weights)==n_streamlines
+        if n_streamlines != w.size:
+            logger.error(f'# of weights ({w.size}) is different from # of streamline assignments ({n_streamlines})')
 
     # metric
     if metric not in ['sum', 'mean', 'min', 'max']:
         logger.error('Invalid type of metric for the edges. Options: sum, mean, min, max.')
+    if input_weights is None:
+        metric = 'sum' # to compute connectome NOS
 
-    logger.info('Computing connectome')
-    logger.subinfo(f'Input assignments: "{input_assignments}"', indent_char='*')
-    logger.subinfo(f'Chosen metric to weight the edges: {metric}', indent_char='*')
-    logger.subinfo(f'Input weights: "{input_weights}"', indent_char='*')
+
+    logger.subinfo(f'Streamline assignments: "{input_assignments}"', indent_char='*', indent_lvl=1)
+    if input_weights is not None:
+        logger.subinfo(f'Chosen metric to weight the edges: {metric}', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Input weights: "{input_weights}"', indent_char='*', indent_lvl=1)
+    else:
+        logger.subinfo('No weights provided, the connectome will contain the number of streamlines', indent_char='*', indent_lvl=1)
 
     # create connectome to fill
     if input_nodes is not None:
         gm_nii = nib.load(input_nodes)
         gm = gm_nii.get_fdata()
         n_rois = np.max(gm).astype(np.int32)
-        logger.subinfo(f'Number of regions: {n_rois}', indent_char='*')
+        logger.subinfo(f'Number of regions: {n_rois}', indent_char='*', indent_lvl=1)
     else:
         n_rois = np.max(asgn).astype(np.int32)
-        logger.subinfo(f'Number of regions: {n_rois}', indent_char='*')
+        logger.subinfo(f'Number of regions: {n_rois}', indent_char='*', indent_lvl=1)
 
     if metric == 'min':
         conn = np.triu(np.full((n_rois, n_rois), 1000000000, dtype=np.float64))
+    elif metric == 'max':
+        conn = np.triu(np.full((n_rois, n_rois), -1000000000, dtype=np.float64))
     else:
         conn = np.zeros((n_rois, n_rois), dtype=np.float64)
     conn_nos = np.zeros((n_rois, n_rois), dtype=np.float64)
     count_unconn = 0
 
-    with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+    logger.subinfo('Building connectome', indent_char='*', indent_lvl=1)
+    with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True, subinfo=False) as pbar:
         for i in range( n_streamlines ):
             if asgn_sort[i][0] == 0 or asgn_sort[i][1] == 0: 
                 count_unconn += 1
@@ -756,7 +772,7 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
         conn[conn_nos>0] = conn[conn_nos>0]/conn_nos[conn_nos>0]
 
     conn[conn_nos==0] = 0
-    # np.save(output_connectome[:-4]+'NOS.npy', conn, allow_pickle=False)
+    # np.save(output_connectome[:-4]+'NOS.npy', conn_nos, allow_pickle=False)
 
     conn_out_ext = os.path.splitext(output_connectome)[1]
     if symmetric:
@@ -772,4 +788,4 @@ def build_connectome( input_weights: str,  input_assignments: str, output_connec
         else:
             np.save(output_connectome, conn, allow_pickle=False)
 
-    logger.subinfo( f'Writing output connectome to "{output_connectome}"', indent_char='*')
+    logger.subinfo( f'Writing output connectome to "{output_connectome}"', indent_char='*', indent_lvl=1)
