@@ -20,6 +20,8 @@ from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
 from libcpp.string cimport string
 
+from time import time
+
 cdef float[3] NAN3 = {NAN, NAN, NAN}
 
 cdef class LazyTractogram:
@@ -471,6 +473,7 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
             logger.error('The tractogram is empty')
 
         logger.info('Streamline lengths')
+        t0 = time()
         lengths = np.empty( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
             with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
@@ -501,6 +504,8 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
     finally:
         if TCK_in is not None:
             TCK_in.close()
+    t1 = time()
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=4 ):
@@ -651,6 +656,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     check_params(files=files, nums=nums, force=force)
 
     logger.info('Filtering tractogram')
+    t0 = time()
     for msg in messages:
         logger.subinfo(msg, indent_char='*', indent_lvl=1)
 
@@ -742,6 +748,8 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_in.close()
         if TCK_out is not None:
             TCK_out.close( write_eof=True, count=n_written )
+    t1 = time()
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, prefix: str='bundle_', verbose: int=3, force: bool=False ):
@@ -858,6 +866,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
     
     logger.info(f'Splitting tractogram')
+    t0 = time()
     try:
         logger.subinfo(f'Loaded {w.size} streamline weights', indent_char='*', indent_lvl=1)
     except UnboundLocalError:
@@ -1052,6 +1061,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 tmp = LazyTractogram( f, mode='a' )
                 tmp.close( write_eof=True, count=TCK_outs_size[key] )
                 pbar.update()
+        t1 = time()
+        logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 def join( input_list: list[str], output_tractogram: str, weights_list: list[str]=[], weights_out: str=None, verbose: int=3, force: bool=False ):
@@ -1094,6 +1105,7 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
 
     #----- iterate over input files -----
     logger.info('Joining tractograms')
+    t0 = time()
     logger.subinfo(f'Writing output tractogram to \'{output_tractogram}\'', indent_char='*', indent_lvl=1)
     TCK_in    = None
     TCK_out   = None
@@ -1160,7 +1172,8 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
             TCK_in.close()
         if TCK_out is not None:
             TCK_out.close( write_eof=True, count=n_written )
-
+        t1 = time()
+        logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 cpdef compute_vect_vers(float [:] p0, float[:] p1):
@@ -1175,6 +1188,7 @@ cpdef compute_vect_vers(float [:] p0, float[:] p1):
     ver_y = vec_y / s
     ver_z = vec_z / s
     return vec_x, vec_y, vec_z, ver_x, ver_y, ver_z
+
 
 cpdef move_point_to_gm(float[:] point, float vers_x, float vers_y, float vers_z, float step, int chances, int[:,:,::1] gm): 
     cdef bint ok = False
@@ -1309,6 +1323,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
             TCK_con = LazyTractogram( conn_tractogram, mode='w', header=TCK_in.header )
 
         logger.info('Tractogram sanitize')
+        t0 = time()
         logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*', indent_lvl=1)
 
         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
@@ -1446,6 +1461,8 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
             TCK_out.close( write_eof=True, count=n_tot )
         if TCK_con is not None:
             TCK_con.close( write_eof=True, count=n_in )
+        t1 = time()
+        
 
     logger.subinfo(f'Save sanitized tractogram to \'{output_tractogram}\'', indent_char='*', indent_lvl=1)
     if save_connecting_tck:
@@ -1454,6 +1471,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     logger.subinfo(f'Connecting (both ends in GM): {n_in}', indent_lvl=1, indent_char='-')
     logger.subinfo(f'Half connecting (one ends in GM): {n_half}', indent_lvl=1, indent_char='-')
     logger.subinfo(f'Non-connecting (both ends outside GM): {n_out}', indent_lvl=1, indent_char='-')
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=3, force=False ):
@@ -1524,6 +1542,7 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         logger.info('Smoothing tractogram')
+        t0 = time()
         logger.subinfo(f'Input tractogram', indent_char='*', indent_lvl=1)
         logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
         logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
@@ -1570,6 +1589,8 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         logger.subinfo(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
     else:
         logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+    t1 = time()
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=3, force=False ):
@@ -1679,6 +1700,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         logger.info('Smoothing tractogram')
+        t0 = time()
         logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
         logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
         logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
@@ -1770,6 +1792,8 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         logger.subinfo(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
     else:
         logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+    t1 = time()
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 
@@ -1821,6 +1845,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         logger.info('Smoothing tractogram')
+        t0 = time()
         logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
         logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
         logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
@@ -1862,6 +1887,8 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
         logger.subinfo(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
     else:
         logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+    t1 = time()
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbose=3, force=False):
@@ -1901,6 +1928,7 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
 
     # recompute indices
     logger.info('Recomputing indices')
+    t0 = time()
     with ProgressBar( total=idx.size, disable=verbose < 3, hide_on_exit=True) as pbar:
         for i in range( idx.size ):
             #count the number of streamlines before the current one
@@ -1910,6 +1938,8 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
             if d[idx[i]]==1:
                 indices_recomputed.append( n )
             pbar.update()
+    t1 = time()
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
     return indices_recomputed if output_indices is None else np.savetxt(output_indices, indices_recomputed, fmt='%d')
 
 
@@ -1981,6 +2011,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
 
         n_streamlines = int( TCK_in.header['count'] )
         logger.info(f'Tractogram sampling')
+        t0 = time()
         logger.subinfo(f'{n_streamlines} streamlines in input tractogram', indent_char='*', indent_lvl=1)
 
         pixdim = Img.header['pixdim'] [1:4] 
@@ -2034,6 +2065,8 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
         if TCK_in is not None:
             TCK_in.close()
         file.close()
+        t1 = time()
+        logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=False):
@@ -2077,6 +2110,7 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
     TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
     logger.info('Resampling')
+    t0 = time()
     logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
     logger.subinfo(f'{input_tractogram}', indent_lvl=1, indent_char='-')
     logger.subinfo(f'{n_streamlines} streamlines', indent_lvl=1, indent_char='-')
@@ -2107,3 +2141,5 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
         logger.subinfo( f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
     else:
         logger.subinfo( f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+    t1 = time()
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )

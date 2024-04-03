@@ -1,20 +1,32 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False
 
-from dicelib.streamline import create_replicas
-from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
-from dicelib.utils import check_params, File, Num
-
-import os
-
-import nibabel as nib
-import numpy as np
-from scipy.linalg import inv
-
-from dicelib.streamline cimport apply_affine
-from dicelib.tractogram cimport LazyTractogram
+from concurrent.futures import ThreadPoolExecutor
 
 from libc.math cimport round as cround, sqrt
 from libcpp cimport bool
+
+import nibabel as nib
+
+import numpy as np
+
+import os
+
+from scipy.linalg import inv
+
+from time import time
+
+from dicelib.streamline import create_replicas
+from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
+from dicelib.utils import check_params, File
+from dicelib.streamline cimport apply_affine
+from dicelib.tractogram cimport LazyTractogram
+
+
+def compute_chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
 
 cdef compute_grid( float thr, float[:] vox_dim ) :
 
@@ -222,7 +234,49 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-cpdef assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_file: str, threshold: 2 ):
+cpdef assign(input_tractogram: str, atlas: str, atlas_dist: int, assignments_out: str, options: dict) :
+
+    num_streamlines = int(LazyTractogram(input_tractogram, mode='r').header["count"])
+    logger.info(f'Computing assignments for {num_streamlines} streamlines')
+    t0 = time()
+    if num_streamlines > 3:
+        MAX_THREAD = 3
+    else:
+        MAX_THREAD = 1
+
+    chunk_size = int(num_streamlines / MAX_THREAD)
+    chunk_groups = [e for e in compute_chunks(np.arange(num_streamlines), chunk_size)]
+    chunks_asgn = []
+
+    pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
+    with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=options.verbose < 3, hide_on_exit=True) as pbar:
+        with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
+            future = [
+                executor.submit(
+                    _assign,
+                    input_tractogram,
+                    pbar_array,
+                    i,
+                    start_chunk=int(chunk_groups[i][0]),
+                    end_chunk=int(chunk_groups[i][len(chunk_groups[i]) - 1] + 1),
+                    gm_map_file=atlas,
+                    threshold=atlas_dist) for i in range(len(chunk_groups))
+            ]
+            chunks_asgn = [f.result() for f in future]
+            chunks_asgn = [c for f in chunks_asgn for c in f]
+    t1 = time()
+    logger.info(f'[ {np.round((t1 - t0), 2)} seconds ]')
+
+    assignments_out_ext = os.path.splitext(assignments_out)[1]
+    if assignments_out_ext == '.txt':
+        with open(assignments_out, "w") as text_file:
+            for reg in chunks_asgn:
+                print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
+    else:
+        np.save(assignments_out, chunks_asgn, allow_pickle=False)
+
+
+cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_file: str, threshold: 2 ):
 
     """ Compute the assignments of the streamlines based on a GM atlas.
     
@@ -374,7 +428,8 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
     set_verbose(verbose)
 
-    logger.info( 'Compute connectome weighted by COMMITblur' )    
+    logger.info( 'Compute connectome weighted by COMMITblur' )
+    t0 = time()
 
     # check input tractogram
     if not os.path.isfile(input_tractogram):
@@ -622,6 +677,8 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
             else:
                 np.save(output_connectome, conn, allow_pickle=False)
     logger.subinfo( f'Writing output connectome to "{output_connectome}"', indent_char='*')
+    t1 = time()
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 
@@ -663,6 +720,7 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
 
     set_verbose(verbose)
     logger.info('Computing connectome')
+    t0 = time()
 
     files = [
         File(name='connectome_out', type_='output', path=output_connectome, ext=['.csv', '.npy'])
@@ -789,3 +847,5 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
             np.save(output_connectome, conn, allow_pickle=False)
 
     logger.subinfo( f'Writing output connectome to "{output_connectome}"', indent_char='*', indent_lvl=1)
+    t1 = time()
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )

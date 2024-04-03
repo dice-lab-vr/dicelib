@@ -8,6 +8,8 @@ import os
 import nibabel as nib
 import numpy as np
 
+from time import time
+
 def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: str, b: list, b_step: float=0.0, verbose: int=3, force: bool=False ):
     """Extract volumes from a DWI dataset.
 
@@ -50,6 +52,8 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
     check_params(files, nums, force)
 
     logger.info('Extracting volumes from DWI dataset')
+    t0 = time()
+
     try:
         # load the data
         niiDWI = nib.load( input_dwi )
@@ -88,3 +92,5 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
         if os.path.isfile( output_scheme ):
             os.remove( output_scheme )
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+    t1 = time()
+    logger.info(f'Extraction completed in {t1-t0:.2f} s')
