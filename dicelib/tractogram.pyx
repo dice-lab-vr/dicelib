@@ -1079,16 +1079,13 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
     """
     set_verbose(verbose)
 
-    if input_list.endswith('*.tck'):
-        input_list = os.listdir(os.path.dirname(input_list))
-
     if len(input_list) < 2:
         logger.error(f'Input list must contain at least 2 files')
     files = [File(name=f'input_tractogram_{i}', type_='input', path=f) for i, f in enumerate(input_list)]
     files.append(File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'))
     if weights_list:
         if len(input_list) != len(weights_list):
-            logger.error(f'Number of weights files is different from number of input trac tograms')
+            logger.error(f'Number of weights files is different from number of input tractograms')
         for i, w in enumerate(weights_list):
             files.append(File(name=f'weights_in_{i}', type_='input', path=w, ext=['.txt', '.npy']))
     if weights_out is not None:
