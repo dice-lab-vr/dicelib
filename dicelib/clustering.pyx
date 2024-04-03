@@ -2,7 +2,7 @@
 
 """Functions to perform clustering of tractograms"""
 
-from dicelib.connectivity import assign
+from dicelib.connectivity import _assign as assign
 from dicelib.tractogram import info, split as split_bundles
 from dicelib.streamline import length as streamline_length
 from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose

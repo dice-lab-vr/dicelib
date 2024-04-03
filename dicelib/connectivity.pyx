@@ -17,7 +17,7 @@ from time import time
 
 from dicelib.streamline import create_replicas
 from dicelib.ui import __logger__ as logger, ProgressBar, set_verbose
-from dicelib.utils import check_params, File
+from dicelib.utils import check_params, File, Num
 from dicelib.streamline cimport apply_affine
 from dicelib.tractogram cimport LazyTractogram
 
@@ -234,9 +234,63 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-cpdef assign(input_tractogram: str, atlas: str, atlas_dist: int, assignments_out: str, options: dict) :
+cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist: float, force: bool=False, verbose: int=3) :
+    """ Compute the assignments of the streamlines based on a GM atlas.
+    
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to process.
+
+    atlas : string
+        Path to the file containing the gray matter parcellation.
+
+    assignments_out : string
+        Path to the file where to store the resulting assignments.
+
+    atlas_dist : int
+        Distance in voxels to consider in the radial search when computing the assignments.
+    """
+    set_verbose(verbose)
+
+    files = [
+        File(name='input_tractogram', type_='input', path=input_tractogram, ext=['.tck']),
+        File(name='atlas', type_='input', path=atlas, ext=['.nii', '.nii.gz']),
+        File(name='assignments_out', type_='output', path=assignments_out, ext=['.txt', '.npy'])
+    ]
+    nums = [
+        Num(name='atlas_dist', value=atlas_dist, min_=0.0, include_min=True)
+    ]
+    check_params(files=files, nums=nums, force=force)
+
+
+    # # check if tractogram exists
+    # if not os.path.exists(options.tractogram_in):
+    #     logger.error('Tractogram does not exist')
+
+    # # check if path to save assignments is relative or absolute and create if necessary
+    # if options.assignments_out:
+    #     if not os.path.isabs(options.assignments_out):
+    #         options.assignments_out = os.path.join(os.getcwd(), options.assignments_out)
+    #     if not os.path.isdir(os.path.dirname(options.assignments_out)):
+    #         os.makedirs(os.path.dirname(options.assignments_out))
+
+    # out_assignment_ext = os.path.splitext(options.assignments_out)[1]
+    # if out_assignment_ext not in ['.txt', '.npy']:
+    #     logger.error('Invalid extension for the output scalar file')
+    # elif os.path.isfile(options.assignments_out) and not options.force:
+    #     logger.error('Output scalar file already exists, use -f to overwrite')
+
+
+    # # check if atlas exists
+    # if not os.path.exists(options.atlas):
+    #     logger.error('Atlas does not exist')
+    
 
     num_streamlines = int(LazyTractogram(input_tractogram, mode='r').header["count"])
+    # Load of the gm map
+    gm_map_img = nib.load(atlas)
+    gm_map_data = gm_map_img.get_fdata()
     logger.info(f'Computing assignments for {num_streamlines} streamlines')
     t0 = time()
     if num_streamlines > 3:
@@ -249,7 +303,7 @@ cpdef assign(input_tractogram: str, atlas: str, atlas_dist: int, assignments_out
     chunks_asgn = []
 
     pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
-    with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=options.verbose < 3, hide_on_exit=True) as pbar:
+    with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
         with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
             future = [
                 executor.submit(
@@ -259,7 +313,8 @@ cpdef assign(input_tractogram: str, atlas: str, atlas_dist: int, assignments_out
                     i,
                     start_chunk=int(chunk_groups[i][0]),
                     end_chunk=int(chunk_groups[i][len(chunk_groups[i]) - 1] + 1),
-                    gm_map_file=atlas,
+                    gm_map_data=gm_map_data,
+                    gm_map_img=gm_map_img,
                     threshold=atlas_dist) for i in range(len(chunk_groups))
             ]
             chunks_asgn = [f.result() for f in future]
@@ -276,38 +331,8 @@ cpdef assign(input_tractogram: str, atlas: str, atlas_dist: int, assignments_out
         np.save(assignments_out, chunks_asgn, allow_pickle=False)
 
 
-cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_file: str, threshold: 2 ):
+cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_data, gm_map_img, threshold: 2 ):
 
-    """ Compute the assignments of the streamlines based on a GM atlas.
-    
-    Parameters
-    ----------
-    input_tractogram : string
-        Path to the file (.tck) containing the streamlines to process.
-    pbar_array : numpy array
-        Array of integers used to update the progress bar.
-    id_chunk : int
-        Index of the chunk.
-    start_chunk : int
-        Index of the first streamline of the chunk.
-    end_chunk : int
-        Index of the last streamline of the chunk.
-    gm_map_file : string
-        Path to the GM map file.
-    threshold : int
-        Threshold used to compute the grid of voxels to check.
-    """
-
-
-    if not os.path.isfile(input_tractogram):
-        logger.error( f'File "{input_tractogram}" not found' )
-    if not os.path.isfile(gm_map_file):
-        logger.error( f'File "{gm_map_file}" not found' )
-
-    
-    # Load of the gm map
-    gm_map_img = nib.load(gm_map_file)
-    gm_map_data = gm_map_img.get_fdata()
     ref_data = gm_map_img
     ref_header = ref_data.header
     affine = ref_data.affine

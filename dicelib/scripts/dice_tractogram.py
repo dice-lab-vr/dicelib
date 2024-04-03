@@ -71,34 +71,12 @@ def tractogram_assign():
     ]
     options = setup_parser(assign.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    set_verbose(options.verbose)
-
-    # check if tractogram exists
-    if not os.path.exists(options.tractogram_in):
-        logger.error('Tractogram does not exist')
-
-    # check if path to save assignments is relative or absolute and create if necessary
-    if options.assignments_out:
-        if not os.path.isabs(options.assignments_out):
-            options.assignments_out = os.path.join(os.getcwd(), options.assignments_out)
-        if not os.path.isdir(os.path.dirname(options.assignments_out)):
-            os.makedirs(os.path.dirname(options.assignments_out))
-
-    out_assignment_ext = os.path.splitext(options.assignments_out)[1]
-    if out_assignment_ext not in ['.txt', '.npy']:
-        logger.error('Invalid extension for the output scalar file')
-    elif os.path.isfile(options.assignments_out) and not options.force:
-        logger.error('Output scalar file already exists, use -f to overwrite')
-
-
-    # check if atlas exists
-    if not os.path.exists(options.atlas):
-        logger.error('Atlas does not exist')
-
     assign(options.tractogram_in,
-           options.assignments_out,
            options.atlas,
-           options.atlas_dist)
+           options.assignments_out,
+           options.atlas_dist,
+           options.force,
+           options.verbose)
 
 
 def tractogram_cluster():
