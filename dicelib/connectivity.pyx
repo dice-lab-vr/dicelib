@@ -252,7 +252,7 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
     atlas_dist : int
         Distance in voxels to consider in the radial search when computing the assignments.
     """
-    set_verbose(verbose)
+    set_verbose('connectivity', verbose)
 
     files = [
         File(name='input_tractogram', type_='input', path=input_tractogram, ext=['.tck']),
