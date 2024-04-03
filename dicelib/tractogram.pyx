@@ -650,7 +650,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         messages.append(f'Keeping streamlines with {random * 100:.2f}% probability')
     check_params(files=files, nums=nums, force=force)
 
-    logger.info('Filtering criteria')
+    logger.info('Filtering tractogram')
     for msg in messages:
         logger.subinfo(msg, indent_char='*', indent_lvl=1)
 
@@ -659,7 +659,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             w = np.loadtxt(weights_in).astype(np.float64)
         elif weights_in_ext == '.npy':
             w = np.load(weights_in, allow_pickle=False).astype(np.float64)
-        logger.info('Using streamline weights from text file')
+        logger.subinfo('Using streamline weights from text file', indent_char='*', indent_lvl=1)
     else:
         w = np.array([])
 
@@ -679,7 +679,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             logger.error(f'# of weights {w.size} is different from # of streamlines ({n_streamlines})')
 
         # open the outut file
-        logger.info(f'Filtering {n_streamlines} streamlines')
+        logger.subinfo(f'Filtering {n_streamlines} streamlines', indent_char='*', indent_lvl=1)
         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         kept = np.ones( n_streamlines, dtype=bool )
@@ -1028,8 +1028,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
-        logger.info('Closing files')
-        with ProgressBar(total=len(TCK_outs), disable=verbose < 3, hide_on_exit=True) as pbar:
+        logger.subinfo('Closing files', indent_char='*', indent_lvl=1, with_progress=verbose>2)
+        with ProgressBar(total=len(TCK_outs), disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
             if TCK_in is not None:
                 TCK_in.close()
             for key in TCK_outs.keys():
@@ -1137,7 +1137,7 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
                     np.save(weights_out, weights_tot.astype(np.float32), allow_pickle=False)
                 logger.subinfo(f'Total output weigths: {weights_tot.size}', indent_char='*', indent_lvl=1)
 
-        logger.info(f'Total output streamlines: {n_written}', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Total output streamlines: {n_written}', indent_char='*', indent_lvl=1)
     except Exception as e:
         if TCK_out is not None:
             TCK_out.close()
@@ -1990,7 +1990,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
 
         with open(output_file,'w') as file:
             file.write("# dicelib.tractogram.sample option={} {} {} {}**\n".format(option,input_tractogram,input_image,output_file))
-            with ProgressBar( total=n_streamlines, disable=(verbose in [0, 1, 3]), hide_on_exit=True) as pbar:
+            with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
                 for i in range(n_streamlines):
                     TCK_in.read_streamline()
                     npoints = TCK_in.n_pts
