@@ -976,7 +976,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
                 # check if need to open file
                 if TCK_outs[key] is None:
-                    pref_key = f'{prefix}{key}'
+                    if key == 'unassigned':
+                        pref_key = 'unassigned'
+                    else:
+                        pref_key = f'{prefix}{key}'
                     fname = os.path.join(output_folder,f'{pref_key}.tck')
                     if n_file_open==max_open:
                         key_to_close = rnd.choice( [k for k,v in TCK_outs.items() if v!=None] )
@@ -1002,7 +1005,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             logger.subinfo(f'Saving one weights file per bundle', indent_char='*', indent_lvl=1)
             with ProgressBar(disable=verbose < 3, hide_on_exit=True) as pbar:
                 for key in WEIGHTS_out_idx.keys():
-                    pref_key = f'{prefix}{key}'
+                    if key == 'unassigned':
+                        pref_key = 'unassigned'
+                    else:
+                        pref_key = f'{prefix}{key}'
                     w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ].astype(np.float32)
                     if weights_in_ext=='.txt':
                         np.savetxt( os.path.join(output_folder,f'{pref_key}.txt'), w_bundle, fmt='%.5e' )
@@ -1033,7 +1039,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             if TCK_in is not None:
                 TCK_in.close()
             for key in TCK_outs.keys():
-                pref_key = f'{prefix}{key}'
+                if key=='unassigned':
+                    pref_key = 'unassigned'
+                else:
+                    pref_key = f'{prefix}{key}'
                 f = os.path.join(output_folder,f'{pref_key}.tck')
                 if not os.path.isfile(f):
                     continue
@@ -1069,6 +1078,9 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
         Force overwriting of the output (default : False).
     """
     set_verbose(verbose)
+
+    if input_list.endswith('*.tck'):
+        input_list = os.listdir(os.path.dirname(input_list))
 
     if len(input_list) < 2:
         logger.error(f'Input list must contain at least 2 files')
