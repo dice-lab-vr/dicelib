@@ -1,7 +1,7 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
 from dicelib.ui import set_verbose, setup_logger
-from dicelib.utils import check_params, File, Num
+from dicelib.utils import check_params, File, Num, format_time
 
 import os
 
@@ -95,4 +95,4 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
             os.remove( output_scheme )
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
     t1 = time()
-    logger.info(f'Extraction completed in {t1-t0:.2f} s')
+    logger.info( f'[ {format_time(t1 - t0)} ]' )

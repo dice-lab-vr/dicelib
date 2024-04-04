@@ -96,10 +96,15 @@ def tractogram_cluster():
                                             Metric used to cluster the streamlines. Options: \'mean\', \'max\'.
                                             If \'max\', streamlines with ALL the points closer than \'thr\' will be clustered together.
                                             If \'mean\', streamlines with AVERAGE distance closer than \'thr\' will be clustered together'''}],
-        [['--n_pts', '-n'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
-        [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': 'Path to the atlas file used to split the streamlines into bundles. If provided, parallel clustering will be performed'}],
-        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': 'Distance [in mm] used to assign streamlines to the atlas\' nodes for hierarchical clustering'}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
+        [['--n_pts', '-n'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Resample all streamlines to N_PTS points. Clustering requires streamlines to have the same number of points'}],
+        [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': '''\
+                                            Path to the atlas file used to split the streamlines into bundles and clustering each of them in parallel;
+                                            if not provided, the clustering will be performed sequentially'''}],
+        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': '''\
+                                            Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
+                                            Argument is the maximum radius in mm; if no node is found within this radius, the streamline is not taken into account for clustering'''}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files for parallel clustering'}],
+        [['--max_open_files'], {'type': int, 'default': None, 'metavar': 'MAX_OPEN_FILES', 'help': 'Maximum number of files opened at the same time used to split the streamlines into bundles for parallel clustering'}],
         [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform parallel clustering. If None, all the available threads will be used'}],
         [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
     ]
@@ -117,7 +122,8 @@ def tractogram_cluster():
         n_threads=options.n_threads,
         force=options.force,
         verbose=options.verbose,
-        keep_temp_files=options.keep_temp
+        keep_temp_files=options.keep_temp,
+        max_open=options.max_open_files
     )
 
 
@@ -451,7 +457,7 @@ def tractogram_split():
         [['assignments_in'], {'type': str, 'help': 'Text file with the streamline assignments'}],
         [['--output_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
         [['--regions', '-r'], {'type': str, 'default': None, 'help': '''\
-                               Streamline connecting the provided region(s) will be extracted.
+                               Only streamlines connecting the provided region(s) will be extracted.
                                If None, all the bundles (plus the unassigned streamlines) will be extracted.
                                If a single region is provided, all bundles connecting this region with any other will be extracted.
                                If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.

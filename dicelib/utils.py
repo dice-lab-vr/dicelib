@@ -120,3 +120,9 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
                 else:
                     if num.value >= num.max_:
                         logger.error(f'\'{num.name}\' must be < {num.max_}')
+
+
+def format_time(seconds):
+    minutes, seconds = divmod(seconds, 60)
+    minutes, seconds = int(minutes), int(seconds)
+    return f'{minutes:02d}:{seconds:02d}'

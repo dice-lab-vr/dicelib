@@ -2,7 +2,7 @@
 
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, spline_smooth
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
-from dicelib.utils import check_params, Dir, File, Num
+from dicelib.utils import check_params, Dir, File, Num, format_time
 
 import ast
 import os
@@ -508,7 +508,8 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
         if TCK_in is not None:
             TCK_in.close()
     t1 = time()
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
+    
 
 
 def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: int=None, verbose: int=3 ):
@@ -752,7 +753,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         if TCK_out is not None:
             TCK_out.close( write_eof=True, count=n_written )
     t1 = time()
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, prefix: str='bundle_', verbose: int=3, force: bool=False ):
@@ -1065,7 +1066,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 tmp.close( write_eof=True, count=TCK_outs_size[key] )
                 pbar.update()
         t1 = time()
-        logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 def join( input_list: list[str], output_tractogram: str, weights_list: list[str]=[], weights_out: str=None, verbose: int=3, force: bool=False ):
@@ -1176,7 +1177,7 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
         if TCK_out is not None:
             TCK_out.close( write_eof=True, count=n_written )
         t1 = time()
-        logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, weights_in: str=None, weights_out: str=None, tmp_folder: str=None, keep_tmp_folder: bool=False, verbose: int=3, force: bool=False ):
@@ -1305,7 +1306,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
             shutil.rmtree(tmp_folder)            
 
     t1 = time()
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 cpdef compute_vect_vers(float [:] p0, float[:] p1):
@@ -1603,7 +1604,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     logger.subinfo(f'Connecting (both ends in GM): {n_in}', indent_lvl=1, indent_char='-')
     logger.subinfo(f'Half connecting (one ends in GM): {n_half}', indent_lvl=1, indent_char='-')
     logger.subinfo(f'Non-connecting (both ends outside GM): {n_out}', indent_lvl=1, indent_char='-')
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=3, force=False ):
@@ -1722,7 +1723,7 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
     else:
         logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
     t1 = time()
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=3, force=False ):
@@ -1925,7 +1926,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
     else:
         logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
     t1 = time()
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 
@@ -2020,7 +2021,7 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
     else:
         logger.subinfo(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
     t1 = time()
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbose=3, force=False):
@@ -2071,7 +2072,7 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
                 indices_recomputed.append( n )
             pbar.update()
     t1 = time()
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
     return indices_recomputed if output_indices is None else np.savetxt(output_indices, indices_recomputed, fmt='%d')
 
 
@@ -2198,7 +2199,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
             TCK_in.close()
         file.close()
         t1 = time()
-        logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=False):
@@ -2274,4 +2275,4 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
     else:
         logger.subinfo( f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
     t1 = time()
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )

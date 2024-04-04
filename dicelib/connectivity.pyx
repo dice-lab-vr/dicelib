@@ -17,7 +17,7 @@ from time import time
 
 from dicelib.streamline import create_replicas
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
-from dicelib.utils import check_params, File, Num
+from dicelib.utils import check_params, File, Num, format_time
 from dicelib.streamline cimport apply_affine
 from dicelib.tractogram cimport LazyTractogram
 
@@ -321,7 +321,7 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
             chunks_asgn = [f.result() for f in future]
             chunks_asgn = [c for f in chunks_asgn for c in f]
     t1 = time()
-    logger.info(f'[ {np.round((t1 - t0), 2)} seconds ]')
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
     assignments_out_ext = os.path.splitext(assignments_out)[1]
     if assignments_out_ext == '.txt':
@@ -704,7 +704,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
                 np.save(output_connectome, conn, allow_pickle=False)
     logger.subinfo( f'Writing output connectome to "{output_connectome}"', indent_char='*')
     t1 = time()
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 
@@ -874,4 +874,4 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
 
     logger.subinfo( f'Writing output connectome to "{output_connectome}"', indent_char='*', indent_lvl=1)
     t1 = time()
-    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+    logger.info( f'[ {format_time(t1 - t0)} ]' )

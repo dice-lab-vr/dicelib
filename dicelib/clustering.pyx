@@ -6,7 +6,7 @@ from dicelib.connectivity import _assign as assign
 from dicelib.tractogram import info, split as split_bundles
 from dicelib.streamline import length as streamline_length
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
-from dicelib.utils import check_params, Dir, File, Num
+from dicelib.utils import check_params, Dir, File, Num, format_time
 
 from concurrent.futures import as_completed, ThreadPoolExecutor
 import os
@@ -632,8 +632,8 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 
 
 def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=None, atlas: str=None, conn_thr: float=2.0,
-                    clust_thr: float=2.0, metric: str="mean", n_pts: int=12,
-                    n_threads: int=None, force: bool=False, verbose: int=3, keep_temp_files: bool=False, max_bytes: int=0, log_list=None):
+                    clust_thr: float=2.0, metric: str="mean", n_pts: int=12, n_threads: int=None, force: bool=False,
+                    max_open: int=None, verbose: int=3, keep_temp_files: bool=False, max_bytes: int=0, log_list=None):
     """Cluster streamlines in a tractogram based on a given metric. Possible metrics are "mean" and "max" (default: "mean").
 
     Parameters
@@ -736,7 +736,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
         t1 = time.time()
         logger.subinfo(f'Number of regions: {np.max(np.array(chunks_asgn))}', indent_lvl=1, indent_char='*')
-        logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
 
         out_assignment_ext = os.path.splitext(save_assignments)[1]
         if out_assignment_ext not in ['.txt', '.npy']:
@@ -760,6 +760,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 input_assignments=save_assignments,
                 output_folder=output_bundles_folder,
                 weights_in=temp_idx,
+                max_open=max_open,
                 force=force,
                 verbose=1)
             bundles = []
@@ -777,7 +778,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             bundles[len(bundles)-1] = (bundles[len(bundles)-1][0], bundles[len(bundles)-1][1], bundles[len(bundles)-1][2])
 
         t1 = time.time()
-        logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
 
         if n_threads:
             MAX_THREAD = n_threads
@@ -870,7 +871,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
             t1 = time.time()
             logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_lvl=1, indent_char='*')
-            logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
+            logger.info( f'[ {format_time(t1 - t0)} ]' )
         except Exception as e:
             logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
             if os.path.isfile(tractogram_out):
@@ -919,7 +920,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
         t1 = time.time()
         logger.subinfo(f"Number of computed centroids: {TCK_out_size}", indent_char='*', indent_lvl=1)
-        logger.info(f'[ {np.round(t1-t0, 2)} seconds ]')
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
 
     if TCK_in is not None:
         TCK_in.close()
