@@ -3,7 +3,6 @@
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, spline_smooth
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num
-from dicelib.connectivity import assign, build_connectome
 
 import ast
 import os
@@ -1214,6 +1213,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
         Force overwriting of the output (default : False).
 
     """
+    from dicelib.connectivity import build_connectome
 
     set_verbose('tractogram', verbose)
 
