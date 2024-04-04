@@ -715,7 +715,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         atlas_data = atlas_img.get_fdata()
         atlas_dtype = atlas_img.header.get_data_dtype()
         if atlas_dtype.char not in ['b',' h', 'i', 'l', 'B', 'H', 'I', 'L']:
-            warning_msg = f'Atlas data type is \'{gm_map_dtype}\'. It is recommended to use an integer data type.'
+            warning_msg = f'Atlas data type is \'{atlas_dtype}\'. It is recommended to use an integer data type.'
             logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
         logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
         with ProgressBar(multithread_progress=pbar_array, total=num_streamlines, disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
