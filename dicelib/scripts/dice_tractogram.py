@@ -92,7 +92,10 @@ def tractogram_cluster():
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['thr'], {'type': float, 'help': 'Distance threshold [in mm] used to cluster the streamlines'}],
         [['tractogram_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
-        [['--metric', '-m'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: \'mean\', \'max\''}],
+        [['--metric', '-m'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help':'''\
+                                            Metric used to cluster the streamlines. Options: \'mean\', \'max\'.
+                                            If \'max\', streamlines with ALL the points closer than \'thr\' will be clustered together.
+                                            If \'mean\', streamlines with AVERAGE distance closer than \'thr\' will be clustered together'''}],
         [['--n_pts', '-n'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
         [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': 'Path to the atlas file used to split the streamlines into bundles. If provided, parallel clustering will be performed'}],
         [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': 'Distance [in mm] used to assign streamlines to the atlas\' nodes for hierarchical clustering'}],
