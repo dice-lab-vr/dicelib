@@ -1,6 +1,6 @@
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, LazyTractogram, recompute_indices, resample, sample, sanitize, spline_smoothing_v2, split
+from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, LazyTractogram, recompute_indices, resample, sample, sanitize, spline_smoothing_v2, split, sort as tract_sort
 from dicelib.tsf import Tsf
 from dicelib.ui import ProgressBar, set_verbose, setup_logger, setup_parser
 
@@ -370,6 +370,33 @@ def tractogram_smooth():
         options.epsilon,
         options.segment_len,
         options.streamline_pts,
+        options.verbose,
+        options.force
+    )
+
+
+def tractogram_sort():
+    # parse the input parameters
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['atlas'], {'type': str, 'help': 'Atlas used to sort the streamlines'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
+        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights (.txt or .npy)'}],
+        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights (.txt or .npy)'}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
+        [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}]
+    ]
+    options = setup_parser(tract_sort.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    # call actual function
+    tract_sort(
+        options.tractogram_in,
+        options.atlas,
+        options.tractogram_out,
+        options.weights_in,
+        options.weights_out,
+        options.tmp_folder,
+        options.keep_temp,
         options.verbose,
         options.force
     )

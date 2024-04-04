@@ -4,6 +4,7 @@ import os
 import pathlib
 from shutil import rmtree
 from typing import List, Literal, Optional, Union
+import time
 
 def get_version() -> str:
     try:
@@ -83,7 +84,8 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
                 os.mkdir(dir.path)
             else:
                 if force:
-                    rmtree(dir.path)
+                    rmtree(dir.path, ignore_errors=True)
+                    time.sleep(0.00000001)
                     os.mkdir(dir.path)
                 else:
                     logger.error(f'{dir.name} folder \'{dir.path}\' already exists, use --force to overwrite')

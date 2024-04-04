@@ -235,7 +235,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist: float, force: bool=False, verbose: int=3) :
+cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist: float=2.0, force: bool=False, verbose: int=3) :
     """ Compute the assignments of the streamlines based on a GM atlas.
     
     Parameters
@@ -848,7 +848,7 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
             else: # sum or mean
                 conn[asgn_sort[i][0]-1, asgn_sort[i][1]-1] += w[i]
             conn_nos[asgn_sort[i][0]-1, asgn_sort[i][1]-1] += 1
-        pbar.update()
+            pbar.update()
     if count_unconn > 0:
         logger.warning(f'Number of non-connecting streamlines {count_unconn}')
 

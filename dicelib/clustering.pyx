@@ -880,7 +880,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         if not keep_temp_files:
             shutil.rmtree(output_bundles_folder)
             os.remove(save_assignments)
-            # remove temp_folder of different from current
+            # remove temp_folder if different from current
             if temp_folder != os.getcwd():
                 shutil.rmtree(temp_folder)            
 

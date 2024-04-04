@@ -3,11 +3,13 @@
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, spline_smooth
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num
+from dicelib.connectivity import assign, build_connectome
 
 import ast
 import os
 import random as rnd
 import sys
+import shutil
 
 import nibabel as nib
 import numpy as np
@@ -1176,6 +1178,134 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
             TCK_out.close( write_eof=True, count=n_written )
         t1 = time()
         logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
+
+
+def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, weights_in: str=None, weights_out: str=None, tmp_folder: str=None, keep_tmp_folder: bool=False, verbose: int=3, force: bool=False ):
+    """Sort the streamlines in a tractogram bundle-by-bundle in lexigraphical order (i.e., bundle_1-1 --> bundle_1-2 --> ... --> bundle_2-2 --> ...).
+
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to sort.
+
+    input_atlas : string
+        Path to the file (.nii.gz) containing the gray matter parcellation.
+
+    output_tractogram : string
+        Path to the file where to store the sorted tractogram. If not specified (default),
+        the new file will be created by appending '_sorted' to the input filename.
+
+    weights_in : string
+        Text file with the input streamline weights (one row/streamline).
+
+    weights_out : str
+        Scalar file (.txt or .npy) for the output streamline weights.
+
+    tmp_folder : str
+        Path to the temporary folder used to store the intermediate files.
+
+    keep_tmp_folder : boolean
+        Keep the temporary folder (default : False).
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+
+    force : boolean
+        Force overwriting of the output (default : False).
+
+    """
+
+    set_verbose('tractogram', verbose)
+
+    # check input files
+    files = [
+        File(name='input_tractogram', type_='input', path=input_tractogram),
+        File(name='input_atlas', type_='input', path=input_atlas)
+    ]
+    if weights_in is not None:
+        files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
+        weights_in_ext = os.path.splitext(weights_in)[1]
+        if weights_out is not None:
+            weights_out_ext = os.path.splitext(weights_out)[1]
+            files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+        else:
+            weights_out = os.path.splitext(weights_in)[0]+f'_sorted.{weights_in_ext}'
+            weights_out_ext = weights_in_ext
+            files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+    
+    if output_tractogram is None:
+        output_tractogram = os.path.splitext(input_tractogram)[0]+'_sorted.tck'
+    files.append(File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'))
+
+    tmp_folder = tmp_folder if tmp_folder is not None else os.path.join(os.getcwd(), 'tmp')
+    dirs = [
+        Dir(name='tmp_folder', path=tmp_folder)
+    ]
+    check_params(files=files, dirs=dirs, force=force)
+
+    logger.info('Sorting tractogram')
+    t0 = time()
+
+    # compute assignments
+    logger.subinfo('Computing connectome and assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
+        build_connectome( f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/connectome.csv', input_tractogram=input_tractogram, input_nodes=input_atlas, verbose=1)
+
+    # split the tractogram
+    logger.subinfo('Splitting tractogram', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
+        if weights_in is not None:
+            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', weights_in=weights_in, verbose=1)
+        else:
+            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', verbose=1)
+    set_verbose('tractogram', verbose)
+
+    # join the tractograms
+    logger.subinfo('Joining tractograms in the specific order', indent_lvl=1, indent_char='*')
+    conn = np.loadtxt( f'{tmp_folder}/connectome.csv', delimiter=',' )
+    conn = np.triu( conn )
+    n_rois = conn.shape[0]
+    with ProgressBar(total=n_rois, disable=verbose < 3, hide_on_exit=True) as pbar:
+        list_all = []
+        list_all_weights = []
+        for i in range(n_rois):
+            list_i = []
+            list_i_weights = []
+            if np.count_nonzero(conn[i,:]) > 1:
+                for j in range(i, n_rois):
+                    if conn[i,j] > 0:
+                        list_i.append(f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}.tck')
+                        if weights_in is not None:
+                            list_i_weights.append(f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}{weights_in_ext}')
+                if weights_in is not None:
+                    join(list_i, f'{tmp_folder}/bundles/demo01_fibers_connecting_{i+1}.tck', weights_list=list_i_weights, weights_out=f'{tmp_folder}/bundles/demo01_fibers_connecting_{i+1}{weights_out_ext}', verbose=1)
+                    list_all_weights.append(f'{tmp_folder}/bundles/demo01_fibers_connecting_{i+1}{weights_out_ext}')
+                else:
+                    join(list_i, f'{tmp_folder}/bundles/demo01_fibers_connecting_{i+1}.tck', verbose=1)
+                list_all.append(f'{tmp_folder}/bundles/demo01_fibers_connecting_{i+1}.tck')
+            if np.count_nonzero(conn[i,:]) == 1:
+                j = np.where(conn[i,:]>0)[0][0]
+                list_all.append(f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}.tck')
+                if weights_in is not None:
+                    list_all_weights.append(f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}{weights_in_ext}')
+            pbar.update()
+        if weights_in is not None:
+            join(list_all, output_tractogram, weights_list=list_all_weights, weights_out=weights_out, verbose=1)
+        else:
+            join(list_all, output_tractogram, verbose=1)
+    set_verbose('tractogram', verbose)
+
+    # remove temporary folder/files
+    if not keep_tmp_folder:
+        shutil.rmtree(f'{tmp_folder}/bundles')
+        os.remove(f'{tmp_folder}/fibers_assignment.txt')
+        os.remove(f'{tmp_folder}/connectome.csv')
+        # remove tmp_folder if different from current
+        if tmp_folder != os.getcwd():
+            shutil.rmtree(tmp_folder)            
+
+    t1 = time()
+    logger.info( f'[ {np.round((t1 - t0), 2)} seconds ]' )
 
 
 cpdef compute_vect_vers(float [:] p0, float[:] p1):
