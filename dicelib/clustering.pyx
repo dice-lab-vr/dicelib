@@ -764,18 +764,21 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 force=force,
                 verbose=1)
             bundles = []
+            warning_msg = ''
             for dirpath, _, filenames in os.walk(output_bundles_folder):
                 for f in filenames:
                     if f.endswith('.tck') and not f.startswith('unassigned'):
                         filename = os.path.abspath(os.path.join(dirpath, f))
                         bundles.append((filename, os.path.getsize(filename), int(info(filename,verbose=1))))
                     if f.startswith('unassigned') and f.endswith('.tck'):
-                        logger.warning(f'{int(info(os.path.abspath(os.path.join(dirpath, f)),verbose=1))} streamlines were not assigned to any bundle')
+                        warning_msg = f'{int(info(os.path.abspath(os.path.join(dirpath, f)),verbose=1))} streamlines were not assigned to any bundle'
             # Sort the list of tuples by the file size, which is the second element of each tuple
             bundles.sort(key=lambda x: x[1])
             # Convert the sorted list of tuples into a dictionary
             bundles = {i: bundle for i, bundle in enumerate(bundles)}
             bundles[len(bundles)-1] = (bundles[len(bundles)-1][0], bundles[len(bundles)-1][1], bundles[len(bundles)-1][2])
+        if warning_msg != '':
+            logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
 
         t1 = time.time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
