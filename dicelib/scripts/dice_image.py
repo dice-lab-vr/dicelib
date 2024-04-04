@@ -2,6 +2,9 @@ from dicelib.image import extract
 from dicelib.ui import setup_parser
 
 def image_extract():
+    '''
+    Entry point for the image extract function.
+    '''
     # parse the input parameters
     args = [
         [["dwi_in"], {"help": "Input DWI data"}],

@@ -2,6 +2,9 @@ from dicelib.connectivity import build_connectome
 from dicelib.ui import setup_parser
 
 def connectome_build():
+    '''
+    Entry point for the connectome build function.
+    '''
     # parse the input parameters
     args = [
         [['assignments_in'], {'type': str, 'help': 'Streamline assignments file (if it doesn\'t exist, it will be created)'}],

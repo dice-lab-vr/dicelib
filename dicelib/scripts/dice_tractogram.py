@@ -35,15 +35,15 @@ def create_color_scalar_file(streamline, num_streamlines):
         return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
 
 
-def color_by_scalar_file(streamline, values, num_streamlines):
+def color_by_scalar_file(TCK_in, values, num_streamlines):
     """
     Color streamlines based on sections.
     Parameters
     ----------
-    streamlines: array
-        Array of streamlines.
+    TCK_in: array
+        Input LazyTractogram object.
     values: list
-        List of scalars.
+        List of scalars used to color the streamlines.
     Returns
     -------
     array
@@ -54,7 +54,7 @@ def color_by_scalar_file(streamline, values, num_streamlines):
     scalar_list = []
     n_pts_list = []
     for i in range(num_streamlines):
-        streamline.read_streamline()
+        streamline = TCK_in.read_streamline()
         n_pts_list.append(streamline.n_pts)
         streamline_points = np.arange(streamline.n_pts)
         resample = np.linspace(0, streamline.n_pts, len(values), endpoint=True, dtype=np.int32)
@@ -64,6 +64,9 @@ def color_by_scalar_file(streamline, values, num_streamlines):
 
 
 def tractogram_assign():
+    '''
+    Entry point for the tractogram assignment function.
+    '''
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['atlas'], {'type': str, 'help': 'Atlas used to compute streamlines assignments'}],
@@ -81,10 +84,13 @@ def tractogram_assign():
 
 
 def tractogram_cluster():
+    '''
+    Entry point for the tractogram clustering function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['clust_thr'], {'type': float, 'help': 'Distance threshold [in mm] used to cluster the streamlines'}],
+        [['thr'], {'type': float, 'help': 'Distance threshold [in mm] used to cluster the streamlines'}],
         [['tractogram_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
         [['--metric', '-m'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help': 'Metric used to cluster the streamlines. Options: \'mean\', \'max\''}],
         [['--n_pts', '-n'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Number of points for the resampling of a streamline'}],
@@ -102,7 +108,7 @@ def tractogram_cluster():
         tractogram_out=options.tractogram_out,
         atlas=options.atlas,
         conn_thr=options.atlas_dist,
-        clust_thr=options.clust_thr,
+        clust_thr=options.thr,
         metric=options.metric,
         n_pts=options.n_pts,
         n_threads=options.n_threads,
@@ -172,6 +178,9 @@ def tractogram_cluster():
 
 
 def tractogram_filter():
+    '''
+    Entry point for the tractogram filtering function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
@@ -203,6 +212,9 @@ def tractogram_filter():
 
 
 def tractogram_indices():
+    '''
+    Entry point for the tractogram indices function.
+    '''
     # parse the input parameters
     args = [
         [['input_indices'], {'type': str, 'help': 'Indices to recompute'}],
@@ -221,6 +233,9 @@ def tractogram_indices():
 
 
 def tractogram_info():
+    '''
+    Entry point for the tractogram info function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
@@ -238,6 +253,9 @@ def tractogram_info():
 
 
 def tractogram_join():
+    '''
+    Entry point for the tractogram join function.
+    '''
     # parse the input parameters
     args = [
         [['tractograms_in'], {'type': str, 'nargs': '*', 'help': 'Input tractograms (2 or more filenames)'}],
@@ -259,6 +277,9 @@ def tractogram_join():
 
 
 def tractogram_lengths():
+    '''
+    Entry point for the tractogram lengths function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
@@ -279,6 +300,9 @@ def tractogram_lengths():
 
 
 def tractogram_resample():
+    '''
+    Entry point for the tractogram resampling function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
@@ -298,6 +322,9 @@ def tractogram_resample():
 
 
 def tractogram_sample():
+    '''
+    Entry point for the tractogram sampling function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
@@ -323,6 +350,9 @@ def tractogram_sample():
 
 
 def tractogram_sanitize():
+    '''
+    Entry point for the tractogram sanitization function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
@@ -350,6 +380,9 @@ def tractogram_sanitize():
 
 
 def tractogram_smooth():
+    '''
+    Entry point for the tractogram smoothing function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
@@ -376,6 +409,9 @@ def tractogram_smooth():
 
 
 def tractogram_sort():
+    '''
+    Entry point for the tractogram sorting function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
@@ -403,6 +439,9 @@ def tractogram_sort():
 
 
 def tractogram_split():
+    '''
+    Entry point for the tractogram splitting function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
@@ -436,6 +475,9 @@ def tractogram_split():
 
 
 def tractogram_tsf():
+    '''
+    Entry point for the tractogram tsf function.
+    '''
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
@@ -456,14 +498,14 @@ def tractogram_tsf():
         if not os.path.isfile(options.file):
             logger.error(f"Input file not found: {options.file}")
 
-    streamline = LazyTractogram(options.tractogram_in, mode='r')
-    num_streamlines = streamline.header['count']
+    TCK_in = LazyTractogram(options.tractogram_in, mode='r')
+    num_streamlines = TCK_in.header['count']
 
     if options.orientation:
-        scalar_arr, n_pts_list = create_color_scalar_file(streamline, int(num_streamlines))
+        scalar_arr, n_pts_list = create_color_scalar_file(TCK_in, int(num_streamlines))
     elif options.file:
         values = np.loadtxt(options.file)
-        scalar_arr, n_pts_list = color_by_scalar_file(streamline, values, int(num_streamlines))
+        scalar_arr, n_pts_list = color_by_scalar_file(TCK_in, values, int(num_streamlines))
     else:
         raise ValueError("Please specify a color option")
 
@@ -471,5 +513,5 @@ def tractogram_tsf():
     if os.path.isfile(options.output_tsf) and not options.force:
         logger.error('Output file already exists. Use -f to overwrite.')
 
-    tsf = Tsf(options.tsf_out, 'w', header=streamline.header)
+    tsf = Tsf(options.tsf_out, 'w', header=TCK_in.header)
     tsf.write_scalar(scalar_arr, n_pts_list)
