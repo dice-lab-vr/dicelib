@@ -1,3 +1,6 @@
+#ifndef STREAMLINE_UTILS_H
+#define STREAMLINE_UTILS_H
+
 #include "Catmull.h"
 #include "psimpl_v7_src/psimpl.h"
 #include "Vector.h"
@@ -133,3 +136,5 @@ int create_replicas_pt( float* ptr_pts_in, double* ptr_pts_out, double* ptr_blur
 
     return n_replicas;
 }
+
+#endif

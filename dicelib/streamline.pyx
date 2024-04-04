@@ -6,17 +6,17 @@ import numpy as np
 
 from libc.math cimport floor, sqrt
 
-cdef extern from "streamline.hpp":
+cdef extern from "streamline_utils.hpp":
     int smooth_c(
         float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, float segment_len
     ) nogil
 
-cdef extern from "streamline.hpp":
+cdef extern from "streamline_utils.hpp":
     int rdp_red_c(
         float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float epsilon
     ) nogil
 
-cdef extern from "streamline.hpp":
+cdef extern from "streamline_utils.hpp":
     int create_replicas_pt( 
         float* ptr_pts_in, double* ptr_pts_out, double* ptr_blur_rho, double* ptr_blur_angle, int n_replicas, float fiberShiftX, float fiberShiftY, float fiberShiftZ 
     ) nogil
