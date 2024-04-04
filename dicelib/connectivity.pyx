@@ -292,6 +292,9 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
     # Load of the gm map
     gm_map_img = nib.load(atlas)
     gm_map_data = gm_map_img.get_fdata()
+    gm_map_dtype = gm_map_img.header.get_data_dtype()
+    if gm_map_dtype.char not in ['b',' h', 'i', 'l', 'B', 'H', 'I', 'L']:
+        logger.warning(f'Atlas data type is \'{gm_map_dtype}\'. It is recommended to use an integer data type.')
     logger.info(f'Computing assignments for {num_streamlines} streamlines')
     t0 = time()
     if num_streamlines > 3:
