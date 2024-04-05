@@ -353,7 +353,6 @@ def tractogram_sample():
         options.image_in,
         options.file_out,
         options.mask,
-        options.space,
         options.option,
         options.force,
         options.verbose
