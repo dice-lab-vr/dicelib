@@ -4,7 +4,6 @@ import numpy as np
 
 import argparse
 from datetime import datetime as _datetime
-# import inspect
 import itertools
 import logging
 from os.path import abspath
@@ -220,7 +219,6 @@ def setup_logger(name, verbose=3, log_on_file=False, file_verbose=4):
         file_lvl = verbose2loglvl(file_verbose)
     except ValueError as e:
         print(e)
-    # name = inspect.getmodulename(inspect.stack()[1][1])
     logging.setLoggerClass(Logger)
     logger = logging.getLogger(name)
     logger.setLevel(lvl)
@@ -267,9 +265,14 @@ def set_verbose(name, verbose: int = 3) -> NoReturn:
     - 4: debug, info, warnings, errors (with progressbars)
     '''
     try:
-        logging.getLogger(name).setLevel(verbose2loglvl(verbose))
+        log_lvl = verbose2loglvl(verbose)
     except ValueError as e:
         print(e)
+    logger = logging.getLogger(name)
+    for i, handler in enumerate(logger.handlers):
+        if type(handler) == logging.StreamHandler:
+            logger.handlers[i].setLevel(log_lvl)
+    logger.setLevel(log_lvl)
 
 # Argument parser
 class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
