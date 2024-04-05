@@ -563,7 +563,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
                 blurWeights[i_r] = 1.0
             else:
                 blurWeights[i_r] = np.exp( -(blurRho[i_r] - core_extent)**2 / (2.0*blur_sigma**2) )
-    logger.subinfo(f'Number of replicas for each streamline = {nReplicas}', indent_lvl=1, indent_char='-')
+    logger.subinfo(f'Number of replicas for each streamline: {nReplicas}', indent_lvl=1, indent_char='-')
 
     # compute the grid of voxels for the radial search
     threshold = core_extent + gauss_extent
@@ -576,7 +576,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
     thr += 0.005 # to take into accound rounding errors in the distance of the replicas
     # print(f'core+gauss = {core_extent + gauss_extent}')
-    logger.subinfo(f'Threshold to use when computing assignments (in VOX space) = {thr:.3f}', indent_lvl=1, indent_char='-')
+    logger.subinfo(f'Threshold to use when computing assignments (in VOX space): {thr:.3f}', indent_lvl=1, indent_char='-')
 
     # variables for transformations 
     cdef float [:,::1] pts_start = np.zeros((2,3), dtype=np.float32)
@@ -619,11 +619,11 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
         # str_count = 0
 
         n_streamlines = int( TCK_in.header['count'] )
-        logger.subinfo( f'{n_streamlines} streamlines in input tractogram', indent_char='*')
+        logger.subinfo( f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*')
 
         # check if #(weights)==n_streamlines
         if n_streamlines!=w.size:
-            logger.error( f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) ' )
+            logger.error( f'Number of weights is different from number of streamlines ({w.size}, {n_streamlines}) ' )
 
         zeros_count = 0
 
@@ -711,7 +711,7 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
                 np.savetxt(output_connectome, conn, delimiter=",")
             else:
                 np.save(output_connectome, conn, allow_pickle=False)
-    logger.subinfo( f'Writing output connectome to "{output_connectome}"', indent_char='*')
+    logger.subinfo( f'Output connectome path: "{output_connectome}"', indent_char='*')
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
@@ -881,6 +881,6 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
         else:
             np.save(output_connectome, conn, allow_pickle=False)
 
-    logger.subinfo( f'Writing output connectome to "{output_connectome}"', indent_char='*', indent_lvl=1)
+    logger.subinfo( f'Output connectome path: "{output_connectome}"', indent_char='*', indent_lvl=1)
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
