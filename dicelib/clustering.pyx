@@ -796,7 +796,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
         logger.info(f'Clustering')
         logger.subinfo(f'Number of input streamlines: {num_streamlines}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Using threshold {clust_thr} and {n_pts} points', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Clustering hreshold: {clust_thr}', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Number of points: {n_pts}', indent_lvl=1, indent_char='*')
         logger.subinfo(f'Computing workload for parallel clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
         chunk_list = []
         try:
@@ -890,7 +891,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
     else:
         logger.info(f'Clustering')
         logger.subinfo(f'Number of input streamlines: {num_streamlines}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Using threshold {clust_thr} and {n_pts} points', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Clustering hreshold: {clust_thr}', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Number of points: {n_pts}', indent_lvl=1, indent_char='*')
         t0 = time.time()
 
         hash_superset = np.empty( num_streamlines, dtype=int)
