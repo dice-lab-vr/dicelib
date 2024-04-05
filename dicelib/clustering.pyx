@@ -691,7 +691,11 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
 
-    MAX_THREAD = 3
+    if n_threads:
+        MAX_THREAD = n_threads
+    else:
+        MAX_THREAD = os.cpu_count()
+
     TCK_in = LazyTractogram(tractogram_in, mode='r')
     num_streamlines = int(TCK_in.header["count"])
 
@@ -782,11 +786,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
         t1 = time.time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
-
-        if n_threads:
-            MAX_THREAD = n_threads
-        else:
-            MAX_THREAD = os.cpu_count()
 
         ref_indices = []
         TCK_out_size = 0

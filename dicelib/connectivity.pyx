@@ -235,7 +235,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist: float=2.0, force: bool=False, verbose: int=3) :
+cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist: float=2.0, n_threads: int=None, force: bool=False, verbose: int=3) :
     """ Compute the assignments of the streamlines based on a GM atlas.
     
     Parameters
@@ -262,6 +262,8 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
     nums = [
         Num(name='atlas_dist', value=atlas_dist, min_=0.0, include_min=True)
     ]
+    if n_threads is not None:
+        nums.append(Num(name='n_threads', value=n_threads, min_=1))
     check_params(files=files, nums=nums, force=force)
 
 
@@ -297,8 +299,12 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
         logger.warning(f'Atlas data type is \'{gm_map_dtype}\'. It is recommended to use an integer data type.')
     logger.info(f'Computing assignments for {num_streamlines} streamlines')
     t0 = time()
+
     if num_streamlines > 3:
-        MAX_THREAD = 3
+        if n_threads:
+            MAX_THREAD = n_threads
+        else:
+            MAX_THREAD = os.cpu_count()
     else:
         MAX_THREAD = 1
 

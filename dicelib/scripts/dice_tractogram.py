@@ -71,7 +71,8 @@ def tractogram_assign():
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['atlas'], {'type': str, 'help': 'Atlas used to compute streamlines assignments'}],
         [['assignments_out'], {'type': str, 'help': 'Output assignments file (.txt or .npy)'}],
-        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': 'Distance [in mm] used to assign streamlines to the atlas\' nodes'}]
+        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': 'Distance [in mm] used to assign streamlines to the atlas\' nodes'}],
+        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform the assignment. If None, all the available threads will be used'}],
     ]
     options = setup_parser(assign.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -79,6 +80,7 @@ def tractogram_assign():
            options.atlas,
            options.assignments_out,
            options.atlas_dist,
+           options.n_threads,
            options.force,
            options.verbose)
 
