@@ -756,7 +756,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, prefix: str='bundle_', verbose: int=3, force: bool=False ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, prefix: str='bundle_', verbose: int=3, force: bool=False, log_list=None ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -847,7 +847,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 new_limit = int(limit * 2)
                 max_open = int(new_limit * 0.9)
                 win32file._setmaxstdio(new_limit)
-                logger.warning(f'`max_open` is greater than the system limit, using {max_open} instead')
+                warning_msg = f'`max_open` is greater than the system limit, using {max_open} instead'
+                logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
         elif max_open is None:
             new_limit = int(limit * 2)
             max_open = int(new_limit * 0.9)
@@ -863,7 +864,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 new_limit = int(limit_hard * 0.5)
                 max_open = int(new_limit * 0.9)
                 resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
-                logger.warning(f'`max_open` is greater than the system limit, using {max_open} instead')
+                warning_msg = f'`max_open` is greater than the system limit, using {max_open} instead'
+                logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
         elif max_open is None:
             new_limit = int(limit_hard * 0.5)
             max_open = int(new_limit * 0.9)
@@ -1070,7 +1072,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def join( input_list: list[str], output_tractogram: str, weights_list: list[str]=[], weights_out: str=None, verbose: int=3, force: bool=False ):
+def join( input_list: list[str], output_tractogram: str, weights_list: list[str]=[], weights_out: str=None, verbose: int=3, force: bool=False, log_list=None ):
     """Join different tractograms into a single file.
 
     Parameters
@@ -1129,7 +1131,8 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
                 TCK_in = LazyTractogram( input_tractogram, mode='r' )
                 n_streamlines = int( TCK_in.header['count'] )
                 if n_streamlines == 0:
-                    logger.warning(f'No streamlines found in tractogram {input_tractogram}')
+                    warning_msg = f'No streamlines found in tractogram {input_tractogram}'
+                    logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
                 else:
                     for s in range( n_streamlines ):
                         TCK_in.read_streamline()
@@ -1215,7 +1218,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
         Force overwriting of the output (default : False).
 
     """
-    from dicelib.connectivity import build_connectome
+    from dicelib.connectivity import assign #build_connectome
 
     set_verbose('tractogram', verbose)
 
@@ -1239,7 +1242,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
         output_tractogram = os.path.splitext(input_tractogram)[0]+'_sorted.tck'
     files.append(File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'))
 
-    tmp_folder = tmp_folder if tmp_folder is not None else os.path.join(os.getcwd(), 'tmp')
+    tmp_folder = tmp_folder if tmp_folder is not None else os.path.join(os.getcwd(), 'tmp_sort')
     dirs = [
         Dir(name='tmp_folder', path=tmp_folder)
     ]
@@ -1249,59 +1252,49 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
     t0 = time()
 
     # compute assignments
-    logger.subinfo('Computing connectome and assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
-    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
-        build_connectome( f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/connectome.csv', input_tractogram=input_tractogram, input_nodes=input_atlas, verbose=1)
+    log_list_asgn = []
+    ret_subinfo = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo, log_list=log_list_asgn) as pbar:
+        assign( input_tractogram, input_atlas, assignments_out=f'{tmp_folder}/fibers_assignment.txt', verbose=1, log_list=log_list_asgn )
 
     # split the tractogram
-    logger.subinfo('Splitting tractogram', indent_lvl=1, indent_char='*', with_progress=verbose>2)
-    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
+    log_list_split = []
+    ret_subinfo_split = logger.subinfo('Splitting tractogram', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_split, log_list=log_list_split) as pbar:
         if weights_in is not None:
-            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', weights_in=weights_in, verbose=1)
+            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', weights_in=weights_in, verbose=1, log_list=log_list_split)
         else:
-            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', verbose=1)
+            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', verbose=1, log_list=log_list_split)
     set_verbose('tractogram', verbose)
 
     # join the tractograms
-    logger.subinfo('Joining tractograms in the specific order', indent_lvl=1, indent_char='*')
-    conn = np.loadtxt( f'{tmp_folder}/connectome.csv', delimiter=',' )
-    conn = np.triu( conn )
-    n_rois = conn.shape[0]
-    with ProgressBar(total=n_rois, disable=verbose < 3, hide_on_exit=True) as pbar:
+    asgn = np.loadtxt( f'{tmp_folder}/fibers_assignment.txt', dtype=np.int32 )
+    max_rois = asgn.max()
+    log_list_join = []
+    ret_subinfo_join = logger.subinfo('Joining bundles in the specific order', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_join, log_list=log_list_join) as pbar:
         list_all = []
         list_all_weights = []
-        for i in range(n_rois):
-            list_i = []
-            list_i_weights = []
-            if np.count_nonzero(conn[i,:]) > 1:
-                for j in range(i, n_rois):
-                    if conn[i,j] > 0:
-                        list_i.append(f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}.tck')
-                        if weights_in is not None:
-                            list_i_weights.append(f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}{weights_in_ext}')
-                if weights_in is not None:
-                    join(list_i, f'{tmp_folder}/bundles/demo01_fibers_connecting_{i+1}.tck', weights_list=list_i_weights, weights_out=f'{tmp_folder}/bundles/demo01_fibers_connecting_{i+1}{weights_out_ext}', verbose=1)
-                    list_all_weights.append(f'{tmp_folder}/bundles/demo01_fibers_connecting_{i+1}{weights_out_ext}')
-                else:
-                    join(list_i, f'{tmp_folder}/bundles/demo01_fibers_connecting_{i+1}.tck', verbose=1)
-                list_all.append(f'{tmp_folder}/bundles/demo01_fibers_connecting_{i+1}.tck')
-            if np.count_nonzero(conn[i,:]) == 1:
-                j = np.where(conn[i,:]>0)[0][0]
-                list_all.append(f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}.tck')
-                if weights_in is not None:
-                    list_all_weights.append(f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}{weights_in_ext}')
-            pbar.update()
+        for i in range(max_rois):
+            for j in range(i, max_rois):
+                path_bundle = f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}.tck'
+                if os.path.isfile(path_bundle):
+                    list_all.append(path_bundle)
+                    if weights_in is not None:
+                        path_weights = f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}{weights_in_ext}'
+                        list_all_weights.append(path_weights)
         if weights_in is not None:
-            join(list_all, output_tractogram, weights_list=list_all_weights, weights_out=weights_out, verbose=1)
+            join(list_all, output_tractogram, weights_list=list_all_weights, weights_out=weights_out, verbose=1, log_list=log_list_join)
         else:
-            join(list_all, output_tractogram, verbose=1)
+            join(list_all, output_tractogram, verbose=1, log_list=log_list_join)
     set_verbose('tractogram', verbose)
+    if os.path.isfile(f'{tmp_folder}/bundles/unassigned.tck'):
+        logger.warning('Some streamlines of the input tractogram are \'non-connecting\'')
 
     # remove temporary folder/files
     if not keep_tmp_folder:
         shutil.rmtree(f'{tmp_folder}/bundles')
         os.remove(f'{tmp_folder}/fibers_assignment.txt')
-        os.remove(f'{tmp_folder}/connectome.csv')
         # remove tmp_folder if different from current
         if tmp_folder != os.getcwd():
             shutil.rmtree(tmp_folder)            

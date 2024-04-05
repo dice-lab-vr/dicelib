@@ -235,7 +235,7 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist: float=2.0, n_threads: int=None, force: bool=False, verbose: int=3) :
+cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist: float=2.0, n_threads: int=None, force: bool=False, verbose: int=3, log_list=None) :
     """ Compute the assignments of the streamlines based on a GM atlas.
     
     Parameters
@@ -296,7 +296,8 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
     gm_map_data = gm_map_img.get_fdata()
     gm_map_dtype = gm_map_img.header.get_data_dtype()
     if gm_map_dtype.char not in ['b',' h', 'i', 'l', 'B', 'H', 'I', 'L']:
-        logger.warning(f'Atlas data type is \'{gm_map_dtype}\'. It is recommended to use an integer data type.')
+        warning_msg = f'Atlas data type is \'{gm_map_dtype}\'. It is recommended to use an integer data type.'
+        logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
     logger.info(f'Computing assignments for {num_streamlines} streamlines')
     t0 = time()
 
@@ -711,13 +712,13 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
                 np.savetxt(output_connectome, conn, delimiter=",")
             else:
                 np.save(output_connectome, conn, allow_pickle=False)
-    logger.subinfo( f'Output connectome path: "{output_connectome}"', indent_char='*')
+    logger.subinfo( f'Output connectome: "{output_connectome}"', indent_char='*')
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 
-def build_connectome( input_assignments: str, output_connectome: str, input_weights: str=None, input_tractogram: str=None, input_nodes: str=None, atlas_dist: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=3, force: bool=False ):
+def build_connectome( input_assignments: str, output_connectome: str, input_weights: str=None, input_tractogram: str=None, input_nodes: str=None, atlas_dist: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=3, force: bool=False, log_list=None ):
     """Build the (weighted) connectome having the assignments or the tractogram and an atlas.
 
     Parameters
@@ -780,9 +781,11 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
         logger.subinfo(f'Input parcellation: \'{input_nodes}\'', indent_char='*', indent_lvl=1)
 
         # compute assignments
-        logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
-        with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
-            os.system(f'dice_tractogram_assign {input_tractogram} {input_nodes} {input_assignments} -d {atlas_dist} -v 1')
+        log_list2 = []
+        ret_subinfo2 = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+        with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo2, log_list=log_list2) as pbar:
+            assign(input_tractogram, input_nodes, input_assignments, atlas_dist, verbose=1, log_list=log_list2)
+        set_verbose('connectivity', verbose)
 
     check_params(files=files, force=force)
 
@@ -859,7 +862,8 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
             conn_nos[asgn_sort[i][0]-1, asgn_sort[i][1]-1] += 1
             pbar.update()
     if count_unconn > 0:
-        logger.warning(f'Number of non-connecting streamlines {count_unconn}')
+        warning_msg = f'Number of non-connecting streamlines {count_unconn}'
+        logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
 
     if metric == 'mean':
         conn[conn_nos>0] = conn[conn_nos>0]/conn_nos[conn_nos>0]
@@ -881,6 +885,6 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
         else:
             np.save(output_connectome, conn, allow_pickle=False)
 
-    logger.subinfo( f'Output connectome path: "{output_connectome}"', indent_char='*', indent_lvl=1)
+    logger.subinfo( f'Output connectome: "{output_connectome}"', indent_char='*', indent_lvl=1)
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
