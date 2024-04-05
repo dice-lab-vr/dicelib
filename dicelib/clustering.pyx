@@ -798,7 +798,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         logger.info(f'Clustering')
         logger.subinfo(f'Number of input streamlines: {num_streamlines}', indent_lvl=1, indent_char='*')
         logger.subinfo(f'Using threshold {clust_thr} and {n_pts} points', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Computing chunks for parallel clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+        logger.subinfo(f'Computing workload for parallel clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
         chunk_list = []
         try:
             TCK_out = LazyTractogram(tractogram_out, mode='w', header=TCK_in.header)
