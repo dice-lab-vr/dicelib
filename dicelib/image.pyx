@@ -78,7 +78,7 @@ def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: 
         for i in b:
             idx[ bvals==i ] = True
         n = np.count_nonzero(idx)
-        logger.subinfo(f'Extracted {n} volumes', indent_char='*')
+        logger.subinfo(f'Number of extracted volumes: {n}', indent_char='*')
         if n==0:
             logger.error('The specified criterion selects 0 volumes')
         niiDWI_img = np.asanyarray(niiDWI.dataobj,dtype=niiDWI.get_data_dtype())[:,:,:,idx]
