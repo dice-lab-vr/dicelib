@@ -897,6 +897,7 @@ class ProgressBar:
         self.log_list = log_list
         self.hide_on_exit = hide_on_exit
         self.disable = disable
+        self._percent_len = 0
         self._done = False
 
         if self.total is None:
