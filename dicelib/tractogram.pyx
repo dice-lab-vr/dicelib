@@ -2169,7 +2169,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
                             for jj in range(ii):
                                 if voxel_checked[jj,0] == vox_coords[0] and voxel_checked[jj,1] == vox_coords[1] and voxel_checked[jj,2] == vox_coords[2]:
                                     break
-                            if jj < ii:
+                            if jj < ii-1:
                                 continue
                             else:
                                 tot_vox += 1
