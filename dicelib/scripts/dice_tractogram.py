@@ -342,8 +342,8 @@ def tractogram_sample():
         [['image_in'], {'type': str, 'help': 'Input image'}],
         [['file_out'], {'type': str, 'help': 'File for the output'}],
         [['--mask', '-m'], {'type': str, 'default': None, 'help': 'Optional mask to restrict the sampling voxels'}],
-        [['--space'], {'type': str, 'nargs': '?', 'default': 'rasmm', 'choices': ['voxmm', 'rasmm', 'vox'], 'help': 'Current reference space of streamlines (rasmm, voxmm, vox)'}],
-        [['--option'], {'type': str, 'nargs': '?', 'default': 'No_opt', 'choices': ['No_opt', 'mean', 'median', 'min', 'max'], 'help': 'Operation to apply on streamlines (if No_opt: no operation applied'}]
+        [['--option'], {'type': str, 'nargs': '?', 'default': 'No_opt', 'choices': ['No_opt', 'mean', 'median', 'min', 'max'], 'help': 'Operation to apply on streamlines (if No_opt: no operation applied'}],
+        [['--collapse_pts', '-c'], {'action': 'store_true', 'default': False, 'help': 'Collapse the values of points falling in the same voxel (default : False).'}]
     ]
     options = setup_parser(sample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -354,6 +354,7 @@ def tractogram_sample():
         options.file_out,
         options.mask,
         options.option,
+        options.collapse_pts,
         options.force,
         options.verbose
     )

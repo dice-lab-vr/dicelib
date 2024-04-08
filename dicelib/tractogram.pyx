@@ -2070,7 +2070,7 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
     return indices_recomputed if output_indices is None else np.savetxt(output_indices, indices_recomputed, fmt='%d')
 
 
-cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option="No_opt", force=False, verbose=3):
+cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option="No_opt", collapse=False, force=False, verbose=3):
     """Sample underlying values of a tractogram along its points from the corresponding image (ATTENTION: this method does not use interpolation during sampling)
 
     Parameters
@@ -2084,7 +2084,9 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
     mask_file : string (default None)
         Path to the mask file (.nii) to constrain the sampling to a specific region.
     option : string (default None)
-        apply some operation on values 
+        apply some operation on values
+    collpase : boolean
+        If True, the method will collapse the values of points falling in the same voxel (default : False).
     force : boolean
         Force overwriting of the output (default : False).
     verbose : int
@@ -2129,8 +2131,11 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
     cdef double [:] abc_inv         = wm_aff_inv[:3, 3]
     cdef float [:] moved_pt         = np.zeros(3, dtype=np.float32)
     cdef size_t ii                  = 0
+    cdef size_t jj                  = 0
     cdef int [::1] vox_coords       = np.zeros(3, dtype=np.int32)
-    cdef float[::1] value           = np.zeros(2000, dtype=np.float32)
+    cdef float [::1] value          = np.zeros(2000, dtype=np.float32)
+    cdef int [:,::1] voxel_checked
+    cdef int tot_vox                = 0
     
     try:
         #open the input file
@@ -2149,18 +2154,33 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
             file.write("# dicelib.tractogram.sample option={} {} {} {}**\n".format(option,input_tractogram,input_image,output_file))
             with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
                 for i in range(n_streamlines):
+                    tot_vox = 0
                     TCK_in.read_streamline()
                     npoints = TCK_in.n_pts
+                    voxel_checked = np.zeros((npoints,3), dtype=np.int32)
                     value = np.zeros(2000, dtype=np.float32)
                     for ii in range(npoints):
                         moved_pt = apply_affine_1pt(TCK_in.streamline[ii], M_inv, abc_inv, moved_pt)
                         vox_coords[0] = int(moved_pt[0])
                         vox_coords[1] = int(moved_pt[1])
                         vox_coords[2] = int(moved_pt[2])
+                        if collapse:
+                            # check if the voxel has already been visited
+                            for jj in range(ii):
+                                if voxel_checked[jj,0] == vox_coords[0] and voxel_checked[jj,1] == vox_coords[1] and voxel_checked[jj,2] == vox_coords[2]:
+                                    break
+                            if jj < ii:
+                                continue
+                            else:
+                                tot_vox += 1
+                                voxel_checked[tot_vox] = vox_coords
+                            npoints = tot_vox
+
                         if mask_view[vox_coords[0], vox_coords[1], vox_coords[2]] == 0:
                             value[ii] = np.nan
                         else: 
                             value[ii] = img_view[vox_coords[0], vox_coords[1], vox_coords[2]]
+
                     if option == 'No_opt':
                         np.savetxt(file, value[:npoints], fmt='%.3f', newline=' ')
                         file.write("\n")
