@@ -1,8 +1,7 @@
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, LazyTractogram, recompute_indices, resample, sample, sanitize, spline_smoothing_v2, split, sort as tract_sort
-from dicelib.tsf import Tsf
-from dicelib.ui import ProgressBar, set_verbose, setup_logger, setup_parser
+from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, resample, sample, tsf_create, sanitize, spline_smoothing_v2, split, sort as tract_sort
+from dicelib.ui import setup_logger, setup_parser
 
 import os
 from time import time
@@ -10,57 +9,6 @@ from time import time
 import numpy as np
 
 logger = setup_logger('dice_tractogram')
-
-def create_color_scalar_file(streamline, num_streamlines):
-        """
-        Create a scalar file for each streamline in order to color them.
-        Parameters
-        ----------
-        streamlines: list
-            List of streamlines.
-        Returns
-        -------
-        scalar_file: str
-            Path to scalar file.
-        """
-        scalar_list = list()
-        n_pts_list = list()
-        for i in range(num_streamlines):
-            # pt_list = list()
-            streamline.read_streamline()
-            n_pts_list.append(streamline.n_pts)
-            for j in range(streamline.n_pts):
-                scalar_list.extend([float(j)])
-            # scalar_list.append(pt_list)
-        return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
-
-
-def color_by_scalar_file(TCK_in, values, num_streamlines):
-    """
-    Color streamlines based on sections.
-    Parameters
-    ----------
-    TCK_in: array
-        Input LazyTractogram object.
-    values: list
-        List of scalars used to color the streamlines.
-    Returns
-    -------
-    array
-        Array mapping scalar values to each vertex of each streamline.
-    array
-        Array containing the number of points of each input streamline.
-    """
-    scalar_list = []
-    n_pts_list = []
-    for i in range(num_streamlines):
-        streamline = TCK_in.read_streamline()
-        n_pts_list.append(streamline.n_pts)
-        streamline_points = np.arange(streamline.n_pts)
-        resample = np.linspace(0, streamline.n_pts, len(values), endpoint=True, dtype=np.int32)
-        streamline_points = np.interp(streamline_points, resample, values)
-        scalar_list.extend(streamline_points)
-    return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
 
 
 def tractogram_assign():
@@ -485,7 +433,7 @@ def tractogram_split():
     )
 
 
-def tractogram_tsf():
+def tractogram_create_tsf():
     '''
     Entry point for the tractogram tsf function.
     '''
@@ -494,35 +442,16 @@ def tractogram_tsf():
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['tsf_out'], {'type': str, 'help': 'Output tsf filename'}],
         [['--orientation', '-o'], {'action': 'store_true', 'default': False, 'help': 'Color based on orientation'}],
-        [['--file', '-f'], {'type': str, 'help': 'Color based on given file'}]
+        [['--file'], {'type': str, 'help': 'Color based on given file'}]
     ]
-    options = setup_parser('Create a tsf file for each streamline in order to color them.', args, add_force=True)
+    options = setup_parser(tsf_create.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # check if path to input and output files are valid
-    if not os.path.isfile(options.tractogram_in):
-        logger.error(f'Input tractogram file not found: {options.tractogram_in}')
-    if os.path.isfile(options.output_tsf) and not options.force:
-        logger.error('Output file already exists. Use -f to overwrite.')
-    if not options.orientation and not options.file:
-        logger.error("Please specify a color option")
-    if options.file:
-        if not os.path.isfile(options.file):
-            logger.error(f"Input file not found: {options.file}")
-
-    TCK_in = LazyTractogram(options.tractogram_in, mode='r')
-    num_streamlines = TCK_in.header['count']
-
-    if options.orientation:
-        scalar_arr, n_pts_list = create_color_scalar_file(TCK_in, int(num_streamlines))
-    elif options.file:
-        values = np.loadtxt(options.file)
-        scalar_arr, n_pts_list = color_by_scalar_file(TCK_in, values, int(num_streamlines))
-    else:
-        raise ValueError("Please specify a color option")
-
-    # check if output file exists
-    if os.path.isfile(options.output_tsf) and not options.force:
-        logger.error('Output file already exists. Use -f to overwrite.')
-
-    tsf = Tsf(options.tsf_out, 'w', header=TCK_in.header)
-    tsf.write_scalar(scalar_arr, n_pts_list)
+    # call actual function
+    tsf_create(
+        options.tractogram_in,
+        options.tsf_out,
+        options.orientation,
+        options.file,
+        options.verbose,
+        options.force
+    )
