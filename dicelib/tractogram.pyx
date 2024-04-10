@@ -697,6 +697,66 @@ cdef class Tsf:
             fclose( self.fp )
 
 
+def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, idx_out: str=None, verbose: int=3, force: bool=False ) -> np.ndarray:
+    """Finds the indices of the streamlines in a subset of streamlines from a larger tractogram.
+
+    Parameters
+    ----------
+    needle_filename : string
+        Path to the file (.tck) containing the subset of streamlines to find.
+
+    haystack_filename : string
+        Path to the file (.tck) containing the full set of streamlines in which to search.
+
+    Returns
+    -------
+    idx : numpy array
+        Indices of the streamlines from 'needle' that where found in 'haystack'.
+    """
+
+    set_verbose('tractogram', verbose)
+
+    logger.info('Finding indices of streamlines')
+
+    files = [File(name='needle_filename', type_='input', path=needle_filename, ext='.tck'),
+             File(name='haystack_filename', type_='input', path=haystack_filename, ext='.tck')]
+    if idx_out:
+        files.append(File(name='idx_out', type_='output', path=idx_out, ext=['.txt', '.npy']))
+    check_params(files=files, force=force)
+
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True) as pbar:
+        # hash streamlines in 'haystack' tractogram
+        TCK_haystack = LazyTractogram( haystack_filename, mode='r' )
+        n = int( TCK_haystack.header['count'] )
+        hash_all = np.empty( n, dtype=int )
+        for i in range(n):
+            TCK_haystack.read_streamline()
+            hash_all[i] = hash( TCK_haystack.streamline.tobytes() )
+
+        TCK_haystack.close()
+
+        TCK_needle = LazyTractogram( needle_filename, mode='r' )
+        n = int( TCK_needle.header['count'] )
+        hash_subset = np.empty( n, dtype=int )
+        for i in range(n):
+            TCK_needle.read_streamline()
+            hash_subset[i] = hash( TCK_needle.streamline.tobytes() )
+
+        TCK_needle.close()
+        pbar.update()
+
+    indices = np.flatnonzero( np.in1d( hash_all, hash_subset, assume_unique=True ) )
+    # save the indices to file
+    if idx_out:
+        # check if .txt or .npy
+        if idx_out.endswith('.txt'):
+            np.savetxt( idx_out, indices, fmt='%d' )
+        elif idx_out.endswith('.npy'):
+            np.save( idx_out, indices )
+    # return indices of the streamlines that were found
+    return indices
+
+
 def create_color_scalar_file(streamline, num_streamlines):
         """
         Create a scalar file for each streamline in order to color them.

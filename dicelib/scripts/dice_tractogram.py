@@ -1,6 +1,6 @@
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, resample, sample, tsf_create, sanitize, spline_smoothing_v2, split, sort as tract_sort
+from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, get_indices_of_streamlines, resample, sample, tsf_create, sanitize, spline_smoothing_v2, split, sort as tract_sort
 from dicelib.ui import setup_logger, setup_parser
 
 import os
@@ -455,3 +455,26 @@ def tractogram_create_tsf():
         options.verbose,
         options.force
     )
+
+
+def tractogram_locate():
+    '''
+    Entry point for the tractogram find function.
+    '''
+    # parse the input parameters
+    args = [
+        [['needle_filename'], {'type': str, 'help': 'Path to the file (.tck) containing the subset of streamlines to find'}],
+        [['haystack_filename'], {'type': str, 'help': 'Path to the file (.tck) containing the full set of streamlines in which to search'}],
+        [['indices_out'], {'type': str, 'help': 'Output indices file (.txt or .npy)'}]
+    ]
+    options = setup_parser(get_indices_of_streamlines.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    # call actual function
+    idx = get_indices_of_streamlines(
+        options.needle_filename,
+        options.haystack_filename,
+        options.indices_out,
+        options.verbose,
+        options.force
+    )
+    logger.info(f'{len(idx)} streamlines found')
