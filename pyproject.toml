@@ -1,9 +1,8 @@
 [build-system]
 requires = [
-    "setuptools>=68.1.0",
-    "Cython>=3.0.8",
+    "cython>=3.0.10",
     "numpy>=1.24.4",
-    "wheel"
+    "setuptools>=69.2.0"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -11,11 +10,12 @@ build-backend = "setuptools.build_meta"
 name = "dmri-dicelib"
 version = "1.1.0"
 dependencies = [
+    "cython>=3.0.10",
+    "nibabel>=5.2.1",
     "numpy>=1.24.4",
-    "scipy>=1.10.1",
-    "Cython>=3.0.8",
     "psutil>=5.9.8",
-    "pywin32>=306; sys_platform=='win32'"
+    "pywin32>=306; sys_platform=='win32'",
+    "scipy>=1.10.1"
 ]
 requires-python = ">=3.8"
 authors = [
