@@ -463,18 +463,17 @@ def tractogram_locate():
     '''
     # parse the input parameters
     args = [
-        [['needle_filename'], {'type': str, 'help': 'Path to the file (.tck) containing the subset of streamlines to find'}],
-        [['haystack_filename'], {'type': str, 'help': 'Path to the file (.tck) containing the full set of streamlines in which to search'}],
+        [['tractogram_subset_in'], {'type': str, 'help': 'Path to the file (.tck) containing the subset of streamlines to find'}],
+        [['tractogram_in'], {'type': str, 'help': 'Path to the file (.tck) containing the full set of streamlines in which to search'}],
         [['indices_out'], {'type': str, 'help': 'Output indices file (.txt or .npy)'}]
     ]
     options = setup_parser(get_indices_of_streamlines.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # call actual function
-    idx = get_indices_of_streamlines(
-        options.needle_filename,
-        options.haystack_filename,
+    get_indices_of_streamlines(
+        options.tractogram_subset_in,
+        options.tractogram_in,
         options.indices_out,
         options.verbose,
         options.force
     )
-    logger.info(f'{len(idx)} streamlines found')

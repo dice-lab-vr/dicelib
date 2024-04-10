@@ -722,30 +722,39 @@ def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, id
              File(name='haystack_filename', type_='input', path=haystack_filename, ext='.tck')]
     if idx_out:
         files.append(File(name='idx_out', type_='output', path=idx_out, ext=['.txt', '.npy']))
+        
     check_params(files=files, force=force)
 
-    with ProgressBar(disable=verbose < 3, hide_on_exit=True) as pbar:
+    TCK_haystack = LazyTractogram( haystack_filename, mode='r' )
+    n_haystack = int( TCK_haystack.header['count'] )
+    TCK_needle = LazyTractogram( needle_filename, mode='r' )
+    n_needle = int( TCK_needle.header['count'] )
+    t0 = time()
+
+    with ProgressBar(total=n_haystack+n_needle, disable=verbose < 3, hide_on_exit=True) as pbar:
         # hash streamlines in 'haystack' tractogram
-        TCK_haystack = LazyTractogram( haystack_filename, mode='r' )
-        n = int( TCK_haystack.header['count'] )
-        hash_all = np.empty( n, dtype=int )
-        for i in range(n):
+        
+        hash_all = np.empty( n_haystack, dtype=int )
+        for i in range(n_haystack):
             TCK_haystack.read_streamline()
-            hash_all[i] = hash( TCK_haystack.streamline.tobytes() )
+            n_pts = TCK_haystack.n_pts
+            hash_all[i] = hash( np.asarray(TCK_haystack.streamline[:n_pts]).tobytes() )
+            pbar.update()
 
         TCK_haystack.close()
 
-        TCK_needle = LazyTractogram( needle_filename, mode='r' )
-        n = int( TCK_needle.header['count'] )
-        hash_subset = np.empty( n, dtype=int )
-        for i in range(n):
+        hash_subset = np.empty( n_needle, dtype=int )
+        for i in range(n_needle):
             TCK_needle.read_streamline()
-            hash_subset[i] = hash( TCK_needle.streamline.tobytes() )
+            n_pts = TCK_needle.n_pts
+            hash_subset[i] = hash( np.asarray(TCK_needle.streamline[:n_pts]).tobytes() )
+            pbar.update()
 
         TCK_needle.close()
-        pbar.update()
+        
 
     indices = np.flatnonzero( np.in1d( hash_all, hash_subset, assume_unique=True ) )
+    logger.info(f'Number of streamlines found: {len(indices)}')
     # save the indices to file
     if idx_out:
         # check if .txt or .npy
@@ -754,6 +763,8 @@ def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, id
         elif idx_out.endswith('.npy'):
             np.save( idx_out, indices )
     # return indices of the streamlines that were found
+    t1 = time()
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
     return indices
 
 
