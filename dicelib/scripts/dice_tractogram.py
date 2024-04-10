@@ -17,10 +17,14 @@ def tractogram_assign():
     '''
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['atlas'], {'type': str, 'help': 'Atlas used to compute streamlines assignments'}],
+        [['atlas'], {'type': str, 'help': 'Path to the atlas file used to compute streamlines assignments'}],
         [['assignments_out'], {'type': str, 'help': 'Output assignments file (.txt or .npy)'}],
-        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': 'Distance [in mm] used to assign streamlines to the atlas\' nodes'}],
-        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform the assignment. If None, all the available threads will be used'}],
+        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': '''\
+                                  Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
+                                  Argument is the maximum radius in mm'''}],
+        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
+                                 Number of threads to use to perform the assignment.
+                                 If None, all the available threads will be used'''}],
     ]
     options = setup_parser(assign.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -136,6 +140,30 @@ def tractogram_cluster():
 #         ERROR(f"Output not valid: {e}")
 
 
+def tractogram_create_tsf():
+    '''
+    Entry point for the tractogram tsf function.
+    '''
+    # parse the input parameters
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tsf_out'], {'type': str, 'help': 'Output tsf file'}],
+        [['--orientation', '-o'], {'action': 'store_true', 'default': False, 'help': 'Color based on orientation'}],
+        [['--file'], {'type': str, 'help': 'Color based on given file'}]
+    ]
+    options = setup_parser(tsf_create.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    # call actual function
+    tsf_create(
+        options.tractogram_in,
+        options.tsf_out,
+        options.orientation,
+        options.file,
+        options.verbose,
+        options.force
+    )
+
+
 def tractogram_filter():
     '''
     Entry point for the tractogram filtering function.
@@ -150,7 +178,7 @@ def tractogram_filter():
         [['--maxweight', '-maxw'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
-        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': 'Randomly discard streamlines: 0=discard all, 1=keep all'}]
+        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': 'Randomly discard the given percentage of streamlines: 0=discard all, 1=keep all'}]
     ]
     options = setup_parser(tract_filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -176,9 +204,9 @@ def tractogram_indices():
     '''
     # parse the input parameters
     args = [
-        [['input_indices'], {'type': str, 'help': 'Indices to recompute'}],
+        [['indices_in'], {'type': str, 'help': 'Indices to recompute'}],
         [['dictionary_kept'], {'type': str, 'help': 'Dictionary of kept streamlines'}],
-        [['output_indices'], {'type': str, 'help': 'Output indices file'}]
+        [['indices_out'], {'type': str, 'help': 'Output indices file'}]
     ]
     options = setup_parser(recompute_indices.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -258,6 +286,28 @@ def tractogram_lengths():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
+def tractogram_locate():
+    '''
+    Entry point for the tractogram find function.
+    '''
+    # parse the input parameters
+    args = [
+        [['tractogram_subset_in'], {'type': str, 'help': 'Tractogram containing the subset of streamlines to find'}],
+        [['tractogram_in'], {'type': str, 'help': 'Tractogram containing the full set of streamlines in which to search'}],
+        [['indices_out'], {'type': str, 'help': 'Output file (.txt or .npy) containing the indices of the subset streamlines in the full tractogram'}]
+    ]
+    options = setup_parser(get_indices_of_streamlines.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    # call actual function
+    get_indices_of_streamlines(
+        options.tractogram_subset_in,
+        options.tractogram_in,
+        options.indices_out,
+        options.verbose,
+        options.force
+    )
+
+
 def tractogram_resample():
     '''
     Entry point for the tractogram resampling function.
@@ -315,8 +365,8 @@ def tractogram_sanitize():
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['gray_matter'], {'type': str, 'help': 'Gray matter'}],
-        [['white_matter'], {'type': str, 'help': 'White matter'}],
+        [['gray_matter'], {'type': str, 'help': 'Path to the gray matter'}],
+        [['white_matter'], {'type': str, 'help': 'Path to the white matter'}],
         [['--tractogram_out', '-out'], {'type': str, 'help': 'Output tractogram (if None: "_sanitized" appended to the input filename)'}],
         [['--step', '-s'], {'type': float, 'default': 0.2, 'help': 'Step size [in mm] used to extend or shorten the streamlines'}],
         [['--max_dist', '-d'], {'type': float, 'default': 2, 'help': 'Maximum distance [in mm] used when extending or shortening the streamlines'}],
@@ -374,7 +424,7 @@ def tractogram_sort():
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['atlas'], {'type': str, 'help': 'Atlas used to sort the streamlines'}],
+        [['atlas'], {'type': str, 'help': 'Path to the atlas file used to sort the streamlines'}],
         [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights (.txt or .npy)'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights (.txt or .npy)'}],
@@ -406,6 +456,7 @@ def tractogram_split():
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['assignments_in'], {'type': str, 'help': 'Text file with the streamline assignments'}],
         [['--output_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
+        [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': 'Prefix for the output filenames'}]
         [['--regions', '-r'], {'type': str, 'default': None, 'help': '''\
                                Only streamlines connecting the provided region(s) will be extracted.
                                If None, all the bundles (plus the unassigned streamlines) will be extracted.
@@ -414,7 +465,6 @@ def tractogram_split():
                                If list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.'''}],
         [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
         [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}],
-        [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': 'Prefix for the output filenames'}]
 
     ]
     options = setup_parser(split.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
@@ -428,52 +478,6 @@ def tractogram_split():
         options.weights_in,
         options.max_open,
         options.prefix,
-        options.verbose,
-        options.force
-    )
-
-
-def tractogram_create_tsf():
-    '''
-    Entry point for the tractogram tsf function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tsf_out'], {'type': str, 'help': 'Output tsf filename'}],
-        [['--orientation', '-o'], {'action': 'store_true', 'default': False, 'help': 'Color based on orientation'}],
-        [['--file'], {'type': str, 'help': 'Color based on given file'}]
-    ]
-    options = setup_parser(tsf_create.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    # call actual function
-    tsf_create(
-        options.tractogram_in,
-        options.tsf_out,
-        options.orientation,
-        options.file,
-        options.verbose,
-        options.force
-    )
-
-
-def tractogram_locate():
-    '''
-    Entry point for the tractogram find function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_subset_in'], {'type': str, 'help': 'Path to the file (.tck) containing the subset of streamlines to find'}],
-        [['tractogram_in'], {'type': str, 'help': 'Path to the file (.tck) containing the full set of streamlines in which to search'}],
-        [['indices_out'], {'type': str, 'help': 'Output indices file (.txt or .npy)'}]
-    ]
-    options = setup_parser(get_indices_of_streamlines.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    # call actual function
-    get_indices_of_streamlines(
-        options.tractogram_subset_in,
-        options.tractogram_in,
-        options.indices_out,
         options.verbose,
         options.force
     )

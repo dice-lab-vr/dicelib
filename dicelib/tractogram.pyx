@@ -821,8 +821,7 @@ def color_by_scalar_file(TCK_in, values, num_streamlines):
 
 
 def tsf_create( input_tractogram: str, output_tsf: str, orientation: bool=False, file: str=None, verbose: int=3, force: bool=False ):
-    """
-    Create a tsf file for each streamline in order to color them for visualization.
+    """Create a tsf file for each streamline in order to color them for visualization.
     
     Parameters
     ----------

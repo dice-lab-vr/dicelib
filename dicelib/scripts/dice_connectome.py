@@ -16,11 +16,12 @@ def connectome_build():
                                      Input tractogram file, used to compute the assignments.
                                      Required if \'assignments_in\' does not exist'''}],
         [['--atlas', '-a'], {'type': str, 'default': None, 'help': '''\
-                                Atlas used to compute streamlines assignments (nodes of the connectome).
+                                Path to the atlas file used to compute streamlines assignments (nodes of the connectome).
                                 Required if \'assignments_in\' does not exist'''}],
         [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'help': '''\
-                                   Distance [in mm] used to assign streamlines to the atlas\' nodes.
-                                   Used if \'assignments_in\' does not exist'''}],
+                                   Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
+                                   Argument is the maximum radius in mm
+                                   Used only if \'assignments_in\' does not exist'''}],
         [['--metric', '-m'], {'type': str, 'default': 'sum', 'help': '''\
                               Operation to compute the value of the edges, options: sum, mean, min, max. 
                               NB: if \'weights_in\' is None, this parameter is ignored'''}],
