@@ -315,8 +315,8 @@ def tractogram_resample():
     # parse the input parameters
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--n_pts', '-n'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Number of points per streamline'}]
+        [['n_pts'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Number of points per streamline'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}]
     ]
     options = setup_parser(resample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -338,7 +338,7 @@ def tractogram_sample():
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['image_in'], {'type': str, 'help': 'Input image'}],
-        [['file_out'], {'type': str, 'help': 'File for the output'}],
+        [['file_out'], {'type': str, 'help': 'Path to the file (.txt) where the method saves the sampled values'}],
         [['--mask', '-m'], {'type': str, 'default': None, 'help': 'Optional mask to restrict the sampling voxels'}],
         [['--option'], {'type': str, 'nargs': '?', 'default': 'No_opt', 'choices': ['No_opt', 'mean', 'median', 'min', 'max'], 'help': 'Operation to apply on streamlines (if No_opt: no operation applied'}],
         [['--collapse_pts', '-c'], {'action': 'store_true', 'default': False, 'help': 'Collapse the values of points falling in the same voxel (default : False).'}]

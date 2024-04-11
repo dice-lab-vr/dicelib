@@ -754,7 +754,7 @@ def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, id
         
 
     indices = np.flatnonzero( np.in1d( hash_all, hash_subset, assume_unique=True ) )
-    logger.info(f'Number of streamlines found: {len(indices)}')
+    logger.subinfo(f'Number of streamlines found: {len(indices)}', indent_lvl=1, indent_char='*')
     # save the indices to file
     if idx_out:
         # check if .txt or .npy
@@ -911,7 +911,7 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
 
         if n_streamlines>0:
             logger.subinfo(f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*', indent_lvl=1)
-            logger.subinfo(f'min:{lengths.min():.3f}  max:{lengths.max():.3f}  mean:{lengths.mean():.3f}  std={lengths.std():.3f}', indent_char='*', indent_lvl=1)
+            logger.subinfo(f'min: {lengths.min():.3f}  max: {lengths.max():.3f}  mean: {lengths.mean():.3f}  std: {lengths.std():.3f}', indent_char='*', indent_lvl=1)
 
         if output_scalar_file is None:
             return streamline_length
@@ -991,7 +991,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
                             break # no more data, stop reading
                         lengths[i] = streamline_length( TCK_in.streamline, TCK_in.n_pts )
                         pbar.update()
-                logger.subinfo(f'min:{lengths.min():.3f}  max:{lengths.max():.3f}  mean:{lengths.mean():.3f}  std:{lengths.std():.3f}')
+                logger.subinfo(f'min: {lengths.min():.3f}  max: {lengths.max():.3f}  mean: {lengths.mean():.3f}  std: {lengths.std():.3f}')
             else:
                 logger.error('The tractogram is empty')
 
@@ -2024,9 +2024,9 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     if save_connecting_tck:
         logger.subinfo(f'Connecting streamlines path: \'{conn_tractogram}\'', indent_char='*', indent_lvl=1)
     logger.subinfo(f'Tot. streamlines: {n_tot}', indent_char='*', indent_lvl=1)
-    logger.subinfo(f'Connecting (both ends in GM): {n_in}', indent_lvl=1, indent_char='-')
-    logger.subinfo(f'Half connecting (one ends in GM): {n_half}', indent_lvl=1, indent_char='-')
-    logger.subinfo(f'Non-connecting (both ends outside GM): {n_out}', indent_lvl=1, indent_char='-')
+    logger.subinfo(f'Connecting (both ends in GM): {n_in}', indent_lvl=2, indent_char='-')
+    logger.subinfo(f'Half connecting (one ends in GM): {n_half}', indent_lvl=2, indent_char='-')
+    logger.subinfo(f'Non-connecting (both ends outside GM): {n_out}', indent_lvl=2, indent_char='-')
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
@@ -2510,7 +2510,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
     input_image : string 
         Path to the image where the method has to sample values.
     output_file : string 
-        Path to the file (.txt in needed) where the method saves values
+        Path to the file (.txt is needed) where the method saves values
     mask_file : string (default None)
         Path to the mask file (.nii) to constrain the sampling to a specific region.
     option : string (default None)
@@ -2528,6 +2528,8 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
 
 
     """
+    set_verbose('tractogram', verbose)
+
     files = [
         File(name='input_tractogram', type_='input', path=input_tractogram),
         File(name='input_image', type_='input', path=input_image),
@@ -2577,8 +2579,8 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
         logger.subinfo(f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*', indent_lvl=1)
 
         pixdim = Img.header['pixdim'] [1:4] 
-        logger.subinfo('Image resolution : {}'.format(pixdim), indent_char='*', indent_lvl=1)
-        logger.subinfo('Applying vox transformation', indent_char='*', indent_lvl=1)
+        logger.subinfo('Image resolution: {}'.format(pixdim), indent_char='*', indent_lvl=1)
+        logger.subinfo('Applying vox transformation and sampling values', indent_char='*', indent_lvl=1)
 
         with open(output_file,'w') as file:
             file.write("# dicelib.tractogram.sample option={} {} {} {}**\n".format(option,input_tractogram,input_image,output_file))
@@ -2667,6 +2669,8 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
     force : boolean
         Force overwriting of the output (default : False).
     """
+    set_verbose('tractogram', verbose)
+
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
         output_tractogram = basename+'_nbpts'+extension
@@ -2688,19 +2692,17 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
 
     logger.info('Resampling')
     t0 = time()
-    logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
-    logger.subinfo(f'{input_tractogram}', indent_lvl=2, indent_char='-')
-    logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='-')
+    logger.subinfo(f'Input tractogram: {input_tractogram}', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='*')
 
     mb = os.path.getsize( input_tractogram )/1.0E6
     if mb >= 1E3:
-        logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
+        logger.debug(f'{mb/1.0E3:.2f} GB')
     else:
-        logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+        logger.debug(f'{mb:.2f} MB')
 
-    logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
-    logger.subinfo(f'{output_tractogram}', indent_lvl=2, indent_char='-')
-    logger.subinfo(f'nb_pts : {nb_pts}', indent_lvl=1, indent_char='-')
+    logger.subinfo(f'Number of points: {nb_pts}', indent_lvl=1, indent_char='*')
+    logger.subinfo(f'Output tractogram: {output_tractogram}', indent_char='*', indent_lvl=1)
 
     # process each streamline
     with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
@@ -2715,8 +2717,8 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
 
     mb = os.path.getsize( output_tractogram )/1.0E6
     if mb >= 1E3:
-        logger.debug( f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
+        logger.debug( f'{mb/1.0E3:.2f} GB')
     else:
-        logger.debug( f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+        logger.debug( f'{mb:.2f} MB')
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
