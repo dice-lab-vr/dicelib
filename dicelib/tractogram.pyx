@@ -1231,6 +1231,9 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
     dirs = [Dir(name='output_folder', path=output_folder)]
     check_params(files=files, dirs=dirs, force=force)
 
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
     def split_regions(input_string):
         try:
             # ast.literal_eval safely parses an input string to a Python literal structure
@@ -1666,10 +1669,13 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
     files.append(File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'))
 
     tmp_folder = tmp_folder if tmp_folder is not None else os.path.join(os.getcwd(), 'tmp_sort')
-    dirs = [
-        Dir(name='tmp_folder', path=tmp_folder)
-    ]
+    dirs = [Dir(name='tmp_folder', path=tmp_folder)]
     check_params(files=files, dirs=dirs, force=force)
+
+    tmp_dir_is_created = False
+    if not os.path.exists(tmp_folder):
+        os.makedirs(tmp_folder)
+        tmp_dir_is_created = True
 
     logger.info('Sorting tractogram')
     t0 = time()
@@ -1677,17 +1683,17 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
     # compute assignments
     log_list_asgn = []
     ret_subinfo = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
-    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo, log_list=log_list_asgn) as pbar:
-        assign( input_tractogram, input_atlas, assignments_out=f'{tmp_folder}/fibers_assignment.txt', verbose=1, log_list=log_list_asgn )
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo, log_list=log_list_asgn):
+        assign(input_tractogram, input_atlas, assignments_out=f'{tmp_folder}/fibers_assignment.txt', verbose=1, force=force, log_list=log_list_asgn)
 
     # split the tractogram
     log_list_split = []
     ret_subinfo_split = logger.subinfo('Splitting tractogram', indent_lvl=1, indent_char='*', with_progress=verbose>2)
-    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_split, log_list=log_list_split) as pbar:
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_split, log_list=log_list_split):
         if weights_in is not None:
-            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', weights_in=weights_in, verbose=1, log_list=log_list_split)
+            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', weights_in=weights_in, verbose=1, force=force, log_list=log_list_split)
         else:
-            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', verbose=1, log_list=log_list_split)
+            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', verbose=1, force=force, log_list=log_list_split)
     set_verbose('tractogram', verbose)
 
     # join the tractograms
@@ -1695,7 +1701,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
     max_rois = asgn.max()
     log_list_join = []
     ret_subinfo_join = logger.subinfo('Joining bundles in the specific order', indent_lvl=1, indent_char='*', with_progress=verbose>2)
-    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_join, log_list=log_list_join) as pbar:
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_join, log_list=log_list_join):
         list_all = []
         list_all_weights = []
         for i in range(max_rois):
@@ -1719,8 +1725,8 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
         shutil.rmtree(f'{tmp_folder}/bundles')
         os.remove(f'{tmp_folder}/fibers_assignment.txt')
         # remove tmp_folder if different from current
-        if tmp_folder != os.getcwd():
-            shutil.rmtree(tmp_folder)            
+        if tmp_dir_is_created:
+            shutil.rmtree(tmp_folder)
 
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )

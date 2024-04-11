@@ -80,15 +80,8 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
     # dirs
     if dirs is not None:
         for dir in dirs:
-            if not os.path.isdir(dir.path):
-                os.mkdir(dir.path)
-            else:
-                if force:
-                    rmtree(dir.path, ignore_errors=True)
-                    time.sleep(0.00000001)
-                    os.mkdir(dir.path)
-                else:
-                    logger.error(f'{dir.name} folder \'{dir.path}\' already exists, use --force to overwrite')
+            if os.path.isdir(dir.path) and not force:
+                logger.error(f'{dir.name} folder \'{dir.path}\' already exists, use --force to overwrite')
 
     # numeric
     if nums is not None:

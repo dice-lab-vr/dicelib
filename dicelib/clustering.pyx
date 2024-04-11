@@ -682,6 +682,11 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         nums.append(Num(name='n_threads', value=n_threads, min_=1))
     check_params(files=files, dirs=dirs, nums=nums, force=force)
     
+    tmp_dir_is_created = False
+    if not os.path.exists(temp_folder):
+        os.makedirs(temp_folder)
+        tmp_dir_is_created = True
+    
     # other checks
     if metric not in ['mean', 'max']:
         logger.error(f'Invalid metric, must be \'mean\' or \'max\'')
@@ -885,8 +890,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             shutil.rmtree(output_bundles_folder)
             os.remove(save_assignments)
             # remove temp_folder if different from current
-            if temp_folder != os.getcwd():
-                shutil.rmtree(temp_folder)            
+            if tmp_dir_is_created:
+                shutil.rmtree(temp_folder)
 
     else:
         logger.info(f'Clustering')
@@ -928,7 +933,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         
         if not keep_temp_files:
             # remove temp_folder if different from current
-            if temp_folder != os.getcwd():
+            if tmp_dir_is_created:
                 shutil.rmtree(temp_folder)  
 
     if TCK_in is not None:
