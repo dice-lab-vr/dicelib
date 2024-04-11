@@ -1102,18 +1102,17 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     try:
         # open the input file
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
-
+        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
         n_streamlines = int( TCK_in.header['count'] )
-
-        # check if #(weights)==n_streamlines
+        # open the outut file
+        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
         if weights_in is not None and n_streamlines!=w.size:
             logger.error(f'Number of weights is different from number of streamlines ({w.size},{n_streamlines})')
 
-        # open the outut file
-        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
-
-        kept = np.ones( n_streamlines, dtype=bool )
-        with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+        with ProgressBar( total=2*n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+            # check if #(weights)==n_streamlines
+            kept = np.ones( n_streamlines, dtype=bool )
+            
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -1139,40 +1138,26 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
 
                 pbar.update()
 
+            TCK_in._seek_origin(int(TCK_in.header['file'][2:]))
+
+            if random < 1:
+                kept_choice = np.random.choice( n_streamlines, int(n_streamlines * random), replace=False )
+                kept = np.zeros( n_streamlines, dtype=bool )
+                kept[kept_choice] = True
+                n_written = np.count_nonzero( kept )
+            for i in range( n_streamlines ):
+                TCK_in.read_streamline()
+                if kept[i]:
+                    TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
+                    pbar.update()
+            
             if weights_out is not None and w.size > 0:
                 if weights_out_ext == '.txt':
                     np.savetxt(weights_out, w[kept == True].astype(np.float32), fmt='%.5e')
                 elif weights_out_ext == '.npy':
                     np.save(weights_out, w[kept == True].astype(np.float32), allow_pickle=False)
 
-        n_written = np.count_nonzero( kept )
 
-
-    except Exception as e:
-        if os.path.isfile( output_tractogram ):
-            os.remove( output_tractogram )
-        if weights_out is not None and os.path.isfile( weights_out ):
-            os.remove( weights_out )
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-    finally:
-        if TCK_in is not None:
-            TCK_in.close()
-    
-    try:
-        TCK_in  = LazyTractogram( input_tractogram, mode='r' )
-        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
-        if random < 1:
-            kept_choice = np.random.choice( n_streamlines, int(n_streamlines * random), replace=False )
-            kept = np.zeros( n_streamlines, dtype=bool )
-            kept[kept_choice] = True
-            n_written = np.count_nonzero( kept )
-        with ProgressBar( total=kept_choice.size, disable=verbose < 3, hide_on_exit=True) as pbar:
-            for i in range( n_streamlines ):
-                TCK_in.read_streamline()
-                if kept[i]:
-                    TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
-                    pbar.update()
     except Exception as e:
         if TCK_out is not None:
             TCK_out.close()
@@ -1188,7 +1173,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_in.close()
         if TCK_out is not None:
             TCK_out.close(write_eof=True, count=n_written )
-
+    
 
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
