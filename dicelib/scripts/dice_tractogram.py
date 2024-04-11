@@ -458,7 +458,7 @@ def tractogram_split():
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['assignments_in'], {'type': str, 'help': 'Text file with the streamline assignments'}],
         [['--output_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
-        [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': 'Prefix for the output filenames'}]
+        [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': 'Prefix for the output filenames'}],
         [['--regions', '-r'], {'type': str, 'default': None, 'help': '''\
                                Only streamlines connecting the provided region(s) will be extracted.
                                If None, all the bundles (plus the unassigned streamlines) will be extracted.
@@ -466,7 +466,7 @@ def tractogram_split():
                                If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
                                If list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.'''}],
         [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
-        [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}],
+        [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}]
 
     ]
     options = setup_parser(split.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
