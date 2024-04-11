@@ -410,10 +410,10 @@ cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start
     return assignments
 
 
-def compute_connectome_blur( input_tractogram: str, output_connectome: str, weights_in: str, input_nodes: str,
+def compute_connectome_blur(input_tractogram: str, output_connectome: str, weights_in: str, input_nodes: str,
                             blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25,
                             blur_gauss_min: float=0.1, offset_thr: float=0.0, symmetric: bool=False, fiber_shift=0,
-                            verbose: int=3, force: bool=False ):
+                            verbose: int=3, force: bool=False):
     """Build the connectome weighted by COMMITblur (only sum).
 
     Parameters
@@ -610,13 +610,10 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
 
     #----- iterate over input files -----
     TCK_in = None
-    # TCK_out = None
     cdef size_t i, j, k = 0  
     try:
         # open the input file
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
-        # output_tractogram = input_tractogram[:-4]+'_non_connecting.tck'
-        # TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
         # str_count = 0
 
         n_streamlines = int( TCK_in.header['count'] )
@@ -698,8 +695,6 @@ def compute_connectome_blur( input_tractogram: str, output_connectome: str, weig
     finally:
         if TCK_in is not None:
             TCK_in.close()
-        # if TCK_out is not None:
-        #     TCK_out.close( write_eof=True, count=str_count )
         if symmetric:
             conn_sym = conn.T + conn
             np.fill_diagonal(conn_sym,np.diag(conn))
