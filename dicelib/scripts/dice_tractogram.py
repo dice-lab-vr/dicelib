@@ -178,7 +178,7 @@ def tractogram_filter():
         [['--maxweight', '-maxw'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
-        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': 'Randomly discard the given percentage of streamlines: 0=discard all, 1=keep all'}]
+        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': 'Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all'}]
     ]
     options = setup_parser(tract_filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -399,7 +399,8 @@ def tractogram_smooth():
         [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': 'Type of spline to use for the smoothing'}],
         [['--epsilon', '-e'], {'type': float, 'default': 0.3, 'help': 'Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline'}],
         [['--segment_len', '-l'], {'type': float, 'default': None, 'help': 'Sampling resolution of the final streamline after interpolation. NOTE: either "segment_len" or "streamline_pts" must be set'}],
-        [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': 'Number of points in each of the final streamlines. NOTE: either "streamline_pts" or "segment_len" must be set.'}]
+        [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': 'Number of points in each of the final streamlines. NOTE: either "streamline_pts" or "segment_len" must be set.'}],
+        [['--n_ctrl_pts', '-n'], {'type': int, 'help': 'Number of control points used to interpolate the streamlines'}]
     ]
 
     options = setup_parser(spline_smoothing_v2.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
@@ -410,6 +411,7 @@ def tractogram_smooth():
         options.tractogram_out,
         options.type,
         options.epsilon,
+        options.n_ctrl_pts,
         options.segment_len,
         options.streamline_pts,
         options.verbose,

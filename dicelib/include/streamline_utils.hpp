@@ -56,7 +56,7 @@ int smooth_c( float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float ratio, f
 }
 
 
-int rdp_red_c( float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float epsilon )
+int rdp_red_c( float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float epsilon, int n_pts_red )
 {
     std::vector<float>          polyline_simplified;
     int                         n_out;
@@ -70,12 +70,21 @@ int rdp_red_c( float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float epsilon
     }
     else
     {
-        // simplify input polyline 
-        psimpl::simplify_douglas_peucker<3>( ptr_npaFiberI, ptr_npaFiberI+3*nP, epsilon, std::back_inserter(polyline_simplified) );
-        // copy coordinates of the reduced streamline back to python
+        if ( n_pts_red>0 )
+        {
+            // simplify input polyline using to n points
+            psimpl::simplify_douglas_peucker_n<3>( ptr_npaFiberI, ptr_npaFiberI+3*nP, n_pts_red, std::back_inserter(polyline_simplified) );
+        }
+        else
+        {
+            // simplify input polyline 
+            psimpl::simplify_douglas_peucker<3>( ptr_npaFiberI, ptr_npaFiberI+3*nP, epsilon, std::back_inserter(polyline_simplified) );
+        }
+
         for( int j=0; j<polyline_simplified.size(); j++ )
             *(ptr_npaFiberO++) = polyline_simplified[j];
         n_out = polyline_simplified.size()/3;
+
         return n_out;
     }
 }

@@ -13,7 +13,7 @@ cdef extern from "streamline_utils.hpp":
 
 cdef extern from "streamline_utils.hpp":
     int rdp_red_c(
-        float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float epsilon
+        float* ptr_npaFiberI, int nP, float* ptr_npaFiberO, float epsilon, int n_pts_red
     ) nogil
 
 cdef extern from "streamline_utils.hpp":
@@ -165,7 +165,7 @@ cpdef smooth( streamline, n_pts, control_point_ratio, segment_len ):
     return streamline, n
 
 
-cpdef rdp_reduction( streamline, n_pts, epsilon ):
+cpdef rdp_reduction( streamline, n_pts, epsilon, n_pts_red=0 ):
     """Wrapper for streamline point reduction.
 
     Parameters
@@ -176,6 +176,8 @@ cpdef rdp_reduction( streamline, n_pts, epsilon ):
         Number of points in the streamline
     epsilon : float
         Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points
+    n_pts_red : int
+        Number of points in the reduced streamline. If n_pts_red=0 (default), the number of points depends on the result of the RDP algorithm using epsilon.
 
     Returns
     -------
@@ -187,15 +189,16 @@ cpdef rdp_reduction( streamline, n_pts, epsilon ):
     
     cdef float [:,:] streamline_in = streamline
     cdef float [:,:] streamline_out = np.ascontiguousarray( np.zeros( (3*1000,1) ).astype(np.float32) )
+    cdef int nPtsred = n_pts_red
     
-    n = rdp_red_c( &streamline_in[0,0], n_pts, &streamline_out[0,0], epsilon )
+    n = rdp_red_c( &streamline_in[0,0], n_pts, &streamline_out[0,0], epsilon, nPtsred)
     if n != 0 :
         streamline = np.reshape( streamline_out[:3*n].copy(), (n,3) )
 
     return streamline, n
 
 
-cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len=None, n_pts_final=None, epsilon = 0.3, alpha = 0.5, n_pts_tmp = 50):
+cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len=None, n_pts_final=None, epsilon = 0.3, alpha = 0.5, n_pts_tmp = 50, n_pts_red = 0):
     """Perform smoothing on one streamline.
 
     Parameters
@@ -221,25 +224,24 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len=None, n_pts_final=None, eps
         Number of points in the smoothed streamline
     """
 
+    cdef int nPtsred = n_pts_red
+
     # reduce number of points
-    fib_red_ptr, n_red = rdp_reduction(fib_ptr, n_pts_in, epsilon)
+    fib_red_ptr, n_red = rdp_reduction(fib_ptr, n_pts_in, epsilon, nPtsred)
 
     cdef float [:,:] smoothed_fib
     cdef int n_pts_tot = 0
+    cdef float[:, :] matrix = np.array([ [2, -2, 1, 1],
+                                        [-3, 3, -2, -1],
+                                        [0, 0, 1, 0],
+                                        [1, 0, 0, 0]]).astype(np.float32)
     # check number of points 
     if n_red==2: # no need to smooth
         smoothed_fib = fib_red_ptr
         n_pts_tot = n_red
     else:
-        # get reduced streamline as np array
-        # fib_reduced = np.asarray(fib_red_ptr, dtype=np.float32)[:n_red, :]
-        # compute spline
-        # smoothed_spline = splines.CatmullRom(fib_reduced, alpha=alpha)
-        # sample spline
-        # smoothed_fib_arr = smoothed_spline.evaluate(np.linspace(0, np.array(smoothed_spline.grid).max(), n_pts_tmp)).astype(np.float32)
-        smoothed_fib = spline_smooth(fib_red_ptr, alpha, n_pts_tmp)
-        # get spline as memory view
-        # smoothed_fib = np.ascontiguousarray(smoothed_fib_arr)
+        vertices = np.asarray(fib_red_ptr).astype(np.float32)
+        smoothed_fib = np.asarray(CatmullRom_smooth(vertices, matrix, alpha, n_pts_tmp))
         n_pts_tot = n_pts_tmp
 
     # compute streamline length
@@ -445,14 +447,13 @@ cdef float[:] compute_tangent(float[:,:] points, float[:] grid):
 
 
 cdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, float alpha=0.5, int num_pts=10):
+    """
+    Cython implementation of the Catmull-Rom spline algorithm from https://github.com/AudioSceneDescriptionFormat/splines
+    """
     cdef size_t i = 0
     cdef size_t j = 0
     cdef size_t k = 0
     cdef int idx_temp = 0
-    # cdef float[:] x0 = np.empty((3,), dtype=np.float32)
-    # cdef float[:] x1 = np.empty((3,), dtype=np.float32)
-    # cdef float[:] v0 = np.empty((3,), dtype=np.float32)
-    # cdef float[:] v1 = np.empty((3,), dtype=np.float32)
     cdef float t0 = 0
     cdef float t1 = 0
 
@@ -555,16 +556,4 @@ cdef float[:] check_grid(float[:] grid, float alpha, float[:, :] vertices):
         grid[i] = grid[i-1] + diff
         i += 1
     return grid
-
-
-cpdef spline_smooth(vertices, alpha=0.5, num_pts=10):
-    cdef float[:, :] matrix = np.array([ [2, -2, 1, 1],
-                                          [-3, 3, -2, -1],
-                                          [0, 0, 1, 0],
-                                          [1, 0, 0, 0]]).astype(np.float32)
-    vertices = np.asarray(vertices).astype(np.float32)
-    smoothed = np.asarray(CatmullRom_smooth(vertices, matrix, alpha, num_pts))
-
-    return smoothed
-
 

@@ -1,6 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
-from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, spline_smooth
+from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 
@@ -1038,7 +1038,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         Scalar file (.txt or .npy) for the output streamline weights.
 
     random : float
-        Probability to keep (randomly) each streamline; this filter is applied after all others (default : 1.0)
+        Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all (default : 1).
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
@@ -1077,7 +1077,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     if minweight is not None and maxweight is not None and minweight > maxweight:
         logger.error('\'minweight\' must be <= \'maxweight\'')
     if random != 1:
-        messages.append(f'Keeping streamlines with {random * 100:.2f}% probability')
+        messages.append(f'Randomly keeping {random * 100:.0f}% of the streamlines')
     check_params(files=files, nums=nums, force=force)
 
     logger.info('Filtering tractogram')
@@ -1111,7 +1111,6 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
 
         # open the outut file
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
-        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
         kept = np.ones( n_streamlines, dtype=bool )
         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
@@ -1138,13 +1137,6 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
                     kept[i] = False
                     continue
 
-                # filter randomly
-                if random<1 and rnd.random()>=random:
-                    kept[i] = False
-                    continue
-
-                # write streamline to output file
-                TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
                 pbar.update()
 
             if weights_out is not None and w.size > 0:
@@ -1154,11 +1146,33 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
                     np.save(weights_out, w[kept == True].astype(np.float32), allow_pickle=False)
 
         n_written = np.count_nonzero( kept )
-        if n_written > 0:
-            logger.subinfo(f'Number of streamlines in output tractogram: {n_written}', indent_char='*', indent_lvl=1)
-        else:
-            logger.warning('No streamlines in output tractogram')
 
+
+    except Exception as e:
+        if os.path.isfile( output_tractogram ):
+            os.remove( output_tractogram )
+        if weights_out is not None and os.path.isfile( weights_out ):
+            os.remove( weights_out )
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+    finally:
+        if TCK_in is not None:
+            TCK_in.close()
+    
+    try:
+        TCK_in  = LazyTractogram( input_tractogram, mode='r' )
+        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+        if random < 1:
+            kept_choice = np.random.choice( n_streamlines, int(n_streamlines * random), replace=False )
+            kept = np.zeros( n_streamlines, dtype=bool )
+            kept[kept_choice] = True
+            n_written = np.count_nonzero( kept )
+        with ProgressBar( total=kept_choice.size, disable=verbose < 3, hide_on_exit=True) as pbar:
+            for i in range( n_streamlines ):
+                TCK_in.read_streamline()
+                if kept[i]:
+                    TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
+                    pbar.update()
     except Exception as e:
         if TCK_out is not None:
             TCK_out.close()
@@ -1169,10 +1183,13 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
+        logger.subinfo(f'Number of streamlines written: {n_written}', indent_char='*', indent_lvl=1)
         if TCK_in is not None:
             TCK_in.close()
         if TCK_out is not None:
-            TCK_out.close( write_eof=True, count=n_written )
+            TCK_out.close(write_eof=True, count=n_written )
+
+
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
@@ -2022,9 +2039,8 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=3, force=False ):
+def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, n_ctrl_pts=0, segment_len=None, streamline_pts=None, verbose=3, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
-    More info at http://algorithmist.net/docs/catmullrom.pdf.
 
     Parameters
     ----------
@@ -2108,6 +2124,8 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
             logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
         if not streamline_pts==None:
             logger.subinfo(f'Number of points: {streamline_pts}', indent_lvl=1, indent_char='-')
+        if not n_ctrl_pts==0:
+            logger.subinfo(f'Number of control points: {n_ctrl_pts}', indent_lvl=1, indent_char='-')
 
         # process each streamline
         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
@@ -2116,9 +2134,9 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
                 if TCK_in.n_pts==0:
                     break # no more data, stop reading
                 if not segment_len==None:
-                    smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha)
+                    smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha, n_pts_red=n_ctrl_pts)
                 if not streamline_pts==None:
-                    smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, n_pts_final=streamline_pts, epsilon=epsilon, alpha=alpha)
+                    smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, n_pts_final=streamline_pts, epsilon=epsilon, alpha=alpha, n_pts_red=n_ctrl_pts)
                 TCK_out.write_streamline( smoothed_streamline, n )
                 pbar.update()
 
@@ -2294,7 +2312,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
                         n_pts_tot = n_red
                         in_mask = True
                     else:
-                        smoothed_fib =  spline_smooth(fib_red_ptr, alpha, n_pts_out)
+                        smoothed_fib =  apply_smoothing(fib_red_ptr, alpha, n_pts_out)
                         in_mask_count = 0 
                         for j in range(n_pts_out):
                             pt_aff = apply_affine_1pt(smoothed_fib[j,:], M_inv, abc_inv, pt_aff)
