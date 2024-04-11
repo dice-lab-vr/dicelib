@@ -925,6 +925,11 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         t1 = time.time()
         logger.subinfo(f"Number of computed centroids: {TCK_out_size}", indent_char='*', indent_lvl=1)
         logger.info( f'[ {format_time(t1 - t0)} ]' )
+        
+        if not keep_temp_files:
+            # remove temp_folder if different from current
+            if temp_folder != os.getcwd():
+                shutil.rmtree(temp_folder)  
 
     if TCK_in is not None:
         TCK_in.close()
