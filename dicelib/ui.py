@@ -975,12 +975,12 @@ class ProgressBar:
                     print(f"\r|{fg_pink}{'━' * int(self.ncols * self._progress / self.total)}{fg_bright_black}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}{reset}| {fg_green}[{100 * self._progress / self.total:.1f}%] {fg_cyan}{self._eta}{reset}", end='', flush=True)
                 sleep(self.refresh)
     
-    def _handle_subinfo(self, step=''):
+    def _handle_subinfo(self):
         print(clear_line, end='\r', flush=True)
         print(f'{esc}1A{clear_line}', end='\r', flush=True)
         for log in self.log_list:
             logger.warning(log)
-        print(f'{self.subinfo} {step}', end='', flush=True) if step != '' else print(f'{self.subinfo}', end='', flush=True)
+        print(f'{self.subinfo}')
         self.log_list = []
 
     def _animate_subinfo(self):
