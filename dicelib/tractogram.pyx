@@ -1252,7 +1252,11 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             for r in split_regions(regions_str):
                 if r == []:
                     continue
+                if isinstance(r, list):
+                    if len(r) != 2:
+                        logger.error('Invalid regions input')
                 regions.append(r)
+
     else:
         regions = []
 
