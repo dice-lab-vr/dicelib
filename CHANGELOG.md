@@ -1,6 +1,13 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.1.1`<br>_2024-04-12_
+### 🐛Fixed
+- Fixed typo in `dice_connectome.py` script
+
+---
+---
+
 ## `v1.1.0`<br>_2024-04-12_
 ### 🛠️Changed
 - Requires Python>=3.8
