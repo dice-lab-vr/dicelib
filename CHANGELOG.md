@@ -1,15 +1,16 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
-## `v1.0.5`<br>_2024-##-##_
+## `v1.1.0`<br>_2024-04-12_
 ### 🛠️Changed
 - Requires Python>=3.8
 - Store project metadata in `pyproject.toml` (PEP 621)
 - Reformat scripts as `entry points` (executable commands)
+- Refactor `ui.py` module
+- Improved functions
 
 ### ✨Added
-
-### 🐛Fixed
+- Added some functions
 
 ---
 ---
