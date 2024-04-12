@@ -2033,7 +2033,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.3, n_ctrl_pts=0, segment_len=None, streamline_pts=None, verbose=3, force=False ):
+def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.0, n_ctrl_pts=0, segment_len=None, streamline_pts=None, verbose=3, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
 
     Parameters
@@ -2049,7 +2049,10 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default : 'centripetal').
 
     epsilon : float
-        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).
+        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.0).
+
+    n_ctrl_pts : int
+        Number of control points of the spline used by Ramer-Douglas-Peucker algorithm. NOTE: either 'epsilon' or 'n_ctrl_pts' must be set (default : 0).
 
     segment_len : float
         Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set.
@@ -2105,9 +2108,8 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 
         logger.info('Smoothing tractogram')
         t0 = time()
-        logger.subinfo(f'Input tractogram', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'{input_tractogram}', indent_lvl=2, indent_char='-')
-        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='-')
+        logger.subinfo(f'Input tractogram: {input_tractogram}', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=2, indent_char='-')
 
         mb = os.path.getsize( input_tractogram )/1.0E6
         if mb >= 1E3:
@@ -2115,15 +2117,17 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         else:
             logger.debug(f'Size: {mb:.2f} MB')
 
-        logger.subinfo(f'Output tractogram', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'{output_tractogram}', indent_lvl=2, indent_char='-')
-        logger.subinfo(f'Spline type: {spline_type}', indent_lvl=1, indent_char='-')
-        if not segment_len==None:
-            logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
-        if not streamline_pts==None:
-            logger.subinfo(f'Number of points: {streamline_pts}', indent_lvl=1, indent_char='-')
         if not n_ctrl_pts==0:
-            logger.subinfo(f'Number of control points: {n_ctrl_pts}', indent_lvl=1, indent_char='-')
+            logger.subinfo(f'Number of control points: {n_ctrl_pts}', indent_lvl=1, indent_char='*')
+        if not epsilon==0:
+            logger.subinfo(f'Epsilon for the control points reduction: {epsilon:.2f}', indent_lvl=1, indent_char='*')
+
+        logger.subinfo(f'Output tractogram: {output_tractogram}', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Spline type: {spline_type}', indent_lvl=2, indent_char='-')
+        if not segment_len==None:
+            logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=2, indent_char='-')
+        if not streamline_pts==None:
+            logger.subinfo(f'Number of final points: {streamline_pts}', indent_lvl=2, indent_char='-')
 
         # process each streamline
         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
@@ -2150,9 +2154,9 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 
     mb = os.path.getsize( output_tractogram )/1.0E6
     if mb >= 1E3:
-        logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
+        logger.debug(f'{mb/1.0E3:.2f} GB')
     else:
-        logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+        logger.debug(f'{mb:.2f} MB')
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 

@@ -7,7 +7,7 @@ def connectome_build():
     '''
     # parse the input parameters
     args = [
-        [['assignments_in'], {'type': str, 'help': 'Streamline assignments file (if it doesn\'t exist, it will be created using the given tractogram and atlas files)'}],
+        [['assignments'], {'type': str, 'help': 'Streamline assignments file (if it doesn\'t exist, it will be created using the given tractogram and atlas files)'}],
         [['connectome_out'], {'type': str, 'help': 'Output connectome file'}],
         [['--weights_in', '-w'], {'type': str, 'default': None, 'help': '''\
                                   Input streamline weights file, used to compute the value of the edges. 
