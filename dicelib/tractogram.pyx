@@ -2033,7 +2033,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=0.0, n_ctrl_pts=0, segment_len=None, streamline_pts=None, verbose=3, force=False ):
+def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=None, n_ctrl_pts=None, segment_len=None, streamline_pts=None, verbose=3, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
 
     Parameters
@@ -2046,19 +2046,19 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         the new file will be created by appending '_smooth' to the input filename.
 
     spline_type : string
-        Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default : 'centripetal').
+        Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default: 'centripetal').
 
     epsilon : float
-        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.0).
+        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default: None).
 
     n_ctrl_pts : int
-        Number of control points of the spline used by Ramer-Douglas-Peucker algorithm. NOTE: either 'epsilon' or 'n_ctrl_pts' must be set (default : 0).
+        Number of control points of the spline used by Ramer-Douglas-Peucker algorithm. NOTE: either 'epsilon' or 'n_ctrl_pts' must be set (default: None).
 
     segment_len : float
-        Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set.
+        Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set (default: None).
 
     streamline_pts : int
-        Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
+        Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set (default: None).
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
@@ -2069,14 +2069,30 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 
     set_verbose('tractogram', verbose)
 
-    if segment_len==None and streamline_pts==None:
-        logger.error('Either \'streamline_pts\' or \'segment_len\' must be set.')
-    if segment_len!=None and streamline_pts!=None:
+    if segment_len is not None and streamline_pts is not None:
         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set, not both.')
-    if epsilon == 0 and n_ctrl_pts == 0:
-        logger.error('Either \'epsilon\' or \'n_ctrl_pts\' must be set.')
-    if epsilon > 0 and n_ctrl_pts > 0:
+    if segment_len is None and streamline_pts is None:
+        segment_len = 0.5
+        streamline_pts = 0
+    if segment_len is None:
+        segment_len = 0
+    if streamline_pts is None:
+        streamline_pts = 0
+
+    if epsilon is not None and n_ctrl_pts is not None:
         logger.error('Either \'epsilon\' or \'n_ctrl_pts\' must be set, not both.')
+    if epsilon is None and n_ctrl_pts is None:
+        epsilon = 0.3
+        n_ctrl_pts = 0
+    if epsilon is None:
+        epsilon = 0
+    elif epsilon < 0 :
+        logger.error('\'epsilon\' parameter must be non-negative')
+    if n_ctrl_pts is None:
+        n_ctrl_pts = 0
+    elif type(n_ctrl_pts) is not int:
+        logger.error(f'\'n_ctrl_pts\'must be an integer data type.')
+
 
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)
@@ -2097,9 +2113,6 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
     else:
         logger.error('\'spline_type\' parameter must be \'centripetal\', \'uniform\' or \'chordal\'')
 
-    if epsilon < 0 :
-        logger.error('\'epsilon\' parameter must be non-negative')
-
     try:
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
@@ -2117,16 +2130,16 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         else:
             logger.debug(f'Size: {mb:.2f} MB')
 
-        if not n_ctrl_pts==0:
+        if n_ctrl_pts != 0:
             logger.subinfo(f'Number of control points: {n_ctrl_pts}', indent_lvl=1, indent_char='*')
-        if not epsilon==0:
+        if epsilon != 0:
             logger.subinfo(f'Epsilon for the control points reduction: {epsilon:.2f}', indent_lvl=1, indent_char='*')
 
         logger.subinfo(f'Output tractogram: {output_tractogram}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Spline type: {spline_type}', indent_lvl=2, indent_char='-')
-        if not segment_len==None:
+        if segment_len != 0:
             logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=2, indent_char='-')
-        if not streamline_pts==None:
+        if streamline_pts != 0:
             logger.subinfo(f'Number of final points: {streamline_pts}', indent_lvl=2, indent_char='-')
 
         # process each streamline
@@ -2135,9 +2148,9 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
                     break # no more data, stop reading
-                if not segment_len==None:
+                if segment_len != 0:
                     smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha, n_pts_red=n_ctrl_pts)
-                if not streamline_pts==None:
+                if streamline_pts != 0:
                     smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, n_pts_final=streamline_pts, epsilon=epsilon, alpha=alpha, n_pts_red=n_ctrl_pts)
                 TCK_out.write_streamline( smoothed_streamline, n )
                 pbar.update()

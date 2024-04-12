@@ -198,7 +198,7 @@ cpdef rdp_reduction( streamline, n_pts, epsilon, n_pts_red=0 ):
     return streamline, n
 
 
-cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len=None, n_pts_final=None, epsilon = 0.3, alpha = 0.5, n_pts_tmp = 50, n_pts_red = 0):
+cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len=0, n_pts_final=0, epsilon = 0.3, alpha = 0.5, n_pts_tmp = 50, n_pts_red = 0):
     """Perform smoothing on one streamline.
 
     Parameters
@@ -248,9 +248,9 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len=None, n_pts_final=None, eps
     cdef float fib_len = length( smoothed_fib, n_pts_tot )
     # compute number of final points
     cdef int n_pts_out
-    if segment_len!=None:
+    if segment_len!=0:
         n_pts_out = int(fib_len / segment_len)
-    if n_pts_final!=None:
+    if n_pts_final!=0:
         n_pts_out = n_pts_final
 
     # resample smoothed streamline

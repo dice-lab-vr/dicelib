@@ -399,16 +399,18 @@ def tractogram_smooth():
         [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': 'Type of spline to use for the smoothing'}],
         [['--segment_len', '-l'], {'type': float, 'default': None, 'help': '''\
                                    Sampling resolution of the final streamline after interpolation. 
-                                   NOTE: either "segment_len" or "streamline_pts" must be set'''}],
+                                   NOTE: either "segment_len" or "streamline_pts" must be set, by default "segment_len" is used.
+                                         If None and "streamline_pts" is None, "segment_len" is set to 0.5.'''}],
         [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': '''\
                                       Number of points in each of the final streamlines. 
-                                      NOTE: either "streamline_pts" or "segment_len" must be set.'''}],
-        [['--epsilon', '-e'], {'type': float, 'default': 0.0, 'help': '''\
+                                      NOTE: either "streamline_pts" or "segment_len" must be set, by default "segment_len" is used.'''}],
+        [['--epsilon', '-e'], {'type': float, 'default': None, 'help': '''\
                                Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline. 
-                               NOTE: either "epsilon" or "n_ctrl_pts" must be set'''}],
-        [['--n_ctrl_pts', '-n'], {'type': int, 'default': 0, 'help': '''\
+                               NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.
+                                     If None and "n_ctrl_pts" is None, "epsilon" is set to 0.3.'''}],
+        [['--n_ctrl_pts', '-n'], {'type': int, 'default': None, 'help': '''\
                                   Number of control points used to interpolate the streamlines. 
-                                  NOTE: either "epsilon" or "n_ctrl_pts" must be set'''}]
+                                  NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.'''}]
     ]
 
     options = setup_parser(spline_smoothing_v2.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
