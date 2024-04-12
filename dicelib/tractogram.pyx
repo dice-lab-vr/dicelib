@@ -2070,6 +2070,10 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set.')
     if segment_len!=None and streamline_pts!=None:
         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set, not both.')
+    if epsilon == 0 and n_ctrl_pts == 0:
+        logger.error('Either \'epsilon\' or \'n_ctrl_pts\' must be set.')
+    if epsilon > 0 and n_ctrl_pts > 0:
+        logger.error('Either \'epsilon\' or \'n_ctrl_pts\' must be set, not both.')
 
     if output_tractogram is None :
         basename, extension = os.path.splitext(input_tractogram)

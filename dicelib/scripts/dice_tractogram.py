@@ -400,7 +400,7 @@ def tractogram_smooth():
         [['--epsilon', '-e'], {'type': float, 'default': 0.3, 'help': 'Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline'}],
         [['--segment_len', '-l'], {'type': float, 'default': None, 'help': 'Sampling resolution of the final streamline after interpolation. NOTE: either "segment_len" or "streamline_pts" must be set'}],
         [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': 'Number of points in each of the final streamlines. NOTE: either "streamline_pts" or "segment_len" must be set.'}],
-        [['--n_ctrl_pts', '-n'], {'type': int, 'help': 'Number of control points used to interpolate the streamlines'}]
+        [['--n_ctrl_pts', '-n'], {'type': int, 'default': 0, 'help': 'Number of control points used to interpolate the streamlines'}]
     ]
 
     options = setup_parser(spline_smoothing_v2.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
