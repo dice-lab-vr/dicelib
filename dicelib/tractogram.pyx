@@ -1256,7 +1256,6 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                     if len(r) != 2:
                         logger.error('Invalid regions input')
                 regions.append(r)
-
     else:
         regions = []
 
@@ -1375,7 +1374,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 WEIGHTS_out_idx[key] = i+1
 
         # add key for non-connecting streamlines
-        if unassigned_count:
+        if unassigned_count and len(regions)==0:
             key = 'unassigned'
             TCK_outs[key] = None
             TCK_outs_size[key] = 0
