@@ -31,7 +31,7 @@ def connectome_build():
 
     # call actual function
     build_connectome(
-        options.assignments_in,
+        options.assignments,
         options.connectome_out,
         options.weights_in,
         options.tractogram_in,
