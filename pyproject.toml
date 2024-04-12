@@ -1,8 +1,74 @@
 [build-system]
 requires = [
-    "setuptools>=59.6.0",
-    "Cython>=0.29.33",
-    "numpy>=1.12",
-    "wheel"
+    "cython>=3.0.10",
+    "numpy>=1.24.4",
+    "setuptools>=69.2.0"
 ]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "dmri-dicelib"
+version = "1.1.0"
+dependencies = [
+    "cython>=3.0.10",
+    "nibabel>=5.2.1",
+    "numpy>=1.24.4",
+    "psutil>=5.9.8",
+    "pywin32>=306; sys_platform=='win32'",
+    "scipy>=1.10.1"
+]
+requires-python = ">=3.8"
+authors = [
+    {name = "DICE Lab", email = "DICE_lab@strutture.univr.it"}
+]
+maintainers = [
+    {name = "DICE Lab", email = "DICE_lab@strutture.univr.it"}
+]
+description = "Software library of the DICE Lab (Diffusion Imaging and Connectivity Estimation Laboratory)"
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = [
+    "Neuroimaging"
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "License :: Other/Proprietary License",
+    "Programming Language :: C++",
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12"
+]
+
+[project.urls]
+Homepage = "https://github.com/dice-lab-vr/dicelib.git"
+Documentation = "https://github.com/dice-lab-vr/dicelib/blob/master/README.md"
+Repository = "https://github.com/dice-lab-vr/dicelib.git"
+Issues = "https://github.com/dice-lab-vr/dicelib/issues"
+Changelog = "https://github.com/dice-lab-vr/dicelib/blob/master/CHANGELOG.md"
+
+[project.scripts]
+dice_connectome_build = "dicelib.scripts.dice_connectome:connectome_build"
+dice_image_extract = "dicelib.scripts.dice_image:image_extract"
+dice_tractogram_assign = "dicelib.scripts.dice_tractogram:tractogram_assign"
+dice_tractogram_cluster = "dicelib.scripts.dice_tractogram:tractogram_cluster"
+dice_tractogram_compress = "dicelib.scripts.dice_tractogram:tractogram_compress"
+dice_tractogram_convert = "dicelib.scripts.dice_tractogram:tractogram_convert"
+dice_tractogram_filter = "dicelib.scripts.dice_tractogram:tractogram_filter"
+dice_tractogram_indices = "dicelib.scripts.dice_tractogram:tractogram_indices"
+dice_tractogram_info = "dicelib.scripts.dice_tractogram:tractogram_info"
+dice_tractogram_join = "dicelib.scripts.dice_tractogram:tractogram_join"
+dice_tractogram_lengths = "dicelib.scripts.dice_tractogram:tractogram_lengths"
+dice_tractogram_resample = "dicelib.scripts.dice_tractogram:tractogram_resample"
+dice_tractogram_sample = "dicelib.scripts.dice_tractogram:tractogram_sample"
+dice_tractogram_sanitize = "dicelib.scripts.dice_tractogram:tractogram_sanitize"
+dice_tractogram_smooth = "dicelib.scripts.dice_tractogram:tractogram_smooth"
+dice_tractogram_sort = "dicelib.scripts.dice_tractogram:tractogram_sort"
+dice_tractogram_split = "dicelib.scripts.dice_tractogram:tractogram_split"
+dice_tractogram_create_tsf = "dicelib.scripts.dice_tractogram:tractogram_create_tsf"
+dice_tractogram_locate = "dicelib.scripts.dice_tractogram:tractogram_locate"

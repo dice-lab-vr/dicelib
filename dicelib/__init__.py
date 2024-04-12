@@ -1,8 +1,8 @@
-from .info import __version__
-from .lazytractogram import LazyTractogram
-
+from dicelib.utils import get_version
 
 from pathlib import Path
+
+__version__ = get_version()
 
 def get_include():
     include_dirs = []

@@ -1,8 +1,6 @@
-#!python
 # cython: boundscheck=False, wraparound=False, profile=False, language_level=3
 
-
-from libc.stdio cimport fopen, fclose, FILE#, fseek, SEEK_END, SEEK_SET
+from libc.stdio cimport fclose, FILE, fopen
 
 cdef class LazyTractogram:
     cdef readonly   str                             filename

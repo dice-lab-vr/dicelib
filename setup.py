@@ -9,13 +9,6 @@ package_name = 'dicelib'
 
 
 def get_extensions():
-    lazytractogram = Extension(
-        name=f'{package_name}.lazytractogram',
-        sources=[f'{package_name}/lazytractogram.pyx'],
-        include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11', '-g0'],
-        language='c++'
-    )
     image = Extension(
         name=f'{package_name}.image',
         sources=[f'{package_name}/image.pyx'],
@@ -26,7 +19,7 @@ def get_extensions():
     streamline = Extension(
         name=f'{package_name}.streamline',
         sources=[f'{package_name}/streamline.pyx'],
-        include_dirs=[get_include()],
+        include_dirs=[get_include(), f'{package_name}/include'],
         extra_compile_args=['-w', '-std=c++11', '-g0'],
         language='c++'
     )
@@ -50,13 +43,6 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-    split_cluster = Extension(
-        name=f'{package_name}.split_cluster',
-        sources=[f'{package_name}/split_cluster.pyx'],
-        include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
-        language='c++',
-    )
     tsf = Extension(
         name=f'{package_name}.tsf',
         sources=[f'{package_name}/tsf.pyx'],
@@ -64,14 +50,8 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-    smoothing = Extension(
-        name=f'{package_name}.smoothing',
-        sources=[f'{package_name}/smoothing.pyx'],
-        include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
-        language='c++',
-    )
-    return [ lazytractogram, image, streamline, tractogram, clustering, split_cluster, connectivity, tsf, smoothing ]
+
+    return [image, streamline, tractogram, clustering, connectivity, tsf]
 
 
 class CustomBuildExtCommand(build_ext):
@@ -113,6 +93,5 @@ setup(
         'build_ext': CustomBuildExtCommand,
         'clean': CleanCommand
     },
-    ext_modules=get_extensions(),
-    scripts=glob('bin/*.py')
+    ext_modules=get_extensions()
 )
