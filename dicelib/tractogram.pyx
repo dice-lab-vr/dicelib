@@ -1038,7 +1038,8 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         Scalar file (.txt or .npy) for the output streamline weights.
 
     random : float
-        Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all (default : 1).
+        Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all. 
+        This filter is applied after all others (default : 1).
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
@@ -1068,10 +1069,10 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         messages.append(f'Keeping streamlines with length <= {maxlength}mm')
     if minweight is not None:
         nums.append(Num(name='minweight', value=minweight, min_=0.0))
-        messages.append(f'Keeping streamlines with weight >= {minweight}mm')
+        messages.append(f'Keeping streamlines with weight >= {minweight}')
     if maxweight is not None:
         nums.append(Num(name='maxweight', value=maxweight, min_=0.0))
-        messages.append(f'Keeping streamlines with weight <= {maxweight}mm')
+        messages.append(f'Keeping streamlines with weight <= {maxweight}')
     if minlength is not None and maxlength is not None and minlength > maxlength:
         logger.error('\'minlength\' must be <= \'maxlength\'')
     if minweight is not None and maxweight is not None and minweight > maxweight:
@@ -1141,15 +1142,16 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
             TCK_in._seek_origin(int(TCK_in.header['file'][2:]))
 
             if random < 1:
-                kept_choice = np.random.choice( n_streamlines, int(n_streamlines * random), replace=False )
-                kept = np.zeros( n_streamlines, dtype=bool )
-                kept[kept_choice] = True
-                n_written = np.count_nonzero( kept )
+                idx_true = np.where(kept == True)[0]
+                discard_choice = np.random.choice( idx_true, int(idx_true.size * (1-random)), replace=False )
+                kept[discard_choice] = False
+                
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if kept[i]:
                     TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
-                    pbar.update()
+                    n_written += 1
+                pbar.update()
             
             if weights_out is not None and w.size > 0:
                 if weights_out_ext == '.txt':

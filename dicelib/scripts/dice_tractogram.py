@@ -178,7 +178,9 @@ def tractogram_filter():
         [['--maxweight', '-maxw'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
-        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': 'Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all'}]
+        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': '''\
+                              Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all. 
+                              This filter is applied after all others'''}]
     ]
     options = setup_parser(tract_filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
