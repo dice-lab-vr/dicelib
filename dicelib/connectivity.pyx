@@ -763,9 +763,9 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
     else:
         # check input tractogram and parcellation
         if input_tractogram is None:
-            logger.error(f'Tractogram file \'{input_tractogram}\' not found. Required if the assignments does not exist.')
+            logger.error(f'Tractogram file not provided. Required if the assignments does not exist.')
         if input_nodes is None:
-            logger.error(f'Nodes file \'{input_nodes}\' not found. Required if the assignments does not exist.')
+            logger.error(f'Nodes file not provided. Required if the assignments does not exist.')
         files.extend([
             File(name='tractogram_in', type_='input', path=input_tractogram, ext=['.tck']),
             File(name='nodes_in', type_='input', path=input_nodes, ext=['.nii', '.nii.gz'])

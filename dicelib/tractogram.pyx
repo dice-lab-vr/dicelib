@@ -1466,7 +1466,7 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 logger.subinfo(f'Number of connecting: {n_written-TCK_outs_size["unassigned"]}', indent_char='*', indent_lvl=1)
                 logger.subinfo(f'Number of non-connecting: {TCK_outs_size["unassigned"]}', indent_char='*', indent_lvl=1)
             else:
-                logger.subinfo(f'Number of connecting:{n_written}', indent_char='*', indent_lvl=1)
+                logger.subinfo(f'Number of connecting: {n_written}', indent_char='*', indent_lvl=1)
 
     except Exception as e:
         if os.path.isdir(output_folder):
