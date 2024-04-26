@@ -440,6 +440,9 @@ def tractogram_sort():
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['atlas'], {'type': str, 'help': 'Path to the atlas file used to sort the streamlines'}],
         [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
+        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': '''\
+                                  Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
+                                  Argument is the maximum radius in mm'''}],
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights (.txt or .npy)'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights (.txt or .npy)'}],
         [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
@@ -452,6 +455,7 @@ def tractogram_sort():
         options.tractogram_in,
         options.atlas,
         options.tractogram_out,
+        options.atlas_dist,
         options.weights_in,
         options.weights_out,
         options.tmp_folder,

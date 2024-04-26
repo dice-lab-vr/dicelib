@@ -1615,7 +1615,7 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, weights_in: str=None, weights_out: str=None, tmp_folder: str=None, keep_tmp_folder: bool=False, verbose: int=3, force: bool=False ):
+def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, atlas_dist: float=2.0, weights_in: str=None, weights_out: str=None, tmp_folder: str=None, keep_tmp_folder: bool=False, verbose: int=3, force: bool=False ):
     """Sort the streamlines in a tractogram bundle-by-bundle in lexigraphical order (i.e., bundle_1-1 --> bundle_1-2 --> ... --> bundle_2-2 --> ...).
 
     Parameters
@@ -1629,6 +1629,10 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
     output_tractogram : string
         Path to the file where to store the sorted tractogram. If not specified (default),
         the new file will be created by appending '_sorted' to the input filename.
+
+    atlas_dist : float
+        atlas_dist : float
+        Distance in voxels to consider in the radial search when computing the assignments.
 
     weights_in : string
         Text file with the input streamline weights (one row/streamline).
@@ -1658,6 +1662,10 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
         File(name='input_tractogram', type_='input', path=input_tractogram),
         File(name='input_atlas', type_='input', path=input_atlas)
     ]
+    nums = [
+        Num(name='atlas_dist', value=atlas_dist, min_=0.0)
+    ]
+
     if weights_in is not None:
         files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
         weights_in_ext = os.path.splitext(weights_in)[1]
@@ -1675,7 +1683,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
 
     tmp_folder = tmp_folder if tmp_folder is not None else os.path.join(os.getcwd(), 'tmp_sort')
     dirs = [Dir(name='tmp_folder', path=tmp_folder)]
-    check_params(files=files, dirs=dirs, force=force)
+    check_params(files=files, dirs=dirs, nums=nums, force=force)
 
     tmp_dir_is_created = False
     if not os.path.exists(tmp_folder):
@@ -1689,7 +1697,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, w
     log_list_asgn = []
     ret_subinfo = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo, log_list=log_list_asgn):
-        assign(input_tractogram, input_atlas, assignments_out=f'{tmp_folder}/fibers_assignment.txt', verbose=1, force=force, log_list=log_list_asgn)
+        assign(input_tractogram, input_atlas, assignments_out=f'{tmp_folder}/fibers_assignment.txt', atlas_dist=atlas_dist, verbose=1, force=force, log_list=log_list_asgn)
 
     # split the tractogram
     log_list_split = []
