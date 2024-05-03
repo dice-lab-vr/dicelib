@@ -57,6 +57,15 @@ def tractogram_cluster():
         [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': '''\
                                             Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
                                             Argument is the maximum radius in mm; if no node is found within this radius, the streamline is not taken into account for clustering'''}],
+        [['--weights_in', '-w_in'], {'type': str, 'default': None, 'help': 'Text file containing a scalar value for each streamline used to assign a weight to the final centroid of each cluster'}],
+        [['--weights_out', '-w_out'], {'type': str, 'default': None, 'help': 'Text file for the output streamline weights'}],
+        [['--weights_metric', '-w_m'], {'type': str, 'default': 'sum', 'metavar': 'WEIGHTS_METRIC', 'help': '''\
+                                            Metric used to compute the final weight of each cluster centroid. Options: \'sum\', \'mean\', \'max\', \'median\', \'min\'.
+                                            If \'sum\', the final weight is the sum of all the weights of the streamlines in the cluster.
+                                            If \'mean\', the final weight is the mean of all the weights of the streamlines in the cluster.
+                                            If \'max\', the final weight is the maximum of all the weights of the streamlines in the cluster.
+                                            If \'median\', the final weight is the median of all the weights of the streamlines in the cluster.
+                                            If \'min\', the final weight is the minimum of all the weights of the streamlines in the cluster'''}],
         [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files for parallel clustering'}],
         [['--max_open_files'], {'type': int, 'default': None, 'metavar': 'MAX_OPEN_FILES', 'help': 'Maximum number of files opened at the same time used to split the streamlines into bundles for parallel clustering'}],
         [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform parallel clustering. If None, all the available threads will be used'}],
@@ -73,6 +82,9 @@ def tractogram_cluster():
         clust_thr=options.thr,
         metric=options.metric,
         n_pts=options.n_pts,
+        weights_in=options.weights_in,
+        weights_metric=options.weights_metric,
+        weights_out=options.weights_out,        
         n_threads=options.n_threads,
         force=options.force,
         verbose=options.verbose,
