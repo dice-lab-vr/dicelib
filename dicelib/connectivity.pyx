@@ -621,7 +621,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
 
         # check if #(weights)==n_streamlines
         if n_streamlines!=w.size:
-            logger.error( f'Number of weights is different from number of streamlines ({w.size}, {n_streamlines}) ' )
+            logger.error(f'Number of weights ({w.size}) is different from the number of streamline ({n_streamlines})')
 
         zeros_count = 0
 
@@ -792,6 +792,14 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
         asgn = np.load( input_assignments, allow_pickle=False ).astype(np.int32)
     n_streamlines = asgn.shape[0]
     asgn_sort = np.sort(asgn, axis=1) # shape = (n_streamlines, 2)
+
+    # check if the assignments match with the number of streamlines in the tractogram
+    if input_tractogram is not None:
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
+        n_str_tck = int( TCK_in.header['count'] )
+        TCK_in.close()
+        if n_streamlines != n_str_tck:
+            logger.error(f'Number of streamlines in the tractogram ({n_str_tck}) is different from the number of streamline assignments ({n_streamlines})')
     
     # streamline weights
     if input_weights is None:
@@ -804,7 +812,7 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
             w = np.load( input_weights, allow_pickle=False ).astype(np.float64)
         # check if #(weights)==n_streamlines
         if n_streamlines != w.size:
-            logger.error(f'# of weights ({w.size}) is different from # of streamline assignments ({n_streamlines})')
+            logger.error(f'Number of weights ({w.size}) is different from the number of streamline assignments ({n_streamlines})')
 
     # metric
     if metric not in ['sum', 'mean', 'min', 'max']:
