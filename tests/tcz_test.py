@@ -15,7 +15,6 @@ from dicelib.tcz import Tcz
 def test_create_successfully_in_read_mode():
     tcz = Tcz('tests/dicelib/mock/demo_fibers.tcz', 'r', )
     assert isinstance(tcz, Tcz)
-    print(tcz.header)
     assert tcz.header['blur_core_extent'] == 12.3
     assert tcz.header['blur_gauss_extent'] == 34.4
     assert tcz.header['blur_spacing'] == 23.1
@@ -55,14 +54,14 @@ def test_create_with_invalid_streamline_representation_param_will_throw_error():
     with pytest.raises(RuntimeError,
                        match='Problem parsing the header; field "streamline_representation" is not a valid value'):
         Tcz('tests/dicelib/mock/invalid/invalid_streamline_representation.tcz', 'r', )
-#
-#
-# @pytest.mark.parametrize('param', [
-#     'blur_core_extent',
-#     'blur_gauss_extent',
-#     'blur_spacing',
-#     'blur_gauss_min'
-# ])
-# def test_create_with_invalid_blur_params_will_throw_error(param):
-#     with pytest.raises(RuntimeError, match='"' + param + '" must be >= 0'):
-#         Tcz('tests/dicelib/mock/invalid/invalid_' + param + '.tcz', 'r', )
+
+
+@pytest.mark.parametrize('param', [
+    'blur_core_extent',
+    'blur_gauss_extent',
+    'blur_spacing',
+    'blur_gauss_min'
+])
+def test_create_with_invalid_blur_params_will_throw_error(param):
+    with pytest.raises(RuntimeError, match='"' + param + '" must be >= 0'):
+        Tcz('tests/dicelib/mock/invalid/invalid_' + param + '.tcz', 'r', )
