@@ -50,8 +50,14 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )
-
-    return [image, streamline, tractogram, clustering, connectivity, tsf]
+    tcz = Extension(
+        name=f'{package_name}.tcz',
+        sources=[f'{package_name}/tcz.pyx'],
+        include_dirs=[get_include()],
+        extra_compile_args=['-w', '-std=c++11'],
+        language='c++',
+    )
+    return [image, streamline, tractogram, clustering, connectivity, tsf, tcz]
 
 
 class CustomBuildExtCommand(build_ext):

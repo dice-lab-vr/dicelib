@@ -1,0 +1,10 @@
+mrtrix tracks
+blur_core_extent: 12.3
+blur_spacing: 23.1
+blur_gauss_min: 34.0
+streamline_representation: polyline
+count: 0000283522
+datatype: Float32LE
+file: . 67
+END
+/* BINARY STUFF HERE: should be n_points + (triplet_1, triplet_2,...,triplet_n) */
