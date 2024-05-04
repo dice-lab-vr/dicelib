@@ -1,5 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
+from dicelib.clustering import cluster
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
@@ -2756,3 +2757,84 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
         logger.debug( f'{mb:.2f} MB')
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
+
+
+cpdef group_scalar(input_tractogram, weights_in, weights_out, clust_thr=2.0, metric="sum", n_pts=12, verbose=3, force=False):
+    """Group the scalar values of the input tractogram into a single scalar value for each streamline.
+
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to process.
+
+    weights_in : string
+        Path to the file (.txt) containing a scalar value for each streamline.
+
+    weights_out : string
+        Path to the file where to store the filtered scalar values.
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+
+    force : boolean
+        Force overwriting of the output (default : False).
+    """
+    set_verbose('tractogram', verbose)
+
+    if weights_out is None :
+        basename, extension = os.path.splitext(weights_in)
+        weights_out = basename+'_grouped'+extension
+    files = [
+        File(name='weights_in', type_='input', path=weights_in),
+        File(name='weights_out', type_='output', path=weights_out)
+    ]
+    check_params(files=files, force=force)
+    logger.info('Grouping scalar values ')
+    try:
+        weights = np.loadtxt(weights_in)
+        clust_idx, set_centroids = cluster(input_tractogram,
+                                        metric=metric,
+                                        threshold=clust_thr,
+                                        n_pts=n_pts,
+                                        verbose=3
+                                        )
+
+        ret_clust_idx = np.asarray(clust_idx)
+        if weights_in is not None:
+            w = np.loadtxt(weights_in)
+            if metric == 'sum':
+                cluster_fibs = np.zeros(len(set_centroids), dtype=np.float32)
+                for i in range(len(set_centroids)):
+                    fib_indices = np.where(ret_clust_idx == i)[0]
+                    cluster_fibs[i] = np.sum(w[fib_indices])
+            elif metric == 'mean':
+                cluster_fibs = np.zeros(len(set_centroids), dtype=np.float32)
+                for i in range(len(set_centroids)):
+                    fib_indices = np.where(ret_clust_idx == i)[0]
+                    cluster_fibs[i] = np.mean(w[fib_indices])
+            elif metric == 'min':
+                cluster_fibs = np.zeros(len(set_centroids), dtype=np.float32)
+                for i in range(len(set_centroids)):
+                    fib_indices = np.where(ret_clust_idx == i)[0]
+                    cluster_fibs[i] = np.min(w[fib_indices])
+            elif metric == 'max':
+                cluster_fibs = np.zeros(len(set_centroids), dtype=np.float32)
+                for i in range(len(set_centroids)):
+                    fib_indices = np.where(ret_clust_idx == i)[0]
+                    cluster_fibs[i] = np.max(w[fib_indices])
+            elif metric == 'median':
+                cluster_fibs = np.zeros(len(set_centroids), dtype=np.float32)
+                for i in range(len(set_centroids)):
+                    fib_indices = np.where(ret_clust_idx == i)[0]
+                    cluster_fibs[i] = np.median(w[fib_indices])
+
+            if weights_out.endswith('.txt'):
+                np.savetxt(weights_out, cluster_fibs)
+            else:
+                np.save(weights_out, cluster_fibs, allow_pickle=False)
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+    
+
+        
