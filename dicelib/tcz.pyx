@@ -1,10 +1,11 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
 
-import os
+import os, time
 
 from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_END, SEEK_SET
 from libc.string cimport strchr, strlen, strncmp
+from libcpp.string cimport string
 
 cdef class Tcz:
     """Class to read/write tcz files for visualization.
@@ -164,62 +165,62 @@ cdef class Tcz:
             raise RuntimeError('Problem parsing the header; field "file" has multiple values')
         fseek(self.fp, int(self.header['file'][2:]), SEEK_SET)
 
-    #cpdef _write_header( self, header ):
-    #    """Write the header to file.
-    #    After writing the header, the file pointer is located at the end of it, i.e., beginning of
-    #    the binary data part of the file, ready to write scalars.
+    cpdef _write_header(self, header):
+        """Write the header to file.
+        After writing the header, the file pointer is located at the end of it, i.e., beginning of
+        the binary data part of the file, ready to write scalars.
 
-    #    Parameters
-    #    ----------
-    #    header : dictionary
-    #        A dictionary of 'key: value' pairs that define the items in the header.
-    #    """
-    #    cdef string line
-    #    cdef int offset = 25 # accounts for 'mrtrix tracks\n' and 'END\n'
+        Parameters
+        ----------
+        header : dictionary
+            A dictionary of 'key: value' pairs that define the items in the header.
+        """
+        cdef string line
+        cdef int offset = 25  # accounts for 'mrtrix tracks\n' and 'END\n'
 
-    #    if header is None or type(header)!=dict:
-    #        raise RuntimeError( 'Provided header is empty or invalid' )
+        if header is None or type(header) != dict:
+            raise RuntimeError('Provided header is empty or invalid')
 
-    #    # check if the 'count' field is present TODO: fix this, allow working even without it
-    #    if 'count' not in header:
-    #        raise RuntimeError( 'Problem parsing the header; field "count" not found' )
-    #    if type(header['count'])==list:
-    #        raise RuntimeError( 'Problem parsing the header; field "count" has multiple values' )
+        # check if the 'count' field is present TODO: fix this, allow working even without it
+        if 'count' not in header:
+            raise RuntimeError('Problem parsing the header; field "count" not found')
+        if type(header['count']) == list:
+            raise RuntimeError('Problem parsing the header; field "count" has multiple values')
 
-    #    fseek( self.fp, 0, SEEK_SET )
-    #    line = b'mrtrix track scalars\n'
-    #    fwrite( line.c_str(), 1, line.size(), self.fp )
+        fseek(self.fp, 0, SEEK_SET)
+        line = b'mrtrix track scalars\n'
+        fwrite(line.c_str(), 1, line.size(), self.fp)
 
-    #    for key, val in header.items():
-    #        if key=='file':
-    #            continue
-    #        if key=='count':
-    #            val = header['count'] = header['count'].zfill(10) # ensure 10 digits are written
+        for key, val in header.items():
+            if key == 'file':
+                continue
+            if key == 'count':
+                val = header['count'] = header['count'].zfill(10)  # ensure 10 digits are written
 
-    #        if type(val)==str:
-    #            val = [val]
-    #        for v in val:
-    #            line = f'{key}: {v}\n'
-    #            fwrite( line.c_str(), 1, line.size(), self.fp )
-    #            offset += line.size()
+            if type(val) == str:
+                val = [val]
+            for v in val:
+                line = f'{key}: {v}\n'
+                fwrite(line.c_str(), 1, line.size(), self.fp)
+                offset += line.size()
 
-    #    if "timestamp" not in header:
-    #        line = f'timestamp: {time.strftime("%Y-%m-%d %H:%M:%S")}\n'
-    #        fwrite( line.c_str(), 1, line.size(), self.fp )
-    #        offset += line.size()
+        if "timestamp" not in header:
+            line = f'timestamp: {time.strftime("%Y-%m-%d %H:%M:%S")}\n'
+            fwrite(line.c_str(), 1, line.size(), self.fp)
+            offset += line.size()
 
-    #    line = f'{offset+9:.0f}'
-    #    line = f'file: . {offset+9+line.size():.0f}\n'
-    #    fwrite( line.c_str(), 1, line.size(), self.fp )
-    #    offset += line.size()
+        line = f'{offset + 9:.0f}'
+        line = f'file: . {offset + 9 + line.size():.0f}\n'
+        fwrite(line.c_str(), 1, line.size(), self.fp)
+        offset += line.size()
 
-    #    line = b'END\n'
-    #    fwrite( line.c_str(), 1, line.size(), self.fp )
+        line = b'END\n'
+        fwrite(line.c_str(), 1, line.size(), self.fp)
 
-    #    self.header = header.copy()
+        self.header = header.copy()
 
-    #    # move file pointer to beginning of binary data
-    #    fseek( self.fp, offset, SEEK_SET )
+        # move file pointer to beginning of binary data
+        fseek(self.fp, offset, SEEK_SET)
 
     cpdef close(self, bint write_eof=True, int count=-1):
         """Close the file associated with the tractogram.

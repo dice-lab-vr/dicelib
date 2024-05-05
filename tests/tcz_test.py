@@ -12,7 +12,7 @@ from dicelib.tcz import Tcz
 # RUN TESTS
 # $> pytest
 
-def test_create_successfully_in_read_mode():
+def test_create_in_read_mode_successfully():
     tcz = Tcz('tests/dicelib/mock/demo_fibers.tcz', 'r', )
     assert isinstance(tcz, Tcz)
     assert tcz.header['blur_core_extent'] == 12.3
@@ -21,6 +21,20 @@ def test_create_successfully_in_read_mode():
     assert tcz.header['blur_gauss_min'] == 34.0
     assert tcz.header['streamline_representation'] == 'polyline'
     assert tcz.header['datatype'] == 'Float32LE'
+
+
+def test_create_in_write_mode_successfully():
+    header_test = {
+        'blur_core_extent': '1.1',
+        'blur_gauss_extent': '2.2',
+        'blur_spacing': '3.3',
+        'blur_gauss_min': '4.4',
+        'streamline_representation': 'polyline',
+        'datatype': 'Float32LE',
+        'count': '999',
+        'timestamp': '2040-01-01T00:00:00.000Z',
+    }
+    tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
 
 
 def test_create_in_read_mode_no_streamline_representation_in_file_will_fall_back_to_polyline():
