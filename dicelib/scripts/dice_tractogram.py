@@ -1,6 +1,6 @@
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, get_indices_of_streamlines, resample, sample, tsf_create, sanitize, spline_smoothing_v2, split, sort as tract_sort
+from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, get_indices_of_streamlines, resample, sample, tsf_create, sanitize, spline_smoothing_v2, split, sort as tract_sort, tsf_join
 from dicelib.ui import setup_logger, setup_parser
 
 import os
@@ -272,6 +272,26 @@ def tractogram_join():
         options.tractogram_out, 
         options.weights_in,
         options.weights_out,
+        options.verbose,
+        options.force
+    )
+
+
+def tractogram_join_tsf():
+    '''
+    Entry point for the tractogram join tsf function.
+    '''
+    # parse the input parameters
+    args = [
+        [['tsf_in'], {'type': str, 'nargs': '+', 'help': 'Input tsf files'}],
+        [['tsf_out'], {'type': str, 'help': 'Output tsf file'}]
+    ]
+    options = setup_parser(tract_join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    # call actual function
+    tsf_join(
+        options.tsf_in,
+        options.tsf_out,
         options.verbose,
         options.force
     )

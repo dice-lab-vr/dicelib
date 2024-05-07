@@ -820,6 +820,32 @@ def color_by_scalar_file(TCK_in, values, num_streamlines):
     return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
 
 
+def tsf_join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool=False ):
+    """Join multiple tsf files into a single tsf file.
+    
+    Parameters
+    ----------
+    input_tsf: list
+        List of paths to the input tsf files.
+    output_tsf: str
+        Path to the output tsf file.
+    """
+
+    set_verbose('tractogram', verbose)
+
+    files = [File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf')]
+    for i, tsf in enumerate(input_tsf):
+        files.append(File(name=f'input_tsf_{i}', type_='input', path=tsf, ext='.tsf'))
+    check_params(files=files, force=force)
+
+    tsf = Tsf(output_tsf, 'w')
+    for i, tsf_file in enumerate(input_tsf):
+        tsf_in = Tsf(tsf_file, 'r')
+        tsf.write_scalar(tsf_in.read_scalar(), tsf_in.read_n_pts())
+        tsf_in.close()
+    tsf.close()
+
+
 def tsf_create( input_tractogram: str, output_tsf: str, orientation: bool=False, file: str=None, verbose: int=3, force: bool=False ):
     """Create a tsf file for each streamline in order to color them for visualization.
     
