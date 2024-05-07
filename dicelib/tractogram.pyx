@@ -656,6 +656,30 @@ cdef class Tsf:
             # write end-of-scalars signature
             fwrite( NAN1, 4, 1, self.fp )
 
+    cpdef read_scalar( self ):
+        """Read next scalar from the current position in the file.
+
+        Returns
+        -------
+        output : numpy array
+            Scalar values read from disk.
+        """
+        cdef float scalar
+        cdef list scalars = []
+        if self.is_open==False:
+            raise RuntimeError( 'File is not open' )
+        if self.mode!='r':
+            raise RuntimeError( 'File is not open for reading' )
+
+        while True:
+            if fread( &scalar, 4, 1, self.fp )!=1:
+                break
+            if isnan(scalar):
+                break
+            scalars.append(scalar)
+
+        return np.array(scalars, dtype=np.float32)
+
 
     cpdef close( self, bint write_eof=True, int count=-1 ):
         """Close the file associated with the tractogram.
