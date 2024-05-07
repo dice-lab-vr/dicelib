@@ -611,7 +611,7 @@ cdef class Tsf:
                 offset += line.size()
 
         if "timestamp" not in header:
-            line = f'timestamp: {time.strftime("%Y-%m-%d %H:%M:%S")}\n'
+            line = f'timestamp: {time()}\n'
             fwrite( line.c_str(), 1, line.size(), self.fp )
             offset += line.size()
 
