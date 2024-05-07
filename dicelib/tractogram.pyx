@@ -838,7 +838,9 @@ def tsf_join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool
         files.append(File(name=f'input_tsf_{i}', type_='input', path=tsf, ext='.tsf'))
     check_params(files=files, force=force)
 
-    tsf = Tsf(output_tsf, 'w')
+    header = Tsf(input_tsf[0], 'r').header
+
+    tsf = Tsf(output_tsf, 'w', header=header)
     for i, tsf_file in enumerate(input_tsf):
         tsf_in = Tsf(tsf_file, 'r')
         tsf.write_scalar(tsf_in.read_scalar(), tsf_in.read_n_pts())
