@@ -657,29 +657,33 @@ cdef class Tsf:
             fwrite( NAN1, 4, 1, self.fp )
 
     cpdef read_scalar( self ):
-        """Read next scalar from the current position in the file.
-
-        Returns
-        -------
-        output : numpy array
-            Scalar values read from disk.
+        """Read scalars from tsf file.
         """
         cdef float scalar
-        cdef list scalars = []
+        cdef int n_read
+        scalar_list = []
+        n_pts_arr = []
+        
         if self.is_open==False:
             raise RuntimeError( 'File is not open' )
         if self.mode!='r':
             raise RuntimeError( 'File is not open for reading' )
 
+        n_pts = 0
         while True:
-            if fread( &scalar, 4, 1, self.fp )!=1:
+            n_read = fread( &scalar, 4, 1, self.fp )
+            if n_read < 1:
                 break
             if isnan(scalar):
+                n_pts_arr.append(n_pts)
+                n_pts = 0
+                continue
+            if isinf(scalar):
                 break
-            scalars.append(scalar)
+            scalar_list.append(scalar)
+            n_pts += 1
 
-        return np.array(scalars, dtype=np.float32)
-
+        return np.array(scalar_list, dtype=np.float32), np.array(n_pts_arr, dtype=np.int32)
 
     cpdef close( self, bint write_eof=True, int count=-1 ):
         """Close the file associated with the tractogram.
@@ -709,6 +713,7 @@ cdef class Tsf:
                     self.header.clear()
                     self._read_header()
                 self.header['count'] = '%0*d' % (len(self.header['count']), count) # NB: use same number of characters
+                # self.header['total_count'] = str(count)
                 self._write_header( self.header )
 
         self.is_open = False
@@ -863,13 +868,18 @@ def tsf_join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool
     check_params(files=files, force=force)
 
     header = Tsf(input_tsf[0], 'r').header
+    Tsf_out = Tsf(output_tsf, 'w', header=header)
 
-    tsf = Tsf(output_tsf, 'w', header=header)
-    for i, tsf_file in enumerate(input_tsf):
-        tsf_in = Tsf(tsf_file, 'r')
-        tsf.write_scalar(tsf_in.read_scalar(), tsf_in.read_n_pts())
-        tsf_in.close()
-    tsf.close()
+    final_pts = 0
+    for tsf in input_tsf:
+        Tsf_in = Tsf(tsf, 'r')
+        scalar_list, n_pts_list = Tsf_in.read_scalar()
+        final_pts += int(Tsf_in.header['count'])
+        print(scalar_list)
+        Tsf_out.write_scalar(scalar_list, n_pts_list)
+        Tsf_in.close()
+    # update the count in the header ensuring the same number of characters
+    Tsf_out.close(write_eof=True, count=final_pts)
 
 
 def tsf_create( input_tractogram: str, output_tsf: str, orientation: bool=False, file: str=None, verbose: int=3, force: bool=False ):
