@@ -54,7 +54,7 @@ cdef class Tcz:
             raise ValueError('"mode" must be either "r", "w" or "a"')
         self.mode = mode
 
-        if mode == 'r':
+        if self.mode == 'r':
             self.buffer = <float *> malloc(3 * 1000000 * sizeof(float))
             pass
         else:
