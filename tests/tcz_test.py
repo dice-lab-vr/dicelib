@@ -38,7 +38,8 @@ def test_create_in_write_mode_successfully():
         'count': '999',
         'timestamp': '2040-01-01T00:00:00.000Z',
     }
-    Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
+    tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
+    assert tcz.streamline is None
 
 
 def test_create_in_read_mode_no_streamline_representation_in_file_will_fall_back_to_polyline():

@@ -58,6 +58,7 @@ cdef class Tcz:
             self.buffer = <float *> malloc(3 * 1000000 * sizeof(float))
             pass
         else:
+            self.streamline = None
             self.buffer = NULL
 
         self.n_pts = 0
