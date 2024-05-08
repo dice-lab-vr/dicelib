@@ -3,7 +3,9 @@
 
 import os, time
 
+import numpy as np
 from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_END, SEEK_SET
+from libc.stdlib cimport malloc
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
 
@@ -22,10 +24,14 @@ cdef class Tcz:
     cdef readonly   dict                            header
     cdef readonly   str                             mode
     cdef readonly   bint                            is_open
+    cdef readonly                                   streamline
     cdef readonly   unsigned int                    n_pts
     cdef            FILE *                           fp
+    cdef            float *                          buffer
+    cdef            float *                          buffer_ptr
+    cdef            float *                          buffer_end
 
-    def __init__(self, char *filename, char *mode, header=None):
+    def __init__(self, char *filename, char *mode, header=None, unsigned int max_points=3000):
         """Initialize the class.
 
         Parameters
@@ -49,8 +55,15 @@ cdef class Tcz:
         self.mode = mode
 
         if mode == 'r':
-            # TODO
+            self.buffer = <float *> malloc(3 * 1000000 * sizeof(float))
             pass
+        else:
+            self.buffer = NULL
+
+        self.n_pts = 0
+        self.buffer_ptr = NULL
+        self.buffer_end = NULL
+
         # open the file
         self.fp = fopen(self.filename, ('r+' if self.mode == 'a' else self.mode) + 'b')
         if self.fp == NULL:
@@ -61,6 +74,12 @@ cdef class Tcz:
             # file is open for reading => need to read the header from disk
             self.header.clear()
             self._read_header()
+
+            if self.header['streamline_representation'] == 'polyline':
+                self.streamline = np.empty((max_points, 3), dtype=np.float16)
+            else:
+                self.streamline = np.empty((max_points, 3), dtype=np.float32)
+
         elif self.mode == 'w':
             # file is open for writing => need to write a header to disk
             self._write_header(header)
@@ -140,7 +159,8 @@ cdef class Tcz:
         if 'streamline_representation' not in self.header:
             self.header['streamline_representation'] = 'polyline'  # default value
             self.header['datatype'] = 'Float16'
-        if self.header['streamline_representation'] not in ['polyline']:  # TODO: Add 'control points' value in the near future
+            # TODO: Add 'control points' value in the near future
+        if self.header['streamline_representation'] not in ['polyline']:
             raise RuntimeError('Problem parsing the header; field "streamline_representation" is not a valid value')
 
         # check if the 'count' field is present TODO: fix this, allow working even without it

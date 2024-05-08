@@ -1,3 +1,4 @@
+import numpy as np
 import pytest  # pip install pytest # build/temp.linux-x86_64-cpython-311/build/dicelib/tcz.o
 
 from dicelib.tcz import Tcz
@@ -21,6 +22,9 @@ def test_create_in_read_mode_successfully():
     assert tcz.header['blur_gauss_min'] == 34.0
     assert tcz.header['streamline_representation'] == 'polyline'
     assert tcz.header['datatype'] == 'Float32LE'
+    assert tcz.n_pts == 0
+    assert len(tcz.streamline) == 3000
+    assert type(tcz.streamline[0][0]) is np.float16
 
 
 def test_create_in_write_mode_successfully():
@@ -34,7 +38,7 @@ def test_create_in_write_mode_successfully():
         'count': '999',
         'timestamp': '2040-01-01T00:00:00.000Z',
     }
-    tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
+    Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
 
 
 def test_create_in_read_mode_no_streamline_representation_in_file_will_fall_back_to_polyline():
