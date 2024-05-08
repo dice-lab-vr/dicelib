@@ -713,7 +713,7 @@ cdef class Tsf:
                     self.header.clear()
                     self._read_header()
                 self.header['count'] = '%0*d' % (len(self.header['count']), count) # NB: use same number of characters
-                self.header['total_count'] = '%0*d' % (len(self.header['total_count']), count) # NB: use same number of characters
+                # self.header['total_count'] = str(count)
                 self._write_header( self.header )
 
         self.is_open = False
@@ -875,6 +875,7 @@ def tsf_join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool
         Tsf_in = Tsf(tsf, 'r')
         scalar_list, n_pts_list = Tsf_in.read_scalar()
         final_pts += int(Tsf_in.header['count'])
+        print(scalar_list)
         Tsf_out.write_scalar(scalar_list, n_pts_list)
         Tsf_in.close()
     # update the count in the header ensuring the same number of characters
