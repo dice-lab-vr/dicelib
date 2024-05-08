@@ -577,7 +577,7 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
                                      fib_centr_dist[i], clst_streamlines_view[i], idx_closest[i], idx_closest_return[i], j)
 
 
-    return clst_streamlines, centr_len, new_c, idx_cl_return, clust_idx, bundle_n_streamlines
+    return clst_streamlines, centr_len, new_c, idx_cl_return, clust_idx, bundle_n_streamlines, idx_cl
     
 
 
@@ -713,6 +713,9 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
 
+    if weights_in:
+        w = np.loadtxt(weights_in)
+
     if n_threads:
         MAX_THREAD = n_threads
     else:
@@ -810,7 +813,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
         ref_indices = []
-        streamlines_cluster = []
+        w_out = []
         TCK_out_size = 0
 
         # retreieve total memory available
@@ -884,7 +887,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                                         n_pts=n_pts,
                                         metric=metric) for chunk, num_fibs in chunk_list]
                 for i, f in enumerate(as_completed(future)):
-                    bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst, fib_clust, bundle_size = f.result()
+                    bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst, fib_clust, bundle_size, idx_cl = f.result()
 
                     for i_b in range(len(bundle_num_c)):
                         ref_indices.extend(idx_clst[i_b][:bundle_num_c[i_b]].tolist())
@@ -892,14 +895,58 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                         for i_s in range(bundle_num_c[i_b]):
                             TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
                             TCK_out_size += 1
-                    sum_size = 0
+
                     for i_b, s_b in enumerate(bundle_size):
-                        streamlines_cluster.extend([fib_clust[i_b][s] + sum_size for s in range(s_b)])
-                        sum_size += s_b
-                        
+                        streamlines_cluster = [fib_clust[i_b][s] for s in range(s_b)]
+                        streamline_indices = [idx_cl[i_b][s] for s in range(s_b)]
+                        if weights_in is not None:
+                            if weights_metric == 'sum':
+                                clusters_v = np.unique(streamlines_cluster)
+                                for c in clusters_v:
+                                    fib_indices = np.where(streamlines_cluster == c)[0]
+                                    tmp_i = [streamline_indices[ii] for ii in fib_indices]
+                                    tmp_w = w[tmp_i]
+                                    w_out.append(np.sum(tmp_w))
+                            elif weights_metric == 'mean':
+                                clusters_v = np.unique(streamlines_cluster)
+                                for c in clusters_v:
+                                    fib_indices = np.where(streamlines_cluster == c)[0]
+                                    tmp_i = [streamline_indices[ii] for ii in fib_indices]
+                                    tmp_w = w[tmp_i]
+                                    w_out.append(np.mean(tmp_w))
+                            elif weights_metric == 'min':
+                                clusters_v = np.unique(streamlines_cluster)
+                                for c in clusters_v:
+                                    fib_indices = np.where(streamlines_cluster == c)[0]
+                                    tmp_i = [streamline_indices[ii] for ii in fib_indices]
+                                    tmp_w = w[tmp_i]
+                                    w_out.append(np.min(tmp_w))
+                            elif weights_metric == 'max':
+                                clusters_v = np.unique(streamlines_cluster)
+                                for c in clusters_v:
+                                    fib_indices = np.where(streamlines_cluster == c)[0]
+                                    tmp_i = [streamline_indices[ii] for ii in fib_indices]
+                                    tmp_w = w[tmp_i]
+                                    w_out.append(np.max(tmp_w))
+                            elif weights_metric == 'median':
+                                clusters_v = np.unique(streamlines_cluster)
+                                for c in clusters_v:
+                                    fib_indices = np.where(streamlines_cluster == c)[0]
+                                    tmp_i = [streamline_indices[ii] for ii in fib_indices]
+                                    tmp_w = w[tmp_i]
+                                    w_out.append(np.median(tmp_w))
+
                     pbar.update()
                 TCK_out.close( write_eof=True, count= TCK_out_size)
-            
+
+            if weights_out is not None:
+                print('Saving weights')
+                w_out = np.array(w_out)
+                if weights_out.endswith('.txt'):
+                    np.savetxt(weights_out, w_out)
+                else:
+                    np.save(weights_out, w_out, allow_pickle=False)
+
             ret_clust_idx = np.asarray(streamlines_cluster)
             t1 = time.time()
             logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_lvl=1, indent_char='*')
@@ -917,13 +964,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             if tmp_dir_is_created:
                 shutil.rmtree(temp_folder)
 
-        if weights_in is not None:
-            w = np.loadtxt(weights_in)
-            if weights_metric == 'sum':
-                cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
-                for i in range(len(ref_indices)):
-                    fib_indices = np.where(ret_clust_idx == i)[0]
-                    cluster_fibs[i] = np.sum(w[fib_indices])
     
     else:
         logger.info(f'Clustering')

@@ -1,6 +1,5 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
-from dicelib.clustering import cluster
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
@@ -612,7 +611,7 @@ cdef class Tsf:
                 offset += line.size()
 
         if "timestamp" not in header:
-            line = f'timestamp: {time.strftime("%Y-%m-%d %H:%M:%S")}\n'
+            line = f'timestamp: {time()}\n'
             fwrite( line.c_str(), 1, line.size(), self.fp )
             offset += line.size()
 
@@ -656,6 +655,30 @@ cdef class Tsf:
             sum_len += pts_arr[i]
             # write end-of-scalars signature
             fwrite( NAN1, 4, 1, self.fp )
+
+    cpdef read_scalar( self ):
+        """Read next scalar from the current position in the file.
+
+        Returns
+        -------
+        output : numpy array
+            Scalar values read from disk.
+        """
+        cdef float scalar
+        cdef list scalars = []
+        if self.is_open==False:
+            raise RuntimeError( 'File is not open' )
+        if self.mode!='r':
+            raise RuntimeError( 'File is not open for reading' )
+
+        while True:
+            if fread( &scalar, 4, 1, self.fp )!=1:
+                break
+            if isnan(scalar):
+                break
+            scalars.append(scalar)
+
+        return np.array(scalars, dtype=np.float32)
 
 
     cpdef close( self, bint write_eof=True, int count=-1 ):
@@ -812,13 +835,41 @@ def color_by_scalar_file(TCK_in, values, num_streamlines):
     scalar_list = []
     n_pts_list = []
     for i in range(num_streamlines):
-        streamline = TCK_in.read_streamline()
-        n_pts_list.append(streamline.n_pts)
-        streamline_points = np.arange(streamline.n_pts)
-        resample = np.linspace(0, streamline.n_pts, len(values), endpoint=True, dtype=np.int32)
+        TCK_in.read_streamline()
+        n_pts_list.append(TCK_in.n_pts)
+        streamline_points = np.arange(TCK_in.n_pts)
+        resample = np.linspace(0, TCK_in.n_pts, len(values), endpoint=True, dtype=np.int32)
         streamline_points = np.interp(streamline_points, resample, values)
         scalar_list.extend(streamline_points)
     return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
+
+
+def tsf_join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool=False ):
+    """Join multiple tsf files into a single tsf file.
+    
+    Parameters
+    ----------
+    input_tsf: list
+        List of paths to the input tsf files.
+    output_tsf: str
+        Path to the output tsf file.
+    """
+
+    set_verbose('tractogram', verbose)
+
+    files = [File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf')]
+    for i, tsf in enumerate(input_tsf):
+        files.append(File(name=f'input_tsf_{i}', type_='input', path=tsf, ext='.tsf'))
+    check_params(files=files, force=force)
+
+    header = Tsf(input_tsf[0], 'r').header
+
+    tsf = Tsf(output_tsf, 'w', header=header)
+    for i, tsf_file in enumerate(input_tsf):
+        tsf_in = Tsf(tsf_file, 'r')
+        tsf.write_scalar(tsf_in.read_scalar(), tsf_in.read_n_pts())
+        tsf_in.close()
+    tsf.close()
 
 
 def tsf_create( input_tractogram: str, output_tsf: str, orientation: bool=False, file: str=None, verbose: int=3, force: bool=False ):
@@ -2757,84 +2808,5 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
         logger.debug( f'{mb:.2f} MB')
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
-
-
-cpdef group_scalar(input_tractogram, weights_in, weights_out, clust_thr=2.0, metric="sum", n_pts=12, verbose=3, force=False):
-    """Group the scalar values of the input tractogram into a single scalar value for each streamline.
-
-    Parameters
-    ----------
-    input_tractogram : string
-        Path to the file (.tck) containing the streamlines to process.
-
-    weights_in : string
-        Path to the file (.txt) containing a scalar value for each streamline.
-
-    weights_out : string
-        Path to the file where to store the filtered scalar values.
-
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
-    force : boolean
-        Force overwriting of the output (default : False).
-    """
-    set_verbose('tractogram', verbose)
-
-    if weights_out is None :
-        basename, extension = os.path.splitext(weights_in)
-        weights_out = basename+'_grouped'+extension
-    files = [
-        File(name='weights_in', type_='input', path=weights_in),
-        File(name='weights_out', type_='output', path=weights_out)
-    ]
-    check_params(files=files, force=force)
-    logger.info('Grouping scalar values ')
-    try:
-        weights = np.loadtxt(weights_in)
-        clust_idx, set_centroids = cluster(input_tractogram,
-                                        metric=metric,
-                                        threshold=clust_thr,
-                                        n_pts=n_pts,
-                                        verbose=3
-                                        )
-
-        ret_clust_idx = np.asarray(clust_idx)
-        if weights_in is not None:
-            w = np.loadtxt(weights_in)
-            if metric == 'sum':
-                cluster_fibs = np.zeros(len(set_centroids), dtype=np.float32)
-                for i in range(len(set_centroids)):
-                    fib_indices = np.where(ret_clust_idx == i)[0]
-                    cluster_fibs[i] = np.sum(w[fib_indices])
-            elif metric == 'mean':
-                cluster_fibs = np.zeros(len(set_centroids), dtype=np.float32)
-                for i in range(len(set_centroids)):
-                    fib_indices = np.where(ret_clust_idx == i)[0]
-                    cluster_fibs[i] = np.mean(w[fib_indices])
-            elif metric == 'min':
-                cluster_fibs = np.zeros(len(set_centroids), dtype=np.float32)
-                for i in range(len(set_centroids)):
-                    fib_indices = np.where(ret_clust_idx == i)[0]
-                    cluster_fibs[i] = np.min(w[fib_indices])
-            elif metric == 'max':
-                cluster_fibs = np.zeros(len(set_centroids), dtype=np.float32)
-                for i in range(len(set_centroids)):
-                    fib_indices = np.where(ret_clust_idx == i)[0]
-                    cluster_fibs[i] = np.max(w[fib_indices])
-            elif metric == 'median':
-                cluster_fibs = np.zeros(len(set_centroids), dtype=np.float32)
-                for i in range(len(set_centroids)):
-                    fib_indices = np.where(ret_clust_idx == i)[0]
-                    cluster_fibs[i] = np.median(w[fib_indices])
-
-            if weights_out.endswith('.txt'):
-                np.savetxt(weights_out, cluster_fibs)
-            else:
-                np.save(weights_out, cluster_fibs, allow_pickle=False)
-    except Exception as e:
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-    
 
         
