@@ -505,10 +505,10 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     if blur_gauss_min<=0:
         logger.error( '"blur_gauss_min" must be > 0' )
     logger.subinfo( 'Blur parameters:', indent_char='*')
-    logger.subinfo( f'- blur_core_extent:  {blur_core_extent}', indent_lvl=1, indent_char='-')
-    logger.subinfo( f'- blur_gauss_extent: {blur_gauss_extent}', indent_lvl=1, indent_char='-')
-    logger.subinfo( f'- blur_spacing:      {blur_spacing}', indent_lvl=1, indent_char='-')
-    logger.subinfo( f'- blur_gauss_min:    {blur_gauss_min}', indent_lvl=1, indent_char='-')
+    logger.subinfo( f'blur_core_extent:  {blur_core_extent}', indent_lvl=1, indent_char='-')
+    logger.subinfo( f'blur_gauss_extent: {blur_gauss_extent}', indent_lvl=1, indent_char='-')
+    logger.subinfo( f'blur_spacing:      {blur_spacing}', indent_lvl=1, indent_char='-')
+    logger.subinfo( f'blur_gauss_min:    {blur_gauss_min}', indent_lvl=1, indent_char='-')
 
     # fiber_shift
     if np.isscalar(fiber_shift) :
@@ -564,7 +564,8 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
                 blurWeights[i_r] = 1.0
             else:
                 blurWeights[i_r] = np.exp( -(blurRho[i_r] - core_extent)**2 / (2.0*blur_sigma**2) )
-    logger.subinfo(f'Number of replicas for each streamline: {nReplicas}', indent_lvl=1, indent_char='-')
+    if nReplicas > 0:
+        logger.subinfo(f'Number of replicas for each streamline: {nReplicas}', indent_lvl=1, indent_char='-')
 
     # compute the grid of voxels for the radial search
     threshold = core_extent + gauss_extent
@@ -614,7 +615,6 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     try:
         # open the input file
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
-        # str_count = 0
 
         n_streamlines = int( TCK_in.header['count'] )
         logger.subinfo( f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*')

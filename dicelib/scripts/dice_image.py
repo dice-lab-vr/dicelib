@@ -1,4 +1,4 @@
-from dicelib.image import extract
+from dicelib.image import extract, tdi_ends
 from dicelib.ui import setup_parser
 
 def image_extract():
@@ -24,6 +24,40 @@ def image_extract():
         options.scheme_out,
         options.b,
         options.round,
+        options.verbose,
+        options.force
+    )
+
+def image_tdi_ends():
+    '''
+    Entry point for the tdi of ending points (with blur) function.
+    '''
+    # parse the input parameters
+    args = [
+        [["input_tractogram"], {"help": "Input tractogram"}],
+        [["input_ref"], {"help": "Input reference image"}],
+        [["output_image"], {"help": "Output image"}],
+        [["--blur_core_extent", "-core"], {"type": float, "default": 0.0, "help": "Core extent for blurring (in mm)"}],
+        [["--blur_gauss_extent", "-gauss"], {"type": float, "default": 0.0, "help": "Gaussian extent for blurring (in mm)"}],
+        [["--blur_spacing", "-spacing"], {"type": float, "default": 0.25, "help": "Spacing for blurring (in mm)"}],
+        [["--blur_gauss_min", "-min"], {"type": float, "default": 0.1, "help": "Minimum Gaussian value for blurring (in mm)"}],
+        [["--fiber_shift", "-shift"], {"type": float, "default": 0.0, "help": '''\
+                                       If necessary, shift the streamline coordinates by this amount. 
+                                       Either a single value or a list of three values.
+                                       The value is specified in voxel units, e.g., 0.5 translates by half voxel.'''}]
+    ]
+    options = setup_parser(extract.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    # call actual function
+    tdi_ends(
+        options.input_tractogram, 
+        options.input_ref, 
+        options.output_image, 
+        options.blur_core_extent,
+        options.blur_gauss_extent,
+        options.blur_spacing,
+        options.blur_gauss_min,
+        options.fiber_shift, 
         options.verbose,
         options.force
     )
