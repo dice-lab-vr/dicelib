@@ -713,7 +713,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
 
 
 
-def build_connectome( input_assignments: str, output_connectome: str, input_weights: str=None, input_tractogram: str=None, input_nodes: str=None, atlas_dist: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=3, force: bool=False, log_list=None ):
+def build_connectome( input_assignments: str, output_connectome: str, input_weights: str=None, input_tractogram: str=None, input_nodes: str=None, atlas_dist: float=2.0, metric: str='sum', symmetric: bool=False, n_threads: int=None, verbose: int=3, force: bool=False, log_list=None ):
     """Build the (weighted) connectome having the assignments or the tractogram and an atlas.
 
     Parameters
@@ -779,7 +779,7 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
         log_list2 = []
         ret_subinfo2 = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
         with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo2, log_list=log_list2) as pbar:
-            assign(input_tractogram, input_nodes, input_assignments, atlas_dist, verbose=1, log_list=log_list2)
+            assign(input_tractogram, input_nodes, input_assignments, atlas_dist, verbose=1, n_threads=n_threads, log_list=log_list2)
         set_verbose('connectivity', verbose)
 
     check_params(files=files, force=force)

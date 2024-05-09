@@ -24,7 +24,7 @@ def tractogram_assign():
                                   Argument is the maximum radius in mm'''}],
         [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
                                  Number of threads to use to perform the assignment.
-                                 If None, all the available threads will be used'''}],
+                                 If None, all the available threads will be used'''}]
     ]
     options = setup_parser(assign.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -478,7 +478,10 @@ def tractogram_sort():
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights (.txt or .npy)'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights (.txt or .npy)'}],
         [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
-        [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}]
+        [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}],
+        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
+                                 Number of threads to use.
+                                 If None, all the available threads will be used'''}]
     ]
     options = setup_parser(tract_sort.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -492,6 +495,7 @@ def tractogram_sort():
         options.weights_out,
         options.tmp_folder,
         options.keep_temp,
+        options.n_threads,
         options.verbose,
         options.force
     )
