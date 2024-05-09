@@ -26,6 +26,7 @@ cdef class Tcz:
     cdef readonly   bint                            is_open
     cdef readonly                                   streamline
     cdef readonly   unsigned int                    n_pts
+    cdef readonly   unsigned int                    max_points
     cdef            FILE *                           fp
     cdef            float *                          buffer
     cdef            float *                          buffer_ptr
@@ -56,7 +57,9 @@ cdef class Tcz:
 
         if self.mode == 'r':
             self.buffer = <float *> malloc(3 * 1000000 * sizeof(float))
-            pass
+            if max_points<=0:
+                raise ValueError( '"max_points" should be positive' )
+            self.max_points = max_points
         else:
             self.streamline = None
             self.buffer = NULL
@@ -77,9 +80,9 @@ cdef class Tcz:
             self._read_header()
 
             if self.header['streamline_representation'] == 'polyline':
-                self.streamline = np.empty((max_points, 3), dtype=np.float16)
+                self.streamline = np.empty((self.max_points, 3), dtype=np.float16)
             else:
-                self.streamline = np.empty((max_points, 3), dtype=np.float32)
+                self.streamline = np.empty((self.max_points, 3), dtype=np.float32)
 
         elif self.mode == 'w':
             # file is open for writing => need to write a header to disk

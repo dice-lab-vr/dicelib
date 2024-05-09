@@ -14,7 +14,7 @@ from dicelib.tcz import Tcz
 # $> pytest
 
 def test_create_in_read_mode_successfully():
-    tcz = Tcz('tests/dicelib/mock/demo_fibers.tcz', 'r', )
+    tcz = Tcz('tests/dicelib/mock/demo_fibers.tcz', 'r', None, 1000)
     assert isinstance(tcz, Tcz)
     assert tcz.header['blur_core_extent'] == 12.3
     assert tcz.header['blur_gauss_extent'] == 34.4
@@ -23,7 +23,8 @@ def test_create_in_read_mode_successfully():
     assert tcz.header['streamline_representation'] == 'polyline'
     assert tcz.header['datatype'] == 'Float32LE'
     assert tcz.n_pts == 0
-    assert len(tcz.streamline) == 3000
+    assert tcz.max_points == 1000
+    assert len(tcz.streamline) == 1000
     assert type(tcz.streamline[0][0]) is np.float16
 
 
