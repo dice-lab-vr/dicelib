@@ -53,17 +53,10 @@ cdef class Tcz:
 
         if mode not in ['r', 'w', 'a']:
             raise ValueError('"mode" must be either "r", "w" or "a"')
+
         self.mode = mode
-
-        if self.mode == 'r':
-            self.buffer = <float *> malloc(3 * 1000000 * sizeof(float))
-            if max_points<=0:
-                raise ValueError( '"max_points" should be positive' )
-            self.max_points = max_points
-        else:
-            self.streamline = None
-            self.buffer = NULL
-
+        self.streamline = None
+        self.buffer = NULL
         self.n_pts = 0
         self.buffer_ptr = NULL
         self.buffer_end = NULL
@@ -75,6 +68,12 @@ cdef class Tcz:
 
         self.header = {}
         if self.mode == 'r':
+
+            self.buffer = <float *> malloc(3 * 1000000 * sizeof(float))
+            if max_points <= 0:
+                raise ValueError('"max_points" should be positive')
+            self.max_points = max_points
+
             # file is open for reading => need to read the header from disk
             self.header.clear()
             self._read_header()
@@ -245,6 +244,51 @@ cdef class Tcz:
 
         # move file pointer to beginning of binary data
         fseek(self.fp, offset, SEEK_SET)
+
+    #cpdef int read_streamline(self):
+    #    """Read next streamline from the current position in the file.
+#
+    #    For efficiency reasons, multiple streamlines are simultaneously loaded from disk using a buffer.
+    #    The current streamline is stored in the fixed-size numpy array 'self.streamline' and its actual
+    #    length, i.e., number of points/coordinates, is stored in 'self.n_pts'.
+#
+    #    Returns
+    #    -------
+    #    output : int
+    #        Number of points/coordinates read from disk.
+    #    """
+    #    cdef float * ptr = &self.streamline[0, 0]
+    #    cdef int    n_read
+#
+    #    if not self.is_open:
+    #        raise RuntimeError('File is not open')
+    #    if self.mode != 'r':
+    #        raise RuntimeError('File is not open for reading')
+#
+    #    self.n_pts = 0
+    #    while True:
+    #        if self.n_pts > self.max_points:
+    #            raise RuntimeError(f'Problem reading data, streamline seems too long (>{self.max_points} points)')
+    #        if self.buffer_ptr == self.buffer_end:  # reached end of buffer, need to reload
+    #            n_read = fread(self.buffer, 4, 3 * 1000000, self.fp)
+    #            self.buffer_ptr = self.buffer
+    #            self.buffer_end = self.buffer_ptr + n_read
+    #            if n_read < 3:
+    #                return 0
+#
+    #        # copy coordinate from 'buffer' to 'streamline'
+    #        ptr[0] = self.buffer_ptr[0]
+    #        ptr[1] = self.buffer_ptr[1]
+    #        ptr[2] = self.buffer_ptr[2]
+    #        self.buffer_ptr += 3
+    #        if np.isnan(ptr[0]) and np.isnan(ptr[1]) and np.isnan(ptr[2]):
+    #            break
+    #        if np.isinf(ptr[0]) and np.isinf(ptr[1]) and np.isinf(ptr[2]):
+    #            break
+    #        self.n_pts += 1
+    #        ptr += 3
+#
+    #    return self.n_pts
 
     cpdef close(self, bint write_eof=True, int count=-1):
         """Close the file associated with the tractogram.

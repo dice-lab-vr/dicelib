@@ -15,7 +15,6 @@ from dicelib.tcz import Tcz
 
 def test_create_in_read_mode_successfully():
     tcz = Tcz('tests/dicelib/mock/demo_fibers.tcz', 'r', None, 1000)
-    assert isinstance(tcz, Tcz)
     assert tcz.header['blur_core_extent'] == 12.3
     assert tcz.header['blur_gauss_extent'] == 34.4
     assert tcz.header['blur_spacing'] == 23.1
