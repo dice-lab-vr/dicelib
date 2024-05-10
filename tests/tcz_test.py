@@ -24,7 +24,7 @@ def test_create_in_read_mode_successfully():
     assert tcz.n_pts == 0
     assert tcz.max_points == 1000
     assert len(tcz.streamline) == 1000
-    assert type(tcz.streamline[0][0]) is np.float16
+    assert type(tcz.streamline[0][0]) is float
 
 
 def test_create_in_write_mode_successfully():

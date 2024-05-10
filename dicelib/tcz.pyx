@@ -24,7 +24,7 @@ cdef class Tcz:
     cdef readonly   dict                            header
     cdef readonly   str                             mode
     cdef readonly   bint                            is_open
-    cdef readonly                                   streamline
+    cdef readonly   float[:,::1]                    streamline
     cdef readonly   unsigned int                    n_pts
     cdef readonly   unsigned int                    max_points
     cdef            FILE *                           fp
@@ -73,19 +73,16 @@ cdef class Tcz:
             if max_points <= 0:
                 raise ValueError('"max_points" should be positive')
             self.max_points = max_points
+            self.streamline = np.empty((self.max_points, 3), dtype=np.float32)
 
             # file is open for reading => need to read the header from disk
             self.header.clear()
             self._read_header()
 
-            if self.header['streamline_representation'] == 'polyline':
-                self.streamline = np.empty((self.max_points, 3), dtype=np.float16)
-            else:
-                self.streamline = np.empty((self.max_points, 3), dtype=np.float32)
-
         elif self.mode == 'w':
             # file is open for writing => need to write a header to disk
             self._write_header(header)
+
         else:
             # file is open for appending => move pointer to end
             fseek(self.fp, 0, SEEK_END)
