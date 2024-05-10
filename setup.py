@@ -53,7 +53,7 @@ def get_extensions():
     tcz = Extension(
         name=f'{package_name}.tcz',
         sources=[f'{package_name}/tcz.pyx'],
-        include_dirs=[get_include()],
+        include_dirs=[get_include(), f'{package_name}/include'],
         extra_compile_args=['-w', '-std=c++11'],
         language='c++',
     )

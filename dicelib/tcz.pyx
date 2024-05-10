@@ -1,6 +1,12 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
 
+cdef extern from "float16_float32_encode_decode.hpp":
+    float float16_to_float32(const unsigned short value)
+
+cdef extern from "float16_float32_encode_decode.hpp":
+    unsigned short float32_to_float16(const float value)
+
 import os, time
 
 import numpy as np
