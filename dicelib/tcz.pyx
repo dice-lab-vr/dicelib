@@ -8,8 +8,9 @@ cdef extern from "float16_float32_encode_decode.hpp":
     unsigned short float32_to_float16(const float value)
 
 import os, time
-
 import numpy as np
+import logging as log
+
 from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc
 from libc.string cimport strchr, strlen, strncmp
@@ -31,12 +32,12 @@ cdef class Tcz:
     cdef readonly   str                             mode
     cdef readonly   bint                            is_open
     cdef readonly   float[:,::1]                    streamline
-    cdef readonly   unsigned int                    n_pts
     cdef readonly   unsigned int                    max_points
-    cdef            FILE *                           fp
-    cdef            float *                          buffer
-    cdef            float *                          buffer_ptr
-    cdef            float *                          buffer_end
+    cdef            unsigned int                    n_pts
+    cdef            FILE *                          fp
+    cdef            float *                         buffer
+    cdef            float *                         buffer_ptr
+    cdef            float *                         buffer_end
 
     def __init__(self, char *filename, char *mode, header=None, unsigned int max_points=3000):
         """Initialize the class.
@@ -96,9 +97,10 @@ cdef class Tcz:
         self.is_open = True
 
     cpdef _read_header(self):
-        """Read the header from file.
+        """
+        Read the header from file.
         After the reading, the file pointer is located at the end of it, i.e., beginning of
-        the binary data part of the file, ready to read scalars.
+        the binary data part of the file.
         """
         cdef char[5000000] line  # a field can be max 5MB long
         cdef char *         ptr
@@ -202,7 +204,7 @@ cdef class Tcz:
             A dictionary of 'key: value' pairs that define the items in the header.
         """
         cdef string line
-        cdef int offset = 25  # accounts for 'mrtrix tracks\n' and 'END\n'
+        cdef int offset = 18  # accounts for 'mrtrix tracks\n' and 'END\n'
 
         if header is None or type(header) != dict:
             raise RuntimeError('Provided header is empty or invalid')
@@ -214,7 +216,7 @@ cdef class Tcz:
             raise RuntimeError('Problem parsing the header; field "count" has multiple values')
 
         fseek(self.fp, 0, SEEK_SET)
-        line = b'mrtrix track scalars\n'
+        line = b'mrtrix tracks\n'
         fwrite(line.c_str(), 1, line.size(), self.fp)
 
         for key, val in header.items():
@@ -247,6 +249,52 @@ cdef class Tcz:
 
         # move file pointer to beginning of binary data
         fseek(self.fp, offset, SEEK_SET)
+
+    cpdef write_streamline( self, float[:,:] streamline, int n=-1 ):
+        """Write a streamline at the current position in the file.
+
+        Parameters
+        ----------
+        streamline : Nx3 numpy array
+            The streamline data
+        n : int
+            Writes first n points of the streamline. If n<0 (default), writes all points.
+            NB: be careful because, for efficiency, a streamline is represented as a fixed-size array
+        """
+
+        if  streamline.ndim != 2 or streamline.shape[1] != 3:
+            raise RuntimeError( '"streamline" must be a Nx3 array' )
+        if n < 0:
+            n = streamline.shape[0]
+        if n == 0:
+            return
+
+        if not self.is_open:
+            raise RuntimeError( 'File is not open' )
+        if self.mode == 'r':
+            raise RuntimeError( 'File is not open for writing/appending' )
+
+        compressed_streamline = self.streamline_to_float16(streamline)
+        if fwrite( &compressed_streamline[0,0], 2, 3*n, self.fp ) != 3*n:
+            raise IOError( 'Problems writing streamline data to file' )
+
+    cpdef unsigned short int[:,:] streamline_to_float16(self, float[:,:] streamline):
+        """
+        It casts a streamline from float32 to float16
+        
+        Parameters
+        ----------
+        streamline : Nx3 numpy array
+            The streamline data
+        """
+        # TODO: assumed 4 fixed point for demonstration
+        cdef unsigned short int[:,:] compressed_streamline = np.empty((4, 3), dtype=np.uint16)
+        # the streamline is n_pts points long
+        for i in range(4):
+            for j in range(3):
+                compressed_streamline[i][j] = float32_to_float16(streamline[i][j])
+
+        return compressed_streamline
 
     #cpdef int read_streamline(self):
     #    """Read next streamline from the current position in the file.

@@ -21,7 +21,7 @@ def test_create_in_read_mode_successfully():
     assert tcz.header['blur_gauss_min'] == 34.0
     assert tcz.header['streamline_representation'] == 'polyline'
     assert tcz.header['datatype'] == 'Float32LE'
-    assert tcz.n_pts == 0
+    # assert tcz.n_pts == 0
     assert tcz.max_points == 1000
     assert len(tcz.streamline) == 1000
     assert type(tcz.streamline[0][0]) is float
@@ -46,6 +46,55 @@ def test_create_in_read_mode_no_streamline_representation_in_file_will_fall_back
     tcz = Tcz('tests/dicelib/mock/demo_fibers_no_polyline.tcz', 'r', )
     assert tcz.header['streamline_representation'] == 'polyline'
     assert tcz.header['datatype'] == 'Float16'
+
+
+def test_write_streamline_successfully():
+    header_test = {
+        'blur_core_extent': '1.1',
+        'blur_gauss_extent': '2.2',
+        'blur_spacing': '3.3',
+        'blur_gauss_min': '4.4',
+        'streamline_representation': 'polyline',
+        'datatype': 'Float32LE',
+        'count': '999',
+        'timestamp': '2040-01-01T00:00:00.000Z',
+    }
+    tcz = Tcz('tests/dicelib/mock/demo_fibers_write_streamline.tcz', 'w', header_test)
+    fake_streamline = np.full((4, 3), fill_value=132.364, dtype=np.float32)
+    tcz.write_streamline(fake_streamline)
+
+
+@pytest.mark.parametrize('input_number,expected_result', [
+    (15.33334, 19371),
+    (45.33334, 20907),
+    (95.33334, 22005),
+    (150.33334, 22707),
+    (500.33334, 24529),
+    (-15.33334, 52139),
+    (-45.33334, 53675),
+    (-95.33334, 54773),
+    (-150.33334, 55475),
+    (-500.33334, 57297),
+])
+def test_streamline_to_float16(input_number, expected_result):
+    header_test = {
+        'blur_core_extent': '1.1',
+        'blur_gauss_extent': '2.2',
+        'blur_spacing': '3.3',
+        'blur_gauss_min': '4.4',
+        'streamline_representation': 'polyline',
+        'datatype': 'Float32LE',
+        'count': '999',
+        'timestamp': '2040-01-01T00:00:00.000Z',
+    }
+    tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
+
+    fake_streamline = np.full((4, 3), fill_value=input_number, dtype=np.float32)
+
+    streamline_converted = tcz.streamline_to_float16(fake_streamline)
+    for x in range(4):
+        for y in range(3):
+            assert streamline_converted[x][y] == expected_result
 
 
 def test_create_with_invalid_format_will_throw_error():
