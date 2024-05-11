@@ -1677,7 +1677,7 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, atlas_dist: float=2.0, weights_in: str=None, weights_out: str=None, tmp_folder: str=None, keep_tmp_folder: bool=False, verbose: int=3, force: bool=False ):
+def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, atlas_dist: float=2.0, weights_in: str=None, weights_out: str=None, tmp_folder: str=None, keep_tmp_folder: bool=False, n_threads: int=None, verbose: int=3, force: bool=False ):
     """Sort the streamlines in a tractogram bundle-by-bundle in lexigraphical order (i.e., bundle_1-1 --> bundle_1-2 --> ... --> bundle_2-2 --> ...).
 
     Parameters
@@ -1759,7 +1759,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
     log_list_asgn = []
     ret_subinfo = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo, log_list=log_list_asgn):
-        assign(input_tractogram, input_atlas, assignments_out=f'{tmp_folder}/fibers_assignment.txt', atlas_dist=atlas_dist, verbose=1, force=force, log_list=log_list_asgn)
+        assign(input_tractogram, input_atlas, assignments_out=f'{tmp_folder}/fibers_assignment.txt', atlas_dist=atlas_dist, verbose=1, force=force, n_threads=n_threads, log_list=log_list_asgn)
 
     # split the tractogram
     log_list_split = []
