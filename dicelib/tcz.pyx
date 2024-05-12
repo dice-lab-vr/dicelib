@@ -1,15 +1,17 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
 
+import os, time
+import numpy as np
+import logging as log
+
+from dicelib.blur import Blur
+
 cdef extern from "float16_float32_encode_decode.hpp":
     float float16_to_float32(const unsigned short value)
 
 cdef extern from "float16_float32_encode_decode.hpp":
     unsigned short float32_to_float16(const float value)
-
-import os, time
-import numpy as np
-import logging as log
 
 from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc
@@ -140,29 +142,11 @@ cdef class Tcz:
                 self.header[key].append(val)
             nLines += 1
 
-        # blur params
-        if 'blur_core_extent' not in self.header:
-            raise RuntimeError('Problem parsing the header; field "blur_core_extent" not found')
-        if 'blur_gauss_extent' not in self.header:
-            raise RuntimeError('Problem parsing the header; field "blur_gauss_extent" not found')
-        if 'blur_spacing' not in self.header:
-            raise RuntimeError('Problem parsing the header; field "blur_spacing" not found')
-        if 'blur_gauss_min' not in self.header:
-            raise RuntimeError('Problem parsing the header; field "blur_gauss_min" not found')
-
-        if float(self.header['blur_core_extent']) < 0:
-            raise RuntimeError('"blur_core_extent" must be >= 0')
-        if float(self.header['blur_gauss_extent']) < 0:
-            raise RuntimeError('"blur_gauss_extent" must be >= 0')
-        if float(self.header['blur_spacing']) < 0:
-            raise RuntimeError('"blur_spacing" must be >= 0')
-        if float(self.header['blur_gauss_min']) < 0:
-            raise RuntimeError('"blur_gauss_min" must be >= 0')
-
-        self.header['blur_core_extent'] = float(self.header['blur_core_extent'])
-        self.header['blur_gauss_extent'] = float(self.header['blur_gauss_extent'])
-        self.header['blur_spacing'] = float(self.header['blur_spacing'])
-        self.header['blur_gauss_min'] = float(self.header['blur_gauss_min'])
+        blur = Blur.from_header(self.header)
+        self.header['blur_core_extent'] = blur.core_extent
+        self.header['blur_gauss_extent'] = blur.gauss_extent
+        self.header['blur_spacing'] = blur.spacing
+        self.header['blur_gauss_min'] = blur.gauss_min
 
         if 'streamline_representation' not in self.header:
             self.header['streamline_representation'] = 'polyline'  # default value
@@ -274,21 +258,69 @@ cdef class Tcz:
         if self.mode == 'r':
             raise RuntimeError( 'File is not open for writing/appending' )
 
-        compressed_streamline = self.streamline_to_float16(streamline)
+        compressed_streamline = self.compress_streamline(streamline)
         if fwrite( &compressed_streamline[0,0], 2, 3*n, self.fp ) != 3*n:
             raise IOError( 'Problems writing streamline data to file' )
 
-    cpdef unsigned short int[:,:] streamline_to_float16(self, float[:,:] streamline):
+    cpdef int read_streamline(self):
+        """
+        Read next streamline from the current position in the file.
+
+        For efficiency reasons, multiple streamlines are simultaneously loaded from disk using a buffer.
+        The current streamline is stored in the fixed-size numpy array 'self.streamline' and its actual
+        length, i.e., number of points/coordinates, is stored in 'self.n_pts'.
+
+        Returns
+        -------
+        output : int
+            Number of points/coordinates read from disk.
+        """
+        cdef float * ptr = &self.streamline[0, 0]
+        cdef int    n_read
+
+        if not self.is_open:
+            raise RuntimeError('File is not open')
+        if self.mode != 'r':
+            raise RuntimeError('File is not open for reading')
+
+        self.n_pts = 0
+        while True:
+            if self.n_pts > self.max_points:
+                raise RuntimeError(f'Problem reading data, streamline seems too long (>{self.max_points} points)')
+            if self.buffer_ptr == self.buffer_end:  # reached end of buffer, need to reload
+                n_read = fread(self.buffer, 4, 3 * 1000000, self.fp)
+                self.buffer_ptr = self.buffer
+                self.buffer_end = self.buffer_ptr + n_read
+                if n_read < 3:
+                    return 0
+
+            # copy coordinate from 'buffer' to 'streamline'
+            ptr[0] = self.buffer_ptr[0]
+            ptr[1] = self.buffer_ptr[1]
+            ptr[2] = self.buffer_ptr[2]
+            self.buffer_ptr += 3
+            if np.isnan(ptr[0]) and np.isnan(ptr[1]) and np.isnan(ptr[2]):
+                break
+            if np.isinf(ptr[0]) and np.isinf(ptr[1]) and np.isinf(ptr[2]):
+                break
+            self.n_pts += 1
+            ptr += 3
+
+        return self.n_pts
+
+    cpdef unsigned short int[:,:] compress_streamline(self, float[:,:] streamline):
         """
         It casts a streamline from float32 to float16
-        
+
         Parameters
         ----------
         streamline : Nx3 numpy array
             The streamline data
         """
+
         # TODO: assumed 4 fixed point for demonstration
         cdef unsigned short int[:,:] compressed_streamline = np.empty((4, 3), dtype=np.uint16)
+
         # the streamline is n_pts points long
         for i in range(4):
             for j in range(3):
@@ -296,50 +328,26 @@ cdef class Tcz:
 
         return compressed_streamline
 
-    #cpdef int read_streamline(self):
-    #    """Read next streamline from the current position in the file.
-#
-    #    For efficiency reasons, multiple streamlines are simultaneously loaded from disk using a buffer.
-    #    The current streamline is stored in the fixed-size numpy array 'self.streamline' and its actual
-    #    length, i.e., number of points/coordinates, is stored in 'self.n_pts'.
-#
-    #    Returns
-    #    -------
-    #    output : int
-    #        Number of points/coordinates read from disk.
-    #    """
-    #    cdef float * ptr = &self.streamline[0, 0]
-    #    cdef int    n_read
-#
-    #    if not self.is_open:
-    #        raise RuntimeError('File is not open')
-    #    if self.mode != 'r':
-    #        raise RuntimeError('File is not open for reading')
-#
-    #    self.n_pts = 0
-    #    while True:
-    #        if self.n_pts > self.max_points:
-    #            raise RuntimeError(f'Problem reading data, streamline seems too long (>{self.max_points} points)')
-    #        if self.buffer_ptr == self.buffer_end:  # reached end of buffer, need to reload
-    #            n_read = fread(self.buffer, 4, 3 * 1000000, self.fp)
-    #            self.buffer_ptr = self.buffer
-    #            self.buffer_end = self.buffer_ptr + n_read
-    #            if n_read < 3:
-    #                return 0
-#
-    #        # copy coordinate from 'buffer' to 'streamline'
-    #        ptr[0] = self.buffer_ptr[0]
-    #        ptr[1] = self.buffer_ptr[1]
-    #        ptr[2] = self.buffer_ptr[2]
-    #        self.buffer_ptr += 3
-    #        if np.isnan(ptr[0]) and np.isnan(ptr[1]) and np.isnan(ptr[2]):
-    #            break
-    #        if np.isinf(ptr[0]) and np.isinf(ptr[1]) and np.isinf(ptr[2]):
-    #            break
-    #        self.n_pts += 1
-    #        ptr += 3
-#
-    #    return self.n_pts
+
+    cpdef float[:,:] decompress_streamline(self, unsigned short int[:,:] compressed_streamline):
+        """
+        It casts a streamline from float16 to float32
+
+        Parameters
+        ----------
+        compressed_streamline : Nx3 numpy array
+            The streamline data
+        """
+
+        # TODO: assumed 4 fixed point for demonstration
+        cdef float[:,:] streamline = np.empty((4, 3), dtype=np.float32)
+
+        # the streamline is n_pts points long
+        for i in range(4):
+            for j in range(3):
+                streamline[i][j] = float16_to_float32(compressed_streamline[i][j])
+
+        return streamline
 
     cpdef close(self, bint write_eof=True, int count=-1):
         """Close the file associated with the tractogram.
