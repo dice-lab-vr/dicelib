@@ -37,9 +37,9 @@ cdef class Tcz:
     cdef readonly   unsigned int                    max_points
     cdef            unsigned int                    n_pts
     cdef            FILE *                          fp
-    cdef            float *                         buffer
-    cdef            float *                         buffer_ptr
-    cdef            float *                         buffer_end
+    cdef            unsigned short int *            buffer
+    cdef            unsigned short int *            buffer_ptr
+    cdef            unsigned short int *            buffer_end
 
     def __init__(self, char *filename, char *mode, header=None, unsigned int max_points=3000):
         """Initialize the class.
@@ -65,8 +65,8 @@ cdef class Tcz:
 
         self.mode = mode
         self.streamline = None
-        self.buffer = NULL
         self.n_pts = 0
+        self.buffer = NULL
         self.buffer_ptr = NULL
         self.buffer_end = NULL
 
@@ -78,7 +78,8 @@ cdef class Tcz:
         self.header = {}
         if self.mode == 'r':
 
-            self.buffer = <float *> malloc(3 * 1000000 * sizeof(float))
+            self.buffer = <unsigned short int *> malloc(3 * 1000000 * sizeof(unsigned short int))
+
             if max_points <= 0:
                 raise ValueError('"max_points" should be positive')
             self.max_points = max_points
@@ -284,26 +285,22 @@ cdef class Tcz:
             raise RuntimeError('File is not open for reading')
 
         self.n_pts = 0
-        while True:
+        for i in range(4):
             if self.n_pts > self.max_points:
                 raise RuntimeError(f'Problem reading data, streamline seems too long (>{self.max_points} points)')
             if self.buffer_ptr == self.buffer_end:  # reached end of buffer, need to reload
-                n_read = fread(self.buffer, 4, 3 * 1000000, self.fp)
+                n_read = fread(self.buffer, 2, 3 * 1000000, self.fp)
                 self.buffer_ptr = self.buffer
                 self.buffer_end = self.buffer_ptr + n_read
-                if n_read < 3:
-                    return 0
 
             # copy coordinate from 'buffer' to 'streamline'
-            ptr[0] = self.buffer_ptr[0]
-            ptr[1] = self.buffer_ptr[1]
-            ptr[2] = self.buffer_ptr[2]
+            ptr[0] = float16_to_float32(self.buffer_ptr[0])
+            ptr[1] = float16_to_float32(self.buffer_ptr[1])
+            ptr[2] = float16_to_float32(self.buffer_ptr[2])
+
             self.buffer_ptr += 3
-            if np.isnan(ptr[0]) and np.isnan(ptr[1]) and np.isnan(ptr[2]):
-                break
-            if np.isinf(ptr[0]) and np.isinf(ptr[1]) and np.isinf(ptr[2]):
-                break
             self.n_pts += 1
+
             ptr += 3
 
         return self.n_pts
