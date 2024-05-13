@@ -66,9 +66,9 @@ def test_write_streamline_successfully():
 def test_read_streamline_successfully():
     tcz = Tcz('tests/dicelib/mock/demo_fibers_read_streamline.tcz', 'r')
     assert tcz.read_streamline() == 4
-    #for x in range(4):
-    #    for y in range(3):
-    #        assert tcz.streamline[x][y] == 132.375
+    for x in range(4):
+        for y in range(3):
+            assert tcz.streamline[x][y] == 132.375
 
 
 @pytest.mark.parametrize('input_number,expected_result', [

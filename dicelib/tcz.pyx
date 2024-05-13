@@ -259,7 +259,7 @@ cdef class Tcz:
         if self.mode == 'r':
             raise RuntimeError( 'File is not open for writing/appending' )
 
-        self.n_pts = 4
+        self.n_pts = 4 # TODO: remove it
         fwrite( <void *> &self.n_pts, sizeof(unsigned int), 1, self.fp)
 
         compressed_streamline = self.compress_streamline(streamline)
@@ -287,28 +287,26 @@ cdef class Tcz:
         if self.mode != 'r':
             raise RuntimeError('File is not open for reading')
 
-        cdef unsigned int n_points;
-        fread( <void*> &n_points, sizeof(unsigned int), 1, self.fp)
-        self.n_pts = n_points
+        fread( <void*> &self.n_pts, sizeof(unsigned int), 1, self.fp)
 
-        #for i in range(4):
-        #   if self.n_pts > self.max_points:
-        #       raise RuntimeError(f'Problem reading data, streamline seems too long (>{self.max_points} points)')
-        #   if self.buffer_ptr == self.buffer_end:  # reached end of buffer, need to reload
-        #       n_read = fread(self.buffer, 2, 3 * 1000000, self.fp)
-        #       self.buffer_ptr = self.buffer
-        #       self.buffer_end = self.buffer_ptr + n_read
-#
-        #    # copy coordinate from 'buffer' to 'streamline'
-        #    ptr[0] = float16_to_float32(self.buffer_ptr[0])
-        #    ptr[1] = float16_to_float32(self.buffer_ptr[1])
-        #    ptr[2] = float16_to_float32(self.buffer_ptr[2])
-#
-        #    self.buffer_ptr += 3
-        #    self.n_pts += 1
-#
-        #    ptr += 3
-#
+        for i in range(self.n_pts):
+           if self.n_pts > self.max_points:
+               raise RuntimeError(f'Problem reading data, streamline seems too long (>{self.max_points} points)')
+
+           if self.buffer_ptr == self.buffer_end:  # reached end of buffer, need to reload
+               n_read = fread(self.buffer, sizeof(unsigned short int), 3 * self.n_pts, self.fp)
+               self.buffer_ptr = self.buffer
+               self.buffer_end = self.buffer_ptr + n_read
+
+           # copy coordinate from 'buffer' to 'streamline'
+           ptr[0] = float16_to_float32(self.buffer_ptr[0])
+           ptr[1] = float16_to_float32(self.buffer_ptr[1])
+           ptr[2] = float16_to_float32(self.buffer_ptr[2])
+
+           self.buffer_ptr += 3
+
+           ptr += 3
+
         return self.n_pts
 
     cpdef unsigned short int[:,:] compress_streamline(self, float[:,:] streamline):
