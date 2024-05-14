@@ -259,7 +259,6 @@ cdef class Tcz:
         if self.mode == 'r':
             raise RuntimeError( 'File is not open for writing/appending' )
 
-        self.n_pts = 4 # TODO: remove it
         fwrite( <void *> &self.n_pts, sizeof(unsigned int), 1, self.fp)
 
         compressed_streamline = self.compress_streamline(streamline)
