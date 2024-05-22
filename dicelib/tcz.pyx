@@ -35,7 +35,7 @@ cdef class Tcz:
     cdef readonly   bint                            is_open
     cdef readonly   float[:,::1]                    streamline
     cdef readonly   unsigned int                    max_points
-    cdef            unsigned int                    n_pts
+    cdef public     unsigned int                    n_pts
     cdef            FILE *                          fp
     cdef            unsigned short int *            buffer
     cdef            unsigned short int *            buffer_ptr
@@ -318,11 +318,10 @@ cdef class Tcz:
             The streamline data
         """
 
-        # TODO: assumed 4 fixed point for demonstration
-        cdef unsigned short int[:,:] compressed_streamline = np.empty((4, 3), dtype=np.uint16)
+        cdef unsigned short int[:,:] compressed_streamline = np.empty((self.n_pts, 3), dtype=np.uint16)
 
         # the streamline is n_pts points long
-        for i in range(4):
+        for i in range(self.n_pts):
             for j in range(3):
                 compressed_streamline[i][j] = float32_to_float16(streamline[i][j])
 
@@ -339,11 +338,9 @@ cdef class Tcz:
             The streamline data
         """
 
-        # TODO: assumed 4 fixed point for demonstration
-        cdef float[:,:] streamline = np.empty((4, 3), dtype=np.float32)
+        cdef float[:,:] streamline = np.empty((self.n_pts, 3), dtype=np.float32)
 
-        # the streamline is n_pts points long
-        for i in range(4):
+        for i in range(self.n_pts):
             for j in range(3):
                 streamline[i][j] = float16_to_float32(compressed_streamline[i][j])
 

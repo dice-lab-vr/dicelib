@@ -48,20 +48,21 @@ def test_create_in_read_mode_no_streamline_representation_in_file_will_fall_back
 
 
 # TODO: set up n_pts here, at the moment it doesn't work
-#def test_write_streamline_successfully():
-#    header_test = {
-#        'blur_core_extent': '1.1',
-#        'blur_gauss_extent': '2.2',
-#        'blur_spacing': '3.3',
-#        'blur_gauss_min': '4.4',
-#        'streamline_representation': 'polyline',
-#        'datatype': 'Float32LE',
-#        'count': '999',
-#        'timestamp': '2040-01-01T00:00:00.000Z',
-#    }
-#    tcz = Tcz('tests/dicelib/mock/demo_fibers_write_streamline.tcz', 'w', header_test)
-#    fake_streamline = np.full((4, 3), fill_value=132.364, dtype=np.float32)
-#    tcz.write_streamline(fake_streamline)
+def test_write_streamline_successfully():
+    header_test = {
+        'blur_core_extent': '1.1',
+        'blur_gauss_extent': '2.2',
+        'blur_spacing': '3.3',
+        'blur_gauss_min': '4.4',
+        'streamline_representation': 'polyline',
+        'datatype': 'Float32LE',
+        'count': '999',
+        'timestamp': '2040-01-01T00:00:00.000Z',
+    }
+    tcz = Tcz('tests/dicelib/mock/demo_fibers_write_streamline.tcz', 'w', header_test)
+    tcz.n_pts = 4
+    fake_streamline = np.full((4, 3), fill_value=132.364, dtype=np.float32)
+    tcz.write_streamline(fake_streamline)
 
 
 def test_read_streamline_successfully():
@@ -96,7 +97,7 @@ def test_streamline_to_float16(input_number, expected_result):
         'timestamp': '2040-01-01T00:00:00.000Z',
     }
     tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
-
+    tcz.n_pts = 4
     fake_streamline = np.full((4, 3), fill_value=input_number, dtype=np.float32)
 
     streamline_converted = tcz.compress_streamline(fake_streamline)
@@ -129,8 +130,8 @@ def test_streamline_to_float32(input_number, expected_result):
         'timestamp': '2040-01-01T00:00:00.000Z',
     }
     tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
-
-    fake_streamline = np.full((4, 3), fill_value=input_number, dtype=np.uint16)
+    tcz.n_pts = 4
+    fake_streamline = np.full((tcz.n_pts, 3), fill_value=input_number, dtype=np.uint16)
 
     streamline_converted = tcz.decompress_streamline(fake_streamline)
     for x in range(4):
