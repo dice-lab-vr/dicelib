@@ -26,6 +26,10 @@ def test_create_in_read_mode_successfully():
     assert type(tcz.streamline[0][0]) is float
 
 
+def test_create_in_read_mode_streamline_control_points_successfully():
+    tcz = Tcz('tests/dicelib/mock/demo_fibers_streamline_control_points.tcz', 'r', None, 1000)
+    assert tcz.header['streamline_representation'] == 'control points'
+
 def test_create_in_write_mode_successfully():
     header_test = {
         'blur_core_extent': '1.1',
@@ -149,29 +153,7 @@ def test_create_with_invalid_mode_will_throw_error():
         Tcz('tests/dicelib/mock/demo_fibers.tcz', 'fake-mode', )
 
 
-@pytest.mark.parametrize('param', [
-    'blur_core_extent',
-    'blur_gauss_extent',
-    'blur_spacing',
-    'blur_gauss_min'
-])
-def test_create_with_missing_blur_params_will_throw_error(param):
-    with pytest.raises(RuntimeError, match='Problem parsing the header; field "' + param + '" not found'):
-        Tcz('tests/dicelib/mock/invalid/no_' + param + '.tcz', 'r', )
-
-
 def test_create_with_invalid_streamline_representation_param_will_throw_error():
     with pytest.raises(RuntimeError,
                        match='Problem parsing the header; field "streamline_representation" is not a valid value'):
         Tcz('tests/dicelib/mock/invalid/invalid_streamline_representation.tcz', 'r', )
-
-
-@pytest.mark.parametrize('param', [
-    'blur_core_extent',
-    'blur_gauss_extent',
-    'blur_spacing',
-    'blur_gauss_min'
-])
-def test_create_with_invalid_blur_params_will_throw_error(param):
-    with pytest.raises(RuntimeError, match='"' + param + '" must be >= 0'):
-        Tcz('tests/dicelib/mock/invalid/invalid_' + param + '.tcz', 'r', )

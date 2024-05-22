@@ -152,8 +152,8 @@ cdef class Tcz:
         if 'streamline_representation' not in self.header:
             self.header['streamline_representation'] = 'polyline'  # default value
             self.header['datatype'] = 'Float16'
-            # TODO: Add 'control points' value in the near future
-        if self.header['streamline_representation'] not in ['polyline']:
+
+        if self.header['streamline_representation'] not in ['polyline', 'control points']:
             raise RuntimeError('Problem parsing the header; field "streamline_representation" is not a valid value')
 
         # check if the 'count' field is present TODO: fix this, allow working even without it
