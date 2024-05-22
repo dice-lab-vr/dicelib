@@ -259,7 +259,7 @@ cdef class Tcz:
         if self.mode == 'r':
             raise RuntimeError( 'File is not open for writing/appending' )
 
-        fwrite( <void *> &self.n_pts, sizeof(unsigned int), 1, self.fp)
+        fwrite( <void *> &self.n_pts, sizeof(unsigned short int), 1, self.fp)
 
         compressed_streamline = self.compress_streamline(streamline)
         if fwrite( &compressed_streamline[0,0], sizeof(unsigned short int), 3*n, self.fp ) != 3*n:
@@ -286,7 +286,7 @@ cdef class Tcz:
         if self.mode != 'r':
             raise RuntimeError('File is not open for reading')
 
-        fread( <void*> &self.n_pts, sizeof(unsigned int), 1, self.fp)
+        fread( <void*> &self.n_pts, sizeof(unsigned short int), 1, self.fp)
 
         for i in range(self.n_pts):
            if self.n_pts > self.max_points:
