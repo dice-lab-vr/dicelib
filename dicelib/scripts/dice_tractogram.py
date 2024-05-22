@@ -1,6 +1,6 @@
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, get_indices_of_streamlines, resample, sample, tsf_create, sanitize, spline_smoothing_v2, split, sort as tract_sort, tsf_join
+from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, get_indices_of_streamlines, resample, sample, tsf_create, sanitize, shuffle, spline_smoothing_v2, split, sort as tract_sort, tsf_join
 from dicelib.ui import setup_logger, setup_parser
 
 import os
@@ -422,6 +422,38 @@ def tractogram_sanitize():
     )
 
 
+def tractogram_shuffle():
+    '''
+    Entry point for the tractogram shuffling function.
+    '''
+    # parse the input parameters
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
+        [['--n_tmp_groups', '-g'], {'type': int, 'default': 100, 'help': 'Number of temporary groups used to shuffle the streamlines'}],
+        [['--seed', '-s'], {'type': int, 'default': None, 'help': 'Seed used for the random shuffling'}],
+        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
+        [['--weights_out', '-o'], {'type': str, 'default': None, 'help': 'Output streamline weights (.txt or .npy)'}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_shuffle', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
+        [['--keep_tmp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}]
+    ]
+    options = setup_parser(shuffle.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    # call actual function
+    shuffle(
+        options.tractogram_in,
+        options.tractogram_out,
+        options.n_tmp_groups,
+        options.seed,
+        options.weights_in,
+        options.weights_out,
+        options.tmp_folder,
+        options.keep_tmp,
+        options.verbose,
+        options.force
+    )
+
+
 def tractogram_smooth():
     '''
     Entry point for the tractogram smoothing function.
@@ -477,7 +509,7 @@ def tractogram_sort():
                                   Argument is the maximum radius in mm'''}],
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights (.txt or .npy)'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights (.txt or .npy)'}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_sort', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
         [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}],
         [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
                                  Number of threads to use.

@@ -1735,7 +1735,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
             weights_out_ext = os.path.splitext(weights_out)[1]
             files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
         else:
-            weights_out = os.path.splitext(weights_in)[0]+f'_sorted.{weights_in_ext}'
+            weights_out = os.path.splitext(weights_in)[0]+f'_sorted{weights_in_ext}'
             weights_out_ext = weights_in_ext
             files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
     
@@ -1799,6 +1799,142 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
     if not keep_tmp_folder:
         shutil.rmtree(f'{tmp_folder}/bundles')
         os.remove(f'{tmp_folder}/fibers_assignment.txt')
+        # remove tmp_folder if different from current
+        if tmp_dir_is_created:
+            shutil.rmtree(tmp_folder)
+
+    t1 = time()
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
+
+
+def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: int=100, seed: int=None, weights_in: str=None, weights_out: str=None, tmp_folder: str=None, keep_tmp_folder: bool=False, verbose: int=3, force: bool=False ):
+    """Shuffle the streamlines in a tractogram.
+
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to shuffle.
+
+    output_tractogram : string
+        Path to the file where to store the shuffled tractogram. If not specified (default), the new file will be created by appending '_shuffled' to the input filename.
+
+    n_tmp_groups : int
+        Number of temporary groups to split the streamlines. Each group will contain approximately the same number of streamlines, chosen randomly. The final shuffled tractogram will be created by concatenating the shuffled groups. This parameter must be greater than 1 (default : 100).
+
+    seed : int
+        Seed for the random shuffling (default : None).
+
+    weights_in : string
+        Text file with the input streamline weights (one row/streamline).
+
+    weights_out : str
+        Scalar file (.txt or .npy) for the output streamline weights, shuffled in the same order of the streamlines.
+
+    tmp_folder : str
+        Path to the temporary folder used to store the intermediate files.
+
+    keep_tmp_folder : boolean
+        Keep the temporary folder (default : False).
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+
+    force : boolean
+        Force overwriting of the output (default : False).
+    """
+    set_verbose('tractogram', verbose)
+
+    # check input files
+    files = [
+        File(name='input_tractogram', type_='input', path=input_tractogram),
+    ]
+    if output_tractogram is None:
+        output_tractogram = os.path.splitext(input_tractogram)[0]+'_shuffled.tck'
+    files.append(File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'))
+
+    nums = [
+        Num(name='n_tmp_groups', value=n_tmp_groups, min_=2)
+    ]
+    if seed is not None:
+        nums.append(Num(name='seed', value=seed, min_=0))
+
+    if weights_in is not None:
+        files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
+        weights_in_ext = os.path.splitext(weights_in)[1]
+        if weights_out is not None:
+            weights_out_ext = os.path.splitext(weights_out)[1]
+            files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+        else:
+            weights_out = os.path.splitext(weights_in)[0]+f'_shuffled{weights_in_ext}'
+            weights_out_ext = weights_in_ext
+            files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+
+    tmp_folder = tmp_folder if tmp_folder is not None else os.path.join(os.getcwd(), 'tmp_shuffle')
+    dirs = [Dir(name='tmp_folder', path=tmp_folder)]
+    check_params(files=files, dirs=dirs, nums=nums, force=force)
+
+    tmp_dir_is_created = False
+    if not os.path.exists(tmp_folder):
+        os.makedirs(tmp_folder)
+        tmp_dir_is_created = True
+
+    logger.info('Shuffling tractogram')
+    t0 = time()
+
+    # create "fake" assignments to split the tractogram
+    TCK_in = LazyTractogram( input_tractogram, mode='r' )
+    n_streamlines = int( TCK_in.header['count'] )
+    TCK_in.close()
+    if n_streamlines < n_tmp_groups:
+        logger.error(f'Number of temporary groups ({n_tmp_groups}) must be less than the number of streamlines ({n_streamlines})')
+    logger.subinfo(f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'Number of temporary groups: {n_tmp_groups}', indent_char='*', indent_lvl=1)
+    logger.debug(f'Temporary folder: {tmp_folder}')
+    if seed is not None:
+        np.random.seed(seed)
+    a = np.repeat(np.arange(1, n_tmp_groups+1), 2, axis=0)
+    a = np.reshape(a, (n_tmp_groups, 2))
+    n_streamlines_per_group = int( n_streamlines / n_tmp_groups )
+    assignments = np.repeat(a, n_streamlines_per_group, axis=0)
+    if assignments.shape[0] < n_streamlines:
+        assignments = np.append(assignments, np.full((n_streamlines-assignments.shape[0],2), n_tmp_groups, dtype=np.int32), axis=0)
+    np.random.shuffle(assignments)
+    np.savetxt( f'{tmp_folder}/fake_assignment.txt', assignments, fmt='%d' )
+
+    # split the tractogram
+    log_list_split = []
+    ret_subinfo_split = logger.subinfo('Splitting tractogram', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_split, log_list=log_list_split):
+        if weights_in is not None:
+            split(input_tractogram, f'{tmp_folder}/fake_assignment.txt', f'{tmp_folder}/bundles', weights_in=weights_in, verbose=1, force=force, log_list=log_list_split)
+        else:
+            split(input_tractogram, f'{tmp_folder}/fake_assignment.txt', f'{tmp_folder}/bundles', verbose=1, force=force, log_list=log_list_split)
+    set_verbose('tractogram', verbose)
+
+    # join the bundles
+    log_list_join = []
+    ret_subinfo_join = logger.subinfo('Joining bundles', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+    with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_join, log_list=log_list_join):
+        list_all = []
+        list_all_weights = []
+        for i in range(1, n_tmp_groups+1):
+            path_bundle = f'{tmp_folder}/bundles/bundle_{i}-{i}.tck'
+            if os.path.isfile(path_bundle):
+                list_all.append(path_bundle)
+                if weights_in is not None:
+                    path_weights = f'{tmp_folder}/bundles/bundle_{i}-{i}{weights_in_ext}'
+                    list_all_weights.append(path_weights)
+        if weights_in is not None:
+            join(list_all, output_tractogram, weights_list=list_all_weights, weights_out=weights_out, verbose=1, log_list=log_list_join)
+        else:
+            join(list_all, output_tractogram, verbose=1, log_list=log_list_join)
+    set_verbose('tractogram', verbose)
+    logger.subinfo(f'Output tractogram: \'{output_tractogram}\'', indent_char='*', indent_lvl=1)
+
+    # remove temporary folder/files
+    if not keep_tmp_folder:
+        shutil.rmtree(f'{tmp_folder}/bundles')
+        os.remove(f'{tmp_folder}/fake_assignment.txt')
         # remove tmp_folder if different from current
         if tmp_dir_is_created:
             shutil.rmtree(tmp_folder)
