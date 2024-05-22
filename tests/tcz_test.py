@@ -36,6 +36,7 @@ def test_create_in_read_mode_streamline_control_points_successfully():
     tcz = Tcz('tests/dicelib/mock/demo_fibers_streamline_control_points.tcz', 'r', None, 1000)
     assert tcz.header['streamline_representation'] == 'control points'
 
+
 def test_create_in_write_mode_successfully():
     header_test = {
         'blur_core_extent': '1.1',
@@ -70,7 +71,7 @@ def test_write_streamline_successfully():
     }
     tcz = Tcz('tests/dicelib/mock/demo_fibers_write_streamline.tcz', 'w', header_test)
     tcz.n_pts = 4
-    fake_streamline = np.full((4, 3), fill_value=132.364, dtype=np.float32)
+    fake_streamline = np.full((tcz.n_pts, 3), fill_value=132.364, dtype=np.float32)
     tcz.write_streamline(fake_streamline)
 
 
@@ -80,6 +81,20 @@ def test_read_streamline_successfully():
     for x in range(4):
         for y in range(3):
             assert tcz.streamline[x][y] == 132.375
+
+# TODO: left as an example of casting a TCK file to a TCZ file
+# we can also declare a np.random.rand(N,3).asfloat32() random array
+#
+#def test_smooth_streamline_with_two_reduced_successfully():
+#    tck_in = LazyTractogram('tests/dicelib/mock/tck_in.tck', 'r')
+#    points = tck_in.read_streamline()
+#    assert points == 100
+#
+#    TCZ_out = Tcz('tests/dicelib/mock/demo_fibers_to_smooth.tcz', mode='w', header=tck_in.header)
+#    TCZ_out.n_pts = 100
+#
+#    TCZ_out.write_streamline(tck_in.streamline, TCZ_out.n_pts)
+#    TCZ_out.close(write_eof=True, count=1)
 
 
 @pytest.mark.parametrize('input_number,expected_result', [

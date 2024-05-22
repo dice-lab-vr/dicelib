@@ -3,9 +3,14 @@
 
 import os, time
 import numpy as np
-import logging as log
 
 from dicelib.blur import Blur
+from dicelib.streamline import rdp_reduction
+
+from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_END, SEEK_SET
+from libc.stdlib cimport malloc
+from libc.string cimport strchr, strlen, strncmp
+from libcpp.string cimport string
 
 cdef extern from "float16_float32_encode_decode.hpp":
     float float16_to_float32(const unsigned short value)
@@ -13,10 +18,12 @@ cdef extern from "float16_float32_encode_decode.hpp":
 cdef extern from "float16_float32_encode_decode.hpp":
     unsigned short float32_to_float16(const float value)
 
-from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_END, SEEK_SET
-from libc.stdlib cimport malloc
-from libc.string cimport strchr, strlen, strncmp
-from libcpp.string cimport string
+cdef float[:, :] matrix = np.array([
+    [2, -2, 1, 1],
+    [-3, 3, -2, -1],
+    [0, 0, 1, 0],
+    [1, 0, 0, 0]
+]).astype(np.float32)
 
 cdef class Tcz:
     """Class to read/write tcz files for visualization.
@@ -303,6 +310,12 @@ cdef class Tcz:
            ptr += 3
 
         return self.n_pts
+
+    cpdef smooth_streamline(self):
+        epsilon = 0.3
+        reduced_streamline_data, reduced_streamline_data_points = rdp_reduction(self.streamline, self.n_pts, epsilon)
+        return reduced_streamline_data, reduced_streamline_data_points
+
 
     cpdef unsigned short int[:,:] compress_streamline(self, float[:,:] streamline):
         """
