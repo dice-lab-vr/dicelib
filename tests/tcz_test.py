@@ -130,39 +130,6 @@ def test_streamline_to_float16(input_number, expected_result):
             assert streamline_converted[x][y] == expected_result
 
 
-@pytest.mark.parametrize('input_number,expected_result', [
-    (19371, 15.3359375),
-    (20907, 45.34375),
-    (22005, 95.3125),
-    (22707, 150.375),
-    (24529, 500.25),
-    (52139, -15.3359375),
-    (53675, -45.34375),
-    (54773, -95.3125),
-    (55475, -150.375),
-    (57297, -500.25),
-])
-def test_streamline_to_float32(input_number, expected_result):
-    header_test = {
-        'blur_core_extent': '1.1',
-        'blur_gauss_extent': '2.2',
-        'blur_spacing': '3.3',
-        'blur_gauss_min': '4.4',
-        'streamline_representation': 'polyline',
-        'datatype': 'Float32LE',
-        'count': '999',
-        'timestamp': '2040-01-01T00:00:00.000Z',
-    }
-    tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
-    tcz.n_pts = 4
-    fake_streamline = np.full((tcz.n_pts, 3), fill_value=input_number, dtype=np.uint16)
-
-    streamline_converted = tcz.decompress_streamline(fake_streamline)
-    for x in range(4):
-        for y in range(3):
-            assert streamline_converted[x][y] == expected_result
-
-
 def test_create_with_invalid_format_will_throw_error():
     with pytest.raises(ValueError, match='Only ".tcz" files are supported for now.'):
         Tcz('demo01_fibers.xyz', 'r', )

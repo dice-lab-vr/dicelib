@@ -336,25 +336,6 @@ cdef class Tcz:
 
         return compressed_streamline
 
-
-    cpdef float[:,:] decompress_streamline(self, unsigned short int[:,:] compressed_streamline):
-        """
-        It casts a streamline from float16 to float32
-
-        Parameters
-        ----------
-        compressed_streamline : Nx3 numpy array
-            The streamline data
-        """
-
-        cdef float[:,:] streamline = np.empty((self.n_pts, 3), dtype=np.float32)
-
-        for i in range(self.n_pts):
-            for j in range(3):
-                streamline[i][j] = float16_to_float32(compressed_streamline[i][j])
-
-        return streamline
-
     cpdef close(self, bint write_eof=True, int count=-1):
         """Close the file associated with the tractogram.
 
