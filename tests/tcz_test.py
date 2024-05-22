@@ -21,9 +21,15 @@ def test_create_in_read_mode_successfully():
     assert tcz.header['blur_gauss_min'] == 34.0
     assert tcz.header['streamline_representation'] == 'polyline'
     assert tcz.header['datatype'] == 'Float32LE'
+    assert tcz.header['segment_len'] == 0.8
     assert tcz.max_points == 1000
     assert len(tcz.streamline) == 1000
     assert type(tcz.streamline[0][0]) is float
+
+
+def test_create_in_read_mode_no_segment_len_will_setup_segment_len_automatically():
+    tcz = Tcz('tests/dicelib/mock/demo_fibers_no_segment_len.tcz', 'r', None, 1000)
+    assert tcz.header['segment_len'] == 0.5
 
 
 def test_create_in_read_mode_streamline_control_points_successfully():
@@ -51,7 +57,6 @@ def test_create_in_read_mode_no_streamline_representation_in_file_will_fall_back
     assert tcz.header['datatype'] == 'Float16'
 
 
-# TODO: set up n_pts here, at the moment it doesn't work
 def test_write_streamline_successfully():
     header_test = {
         'blur_core_extent': '1.1',

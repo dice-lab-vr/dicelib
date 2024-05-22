@@ -149,6 +149,11 @@ cdef class Tcz:
         self.header['blur_spacing'] = blur.spacing
         self.header['blur_gauss_min'] = blur.gauss_min
 
+        if 'segment_len' not in self.header:
+            self.header['segment_len'] = 0.5
+        else:
+            self.header['segment_len'] = float(self.header['segment_len'])
+
         if 'streamline_representation' not in self.header:
             self.header['streamline_representation'] = 'polyline'  # default value
             self.header['datatype'] = 'Float16'
@@ -161,15 +166,6 @@ cdef class Tcz:
             raise RuntimeError('Problem parsing the header; field "count" not found')
         if type(self.header['count']) == list:
             raise RuntimeError('Problem parsing the header; field "count" has multiple values')
-
-        # TODO: is needed?
-        # check if datatype is 'Float32LE'
-        # if 'datatype' not in self.header:
-        #     raise RuntimeError( 'Problem parsing the header; field "datatype" not found' )
-        # if type(self.header['datatype'])==list:
-        #     raise RuntimeError( 'Problem parsing the header; field "datatype" has multiple values' )
-        # if self.header['datatype']!='Float32LE':
-        #     raise RuntimeError( 'Unable to process file, as datatype "Float32LE" is not yet handled' )
 
         # move file pointer to beginning of binary data
         if 'file' not in self.header:

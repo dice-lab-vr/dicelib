@@ -4,8 +4,9 @@ blur_gauss_extent: 34.4
 blur_spacing: 23.1
 blur_gauss_min: 34.0
 streamline_representation: control points
+segment_len: 0.8
 count: 0000283522
 datatype: Float32LE
-file: . 67
+file: . 84
 END
 /* BINARY STUFF HERE: should be n_points + (triplet_1, triplet_2,...,triplet_n) */
