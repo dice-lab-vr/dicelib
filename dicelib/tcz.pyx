@@ -238,7 +238,7 @@ cdef class Tcz:
         # move file pointer to beginning of binary data
         fseek(self.fp, offset, SEEK_SET)
 
-    cpdef write_streamline( self, float[:,:] streamline, int n=-1 ):
+    cpdef write_streamline( self, float[:,:] streamline, unsigned short int n=65000 ):
         """Write a streamline at the current position in the file.
 
         Parameters
@@ -252,7 +252,7 @@ cdef class Tcz:
 
         if  streamline.ndim != 2 or streamline.shape[1] != 3:
             raise RuntimeError( '"streamline" must be a Nx3 array' )
-        if n < 0:
+        if n == 65000:
             n = streamline.shape[0]
         if n == 0:
             return
@@ -261,6 +261,10 @@ cdef class Tcz:
             raise RuntimeError( 'File is not open' )
         if self.mode == 'r':
             raise RuntimeError( 'File is not open for writing/appending' )
+
+        if self.header['streamline_representation'] == 'control points':
+            epsilon = 0.3 # TODO: pick from header
+            streamline, n = rdp_reduction(streamline, n, epsilon)
 
         fwrite( <void *> &n, sizeof(unsigned short int), 1, self.fp)
 
@@ -310,12 +314,6 @@ cdef class Tcz:
            ptr += 3
 
         return self.n_pts
-
-    cpdef smooth_streamline(self):
-        epsilon = 0.3
-        reduced_streamline_data, reduced_streamline_data_points = rdp_reduction(self.streamline, self.n_pts, epsilon)
-        return reduced_streamline_data, reduced_streamline_data_points
-
 
     cpdef unsigned short int[:,:] compress_streamline(self, float[:,:] streamline):
         """
