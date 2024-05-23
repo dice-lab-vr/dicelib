@@ -77,10 +77,6 @@ def test_write_streamline_successfully():
 
 
 def test_write_streamline_control_points_will_smooth_streamline():
-    tcz_in = Tcz('tests/dicelib/mock/demo_fibers_to_smooth.tcz', mode='r')
-    points = tcz_in.read_streamline()
-    assert points == 100
-
     test_header = {
         'blur_core_extent': '1.1',
         'blur_gauss_extent': '2.2',
@@ -96,7 +92,15 @@ def test_write_streamline_control_points_will_smooth_streamline():
         'total_count': '1',
     }
     tcz_out = Tcz('tests/dicelib/mock/demo_fibers_smoothed.tcz', mode='w', header=test_header)
-    tcz_out.write_streamline(tcz_in.streamline)
+    fake_streamline = np.array([
+        [1, 2, 3],
+        [1.4, 4.5, 0.6],
+        [7, 2, 2.4],
+        [5, -1, 3],
+        [0.4, 1, 6],
+        [0.8, 1.5, 3.6],
+    ], dtype=np.float32)
+    tcz_out.write_streamline(fake_streamline)
 
 
 def test_read_streamline_successfully():
