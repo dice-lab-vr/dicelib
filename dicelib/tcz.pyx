@@ -5,7 +5,7 @@ import os, time
 import numpy as np
 
 from dicelib.blur import Blur
-from dicelib.streamline import rdp_reduction
+from dicelib.streamline import rdp_reduction, CatmullRom_smooth, length, resample
 
 from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc
@@ -272,7 +272,7 @@ cdef class Tcz:
         fwrite( <void *> &n, sizeof(unsigned short int), 1, self.fp)
 
         compressed_streamline = self.compress_streamline(streamline)
-        if fwrite( &compressed_streamline[0,0], sizeof(unsigned short int), 3*n, self.fp ) != 3*n:
+        if fwrite( &compressed_streamline[0,0], sizeof(unsigned short int), 3 * n, self.fp ) != 3 * n:
             raise IOError( 'Problems writing streamline data to file' )
 
     cpdef unsigned int read_streamline(self):
@@ -288,8 +288,10 @@ cdef class Tcz:
         output : int
             Number of points/coordinates read from disk.
         """
+        cdef float fib_len
         cdef float * ptr = &self.streamline[0, 0]
         cdef int    n_read
+        cdef int n_pts_out
 
         if not self.is_open:
             raise RuntimeError('File is not open')

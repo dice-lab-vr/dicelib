@@ -65,6 +65,8 @@ def test_write_streamline_successfully():
         'blur_gauss_extent': '2.2',
         'blur_spacing': '3.3',
         'blur_gauss_min': '4.4',
+        'epsilon': '0.4',
+        'segment_len': '0.5',
         'streamline_representation': 'polyline',
         'datatype': 'Float32LE',
         'count': '999',
@@ -77,30 +79,41 @@ def test_write_streamline_successfully():
 
 
 def test_write_streamline_control_points_will_smooth_streamline():
-    test_header = {
+    header_test = {
         'blur_core_extent': '1.1',
         'blur_gauss_extent': '2.2',
-        'blur_gauss_min': '4.4',
         'blur_spacing': '3.3',
-        'count': '0000000001',
-        'epsilon': '0.4',
-        'datatype': 'Float16',
-        'file': '. 198',
+        'blur_gauss_min': '4.4',
+        'epsilon': '10.0',
         'segment_len': '0.5',
         'streamline_representation': 'control points',
-        'timestamp': '1709197421.340218544',
-        'total_count': '1',
+        'datatype': 'Float32LE',
+        'count': '999',
+        'timestamp': '2040-01-01T00:00:00.000Z',
+        'total_count': '1'
     }
-    tcz_out = Tcz('tests/dicelib/mock/demo_fibers_smoothed.tcz', mode='w', header=test_header)
+    tcz_out = Tcz('tests/dicelib/mock/demo_fibers_smoothed.tcz', mode='w', header=header_test)
+    tcz_out.n_pts = 6
     fake_streamline = np.array([
-        [1, 2, 3],
-        [1.4, 4.5, 0.6],
-        [7, 2, 2.4],
-        [5, -1, 3],
-        [0.4, 1, 6],
-        [0.8, 1.5, 3.6],
+        [2.1, 3.2, 1.3],
+        [1.1, 2.2, 3.3],
+        [1.0, 0.5, 5.4],
+        [1.9, 8.1, 1.1],
+        [0.8, 0.2, 0.1],
+        [6.8, 4.2, 5.1],
     ], dtype=np.float32)
-    tcz_out.write_streamline(fake_streamline)
+    tcz_out.write_streamline(fake_streamline,6)
+
+
+def test_read_smooth():
+    tcz_out = Tcz('tests/dicelib/mock/demo_fibers_smoothed.tcz', mode='r')
+    assert tcz_out.read_streamline() == 2
+    assert tcz_out.streamline[0][0] == pytest.approx(2.1, abs=0.01)
+    assert tcz_out.streamline[0][1] == pytest.approx(3.2, abs=0.01)
+    assert tcz_out.streamline[0][2] == pytest.approx(1.3, abs=0.01)
+    assert tcz_out.streamline[1][0] == pytest.approx(6.8, abs=0.01)
+    assert tcz_out.streamline[1][1] == pytest.approx(4.2, abs=0.01)
+    assert tcz_out.streamline[1][2] == pytest.approx(5.1, abs=0.01)
 
 
 def test_read_streamline_successfully():
@@ -128,6 +141,7 @@ def test_streamline_to_float16(input_number, expected_result):
         'blur_core_extent': '1.1',
         'blur_gauss_extent': '2.2',
         'blur_spacing': '3.3',
+        'epsilon': '0.4',
         'blur_gauss_min': '4.4',
         'streamline_representation': 'polyline',
         'datatype': 'Float32LE',
