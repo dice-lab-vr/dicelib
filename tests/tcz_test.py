@@ -22,6 +22,7 @@ def test_create_in_read_mode_successfully():
     assert tcz.header['streamline_representation'] == 'polyline'
     assert tcz.header['datatype'] == 'Float32LE'
     assert tcz.header['segment_len'] == 0.8
+    assert tcz.header['epsilon'] == 0.4
     assert tcz.max_points == 1000
     assert len(tcz.streamline) == 1000
     assert type(tcz.streamline[0][0]) is float
@@ -86,6 +87,7 @@ def test_write_streamline_control_points_will_smooth_streamline():
         'blur_gauss_min': '4.4',
         'blur_spacing': '3.3',
         'count': '0000000001',
+        'epsilon': '0.4',
         'datatype': 'Float16',
         'file': '. 198',
         'segment_len': '0.5',

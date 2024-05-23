@@ -156,6 +156,10 @@ cdef class Tcz:
         self.header['blur_spacing'] = blur.spacing
         self.header['blur_gauss_min'] = blur.gauss_min
 
+        if 'epsilon' not in self.header:
+            self.header['epsilon'] = 0.3
+        else:
+            self.header['epsilon'] = float(self.header['epsilon'])
         if 'segment_len' not in self.header:
             self.header['segment_len'] = 0.5
         else:
@@ -263,8 +267,7 @@ cdef class Tcz:
             raise RuntimeError( 'File is not open for writing/appending' )
 
         if self.header['streamline_representation'] == 'control points':
-            epsilon = 0.3 # TODO: pick from header
-            streamline, n = rdp_reduction(streamline, n, epsilon)
+            streamline, n = rdp_reduction(streamline, n, float(self.header['epsilon']))
 
         fwrite( <void *> &n, sizeof(unsigned short int), 1, self.fp)
 
