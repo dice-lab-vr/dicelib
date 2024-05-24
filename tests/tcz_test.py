@@ -108,7 +108,7 @@ def test_write_streamline_spline_will_smooth_streamline():
         [6.8, 4.2, 5.1],
     ], dtype=np.float32)
     tcz_out.write_streamline(fake_streamline, 6)
-    tcz_out.close(False)
+    tcz_out.close()
 
 
 @pytest.mark.parametrize('input_number,expected_result', [

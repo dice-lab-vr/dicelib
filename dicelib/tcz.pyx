@@ -346,27 +346,19 @@ cdef class Tcz:
 
         return compressed_streamline
 
-    cpdef close(self, bint write_eof=True, int count=-1):
+    cpdef close(self, int count=-1):
         """Close the file associated with the tcz.
 
         Parameters
         ----------
-        write_eof : bool
-            Write the EOF marker, i.e. INF, at the current position (default : True).
-            NB: use at your own risk if you know what you are doing.
         count : int
             Update the 'count' field in the header with this value (default : -1, i.e. do not update)
         """
-        cdef float inf = float('inf')
 
-        if self.is_open == False:
+        if not self.is_open:
             return
 
         if self.mode != 'r':
-            # write end-of-file marker
-            if write_eof:
-                fwrite(&inf, 4, 1, self.fp)
-
             # update 'count' in header
             if count >= 0:
                 if self.mode == 'a':

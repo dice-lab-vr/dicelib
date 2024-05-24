@@ -8,7 +8,7 @@ def test_read_fake_streamline_successfully():
     for x in range(4):
         for y in range(3):
             assert tcz.streamline[x][y] == 132.375
-    tcz.close(False)
+    tcz.close()
 
 
 def test_read_streamline_with_spline_with_little_epsilon_will_return_all_points():
@@ -81,4 +81,4 @@ def test_read_streamline_with_spline_with_little_epsilon_will_return_all_points(
     assert tcz.streamline[15][1] == pytest.approx(24.5, abs=0.01)
     assert tcz.streamline[15][2] == pytest.approx(-1.98, abs=0.01)
 
-    tcz.close(False)
+    tcz.close()
