@@ -38,6 +38,11 @@ def test_create_in_read_mode_streamline_spline_successfully():
     assert tcz.header['representation'] == 'spline'
 
 
+def test_create_in_read_mode_streamline_rdp_successfully():
+    tcz = Tcz('tests/dicelib/mock/demo_fibers_streamline_rdp.tcz', 'r', None, 1000)
+    assert tcz.header['representation'] == 'rdp'
+
+
 def test_create_in_write_mode_successfully():
     header_test = {
         'blur_core_extent': '1.1',

@@ -169,7 +169,7 @@ cdef class Tcz:
             self.header['representation'] = 'polyline'  # default value
             self.header['datatype'] = 'Float16'
 
-        if self.header['representation'] not in ['polyline', 'spline']:
+        if self.header['representation'] not in ['polyline', 'spline', 'rdp']:
             raise RuntimeError('Problem parsing the header; field "representation" is not a valid value')
 
         # check if the 'count' field is present TODO: fix this, allow working even without it
@@ -266,7 +266,7 @@ cdef class Tcz:
         if self.mode == 'r':
             raise RuntimeError( 'File is not open for writing/appending' )
 
-        if self.header['representation'] == 'spline':
+        if self.header['representation'] in ['spline', 'rdp']:
             streamline, n = rdp_reduction(streamline, n, float(self.header['epsilon']))
 
         fwrite( <void *> &n, sizeof(unsigned short int), 1, self.fp)
