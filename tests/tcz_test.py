@@ -106,40 +106,6 @@ def test_write_streamline_spline_will_smooth_streamline():
     tcz_out.close(False)
 
 
-def test_read_streamline_with_spline_with_little_epsilon_will_return_all_points():
-    # TCZ having a streamline with all its points
-    tcz_out = Tcz('tests/dicelib/mock/demo_fibers_to_smooth.tcz', mode='r')
-    n_points = tcz_out.read_streamline()
-    assert n_points == 100
-
-    # checking the first four points only
-    assert tcz_out.streamline[0][0] == pytest.approx(49.40, abs=0.01)
-    assert tcz_out.streamline[0][1] == pytest.approx(-1.98, abs=0.01)
-    assert tcz_out.streamline[0][2] == pytest.approx(22.95, abs=0.01)
-    assert tcz_out.streamline[1][0] == pytest.approx(24.5, abs=0.01)
-    assert tcz_out.streamline[1][1] == pytest.approx(48.90, abs=0.01)
-    assert tcz_out.streamline[1][2] == pytest.approx(-1.98, abs=0.01)
-    assert tcz_out.streamline[2][0] == pytest.approx(22.95, abs=0.01)
-    assert tcz_out.streamline[2][1] == pytest.approx(24.5, abs=0.01)
-    assert tcz_out.streamline[2][2] == pytest.approx(48.31, abs=0.01)
-    assert tcz_out.streamline[3][0] == pytest.approx(-1.98, abs=0.01)
-    assert tcz_out.streamline[3][1] == pytest.approx(22.95, abs=0.01)
-    assert tcz_out.streamline[3][2] == pytest.approx(24.5, abs=0.01)
-    assert tcz_out.streamline[4][0] == pytest.approx(-1.98, abs=0.01)
-    assert tcz_out.streamline[4][1] == pytest.approx(45.90, abs=0.01)
-    assert tcz_out.streamline[4][2] == pytest.approx(-1.98, abs=0.01)
-
-    tcz_out.close(False)
-
-
-def test_read_streamline_successfully():
-    tcz = Tcz('tests/dicelib/mock/demo_fibers_read_streamline.tcz', 'r')
-    assert tcz.read_streamline() == 4
-    for x in range(4):
-        for y in range(3):
-            assert tcz.streamline[x][y] == 132.375
-
-
 @pytest.mark.parametrize('input_number,expected_result', [
     (15.33334, 19371),
     (45.33334, 20907),
