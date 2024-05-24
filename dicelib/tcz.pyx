@@ -291,7 +291,6 @@ cdef class Tcz:
         cdef float fib_len
         cdef float * ptr = &self.streamline[0, 0]
         cdef int    n_read
-        cdef int n_pts_out
 
         if not self.is_open:
             raise RuntimeError('File is not open')
@@ -318,10 +317,12 @@ cdef class Tcz:
 
            ptr += 3
 
-        #if self.header['representation'] == 'spline':
-        #    if self.n_pts > 2:
-        #        vertices = np.asarray(self.streamline).astype(np.float32)
-        #        smoothed_fib = np.asarray(CatmullRom_smooth(self.streamline, matrix, 0.5, 50))
+        if self.header['representation'] == 'spline':
+            if self.n_pts > 2: # no need to smooth with two points only, because we have only one line with two points
+                smoothed_streamline = np.asarray(CatmullRom_smooth(self.streamline, matrix, 0.5, 50))
+                fib_len = length(smoothed_streamline, self.n_pts)
+                self.n_pts = int(fib_len / float(self.header['segment_len']))
+                self.streamline = resample(smoothed_streamline, self.n_pts)
 
         return self.n_pts
 

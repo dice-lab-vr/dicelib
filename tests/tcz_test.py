@@ -102,27 +102,34 @@ def test_write_streamline_spline_will_smooth_streamline():
         [0.8, 0.2, 0.1],
         [6.8, 4.2, 5.1],
     ], dtype=np.float32)
-    tcz_out.write_streamline(fake_streamline,6)
+    tcz_out.write_streamline(fake_streamline, 6)
+    tcz_out.close(False)
 
 
-def test_read_smooth():
-    tcz_out = Tcz('tests/dicelib/mock/demo_fibers_smoothed.tcz', mode='r')
-    assert tcz_out.read_streamline() == 5
-    assert tcz_out.streamline[0][0] == pytest.approx(2.1, abs=0.01)
-    assert tcz_out.streamline[0][1] == pytest.approx(3.2, abs=0.01)
-    assert tcz_out.streamline[0][2] == pytest.approx(1.3, abs=0.01)
-    assert tcz_out.streamline[1][0] == pytest.approx(1.0, abs=0.01)
-    assert tcz_out.streamline[1][1] == pytest.approx(0.5, abs=0.01)
-    assert tcz_out.streamline[1][2] == pytest.approx(5.4, abs=0.01)
-    assert tcz_out.streamline[2][0] == pytest.approx(1.9, abs=0.01)
-    assert tcz_out.streamline[2][1] == pytest.approx(8.1, abs=0.01)
-    assert tcz_out.streamline[2][2] == pytest.approx(1.1, abs=0.01)
-    assert tcz_out.streamline[3][0] == pytest.approx(0.8, abs=0.01)
-    assert tcz_out.streamline[3][1] == pytest.approx(0.2, abs=0.01)
-    assert tcz_out.streamline[3][2] == pytest.approx(0.1, abs=0.01)
-    assert tcz_out.streamline[4][0] == pytest.approx(6.8, abs=0.01)
-    assert tcz_out.streamline[4][1] == pytest.approx(4.2, abs=0.01)
-    assert tcz_out.streamline[4][2] == pytest.approx(5.1, abs=0.01)
+def test_read_streamline_with_spline_with_little_epsilon_will_return_all_points():
+    # TCZ having a streamline with all its points
+    tcz_out = Tcz('tests/dicelib/mock/demo_fibers_to_smooth.tcz', mode='r')
+    n_points = tcz_out.read_streamline()
+    assert n_points == 100
+
+    # checking the first four points only
+    assert tcz_out.streamline[0][0] == pytest.approx(49.40, abs=0.01)
+    assert tcz_out.streamline[0][1] == pytest.approx(-1.98, abs=0.01)
+    assert tcz_out.streamline[0][2] == pytest.approx(22.95, abs=0.01)
+    assert tcz_out.streamline[1][0] == pytest.approx(24.5, abs=0.01)
+    assert tcz_out.streamline[1][1] == pytest.approx(48.90, abs=0.01)
+    assert tcz_out.streamline[1][2] == pytest.approx(-1.98, abs=0.01)
+    assert tcz_out.streamline[2][0] == pytest.approx(22.95, abs=0.01)
+    assert tcz_out.streamline[2][1] == pytest.approx(24.5, abs=0.01)
+    assert tcz_out.streamline[2][2] == pytest.approx(48.31, abs=0.01)
+    assert tcz_out.streamline[3][0] == pytest.approx(-1.98, abs=0.01)
+    assert tcz_out.streamline[3][1] == pytest.approx(22.95, abs=0.01)
+    assert tcz_out.streamline[3][2] == pytest.approx(24.5, abs=0.01)
+    assert tcz_out.streamline[4][0] == pytest.approx(-1.98, abs=0.01)
+    assert tcz_out.streamline[4][1] == pytest.approx(45.90, abs=0.01)
+    assert tcz_out.streamline[4][2] == pytest.approx(-1.98, abs=0.01)
+
+    tcz_out.close(False)
 
 
 def test_read_streamline_successfully():

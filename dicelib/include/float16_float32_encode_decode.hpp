@@ -1,4 +1,5 @@
 //reference: https://stackoverflow.com/questions/1659440/32-bit-to-16-bit-floating-point-conversion
+//paper: https://www.researchgate.net/publication/362275548_Accuracy_and_performance_of_the_lattice_Boltzmann_method_with_64-bit_32-bit_and_customized_16-bit_number_formats
 
 #ifndef FLOAT16_FLOAT32_ENCODE_DECODE_H
 #define FLOAT16_FLOAT32_ENCODE_DECODE_H
