@@ -136,10 +136,8 @@ def test_streamline_to_float16(input_number, expected_result):
         'timestamp': '2040-01-01T00:00:00.000Z',
     }
     tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
-    tcz.n_pts = 4
     fake_streamline = np.full((4, 3), fill_value=input_number, dtype=np.float32)
-
-    streamline_converted = tcz.compress_streamline(fake_streamline)
+    streamline_converted = tcz.compress_streamline(fake_streamline, 4)
     for x in range(4):
         for y in range(3):
             assert streamline_converted[x][y] == expected_result

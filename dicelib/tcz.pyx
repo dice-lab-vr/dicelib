@@ -250,7 +250,7 @@ cdef class Tcz:
         streamline : Nx3 numpy array
             The streamline data
         n : int
-            Writes first n points of the streamline. If n<0 (default), writes all points.
+            Writes first n points of the streamline. If n == 65000 (default), writes all points.
             NB: be careful because, for efficiency, a streamline is represented as a fixed-size array
         """
 
@@ -271,7 +271,7 @@ cdef class Tcz:
 
         fwrite( <void *> &n, sizeof(unsigned short int), 1, self.fp)
 
-        compressed_streamline = self.compress_streamline(streamline)
+        compressed_streamline = self.compress_streamline(streamline, n)
         if fwrite( &compressed_streamline[0,0], sizeof(unsigned short int), 3 * n, self.fp ) != 3 * n:
             raise IOError( 'Problems writing streamline data to file' )
 
@@ -326,7 +326,7 @@ cdef class Tcz:
 
         return self.n_pts
 
-    cpdef unsigned short int[:,:] compress_streamline(self, float[:,:] streamline):
+    cpdef unsigned short int[:,:] compress_streamline(self, float[:,:] streamline, unsigned short int n):
         """
         It casts a streamline from float32 to float16
 
@@ -334,19 +334,20 @@ cdef class Tcz:
         ----------
         streamline : Nx3 numpy array
             The streamline data
+            
+        n: unsigned short int
+            The number of points of the streamline
         """
 
-        cdef unsigned short int[:,:] compressed_streamline = np.empty((self.n_pts, 3), dtype=np.uint16)
-
-        # the streamline is n_pts points long
-        for i in range(self.n_pts):
+        cdef unsigned short int[:,:] compressed_streamline = np.empty((n, 3), dtype=np.uint16)
+        for i in range(n):
             for j in range(3):
                 compressed_streamline[i][j] = float32_to_float16(streamline[i][j])
 
         return compressed_streamline
 
     cpdef close(self, bint write_eof=True, int count=-1):
-        """Close the file associated with the tractogram.
+        """Close the file associated with the tcz.
 
         Parameters
         ----------
