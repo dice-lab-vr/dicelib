@@ -319,7 +319,7 @@ cdef class Tcz:
 
         if self.header['representation'] == 'spline':
             if self.n_pts > 2: # no need to smooth with two points only, because we have only one line with two points
-                smoothed_streamline = np.asarray(CatmullRom_smooth(self.streamline, matrix, 0.5, 50))
+                smoothed_streamline = np.asarray(CatmullRom_smooth(self.streamline[:self.n_pts,:], matrix, 0.5, 50))
                 fib_len = length(smoothed_streamline, self.n_pts)
                 self.n_pts = int(fib_len / float(self.header['segment_len']))
                 self.streamline = resample(smoothed_streamline, self.n_pts)
