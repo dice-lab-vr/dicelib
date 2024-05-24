@@ -3,7 +3,7 @@ blur_core_extent: 12.3
 blur_gauss_extent: 34.4
 blur_spacing: 23.1
 blur_gauss_min: 34.0
-streamline_representation: fake-value
+representation: fake-value
 count: 0000283522
 datatype: Float32LE
 file: . 67

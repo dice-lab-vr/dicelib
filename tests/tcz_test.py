@@ -19,8 +19,8 @@ def test_create_in_read_mode_successfully():
     assert tcz.header['blur_gauss_extent'] == 34.4
     assert tcz.header['blur_spacing'] == 23.1
     assert tcz.header['blur_gauss_min'] == 34.0
-    assert tcz.header['streamline_representation'] == 'polyline'
-    assert tcz.header['datatype'] == 'Float32LE'
+    assert tcz.header['representation'] == 'polyline'
+    assert tcz.header['datatype'] == 'Float16'
     assert tcz.header['segment_len'] == 0.8
     assert tcz.header['epsilon'] == 0.4
     assert tcz.max_points == 1000
@@ -33,9 +33,9 @@ def test_create_in_read_mode_no_segment_len_will_setup_segment_len_automatically
     assert tcz.header['segment_len'] == 0.5
 
 
-def test_create_in_read_mode_streamline_control_points_successfully():
-    tcz = Tcz('tests/dicelib/mock/demo_fibers_streamline_control_points.tcz', 'r', None, 1000)
-    assert tcz.header['streamline_representation'] == 'control points'
+def test_create_in_read_mode_streamline_spline_successfully():
+    tcz = Tcz('tests/dicelib/mock/demo_fibers_streamline_spline.tcz', 'r', None, 1000)
+    assert tcz.header['representation'] == 'spline'
 
 
 def test_create_in_write_mode_successfully():
@@ -44,7 +44,7 @@ def test_create_in_write_mode_successfully():
         'blur_gauss_extent': '2.2',
         'blur_spacing': '3.3',
         'blur_gauss_min': '4.4',
-        'streamline_representation': 'polyline',
+        'representation': 'polyline',
         'datatype': 'Float32LE',
         'count': '999',
         'timestamp': '2040-01-01T00:00:00.000Z',
@@ -53,9 +53,9 @@ def test_create_in_write_mode_successfully():
     assert tcz.streamline is None
 
 
-def test_create_in_read_mode_no_streamline_representation_in_file_will_fall_back_to_polyline():
+def test_create_in_read_mode_no_representation_in_file_will_fall_back_to_polyline():
     tcz = Tcz('tests/dicelib/mock/demo_fibers_no_polyline.tcz', 'r', )
-    assert tcz.header['streamline_representation'] == 'polyline'
+    assert tcz.header['representation'] == 'polyline'
     assert tcz.header['datatype'] == 'Float16'
 
 
@@ -67,7 +67,7 @@ def test_write_streamline_successfully():
         'blur_gauss_min': '4.4',
         'epsilon': '0.4',
         'segment_len': '0.5',
-        'streamline_representation': 'polyline',
+        'representation': 'polyline',
         'datatype': 'Float32LE',
         'count': '999',
         'timestamp': '2040-01-01T00:00:00.000Z',
@@ -78,15 +78,15 @@ def test_write_streamline_successfully():
     tcz.write_streamline(fake_streamline, tcz.n_pts)
 
 
-def test_write_streamline_control_points_will_smooth_streamline():
+def test_write_streamline_spline_will_smooth_streamline():
     header_test = {
         'blur_core_extent': '1.1',
         'blur_gauss_extent': '2.2',
         'blur_spacing': '3.3',
         'blur_gauss_min': '4.4',
-        'epsilon': '10.0',
+        'epsilon': '2.2',
         'segment_len': '0.5',
-        'streamline_representation': 'control points',
+        'representation': 'spline',
         'datatype': 'Float32LE',
         'count': '999',
         'timestamp': '2040-01-01T00:00:00.000Z',
@@ -107,13 +107,22 @@ def test_write_streamline_control_points_will_smooth_streamline():
 
 def test_read_smooth():
     tcz_out = Tcz('tests/dicelib/mock/demo_fibers_smoothed.tcz', mode='r')
-    assert tcz_out.read_streamline() == 2
+    assert tcz_out.read_streamline() == 5
     assert tcz_out.streamline[0][0] == pytest.approx(2.1, abs=0.01)
     assert tcz_out.streamline[0][1] == pytest.approx(3.2, abs=0.01)
     assert tcz_out.streamline[0][2] == pytest.approx(1.3, abs=0.01)
-    assert tcz_out.streamline[1][0] == pytest.approx(6.8, abs=0.01)
-    assert tcz_out.streamline[1][1] == pytest.approx(4.2, abs=0.01)
-    assert tcz_out.streamline[1][2] == pytest.approx(5.1, abs=0.01)
+    assert tcz_out.streamline[1][0] == pytest.approx(1.0, abs=0.01)
+    assert tcz_out.streamline[1][1] == pytest.approx(0.5, abs=0.01)
+    assert tcz_out.streamline[1][2] == pytest.approx(5.4, abs=0.01)
+    assert tcz_out.streamline[2][0] == pytest.approx(1.9, abs=0.01)
+    assert tcz_out.streamline[2][1] == pytest.approx(8.1, abs=0.01)
+    assert tcz_out.streamline[2][2] == pytest.approx(1.1, abs=0.01)
+    assert tcz_out.streamline[3][0] == pytest.approx(0.8, abs=0.01)
+    assert tcz_out.streamline[3][1] == pytest.approx(0.2, abs=0.01)
+    assert tcz_out.streamline[3][2] == pytest.approx(0.1, abs=0.01)
+    assert tcz_out.streamline[4][0] == pytest.approx(6.8, abs=0.01)
+    assert tcz_out.streamline[4][1] == pytest.approx(4.2, abs=0.01)
+    assert tcz_out.streamline[4][2] == pytest.approx(5.1, abs=0.01)
 
 
 def test_read_streamline_successfully():
@@ -143,7 +152,7 @@ def test_streamline_to_float16(input_number, expected_result):
         'blur_spacing': '3.3',
         'epsilon': '0.4',
         'blur_gauss_min': '4.4',
-        'streamline_representation': 'polyline',
+        'representation': 'polyline',
         'datatype': 'Float32LE',
         'count': '999',
         'timestamp': '2040-01-01T00:00:00.000Z',
@@ -168,7 +177,7 @@ def test_create_with_invalid_mode_will_throw_error():
         Tcz('tests/dicelib/mock/demo_fibers.tcz', 'fake-mode', )
 
 
-def test_create_with_invalid_streamline_representation_param_will_throw_error():
+def test_create_with_invalid_representation_param_will_throw_error():
     with pytest.raises(RuntimeError,
-                       match='Problem parsing the header; field "streamline_representation" is not a valid value'):
-        Tcz('tests/dicelib/mock/invalid/invalid_streamline_representation.tcz', 'r', )
+                       match='Problem parsing the header; field "representation" is not a valid value'):
+        Tcz('tests/dicelib/mock/invalid/invalid_representation.tcz', 'r', )

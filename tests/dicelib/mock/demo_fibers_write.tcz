@@ -4,9 +4,9 @@ blur_gauss_extent: 2.2
 blur_spacing: 3.3
 epsilon: 0.4
 blur_gauss_min: 4.4
-streamline_representation: polyline
+representation: polyline
 datatype: Float32LE
 count: 0000000999
 timestamp: 2040-01-01T00:00:00.000Z
-file: . 236
+file: . 225
 END

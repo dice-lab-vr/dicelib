@@ -165,12 +165,12 @@ cdef class Tcz:
         else:
             self.header['segment_len'] = float(self.header['segment_len'])
 
-        if 'streamline_representation' not in self.header:
-            self.header['streamline_representation'] = 'polyline'  # default value
+        if 'representation' not in self.header:
+            self.header['representation'] = 'polyline'  # default value
             self.header['datatype'] = 'Float16'
 
-        if self.header['streamline_representation'] not in ['polyline', 'control points']:
-            raise RuntimeError('Problem parsing the header; field "streamline_representation" is not a valid value')
+        if self.header['representation'] not in ['polyline', 'spline']:
+            raise RuntimeError('Problem parsing the header; field "representation" is not a valid value')
 
         # check if the 'count' field is present TODO: fix this, allow working even without it
         if 'count' not in self.header:
@@ -266,7 +266,7 @@ cdef class Tcz:
         if self.mode == 'r':
             raise RuntimeError( 'File is not open for writing/appending' )
 
-        if self.header['streamline_representation'] == 'control points':
+        if self.header['representation'] == 'spline':
             streamline, n = rdp_reduction(streamline, n, float(self.header['epsilon']))
 
         fwrite( <void *> &n, sizeof(unsigned short int), 1, self.fp)
@@ -317,6 +317,11 @@ cdef class Tcz:
            self.buffer_ptr += 3
 
            ptr += 3
+
+        #if self.header['representation'] == 'spline':
+        #    if self.n_pts > 2:
+        #        vertices = np.asarray(self.streamline).astype(np.float32)
+        #        smoothed_fib = np.asarray(CatmullRom_smooth(self.streamline, matrix, 0.5, 50))
 
         return self.n_pts
 
