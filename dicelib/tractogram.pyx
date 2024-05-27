@@ -875,7 +875,6 @@ def tsf_join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool
         Tsf_in = Tsf(tsf, 'r')
         scalar_list, n_pts_list = Tsf_in.read_scalar()
         final_pts += int(Tsf_in.header['count'])
-        print(scalar_list)
         Tsf_out.write_scalar(scalar_list, n_pts_list)
         Tsf_in.close()
     # update the count in the header ensuring the same number of characters
