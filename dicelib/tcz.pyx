@@ -42,7 +42,7 @@ cdef class Tcz:
     cdef readonly   bint                            is_open
     cdef readonly   float[:,::1]                    streamline
     cdef readonly   unsigned int                    max_points
-    cdef public     unsigned int                    n_pts
+    cdef            unsigned int                    n_pts
     cdef            FILE *                          fp
     cdef            unsigned short int *            buffer
     cdef            unsigned short int *            buffer_ptr
@@ -275,7 +275,8 @@ cdef class Tcz:
         if fwrite( &compressed_streamline[0,0], sizeof(unsigned short int), 3 * n, self.fp ) != 3 * n:
             raise IOError( 'Problems writing streamline data to file' )
 
-    cpdef unsigned int read_streamline(self):
+    # cpdef unsigned int read_streamline(self):
+    cpdef read_streamline(self):
         """
         Read next streamline from the current position in the file.
 
@@ -318,13 +319,18 @@ cdef class Tcz:
            ptr += 3
 
         if self.header['representation'] == 'spline':
-            if self.n_pts > 2: # no need to smooth with two points only, because we have only one line with two points
+            if self.n_pts > 2: # no need to smooth with two points only, as we have only one line with two points
                 smoothed_streamline = np.asarray(CatmullRom_smooth(self.streamline[:self.n_pts,:], matrix, 0.5, 50))
                 fib_len = length(smoothed_streamline, self.n_pts)
                 self.n_pts = int(fib_len / float(self.header['segment_len']))
                 self.streamline = resample(smoothed_streamline, self.n_pts)
+            else: # TODO: test it manually
+                self.streamline = self.streamline[:self.n_pts, :]
 
-        return self.n_pts
+        else: # no spline, the streamline is already TODO: test it
+            self.streamline = self.streamline[:self.n_pts,:]
+
+        return self.n_pts, self.streamline
 
     cpdef unsigned short int[:,:] compress_streamline(self, float[:,:] streamline, unsigned short int n):
         """

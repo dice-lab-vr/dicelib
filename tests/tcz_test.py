@@ -78,9 +78,9 @@ def test_write_streamline_successfully():
         'timestamp': '2040-01-01T00:00:00.000Z',
     }
     tcz = Tcz('tests/dicelib/mock/demo_fibers_write_streamline.tcz', 'w', header_test)
-    tcz.n_pts = 4
-    fake_streamline = np.full((tcz.n_pts, 3), fill_value=132.364, dtype=np.float32)
-    tcz.write_streamline(fake_streamline, tcz.n_pts)
+    n_points = 4
+    fake_streamline = np.full((n_points, 3), fill_value=132.364, dtype=np.float32)
+    tcz.write_streamline(fake_streamline, n_points)
 
 
 def test_write_streamline_spline_will_smooth_streamline():
@@ -98,7 +98,7 @@ def test_write_streamline_spline_will_smooth_streamline():
         'total_count': '1'
     }
     tcz_out = Tcz('tests/dicelib/mock/demo_fibers_smoothed.tcz', mode='w', header=header_test)
-    tcz_out.n_pts = 6
+    n_points = 6
     fake_streamline = np.array([
         [2.1, 3.2, 1.3],
         [1.1, 2.2, 3.3],
@@ -107,7 +107,7 @@ def test_write_streamline_spline_will_smooth_streamline():
         [0.8, 0.2, 0.1],
         [6.8, 4.2, 5.1],
     ], dtype=np.float32)
-    tcz_out.write_streamline(fake_streamline, 6)
+    tcz_out.write_streamline(fake_streamline, n_points)
     tcz_out.close()
 
 
