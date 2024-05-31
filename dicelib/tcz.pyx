@@ -400,18 +400,10 @@ cdef class FileConverter:
         tck_in = LazyTractogram(filename_in, 'r')
         tck_in.read_streamline()
 
-        tcz_out = Tcz(filename_out, 'w',  {
-            'blur_core_extent': '1.1',
-            'blur_gauss_extent': '2.2',
-            'blur_spacing': '3.3',
-            'epsilon': '0.4',
-            'blur_gauss_min': '4.4',
-            'representation': 'polyline',
-            'datatype': 'Float16',
-            'count': tck_in.header['count'],
-            'timestamp': '2040-01-01T00:00:00.000Z',
-        }
-                      )
+        header['datatype'] = 'Float16'
+        header['count'] = tck_in.header['count']
+
+        tcz_out = Tcz(filename_out, 'w',  header)
         tcz_out.write_streamline(tck_in.streamline, tck_in.n_pts)
         tcz_out.close()
         return tck_in

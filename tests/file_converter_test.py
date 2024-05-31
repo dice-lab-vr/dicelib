@@ -220,11 +220,21 @@ new_streamline = [
 
 
 def test_file_from_tck_to_tcz_successfully():
+    header_test = {
+        'blur_core_extent': '1.1',
+        'blur_gauss_extent': '2.2',
+        'blur_spacing': '3.3',
+        'epsilon': '0.4',
+        'blur_gauss_min': '4.4',
+        'representation': 'polyline',
+        'timestamp': '2040-01-01T00:00:00.000Z',
+    }
     # asserting original streamline
     converter = FileConverter()
     tck_in = converter.from_tck_to_tcz(
         'tests/dicelib/mock/one_streamline_only.tck',
-        'tests/dicelib/mock/one_streamline_converted.tcz'
+        'tests/dicelib/mock/one_streamline_converted.tcz',
+        header_test
     )
     assert tck_in.header['count'] == '1'
     assert tck_in.n_pts == 100
