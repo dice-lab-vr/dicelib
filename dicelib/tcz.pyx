@@ -11,6 +11,7 @@ from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_E
 from libc.stdlib cimport malloc
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
+from dicelib.tractogram import LazyTractogram
 
 cdef extern from "float16_float32_encode_decode.hpp":
     float float16_to_float32(const unsigned short value)
@@ -381,3 +382,36 @@ cdef class Tcz:
     def __dealloc__(self):
         if self.is_open:
             fclose(self.fp)
+
+
+cdef class FileConverter:
+
+
+    cpdef from_tck_to_tcz(self, char * filename_in, char * filename_out, header=None):
+        _, suffix = os.path.splitext(filename_in)
+
+        if suffix not in ['.tck']:
+            raise ValueError('input file is not a valid ".tck"')
+        _, suffix = os.path.splitext(filename_out)
+
+        if suffix not in ['.tcz']:
+            raise ValueError('output file is not a valid ".tcz"')
+
+        tck_in = LazyTractogram(filename_in, 'r')
+        tck_in.read_streamline()
+
+        tcz_out = Tcz(filename_out, 'w',  {
+            'blur_core_extent': '1.1',
+            'blur_gauss_extent': '2.2',
+            'blur_spacing': '3.3',
+            'epsilon': '0.4',
+            'blur_gauss_min': '4.4',
+            'representation': 'polyline',
+            'datatype': 'Float16',
+            'count': tck_in.header['count'],
+            'timestamp': '2040-01-01T00:00:00.000Z',
+        }
+                      )
+        tcz_out.write_streamline(tck_in.streamline, tck_in.n_pts)
+        tcz_out.close()
+        return tck_in
