@@ -323,9 +323,12 @@ cdef class Tcz:
             if self.n_pts > 2: # no need to smooth with two points only, as we have only one line with two points
                 smoothed_streamline = np.asarray(CatmullRom_smooth(self.streamline[:self.n_pts,:], matrix, 0.5, 50))
                 fib_len = length(smoothed_streamline, self.n_pts)
-                self.n_pts = int(fib_len / float(self.header['segment_len']))
+
+                if float(self.header['segment_len']) != 0:
+                    self.n_pts = int(fib_len / float(self.header['segment_len']))
+
                 self.streamline = resample(smoothed_streamline, self.n_pts)
-            else: # TODO: test it manually
+            else: # TODO: test it manually, check this, how n_pts is calculated in case of RDP reduction?
                 self.streamline = self.streamline[:self.n_pts, :]
 
         else: # no spline, the streamline is already TODO: test it
@@ -405,5 +408,8 @@ cdef class FileConverter:
 
         tcz_out = Tcz(filename_out, 'w',  header)
         tcz_out.write_streamline(tck_in.streamline, tck_in.n_pts)
+
+        tck_in.close()
         tcz_out.close()
+
         return tck_in
