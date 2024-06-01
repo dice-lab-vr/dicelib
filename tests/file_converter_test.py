@@ -209,16 +209,6 @@ compressed_streamline = [
 ]
 
 
-# def test_file_from_tck_to_tcz_successfully():
-#    converter = FileConverter()
-#    tck_in = converter.from_tck_to_tcz('tests/dicelib/mock/one_streamline_only.tck', 'example.tcz')
-#    assert tck_in.header['count'] == '1'
-#    assert tck_in.n_pts == 100
-#    for i in range(tck_in.n_pts):
-#        for j in range(3):
-#            assert tck_in.streamline[i][j] == output_tck_streamline[i][j]
-
-
 def test_file_from_tck_to_tcz_successfully():
     header_test = {
         'blur_core_extent': '1.1',
@@ -241,7 +231,8 @@ def test_file_from_tck_to_tcz_successfully():
 
     for i in range(tck_in.n_pts):
         for j in range(3):
-            assert tck_in.streamline[i][j] == output_tck_streamline[i][j], "Value mismatch at position " + str(i) + ", " + str(j)
+            assert tck_in.streamline[i][j] == output_tck_streamline[i][j], "Value mismatch at position " + str(
+                i) + ", " + str(j)
     tck_in.close()
 
     # checking newly written streamline
@@ -250,7 +241,8 @@ def test_file_from_tck_to_tcz_successfully():
     assert n_points == 100
     for i in range(n_points):
         for j in range(3):
-            assert streamline[i][j] == compressed_streamline[i][j], "Value mismatch at position " + str(i) + ", " + str(j)
+            assert streamline[i][j] == compressed_streamline[i][j], "Value mismatch at position " + str(i) + ", " + str(
+                j)
 
 
 def test_file_from_tck_to_tcz_spline_representation_with_epsilon_zero_will_return_all_points():
@@ -345,6 +337,36 @@ def test_file_from_tck_to_tcz_spline_representation_with_epsilon_greater_than_ze
     tcz_in.close()
 
 
+def test_file_from_tck_to_tcz_rdp_representation_with_epsilon_greater_than_zero():
+    header_test = {
+        'blur_core_extent': '1.1',
+        'blur_gauss_extent': '2.2',
+        'blur_spacing': '3.3',
+        'epsilon': '0.005',
+        'blur_gauss_min': '4.4',
+        'representation': 'rdp',
+        'timestamp': '2040-01-01T00:00:00.000Z',
+    }
+
+    converter = FileConverter()
+    converter.from_tck_to_tcz('tests/dicelib/mock/one_streamline_only.tck',
+                              'tests/dicelib/mock/one_streamline_converted_rdp_with_epsilon_greater_than_zero.tcz',
+                              header_test
+                              )
+
+    # checking newly written streamline
+    tcz_in = Tcz('tests/dicelib/mock/one_streamline_converted_with_epsilon_greater_than_zero.tcz', 'r')
+    n_points, streamline = tcz_in.read_streamline()
+
+    assert n_points == 29
+    for i in range(n_points):
+        for j in range(3):
+            assert streamline[i][j] == segment_len_one_resampled_streamline[i][j], \
+                ("Value mismatch at position " + str(i) + ", " + str(j))
+
+    tcz_in.close()
+
+
 def test_file_from_tck_to_tcz_spline_representation_with_epsilon_greater_than_zero_and_segment_len_less_than_one():
     header_test = {
         'blur_core_extent': '1.1',
@@ -364,7 +386,8 @@ def test_file_from_tck_to_tcz_spline_representation_with_epsilon_greater_than_ze
                               )
 
     # checking newly written streamline
-    tcz_in = Tcz('tests/dicelib/mock/one_streamline_converted_with_epsilon_greater_than_zero_and_little_segment_len.tcz', 'r')
+    tcz_in = Tcz(
+        'tests/dicelib/mock/one_streamline_converted_with_epsilon_greater_than_zero_and_little_segment_len.tcz', 'r')
     n_points, streamline = tcz_in.read_streamline()
 
     assert n_points == 293
@@ -396,6 +419,7 @@ def test_file_from_tck_to_tcz_spline_representation_with_epsilon_greater_than_ze
     assert streamline[292][0] == -0.39990234375
     assert streamline[292][1] == 22.0
     assert streamline[292][2] == 24.5
+
 
 def test_file_from_tck_to_tcz_with_different_format_input_file_will_throw_exception():
     converter = FileConverter()
