@@ -8,6 +8,7 @@ epsilon: 0.4
 representation: polyline
 count: 0000283522
 datatype: Float16
-file: . 220
+timestamp: 2040:01:01 00:00:00
+file: . 239
 END
 /* BINARY STUFF HERE: should be n_points + (triplet_1, triplet_2,...,triplet_n) */

@@ -12,6 +12,7 @@ from libc.stdlib cimport malloc
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
 from dicelib.tractogram import LazyTractogram
+from dicelib.header import Header
 
 cdef extern from "float16_float32_encode_decode.hpp":
     float float16_to_float32(const unsigned short value)
@@ -151,6 +152,7 @@ cdef class Tcz:
                 self.header[key].append(val)
             nLines += 1
 
+        header = Header.for_tcz(self.header)
         blur = Blur.from_header(self.header)
         self.header['blur_core_extent'] = blur.core_extent
         self.header['blur_gauss_extent'] = blur.gauss_extent

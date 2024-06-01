@@ -6,6 +6,7 @@ blur_gauss_min: 34.0
 representation: polyline
 count: 0000283522
 datatype: Float32LE
-file: . 67
+timestamp: 2040:01:01 00:00:00
+file: . 210
 END
 /* BINARY STUFF HERE: should be n_points + (triplet_1, triplet_2,...,triplet_n) */
