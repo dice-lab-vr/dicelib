@@ -2,7 +2,7 @@ import pytest
 
 from dicelib.tcz import FileConverter, Tcz
 
-output_tck_streamline = [
+original_streamline = [
     [49.400001525878906, 22.0, 24.5],
     [48.899383544921875, 22.048242568969727, 24.5],
     [48.39857482910156, 22.092546463012695, 24.5],
@@ -220,19 +220,11 @@ def test_file_from_tck_to_tcz_successfully():
         'timestamp': '2040-01-01T00:00:00.000Z',
     }
     # asserting original streamline
-    tck_in = FileConverter().from_tck_to_tcz(
+    FileConverter().from_tck_to_tcz(
         'tests/dicelib/mock/one_streamline_only.tck',
         'tests/dicelib/mock/one_streamline_converted.tcz',
         header_test
     )
-    assert tck_in.header['count'] == '1'
-    assert tck_in.n_pts == 100
-
-    for i in range(tck_in.n_pts):
-        for j in range(3):
-            assert tck_in.streamline[i][j] == output_tck_streamline[i][j], "Value mismatch at position " + str(
-                i) + ", " + str(j)
-    tck_in.close()
 
     # checking newly written streamline
     tcz_in = Tcz('tests/dicelib/mock/one_streamline_converted.tcz', 'r')

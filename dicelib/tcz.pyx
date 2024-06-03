@@ -421,4 +421,3 @@ cdef class FileConverter:
         tck_in.close()
         tcz_out.close()
 
-        return tck_in
