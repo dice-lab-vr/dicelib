@@ -219,7 +219,6 @@ def test_file_from_tck_to_tcz_successfully():
         'representation': 'polyline',
         'timestamp': '2040-01-01T00:00:00.000Z',
     }
-    # asserting original streamline
     FileConverter().from_tck_to_tcz(
         'tests/dicelib/mock/one_streamline_only.tck',
         'tests/dicelib/mock/one_streamline_converted.tcz',
