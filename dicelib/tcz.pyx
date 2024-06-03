@@ -432,7 +432,7 @@ cdef class FileConverter:
         tcz_in = Tcz(filename_in, 'r')
 
         tck_header = header
-        tck_header['datatype'] = 'Float16'
+        tck_header['datatype'] = 'Float32LE'
         tck_header['count'] = tcz_in.header['count']
         number_of_streamlines = int(tck_header['count'])
 
@@ -440,7 +440,7 @@ cdef class FileConverter:
         if 'segment_len' in tck_header: del tck_header['segment_len']
         if 'epsilon' in tck_header: del tck_header['epsilon']
 
-        tck_out = LazyTractogram(filename_out, 'w',)
+        tck_out = LazyTractogram(filename_out, 'w', tck_header)
 
         for i in range(number_of_streamlines):
             n_points, streamline = tcz_in.read_streamline()
