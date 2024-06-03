@@ -20,12 +20,12 @@ class Header:
         if 'epsilon' not in data:
             epsilon = 0.3
         else:
-            epsilon = data['epsilon']
+            epsilon = float(data['epsilon'])
 
         if 'segment_len' not in data:
             segment_len = 0.5
         else:
-            segment_len = data['segment_len']
+            segment_len = float(data['segment_len'])
 
         if 'representation' not in data:
             representation = 'polyline'

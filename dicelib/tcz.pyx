@@ -4,7 +4,6 @@
 import os, time
 import numpy as np
 
-from dicelib.blur import Blur
 from dicelib.streamline import rdp_reduction, CatmullRom_smooth, length, resample
 
 from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_END, SEEK_SET
@@ -152,40 +151,7 @@ cdef class Tcz:
                 self.header[key].append(val)
             nLines += 1
 
-        header = Header.for_tcz(self.header)
-        blur = Blur.from_header(self.header)
-        self.header['blur_core_extent'] = blur.core_extent
-        self.header['blur_gauss_extent'] = blur.gauss_extent
-        self.header['blur_spacing'] = blur.spacing
-        self.header['blur_gauss_min'] = blur.gauss_min
-
-        if 'epsilon' not in self.header:
-            self.header['epsilon'] = 0.3
-        else:
-            self.header['epsilon'] = float(self.header['epsilon'])
-        if 'segment_len' not in self.header:
-            self.header['segment_len'] = 0.5
-        else:
-            self.header['segment_len'] = float(self.header['segment_len'])
-
-        if 'representation' not in self.header:
-            self.header['representation'] = 'polyline'  # default value
-            self.header['datatype'] = 'Float16'
-
-        if self.header['representation'] not in ['polyline', 'spline', 'rdp']:
-            raise RuntimeError('Problem parsing the header; field "representation" is not a valid value')
-
-        # check if the 'count' field is present TODO: fix this, allow working even without it
-        if 'count' not in self.header:
-            raise RuntimeError('Problem parsing the header; field "count" not found')
-        if type(self.header['count']) == list:
-            raise RuntimeError('Problem parsing the header; field "count" has multiple values')
-
-        # move file pointer to beginning of binary data
-        if 'file' not in self.header:
-            raise RuntimeError('Problem parsing the header; field "file" not found')
-        if type(self.header['file']) == list:
-            raise RuntimeError('Problem parsing the header; field "file" has multiple values')
+        self.header = Header.for_tcz(self.header).as_dict()
         fseek(self.fp, int(self.header['file'][2:]), SEEK_SET)
 
     cpdef _write_header(self, header):
