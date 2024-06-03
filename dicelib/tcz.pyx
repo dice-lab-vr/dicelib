@@ -370,13 +370,17 @@ cdef class FileConverter:
             raise ValueError('output file is not a valid ".tcz"')
 
         tck_in = LazyTractogram(filename_in, 'r')
-        tck_in.read_streamline()
 
-        header['datatype'] = 'Float16'
-        header['count'] = tck_in.header['count']
+        tcz_header = header
+        tcz_header['datatype'] = 'Float16'
+        tcz_header['count'] = tck_in.header['count']
+        number_of_streamlines = int(tcz_header['count'])
 
-        tcz_out = Tcz(filename_out, 'w',  header)
-        tcz_out.write_streamline(tck_in.streamline, tck_in.n_pts)
+        tcz_out = Tcz(filename_out, 'w',  tcz_header)
+
+        for i in range(number_of_streamlines):
+            n_points = tck_in.read_streamline()
+            tcz_out.write_streamline(tck_in.streamline, n_points)
 
         tck_in.close()
         tcz_out.close()
