@@ -391,10 +391,7 @@ cdef class Tcz:
         if self.is_open:
             fclose(self.fp)
 
-
 cdef class FileConverter:
-
-
     cpdef from_tck_to_tcz(self, char * filename_in, char * filename_out, header=None):
         _, suffix = os.path.splitext(filename_in)
 
@@ -412,7 +409,7 @@ cdef class FileConverter:
         tcz_header['count'] = tck_in.header['count']
         number_of_streamlines = int(tcz_header['count'])
 
-        tcz_out = Tcz(filename_out, 'w',  tcz_header)
+        tcz_out = Tcz(filename_out, 'w', tcz_header)
 
         for i in range(number_of_streamlines):
             n_points = tck_in.read_streamline()
@@ -421,3 +418,33 @@ cdef class FileConverter:
         tck_in.close()
         tcz_out.close()
 
+
+    cpdef from_tcz_to_tck(self, char * filename_in, char * filename_out, header=None):
+        _, suffix = os.path.splitext(filename_in)
+
+        if suffix not in ['.tcz']:
+            raise ValueError('output file is not a valid ".tcz"')
+        _, suffix = os.path.splitext(filename_out)
+
+        if suffix not in ['.tck']:
+            raise ValueError('input file is not a valid ".tck"')
+
+        tcz_in = Tcz(filename_in, 'r')
+
+        tck_header = header
+        tck_header['datatype'] = 'Float16'
+        tck_header['count'] = tcz_in.header['count']
+        number_of_streamlines = int(tck_header['count'])
+
+        if 'representation' in tck_header: del tck_header['representation']
+        if 'segment_len' in tck_header: del tck_header['segment_len']
+        if 'epsilon' in tck_header: del tck_header['epsilon']
+
+        tck_out = LazyTractogram(filename_out, 'w',)
+
+        for i in range(number_of_streamlines):
+            n_points, streamline = tcz_in.read_streamline()
+            tck_out.write_streamline(streamline, n_points)
+
+        tcz_in.close()
+        tck_out.close()
