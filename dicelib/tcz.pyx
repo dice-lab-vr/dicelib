@@ -11,6 +11,7 @@ from libc.stdlib cimport malloc
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
 from dicelib.tractogram import LazyTractogram
+from dicelib.blur import Blur
 from dicelib.header import Header
 
 cdef extern from "float16_float32_encode_decode.hpp":
@@ -151,7 +152,42 @@ cdef class Tcz:
                 self.header[key].append(val)
             nLines += 1
 
-        self.header = Header.for_tcz(self.header).as_dict()
+        blur = Blur.from_header(self.header)
+        self.header['blur_core_extent'] = blur.core_extent
+        self.header['blur_gauss_extent'] = blur.gauss_extent
+        self.header['blur_spacing'] = blur.spacing
+        self.header['blur_gauss_min'] = blur.gauss_min
+
+        self.header['datatype'] = 'Float16'
+
+        if 'epsilon' not in self.header:
+            self.header['epsilon'] = 0.3
+        else:
+            self.header['epsilon'] = float(self.header['epsilon'])
+
+        if 'segment_len' not in self.header:
+            self.header['segment_len'] = 0.5
+        else:
+            self.header['segment_len'] = float(self.header['segment_len'])
+
+        if 'representation' not in self.header:
+            self.header['representation'] = 'polyline'
+
+        if self.header['representation'] not in ['polyline', 'spline', 'rdp']:
+            raise RuntimeError('Problem parsing the header; field "representation" is not a valid value')
+
+        if 'count' not in self.header:
+            raise RuntimeError('Problem parsing the header; field "count" not found')
+
+        if type(self.header['count']) is list:
+            raise RuntimeError('Problem parsing the header; field "count" has multiple values')
+
+        if 'file' not in self.header:
+            raise RuntimeError('Problem parsing the header; field "file" not found')
+
+        if type(self.header['file']) is list:
+            raise RuntimeError('Problem parsing the header; field "file" has multiple values')
+
         fseek(self.fp, int(self.header['file'][2:]), SEEK_SET)
 
     cpdef _write_header(self, header):
