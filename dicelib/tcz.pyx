@@ -323,7 +323,7 @@ cdef class Tcz:
 
            ptr += 3
 
-        if self.header['representation'] == 'spline':
+        if self.header['representation'] == 'spline' and self.header['epsilon'] != 0:
             if self.n_pts > 2:
                 smoothed_streamline = np.asarray(CatmullRom_smooth(self.streamline[:self.n_pts,:], matrix, 0.5, 50))
                 fib_len = length(smoothed_streamline, self.n_pts)
