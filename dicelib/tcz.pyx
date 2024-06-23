@@ -325,13 +325,9 @@ cdef class Tcz:
 
         if self.header['representation'] == 'spline' and self.header['epsilon'] != 0:
             if self.n_pts > 2:
-                smoothed_streamline = np.asarray(CatmullRom_smooth(self.streamline[:self.n_pts,:], matrix, 0.5, 50))
-                fib_len = length(smoothed_streamline, self.n_pts)
-
-                if float(self.header['segment_len']) != 0:
-                    self.n_pts = int(fib_len / float(self.header['segment_len']))
-
-                self.streamline = resample(smoothed_streamline, self.n_pts)
+                self.n_pts, self.streamline = self._resample_streamline(
+                    self.streamline[:self.n_pts,:], self.n_pts, float(self.header['segment_len'])
+                )
 
             else: # no need to smooth with two points only, as we have only one line with two points
                 self.streamline = self.streamline[:self.n_pts, :]
@@ -340,6 +336,7 @@ cdef class Tcz:
             self.streamline = self.streamline[:self.n_pts,:]
 
         return self.n_pts, self.streamline
+
 
     cpdef unsigned short int[:,:] compress_streamline(self, float[:,:] streamline, unsigned short int n):
         """
@@ -360,6 +357,24 @@ cdef class Tcz:
                 compressed_streamline[i][j] = float32_to_float16(streamline[i][j])
 
         return compressed_streamline
+
+
+    cpdef _resample_streamline(self, float[:,:] streamline, unsigned short int n, float segment_len):
+
+        max_point_catmull_rom = 50
+        smoothed_streamline = np.asarray(
+            CatmullRom_smooth(streamline, matrix, 0.5, max_point_catmull_rom)
+        )
+
+        if n > max_point_catmull_rom:
+            fib_len = length(smoothed_streamline, max_point_catmull_rom)
+        else:
+            fib_len = length(smoothed_streamline, n)
+
+        if segment_len != 0:
+            n = int(fib_len / segment_len)
+
+        return n, resample(smoothed_streamline, n)
 
     cpdef close(self, int count=-1):
         """Close the file associated with the tcz.

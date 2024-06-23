@@ -2,11 +2,12 @@ mrtrix tracks
 blur_core_extent: 1.1
 blur_gauss_extent: 2.2
 blur_spacing: 3.3
-epsilon: 0.4
+epsilon: 0.005
+segment_len: 0.5
 blur_gauss_min: 4.4
 representation: polyline
 datatype: Float32LE
 count: 0000000999
 timestamp: 2040-01-01T00:00:00.000Z
-file: . 225
+file: . 244
 END
