@@ -44,7 +44,6 @@ cdef class Tcz:
     cdef readonly   bint                            is_open
     cdef readonly   float[:,::1]                    streamline
     cdef readonly   unsigned int                    max_points
-    cdef            unsigned int                    n_pts
     cdef            FILE *                          fp
     cdef            unsigned short int *            buffer
     cdef            unsigned short int *            buffer_ptr
@@ -74,7 +73,6 @@ cdef class Tcz:
 
         self.mode = mode
         self.streamline = None
-        self.n_pts = 0
         self.buffer = NULL
         self.buffer_ptr = NULL
         self.buffer_end = NULL
@@ -287,7 +285,7 @@ cdef class Tcz:
 
         For efficiency reasons, multiple streamlines are simultaneously loaded from disk using a buffer.
         The current streamline is stored in the fixed-size numpy array 'self.streamline' and its actual
-        length, i.e., number of points/coordinates, is stored in 'self.n_pts'.
+        length, i.e., number of points/coordinates, is stored in 'number_of_points'.
 
         Returns
         -------
@@ -297,20 +295,21 @@ cdef class Tcz:
         cdef float fib_len
         cdef float * ptr = &self.streamline[0, 0]
         cdef int    n_read
+        cdef unsigned int number_of_points = 0
 
         if not self.is_open:
             raise RuntimeError('File is not open')
         if self.mode != 'r':
             raise RuntimeError('File is not open for reading')
 
-        fread( <void*> &self.n_pts, sizeof(unsigned short int), 1, self.fp)
+        fread( <void*> &number_of_points, sizeof(unsigned short int), 1, self.fp)
 
-        for i in range(self.n_pts):
-           if self.n_pts > self.max_points:
+        for i in range(number_of_points):
+           if number_of_points > self.max_points:
                raise RuntimeError(f'Problem reading data, streamline seems too long (>{self.max_points} points)')
 
            if self.buffer_ptr == self.buffer_end:  # reached end of buffer, need to reload
-               n_read = fread(self.buffer, sizeof(unsigned short int), 3 * self.n_pts, self.fp)
+               n_read = fread(self.buffer, sizeof(unsigned short int), 3 * number_of_points, self.fp)
                self.buffer_ptr = self.buffer
                self.buffer_end = self.buffer_ptr + n_read
 
@@ -324,18 +323,18 @@ cdef class Tcz:
            ptr += 3
 
         if self.header['representation'] == 'spline' and self.header['epsilon'] != 0:
-            if self.n_pts > 2:
-                self.n_pts, self.streamline = self._resample_streamline(
-                    self.streamline[:self.n_pts,:], self.n_pts, float(self.header['segment_len'])
+            if number_of_points > 2:
+                number_of_points, new_streamline = self._resample_streamline(
+                    self.streamline[:number_of_points,:], number_of_points, float(self.header['segment_len'])
                 )
 
             else: # no need to smooth with two points only, as we have only one line with two points
-                self.streamline = self.streamline[:self.n_pts, :]
+                new_streamline = self.streamline[:number_of_points, :]
 
         else:
-            self.streamline = self.streamline[:self.n_pts,:]
+            new_streamline = self.streamline[:number_of_points,:]
 
-        return self.n_pts, self.streamline
+        return number_of_points, new_streamline
 
 
     cpdef unsigned short int[:,:] compress_streamline(self, float[:,:] streamline, unsigned short int n):
