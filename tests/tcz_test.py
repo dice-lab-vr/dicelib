@@ -174,18 +174,11 @@ def test_resample_streamline():
         [-15.90625, -62.53125, 36.],
         [-16.078125, -62.375, 35.40625],
     ], dtype=np.float32)
-    n_points = 55
 
-    tcz._resample_streamline(fake_streamline, n_points, np.float32(0.5))
+    tcz._resample_streamline(fake_streamline, np.float32(0.5))
 
 
-@pytest.mark.parametrize('input_number_of_points', [
-    10,
-    30,
-    50,
-    55,
-])
-def test_resample_streamline(input_number_of_points):
+def test_resample_streamline():
     header_test = {
         'blur_core_extent': '1.1',
         'blur_gauss_extent': '2.2',
@@ -214,9 +207,8 @@ def test_resample_streamline(input_number_of_points):
         [-15.90625, -62.53125, 36.],
         [-16.078125, -62.375, 35.40625],
     ], dtype=np.float32)
-    # n_points = 55
 
-    tcz._resample_streamline(fake_streamline, input_number_of_points, np.float32(0.5))
+    tcz._resample_streamline(fake_streamline, np.float32(0.5))
 
 
 def test_create_with_invalid_format_will_throw_error():

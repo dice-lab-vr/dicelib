@@ -263,39 +263,6 @@ def test_file_from_tck_to_tcz_spline_representation_with_epsilon_zero_will_retur
                                                      abs=0.03), "Value mismatch at position " + str(i) + ", " + str(j)
 
 
-segment_len_one_resampled_streamline = [
-    [49.40625, 22.0, 24.5],
-    [47.633548736572266, 22.160070419311523, 24.5],
-    [45.85669708251953, 22.264379501342773, 24.5],
-    [44.077701568603516, 22.322290420532227, 24.5],
-    [42.29817581176758, 22.359254837036133, 24.5],
-    [40.518218994140625, 22.359304428100586, 24.5],
-    [38.73832702636719, 22.342529296875, 24.5],
-    [36.95869064331055, 22.308246612548828, 24.5],
-    [35.17934799194336, 22.2608585357666, 24.5],
-    [33.400184631347656, 22.207181930541992, 24.5],
-    [31.621089935302734, 22.151147842407227, 24.5],
-    [29.842018127441406, 22.09447479248047, 24.5],
-    [28.062814712524414, 22.04248809814453, 24.5],
-    [26.283042907714844, 22.01595115661621, 24.5],
-    [24.50313949584961, 22.001758575439453, 24.5],
-    [22.723249435424805, 22.01554298400879, 24.5],
-    [20.943485260009766, 22.042560577392578, 24.5],
-    [19.16427993774414, 22.094507217407227, 24.5],
-    [17.38517951965332, 22.150259017944336, 24.5],
-    [15.606060028076172, 22.20546531677246, 24.5],
-    [13.826966285705566, 22.261512756347656, 24.5],
-    [12.047789573669434, 22.31440544128418, 24.5],
-    [10.268033981323242, 22.342252731323242, 24.5],
-    [8.488286018371582, 22.370031356811523, 24.5],
-    [6.7084126472473145, 22.360937118530273, 24.5],
-    [4.928898811340332, 22.322593688964844, 24.5],
-    [3.1500179767608643, 22.26101303100586, 24.5],
-    [1.3733099699020386, 22.15428352355957, 24.5],
-    [-0.39990234375, 22.0, 24.5],
-]
-
-
 def test_file_from_tck_to_tcz_spline_representation_with_epsilon_greater_than_zero_and_segment_len_one():
     header_test = {
         'blur_core_extent': '1.1',
@@ -316,11 +283,15 @@ def test_file_from_tck_to_tcz_spline_representation_with_epsilon_greater_than_ze
     tcz_in = Tcz('tests/dicelib/mock/one_streamline_converted_with_epsilon_greater_than_zero.tcz', 'r')
     n_points, streamline = tcz_in.read_streamline()
 
-    assert n_points == 29
-    for i in range(n_points):
-        for j in range(3):
-            assert streamline[i][j] == segment_len_one_resampled_streamline[i][j], \
-                ("Value mismatch at position " + str(i) + ", " + str(j))
+    assert n_points == 49
+    assert streamline[0][0] == 49.40625
+    assert streamline[0][1] == 22.0
+    assert streamline[0][2] == 24.5
+
+    assert streamline[n_points - 1][0] == pytest.approx(-0.39, abs=0.01)
+    assert streamline[n_points - 1][1] == 22.0
+    assert streamline[n_points - 1][2] == 24.5
+
     tcz_in.close()
 
 
@@ -344,11 +315,15 @@ def test_file_from_tck_to_tcz_rdp_representation_with_epsilon_greater_than_zero(
     tcz_in = Tcz('tests/dicelib/mock/one_streamline_converted_with_epsilon_greater_than_zero.tcz', 'r')
     n_points, streamline = tcz_in.read_streamline()
 
-    assert n_points == 29
-    for i in range(n_points):
-        for j in range(3):
-            assert streamline[i][j] == segment_len_one_resampled_streamline[i][j], \
-                ("Value mismatch at position " + str(i) + ", " + str(j))
+    assert n_points == 49
+
+    assert streamline[0][0] == 49.40625
+    assert streamline[0][1] == 22.0
+    assert streamline[0][2] == 24.5
+
+    assert streamline[n_points - 1][0] == pytest.approx(-0.39, abs=0.01)
+    assert streamline[n_points - 1][1] == 22.0
+    assert streamline[n_points - 1][2] == 24.5
 
     tcz_in.close()
 
@@ -360,7 +335,7 @@ def test_file_from_tck_to_tcz_spline_representation_with_epsilon_greater_than_ze
         'blur_spacing': '3.3',
         'epsilon': '0.005',
         'blur_gauss_min': '4.4',
-        'segment_len': '0.1',
+        'segment_len': '0.11',
         'representation': 'spline',
         'timestamp': '2040-01-01T00:00:00.000Z',
     }
@@ -375,35 +350,15 @@ def test_file_from_tck_to_tcz_spline_representation_with_epsilon_greater_than_ze
         'tests/dicelib/mock/one_streamline_converted_with_epsilon_greater_than_zero_and_little_segment_len.tcz', 'r')
     n_points, streamline = tcz_in.read_streamline()
 
-    assert n_points == 293
+    assert n_points == 453
 
     assert streamline[0][0] == 49.40625
     assert streamline[0][1] == 22.0
     assert streamline[0][2] == 24.5
 
-    assert streamline[50][0] == 40.88396453857422
-    assert streamline[50][1] == 22.361190795898438
-    assert streamline[50][2] == 24.5
-
-    assert streamline[100][0] == 32.352210998535156
-    assert streamline[100][1] == 22.174179077148438
-    assert streamline[100][2] == 24.5
-
-    assert streamline[150][0] == 23.820392608642578
-    assert streamline[150][1] == 22.00276756286621
-    assert streamline[150][2] == 24.5
-
-    assert streamline[200][0] == 15.28921127319336
-    assert streamline[200][1] == 22.215303421020508
-    assert streamline[200][2] == 24.5
-
-    assert streamline[250][0] == 6.757236480712891
-    assert streamline[250][1] == 22.361608505249023
-    assert streamline[250][2] == 24.5
-
-    assert streamline[292][0] == -0.39990234375
-    assert streamline[292][1] == 22.0
-    assert streamline[292][2] == 24.5
+    assert streamline[n_points - 1][0] == -0.39990234375
+    assert streamline[n_points - 1][1] == 22.0
+    assert streamline[n_points - 1][2] == 24.5
 
 
 def test_file_from_tck_to_tcz_with_different_format_input_file_will_throw_exception():

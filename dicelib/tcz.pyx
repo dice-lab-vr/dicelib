@@ -325,7 +325,7 @@ cdef class Tcz:
         if self.header['representation'] == 'spline' and self.header['epsilon'] != 0:
             if number_of_points > 2:
                 number_of_points, new_streamline = self._resample_streamline(
-                    self.streamline[:number_of_points,:], number_of_points, float(self.header['segment_len'])
+                    self.streamline[:number_of_points,:], float(self.header['segment_len'])
                 )
 
             else: # no need to smooth with two points only, as we have only one line with two points
@@ -357,18 +357,13 @@ cdef class Tcz:
 
         return compressed_streamline
 
-
-    cpdef _resample_streamline(self, float[:,:] streamline, unsigned short int n, float segment_len):
+    cpdef _resample_streamline(self, float[:,:] streamline, float segment_len):
 
         max_point_catmull_rom = 50
         smoothed_streamline = np.asarray(
             CatmullRom_smooth(streamline, matrix, 0.5, max_point_catmull_rom)
         )
-
-        if n > max_point_catmull_rom:
-            fib_len = length(smoothed_streamline, max_point_catmull_rom)
-        else:
-            fib_len = length(smoothed_streamline, n)
+        fib_len = length(smoothed_streamline, len(smoothed_streamline))
 
         if segment_len != 0:
             n = int(fib_len / segment_len)
