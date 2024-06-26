@@ -1,6 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
-from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth
+from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, create_streamline_replicas
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 
@@ -2955,4 +2955,161 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
-        
+
+cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, blur_apply_to=None, save_weights: bool=False, verbose: int=3, force: bool=False ):
+    """Save replicas of the input tractogram by applying a Gaussian blur.
+
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to process.
+
+    output_tractogram : string
+        Path to the file where to store the output tractogram.
+
+    blur_core_extent: float
+        Extent of the core inside which the segments have equal contribution to the central one used by COMMITblur.
+
+    blur_gauss_extent: float
+        Extent of the gaussian damping at the border used by COMMITblur.
+
+    blur_spacing : float
+        To obtain the blur effect, streamlines are duplicated and organized in a cartesian grid;
+        this parameter controls the spacing of the grid in mm (defaut : 0.25).
+
+    blur_gauss_min: float
+        Minimum value of the Gaussian to consider when computing the sigma (default : 0.1).
+
+    blur_apply_to: array of bool
+        For each input streamline, decide whether blur is applied or not to it (default : None, meaning apply to all).
+
+    save_weights : boolean
+        Save the weights of the replicas in the output tractogram (default : False). # TODO: check this output
+
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+
+    force : boolean
+        Force overwriting of the output (default : False).
+    """
+    set_verbose('tractogram', verbose)
+
+    files = [
+        File(name='input_tractogram', type_='input', path=input_tractogram)
+    ]
+
+    if output_tractogram is not None:
+        files.append( File(name='output_tractogram', type_='output', path=output_tractogram) )  
+    nums = [
+        Num(name='blur_core_extent', value=blur_core_extent, min_=0.0),
+        Num(name='blur_gauss_extent', value=blur_gauss_extent, min_=0.0),
+        Num(name='blur_spacing', value=blur_spacing, min_=0.0),
+        Num(name='blur_gauss_min', value=blur_gauss_min, min_=0.0)
+    ]
+    check_params(files=files, nums=nums, force=force)
+    t0 = time()
+    logger.info('Creating replicas of each streamline in the tractogram')
+
+    TCK_in = LazyTractogram( input_tractogram, mode='r' )
+    n_streamlines = int( TCK_in.header['count'] )
+    logger.subinfo(f'Input tractogram: {input_tractogram}', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'number of streamlines: {n_streamlines}', indent_lvl=2, indent_char='-')
+
+    TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+    n_written = 0
+
+    ####### code from trk2dictionary.pyx #######
+
+    # check for invalid parameters in the blur
+    if blur_core_extent < 0 :
+        logger.error( 'The extent of the core must be non-negative' )
+
+    if blur_gauss_extent < 0 :
+        logger.error( 'The extent of the blur must be non-negative' )
+
+    if blur_gauss_extent > 0 or blur_core_extent > 0:
+        if blur_spacing <= 0 :
+            logger.error( 'The grid spacing of the blur must be positive' )
+
+    cdef :
+        double [:] blurRho
+        double [:] blurAngle
+        double [:] blurWeights
+        cbool [:] blurApplyTo
+        int nReplicas
+        float blur_sigma
+        int i = 0
+
+    if (blur_gauss_extent==0 and blur_core_extent==0) or (blur_spacing==0) :
+        nReplicas = 1
+        blurRho = np.array( [0.0], np.double )
+        blurAngle = np.array( [0.0], np.double )
+        blurWeights = np.array( [1], np.double )
+    else:
+        tmp = np.arange(0,blur_core_extent+blur_gauss_extent+1e-6,blur_spacing)
+        tmp = np.concatenate( (tmp,-tmp[1:][::-1]) )
+        x, y = np.meshgrid( tmp, tmp )
+        r = np.sqrt( x*x + y*y )
+        idx = (r <= blur_core_extent+blur_gauss_extent)
+        blurRho = r[idx]
+        blurAngle = np.arctan2(y,x)[idx]
+        nReplicas = blurRho.size
+
+        blurWeights = np.empty( nReplicas, np.double  )
+        if blur_gauss_extent == 0 :
+            blurWeights[:] = 1.0
+        else:
+            blur_sigma = blur_gauss_extent / np.sqrt( -2.0 * np.log( blur_gauss_min ) )
+            for i in xrange(nReplicas):
+                if blurRho[i] <= blur_core_extent :
+                    blurWeights[i] = 1.0
+                else:
+                    blurWeights[i] = np.exp( -(blurRho[i] - blur_core_extent)**2 / (2.0*blur_sigma**2) )
+
+    if nReplicas == 1 :
+        logger.subinfo( 'Do not blur streamlines', indent_lvl=2, indent_char='-' )
+    else :
+        logger.subinfo( 'Blur parameters:', indent_lvl=1, indent_char='*' )
+        logger.subinfo( f'core extent  = {blur_core_extent:.3f}', indent_lvl=2, indent_char='-' )
+        logger.subinfo( f'gauss extent = {blur_gauss_extent:.3f} (sigma = {blur_sigma:.3f})', indent_lvl=2, indent_char='-' )
+        logger.subinfo( f'grid spacing = {blur_spacing:.3f}' , indent_lvl=2, indent_char='-' )
+        logger.subinfo( f'weights = [ {np.min(blurWeights):.3f} ... {np.max(blurWeights):.3f} ]', indent_lvl=2, indent_char='-' )
+        logger.subinfo( f'n. replicas = {nReplicas:.0f}' , indent_lvl=2, indent_char='-' )
+
+    # check copmpatibility between blurApplyTo and number of streamlines
+    if blur_apply_to is None:
+        blur_apply_to = np.repeat([True], n_streamlines)
+    else :
+        if blur_apply_to.size != n_streamlines :
+            logger.error( '"blur_apply_to" must have one value per streamline' )
+        logger.subinfo( f'{sum(blur_apply_to)} blurred streamlines', indent_lvl=3, indent_char='-' )
+    blurApplyTo = blur_apply_to
+
+    ###########################################
+
+    # process each streamline
+    with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+        for i in range( n_streamlines ):
+            TCK_in.read_streamline() 
+            nb_pts = TCK_in.n_pts
+            str_replicas, pts_replicas = create_streamline_replicas(TCK_in.streamline[:nb_pts], nb_pts, nReplicas, blurRho, blurAngle, blurWeights, blurApplyTo[i])
+            for i in range(nReplicas):
+                TCK_out.write_streamline( str_replicas[i], pts_replicas[i] )
+                n_written += 1
+            pbar.update()
+
+    TCK_in.close()
+    TCK_out.close( write_eof=True, count=n_written )
+
+    logger.subinfo(f'Output tractogram: {output_tractogram}', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'number of streamlines: {n_written}', indent_lvl=2, indent_char='-')
+
+    if save_weights:
+        wei_file = output_tractogram.replace('.tck', '_weights.txt')
+        logger.subinfo(f'Saving weights: {wei_file}', indent_char='*', indent_lvl=2)
+        all_wei = np.tile( blurWeights, n_streamlines )
+        np.savetxt( wei_file, all_wei )
+
+    t1 = time()
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
+

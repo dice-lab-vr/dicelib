@@ -5,6 +5,7 @@ from bisect import bisect_right
 import numpy as np
 
 from libc.math cimport floor, sqrt
+from libcpp cimport bool
 
 cdef extern from "streamline_utils.hpp":
     int smooth_c(
@@ -17,10 +18,14 @@ cdef extern from "streamline_utils.hpp":
     ) nogil
 
 cdef extern from "streamline_utils.hpp":
-    int create_replicas_pt( 
+    int create_replicas_point( 
         float* ptr_pts_in, double* ptr_pts_out, double* ptr_blur_rho, double* ptr_blur_angle, int n_replicas, float fiberShiftX, float fiberShiftY, float fiberShiftZ 
     ) nogil
 
+cdef extern from "streamline_utils.hpp":
+    void create_replicas_streamline( 
+        float* fiber, unsigned int pts, float* fiber_out, float* pts_replica, int nReplicas, double* ptrBlurRho, double* ptrBlurAngle, double* ptrBlurWeights, bool doApplyBlur  
+    ) nogil
 
 
 cpdef double [:,::1] space_tovox(streamline, header,curr_space = None ):
@@ -324,11 +329,57 @@ cpdef float [:,::1] create_replicas( float [:,::1] in_pts, double [:] blurRho, d
     """
 
     cdef double [:,:] pts_out = np.ascontiguousarray( np.zeros( (3*nReplicas,1) ).astype(np.float64) )
-    n = create_replicas_pt( &in_pts[0,0], &pts_out[0,0], &blurRho[0], &blurAngle[0], nReplicas, fiber_shiftX, fiber_shiftY, fiber_shiftZ )
+    n = create_replicas_point( &in_pts[0,0], &pts_out[0,0], &blurRho[0], &blurAngle[0], nReplicas, fiber_shiftX, fiber_shiftY, fiber_shiftZ )
     if n != 0 :
         out_pts_m = np.reshape( pts_out[:3*n].copy(), (n,3) ).astype(np.float32)
 
     return out_pts_m
+
+cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nReplicas, double [:] blurRho, double [:] blurAngle, double [:] blurWeights, bool blurApply):
+    """ Generate the replicas of an entire streamline given the grid coordinates.
+    
+    Parameters
+    ----------
+    
+    in_str : n_pts_strX3 numpy array
+        Input streamline data
+
+    n_pts_str : int
+        Number of points in the streamline
+
+    nReplicas : int
+        Number of replicas to generate
+
+    blurRho : nReplicas numpy array
+        Distance values for the replicas
+
+    blurAngle : nReplicas numpy array 
+        Angle values for the replicas
+
+    blurWeights : nReplicas numpy array
+        Weights for the replicas
+
+    blurApply : bool
+        Apply the blur or not
+
+
+    Returns
+    -------
+    str_replicas_reshape : nReplicasXn_pts_strX3 numpy array
+        Replicas of the streamline data
+
+    n_pt_replicas : nReplicas numpy array
+        Number of points in each replica
+
+    """
+
+    cdef float [::1] str_replicas = np.ascontiguousarray(np.zeros( (nReplicas*n_pts_str*3), dtype=np.float32 ))
+    cdef float [::1] n_pt_replicas = np.ascontiguousarray(np.zeros( (nReplicas), dtype=np.float32 ))
+
+    create_replicas_streamline( &in_str[0,0], n_pts_str, &str_replicas[0], &n_pt_replicas[0], nReplicas, &blurRho[0], &blurAngle[0], &blurWeights[0], blurApply)
+    str_replicas_reshape = np.reshape( str_replicas[:nReplicas*n_pts_str*3].copy(), (nReplicas, n_pts_str, 3) ).astype(np.float32)
+
+    return str_replicas_reshape, n_pt_replicas
 
 
 cpdef sampling(float [:,::1] streamline_view, float [:,:,::1] img_view, int npoints, float [:,:,::1] mask_view, option=None):
