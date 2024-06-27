@@ -203,7 +203,7 @@ cpdef rdp_reduction( streamline, n_pts, epsilon, n_pts_red=0 ):
     return streamline, n
 
 
-cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len=0, n_pts_final=0, epsilon = 0.3, alpha = 0.5, n_pts_tmp = 50, n_pts_red = 0):
+cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red = 0, n_pts_eval = None, seg_len_eval = 0.5, resample = False, segment_len = 0, n_pts_final = 0):
     """Perform smoothing on one streamline.
 
     Parameters
@@ -212,14 +212,22 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len=0, n_pts_final=0, epsilon =
         The streamline data
     n_pts_in : int
         Number of points in the streamline
-    segment_len : float
-        Min length of the segments in mm
-    epsilon : float
-        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3)
     alpha : float
         Parameter defining the spline type: 0.5 = 'centripetal', 0.0 = 'uniform' or 1.0 = 'chordal' (default : 0.5).
-    n_pts_temp : int
-        Number of points used for the first sampling of the spline
+    epsilon : float
+        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3)
+    n_pts_red : int
+        Number of points in the reduced streamline. If n_pts_red=0 (default), the number of points depends on the result of the Ramer-Douglas-Peucker algorithm using epsilon.
+    n_pts_eval : int
+        Number of points used for evaluating the spline
+    seg_len_eval : float
+        Segment length used for compute the number of points used for evaluating the spline as length(reduced_streamline)/seg_len_eval
+    resample : bool
+        Resample the streamline to have a equidistant points
+    segment_len : float
+        Min length of the segments in mm
+    n_pts_final : int
+        Number of points in the final smoothed streamline
 
     Returns
     -------
@@ -235,7 +243,10 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len=0, n_pts_final=0, epsilon =
     fib_red_ptr, n_red = rdp_reduction(fib_ptr, n_pts_in, epsilon, nPtsred)
 
     cdef float [:,:] smoothed_fib
+    cdef float [:,:] resampled_fib
     cdef int n_pts_tot = 0
+    cdef int n_pts_out
+    cdef float fib_len
     cdef float[:, :] matrix = np.array([ [2, -2, 1, 1],
                                         [-3, 3, -2, -1],
                                         [0, 0, 1, 0],
@@ -245,23 +256,30 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, segment_len=0, n_pts_final=0, epsilon =
         smoothed_fib = fib_red_ptr
         n_pts_tot = n_red
     else:
-        vertices = np.asarray(fib_red_ptr).astype(np.float32)
-        smoothed_fib = np.asarray(CatmullRom_smooth(vertices, matrix, alpha, n_pts_tmp))
-        n_pts_tot = n_pts_tmp
+        vertices = fib_red_ptr.astype(np.float32)
+        # compute number of points for evaluation
+        if n_pts_eval is None:
+            len_red = length( vertices, n_red )
+            n_pts_eval = int(len_red / seg_len_eval)
+        # compute and evaluate the spline
+        smoothed_fib = CatmullRom_smooth(vertices, matrix, alpha, n_pts_eval)
+        n_pts_tot = n_pts_eval
 
-    # compute streamline length
-    cdef float fib_len = length( smoothed_fib, n_pts_tot )
-    # compute number of final points
-    cdef int n_pts_out
-    if segment_len!=0:
-        n_pts_out = int(fib_len / segment_len)
-    if n_pts_final!=0:
-        n_pts_out = n_pts_final
+    if resample:
+        # compute streamline length
+        fib_len = length( smoothed_fib, n_pts_tot )
+        # compute number of final points
+        if segment_len!=0:
+            n_pts_out = int(fib_len / segment_len)
+        if n_pts_final!=0:
+            n_pts_out = n_pts_final
+        # resample smoothed streamline
+        resampled_fib = resample(smoothed_fib, n_pts_out)
+        return resampled_fib, n_pts_out
 
-    # resample smoothed streamline
-    cdef float [:,:] resampled_fib = resample(smoothed_fib, n_pts_out)
+    else:
+        return smoothed_fib, n_pts_tot
 
-    return resampled_fib, n_pts_out
 
 
 cpdef resample (streamline, nb_pts) :
