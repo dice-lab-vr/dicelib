@@ -1,0 +1,167 @@
+name: Build wheels
+run-name: Build wheels - ${{ github.sha }}
+on:
+  push:
+    branches:
+      - 'master'
+      - 'release/**'
+jobs:
+  build_windows_wheels:
+    strategy:
+      matrix:
+        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        arch:
+          - [AMD64, win_amd64, x64]
+          - [x86, win32, x86]
+    name: ${{ matrix.py }}-${{ matrix.arch[1] }}
+    runs-on: windows-2019
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build wheel ${{ matrix.py }}-${{ matrix.arch[1] }}
+        uses: pypa/cibuildwheel@v2.19.1
+        env:
+          CIBW_PLATFORM: windows
+          CIBW_BUILD: ${{ matrix.py }}-${{ matrix.arch[1] }}
+          CIBW_ARCHS_WINDOWS: ${{ matrix.arch[0] }}
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels_windows_${{ matrix.arch[0] }}
+          path: ./wheelhouse/*.whl
+          if-no-files-found: error
+
+  build_macos_wheels:
+    strategy:
+      matrix:
+        config:
+          [
+            {
+              py: cp36,
+              arch: [x86_64, macosx_x86_64, 10.9, macos-11]
+            },
+            {
+              py: cp37,
+              arch: [x86_64, macosx_x86_64, 10.9, macos-11]
+            },
+            {
+              py: cp38,
+              arch: [x86_64, macosx_x86_64, 10.9, macos-11]
+            },
+            {
+              py: cp39,
+              arch: [x86_64, macosx_x86_64, 10.9, macos-11]
+            },
+            {
+              py: cp310,
+              arch: [x86_64, macosx_x86_64, 10.9, macos-11]
+            },
+            {
+              py: cp311,
+              arch: [x86_64, macosx_x86_64, 10.9, macos-11]
+            },
+            {
+              py: cp312,
+              arch: [x86_64, macosx_x86_64, 10.9, macos-11]
+            },
+            {
+              py: cp38,
+              arch: [arm64, macosx_arm64, 11.0, macos-14]
+            },
+            {
+              py: cp39,
+              arch: [arm64, macosx_arm64, 11.0, macos-14]
+            },
+            {
+              py: cp310,
+              arch: [arm64, macosx_arm64, 11.0, macos-14]
+            },
+            {
+              py: cp311,
+              arch: [arm64, macosx_arm64, 11.0, macos-14]
+            },
+            {
+              py: cp312,
+              arch: [arm64, macosx_arm64, 11.0, macos-14]
+            }
+          ]
+    name: ${{ matrix.config.py }}-${{ matrix.config.arch[1] }}
+    runs-on: ${{ matrix.config.arch[3] }}
+    if: 
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pipx # NOTE: required only for arm64
+        if: startsWith(matrix.config.arch[0], 'arm64')
+        run: |
+          brew install pipx
+
+      - name: Build wheel ${{ matrix.config.py }}-${{ matrix.config.arch[1] }}
+        uses: pypa/cibuildwheel@v2.19.1
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.config.arch[2] }}
+          CIBW_PLATFORM: macos
+          CIBW_BUILD: ${{ matrix.config.py }}-${{ matrix.config.arch[1] }}
+          CIBW_ARCHS_MACOS: ${{ matrix.config.arch[0] }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels_macos_${{ matrix.config.arch[0] }}
+          path: ./wheelhouse/*.whl
+          if-no-files-found: error
+
+  build_linux_wheels:
+    strategy:
+      matrix:
+        py: [cp36, cp37, cp38, cp39, cp310, cp311, cp312]
+        arch:
+          - [x86_64, manylinux_x86_64, amd64]
+          - [aarch64, manylinux_aarch64, arm64]
+    name: ${{ matrix.py }}-${{ matrix.arch[1] }}
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3.0.0
+        with:
+          platforms: ${{ matrix.arch[2] }}
+
+      - name: Build wheel ${{ matrix.py }}-${{ matrix.arch[1] }}
+        uses: pypa/cibuildwheel@v2.19.1
+        env:
+          CIBW_PLATFORM: linux
+          CIBW_BUILD: ${{ matrix.py }}-${{ matrix.arch[1] }}
+          CIBW_ARCHS_LINUX: ${{ matrix.arch[0] }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels_linux_${{ matrix.arch[0] }}
+          path: ./wheelhouse/*.whl
+          if-no-files-found: error
+
+  build_source_distribution:
+    name: sdist
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build source distribution
+        run: |
+          pip install -U pip
+          pip install -U build
+          python -m build --sdist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: ./dist/*.tar.gz
+          if-no-files-found: error
