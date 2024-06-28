@@ -191,10 +191,13 @@ class Logger(logging.getLoggerClass()):
             if indent_lvl >= 0 and indent_char is not None:
                 indent = '   ' * indent_lvl
                 msg = f'{indent}{msg}' if indent_char == '' else f'{indent}{indent_char} {msg}'
-            self._log(SUBINFO, msg, args, stacklevel=stacklevel, **kwargs)
+            if _in_notebook() and with_progress:
+                print(msg, end='  ', flush=True)
+            else:
+                self._log(SUBINFO, msg, args, stacklevel=stacklevel, **kwargs)
             if with_progress:
                 for i in stream_handler_indices:
-                        self.handlers[i].terminator = '\n'
+                    self.handlers[i].terminator = '\n'
         return msg
     
     def error(self, msg, stacklevel=2, *args, **kwargs):
@@ -944,13 +947,19 @@ class ProgressBar:
                         self.log_list = []
                         # self._handle_subinfo(step)
                     else:
-                        print(f'{esc}1D{step}', end='', flush=True)
+                        if _in_notebook():
+                            print(f'\r{self.subinfo} {step}', end='', flush=True)
+                        else:
+                            print(f'{esc}1D{step}', end='', flush=True)
                 elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                     print(f"\r|{step}{reset}|", end='', flush=True)
                 sleep(self.refresh)
         else:
             if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
-                print(f'{esc}1D[0.0%]', end='', flush=True)
+                if _in_notebook():
+                    print(f'\r{self.subinfo} [0.0%]', end='', flush=True)
+                else:
+                    print(f'{esc}1D[0.0%]', end='', flush=True)
                 self._percent_len = 6
             while True:
                 if self._done:
@@ -969,7 +978,10 @@ class ProgressBar:
                         self.log_list = []
                         # self._handle_subinfo(percent_str)
                     else:
-                        print(f'{esc}{self._percent_len}D{percent_str}', end='', flush=True)
+                        if _in_notebook():
+                            print(f'\r{self.subinfo} {percent_str}', end='', flush=True)
+                        else:
+                            print(f'{esc}{self._percent_len}D{percent_str}', end='', flush=True)
                     self._percent_len = len(percent_str)
                 elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                     print(f"\r|{fg_pink}{'━' * int(self.ncols * self._progress / self.total)}{fg_bright_black}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}{reset}| {fg_green}[{100 * self._progress / self.total:.1f}%] {fg_cyan}{self._eta}{reset}", end='', flush=True)
@@ -1005,8 +1017,12 @@ class ProgressBar:
         self._done = True
         if not self.disable:
             if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
-                end_str = f'{esc}1D{esc}0K' if self.total is None else f'{esc}{self._percent_len}D{esc}0K'
-                print(end_str) if self.hide_on_exit else print(f'{end_str}[OK]')
+                if _in_notebook():
+                    print(clear_line, end='', flush=True)
+                    print(f'\r{self.subinfo}', flush=True) if self.hide_on_exit else print(f'\r{self.subinfo}[OK]', flush=True)
+                else:
+                    end_str = f'{esc}1D{esc}0K' if self.total is None else f'{esc}{self._percent_len}D{esc}0K'
+                    print(end_str) if self.hide_on_exit else print(f'{end_str}[OK]')
             elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                 print(clear_line, end='\r', flush=True)
                 if not self.hide_on_exit:
