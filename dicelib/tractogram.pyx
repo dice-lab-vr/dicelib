@@ -2105,7 +2105,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=None, n_ctrl_pts=None, segment_len=None, streamline_pts=None, verbose=3, force=False ):
+cpdef spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=None, n_ctrl_pts=None, segment_len=None, streamline_pts=None, verbose=3, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
 
     Parameters
