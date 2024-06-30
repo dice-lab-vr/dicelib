@@ -1,6 +1,6 @@
 from dicelib.clustering import run_clustering
 from dicelib.connectivity import assign
-from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, get_indices_of_streamlines, resample, sample, tsf_create, sanitize, spline_smoothing_v2, split, sort as tract_sort, tsf_join
+from dicelib.tractogram import compute_lengths, filter as tract_filter, info, join as tract_join, recompute_indices, get_indices_of_streamlines, resample, sample, tsf_create, sanitize, shuffle, spline_smoothing_v2, split, sort as tract_sort, tsf_join
 from dicelib.ui import setup_logger, setup_parser
 
 import os
@@ -422,6 +422,38 @@ def tractogram_sanitize():
     )
 
 
+def tractogram_shuffle():
+    '''
+    Entry point for the tractogram shuffling function.
+    '''
+    # parse the input parameters
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
+        [['--n_tmp_groups', '-g'], {'type': int, 'default': 100, 'help': 'Number of temporary groups used to shuffle the streamlines'}],
+        [['--seed', '-s'], {'type': int, 'default': None, 'help': 'Seed used for the random shuffling'}],
+        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
+        [['--weights_out', '-o'], {'type': str, 'default': None, 'help': 'Output streamline weights (.txt or .npy)'}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_shuffle', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
+        [['--keep_tmp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}]
+    ]
+    options = setup_parser(shuffle.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    # call actual function
+    shuffle(
+        options.tractogram_in,
+        options.tractogram_out,
+        options.n_tmp_groups,
+        options.seed,
+        options.weights_in,
+        options.weights_out,
+        options.tmp_folder,
+        options.keep_tmp,
+        options.verbose,
+        options.force
+    )
+
+
 def tractogram_smooth():
     '''
     Entry point for the tractogram smoothing function.
@@ -431,20 +463,29 @@ def tractogram_smooth():
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
         [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': 'Type of spline to use for the smoothing'}],
-        [['--segment_len', '-l'], {'type': float, 'default': None, 'help': '''\
-                                   Sampling resolution of the final streamline after interpolation. 
-                                   NOTE: either "segment_len" or "streamline_pts" must be set, by default "segment_len" is used.
-                                         If None and "streamline_pts" is None, "segment_len" is set to 0.5.'''}],
-        [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': '''\
-                                      Number of points in each of the final streamlines. 
-                                      NOTE: either "streamline_pts" or "segment_len" must be set, by default "segment_len" is used.'''}],
         [['--epsilon', '-e'], {'type': float, 'default': None, 'help': '''\
                                Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline. 
                                NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.
                                      If None and "n_ctrl_pts" is None, "epsilon" is set to 0.3.'''}],
         [['--n_ctrl_pts', '-n'], {'type': int, 'default': None, 'help': '''\
                                   Number of control points used to interpolate the streamlines. 
-                                  NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.'''}]
+                                  NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.'''}],
+        [['--resample', '-r'], {'action': 'store_true', 'default': False, 'help': '''\
+                                   If True, the final streamlines are resampled to have a constant segment length (see "segment_len" and "streamline_pts" parameters). 
+                                   If False, the point of the final streamlines are more dense where the curvature is high.'''}],
+        [['--segment_len', '-l'], {'type': float, 'default': None, 'help': '''\
+                                   Sampling resolution of the final streamline after interpolation. 
+                                   NOTE: if 'resample' is True, either "segment_len" or "streamline_pts" must be set, by default "segment_len" is used.
+                                         If None and "streamline_pts" is None, "segment_len" is set to 0.5.'''}],
+        [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': '''\
+                                      Number of points in each of the final streamlines. 
+                                      NOTE: if 'resample' is True, either "streamline_pts" or "segment_len" must be set, by default "segment_len" is used.'''}],
+        [['--n_pts_eval', '-n_ev'], {'type': int, 'default': None, 'help': '''\
+                                     Number of points in which the spline is evaluated. 
+                                     If None, the number of points is computed using "segment_len_eval"'''}],
+        [['--segment_len_eval', '-l_ev'], {'type': float, 'default': None, 'help': '''\
+                                           Segment length used to compute the number of points in which the spline is evaluated; computed as the length of the reduced streamline divided by "segment_len_eval".
+                                           If None and "n_pts_eval" is None, "segment_len_eval" is set to 0.5'''}]
     ]
 
     options = setup_parser(spline_smoothing_v2.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
@@ -456,6 +497,9 @@ def tractogram_smooth():
         options.type,
         options.epsilon,
         options.n_ctrl_pts,
+        options.n_pts_eval,
+        options.segment_len_eval,
+        options.resample,
         options.segment_len,
         options.streamline_pts,
         options.verbose,
@@ -477,7 +521,7 @@ def tractogram_sort():
                                   Argument is the maximum radius in mm'''}],
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights (.txt or .npy)'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights (.txt or .npy)'}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_sort', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
         [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}],
         [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
                                  Number of threads to use.
