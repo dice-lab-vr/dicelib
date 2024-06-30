@@ -323,13 +323,24 @@ cdef class Tcz:
            ptr += 3
 
         if self.header['representation'] == 'spline' and self.header['epsilon'] != 0:
-            if number_of_points > 2:
-                number_of_points, new_streamline = self._resample_streamline(
-                    self.streamline[:number_of_points,:], float(self.header['segment_len'])
+
+            if number_of_points == 2: # no need to smooth with two points only
+                streamline_to_be_resampled = self.streamline[:number_of_points, :]
+            else:
+                max_point_catmull_rom = 50
+                streamline_to_be_resampled = np.asarray(
+                    CatmullRom_smooth(self.streamline[:number_of_points,:], matrix, 0.5, max_point_catmull_rom)
                 )
 
-            else: # no need to smooth with two points only, as we have only one line with two points
-                new_streamline = self.streamline[:number_of_points, :]
+            fib_len = length(streamline_to_be_resampled, len(streamline_to_be_resampled))
+
+            if float(self.header['segment_len']) != 0:
+                n = int(fib_len / float(self.header['segment_len']))
+
+            number_of_points = n
+            new_streamline = resample(streamline_to_be_resampled, number_of_points)
+
+            return number_of_points, new_streamline
 
         else:
             new_streamline = self.streamline[:number_of_points,:]
@@ -356,19 +367,6 @@ cdef class Tcz:
                 compressed_streamline[i][j] = float32_to_float16(streamline[i][j])
 
         return compressed_streamline
-
-    cpdef _resample_streamline(self, float[:,:] streamline, float segment_len):
-
-        max_point_catmull_rom = 50
-        smoothed_streamline = np.asarray(
-            CatmullRom_smooth(streamline, matrix, 0.5, max_point_catmull_rom)
-        )
-        fib_len = length(smoothed_streamline, len(smoothed_streamline))
-
-        if segment_len != 0:
-            n = int(fib_len / segment_len)
-
-        return n, resample(smoothed_streamline, n)
 
     cpdef close(self, int count=-1):
         """Close the file associated with the tcz.

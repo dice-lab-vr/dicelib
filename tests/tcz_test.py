@@ -51,7 +51,7 @@ def test_create_in_write_mode_successfully():
         'blur_gauss_min': '4.4',
         'epsilon': '0.005',
         'segment_len': '0.5',
-        'representation': 'polyline',
+        'representation': 'spline',
         'datatype': 'Float32LE',
         'count': '999',
         'timestamp': '2040-01-01T00:00:00.000Z',
@@ -143,72 +143,6 @@ def test_streamline_to_float16(input_number, expected_result):
     for x in range(4):
         for y in range(3):
             assert streamline_converted[x][y] == expected_result
-
-
-def test_resample_streamline():
-    header_test = {
-        'blur_core_extent': '1.1',
-        'blur_gauss_extent': '2.2',
-        'blur_spacing': '3.3',
-        'epsilon': '0.005',
-        'segment_len': '0.5',
-        'blur_gauss_min': '4.4',
-        'representation': 'polyline',
-        'datatype': 'Float32LE',
-        'count': '999',
-        'timestamp': '2040-01-01T00:00:00.000Z',
-    }
-    tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
-    fake_streamline = np.asarray([
-        [-13.5078125, -65.5, 41.0625],
-        [-13.9609375, -65.0625, 41.],
-        [-14.3046875, -64.6875, 40.6875],
-        [-14.59375, -64.25, 40.3125],
-        [-14.9765625, -63.96875, 39.90625],
-        [-15.1796875, -63.78125, 39.375],
-        [-15.234375, -63.65625, 38.75],
-        [-15.3984375, -63.46875, 38.1875],
-        [-15.609375, -63.3125, 37.625],
-        [-15.765625, -63.09375, 37.0625],
-        [-15.7890625, -62.71875, 36.5625],
-        [-15.90625, -62.53125, 36.],
-        [-16.078125, -62.375, 35.40625],
-    ], dtype=np.float32)
-
-    tcz._resample_streamline(fake_streamline, np.float32(0.5))
-
-
-def test_resample_streamline():
-    header_test = {
-        'blur_core_extent': '1.1',
-        'blur_gauss_extent': '2.2',
-        'blur_spacing': '3.3',
-        'epsilon': '0.005',
-        'segment_len': '0.5',
-        'blur_gauss_min': '4.4',
-        'representation': 'polyline',
-        'datatype': 'Float32LE',
-        'count': '999',
-        'timestamp': '2040-01-01T00:00:00.000Z',
-    }
-    tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
-    fake_streamline = np.asarray([
-        [-13.5078125, -65.5, 41.0625],
-        [-13.9609375, -65.0625, 41.],
-        [-14.3046875, -64.6875, 40.6875],
-        [-14.59375, -64.25, 40.3125],
-        [-14.9765625, -63.96875, 39.90625],
-        [-15.1796875, -63.78125, 39.375],
-        [-15.234375, -63.65625, 38.75],
-        [-15.3984375, -63.46875, 38.1875],
-        [-15.609375, -63.3125, 37.625],
-        [-15.765625, -63.09375, 37.0625],
-        [-15.7890625, -62.71875, 36.5625],
-        [-15.90625, -62.53125, 36.],
-        [-16.078125, -62.375, 35.40625],
-    ], dtype=np.float32)
-
-    tcz._resample_streamline(fake_streamline, np.float32(0.5))
 
 
 def test_create_with_invalid_format_will_throw_error():
