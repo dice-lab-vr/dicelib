@@ -7,10 +7,12 @@
 - Added function to save the replicas used for the blur
 - Added function to shuffle the tractogram (`dice_tractogram_shuffle` script)
 - Add function to compute the TDI of the ending points, possibly using blur (`dice_image_tdi_ends` script)
+- Setup GitHub Actions for CI/CD (`build_wheels.yml` workflow)
 
 ### 🐛Fixed
-- Fixed errors in `dice_tractogram_filter` script
-- Fixed weights grouping when perform clustering
+- Errors in `dice_tractogram_filter` script
+- Weights grouping when perform clustering
+- Improved output when running from Jupyter notebook
 
 ---
 ---
