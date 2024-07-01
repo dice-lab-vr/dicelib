@@ -1,7 +1,7 @@
 [build-system]
 requires = [
     "cython>=3.0.10",
-    "numpy>=1.24.4",
+    "numpy>=1.24.4,<2.0.0",
     "setuptools>=69.2.0"
 ]
 build-backend = "setuptools.build_meta"
@@ -75,3 +75,8 @@ dice_tractogram_split = "dicelib.scripts.dice_tractogram:tractogram_split"
 dice_tractogram_create_tsf = "dicelib.scripts.dice_tractogram:tractogram_create_tsf"
 dice_tractogram_join_tsf = "dicelib.scripts.dice_tractogram:tractogram_join_tsf"
 dice_tractogram_locate = "dicelib.scripts.dice_tractogram:tractogram_locate"
+
+[tool.setuptools]
+packages = [
+    "dicelib"
+]
