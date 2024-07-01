@@ -203,7 +203,7 @@ cpdef rdp_reduction( streamline, n_pts, epsilon, n_pts_red=0 ):
     return streamline, n
 
 
-cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red = 0, n_pts_eval = None, seg_len_eval = 0.5, resample = False, segment_len = 0, n_pts_final = 0):
+cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red = 0, n_pts_eval = None, seg_len_eval = 0.5, do_resample = False, segment_len = 0, n_pts_final = 0):
     """Perform smoothing on one streamline.
 
     Parameters
@@ -222,7 +222,7 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red =
         Number of points used for evaluating the spline
     seg_len_eval : float
         Segment length used for compute the number of points used for evaluating the spline as length(reduced_streamline)/seg_len_eval
-    resample : bool
+    do_resample : bool
         Resample the streamline to have a equidistant points
     segment_len : float
         Min length of the segments in mm
@@ -265,7 +265,7 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red =
         smoothed_fib = CatmullRom_smooth(vertices, matrix, alpha, n_pts_eval)
         n_pts_tot = n_pts_eval
 
-    if resample:
+    if do_resample:
         # compute streamline length
         fib_len = length( smoothed_fib, n_pts_tot )
         # compute number of final points

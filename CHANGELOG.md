@@ -1,6 +1,22 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.1.2`<br>_2024-07-01_
+### ✨Added
+- Added new options for smoothing
+- Added function to save the replicas used for the blur
+- Added function to shuffle the tractogram (`dice_tractogram_shuffle` script)
+- Add function to compute the TDI of the ending points, possibly using blur (`dice_image_tdi_ends` script)
+- Setup GitHub Actions for CI/CD (`build_wheels.yml` workflow)
+
+### 🐛Fixed
+- Errors in `dice_tractogram_filter` script
+- Weights grouping when perform clustering
+- Improved output when running from Jupyter notebook
+
+---
+---
+
 ## `v1.1.1`<br>_2024-04-12_
 ### 🐛Fixed
 - Fixed typo in `dice_connectome.py` script

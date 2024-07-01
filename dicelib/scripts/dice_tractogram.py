@@ -470,16 +470,16 @@ def tractogram_smooth():
         [['--n_ctrl_pts', '-n'], {'type': int, 'default': None, 'help': '''\
                                   Number of control points used to interpolate the streamlines. 
                                   NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.'''}],
-        [['--resample', '-r'], {'action': 'store_true', 'default': False, 'help': '''\
+        [['--do_resample', '-r'], {'action': 'store_true', 'default': False, 'help': '''\
                                    If True, the final streamlines are resampled to have a constant segment length (see "segment_len" and "streamline_pts" parameters). 
                                    If False, the point of the final streamlines are more dense where the curvature is high.'''}],
         [['--segment_len', '-l'], {'type': float, 'default': None, 'help': '''\
                                    Sampling resolution of the final streamline after interpolation. 
-                                   NOTE: if 'resample' is True, either "segment_len" or "streamline_pts" must be set, by default "segment_len" is used.
-                                         If None and "streamline_pts" is None, "segment_len" is set to 0.5.'''}],
+                                   NOTE: if 'do_resample' is True, either "segment_len" or "streamline_pts" must be set, by default "segment_len" is used.
+                                   If None and "streamline_pts" is None, "segment_len" is set to 0.5.'''}],
         [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': '''\
                                       Number of points in each of the final streamlines. 
-                                      NOTE: if 'resample' is True, either "streamline_pts" or "segment_len" must be set, by default "segment_len" is used.'''}],
+                                      NOTE: if 'do_resample' is True, either "streamline_pts" or "segment_len" must be set, by default "segment_len" is used.'''}],
         [['--n_pts_eval', '-n_ev'], {'type': int, 'default': None, 'help': '''\
                                      Number of points in which the spline is evaluated. 
                                      If None, the number of points is computed using "segment_len_eval"'''}],
@@ -499,7 +499,7 @@ def tractogram_smooth():
         options.n_ctrl_pts,
         options.n_pts_eval,
         options.segment_len_eval,
-        options.resample,
+        options.do_resample,
         options.segment_len,
         options.streamline_pts,
         options.verbose,

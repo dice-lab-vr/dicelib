@@ -191,10 +191,13 @@ class Logger(logging.getLoggerClass()):
             if indent_lvl >= 0 and indent_char is not None:
                 indent = '   ' * indent_lvl
                 msg = f'{indent}{msg}' if indent_char == '' else f'{indent}{indent_char} {msg}'
-            self._log(SUBINFO, msg, args, stacklevel=stacklevel, **kwargs)
+            if _in_notebook() and with_progress:
+                print(msg, end='  ', flush=True)
+            else:
+                self._log(SUBINFO, msg, args, stacklevel=stacklevel, **kwargs)
             if with_progress:
                 for i in stream_handler_indices:
-                        self.handlers[i].terminator = '\n'
+                    self.handlers[i].terminator = '\n'
         return msg
     
     def error(self, msg, stacklevel=2, *args, **kwargs):
@@ -944,13 +947,19 @@ class ProgressBar:
                         self.log_list = []
                         # self._handle_subinfo(step)
                     else:
-                        print(f'{esc}1D{step}', end='', flush=True)
+                        if _in_notebook():
+                            print(f'\r{self.subinfo} {step}', end='', flush=True)
+                        else:
+                            print(f'{esc}1D{step}', end='', flush=True)
                 elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                     print(f"\r|{step}{reset}|", end='', flush=True)
                 sleep(self.refresh)
         else:
             if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
-                print(f'{esc}1D[0.0%]', end='', flush=True)
+                if _in_notebook():
+                    print(f'\r{self.subinfo} [0.0%]', end='', flush=True)
+                else:
+                    print(f'{esc}1D[0.0%]', end='', flush=True)
                 self._percent_len = 6
             while True:
                 if self._done:
@@ -969,7 +978,10 @@ class ProgressBar:
                         self.log_list = []
                         # self._handle_subinfo(percent_str)
                     else:
-                        print(f'{esc}{self._percent_len}D{percent_str}', end='', flush=True)
+                        if _in_notebook():
+                            print(f'\r{self.subinfo} {percent_str}', end='', flush=True)
+                        else:
+                            print(f'{esc}{self._percent_len}D{percent_str}', end='', flush=True)
                     self._percent_len = len(percent_str)
                 elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                     print(f"\r|{fg_pink}{'━' * int(self.ncols * self._progress / self.total)}{fg_bright_black}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}{reset}| {fg_green}[{100 * self._progress / self.total:.1f}%] {fg_cyan}{self._eta}{reset}", end='', flush=True)
@@ -1005,8 +1017,12 @@ class ProgressBar:
         self._done = True
         if not self.disable:
             if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
-                end_str = f'{esc}1D{esc}0K' if self.total is None else f'{esc}{self._percent_len}D{esc}0K'
-                print(end_str) if self.hide_on_exit else print(f'{end_str}[OK]')
+                if _in_notebook():
+                    print(clear_line, end='', flush=True)
+                    print(f'\r{self.subinfo}', flush=True) if self.hide_on_exit else print(f'\r{self.subinfo}[OK]', flush=True)
+                else:
+                    end_str = f'{esc}1D{esc}0K' if self.total is None else f'{esc}{self._percent_len}D{esc}0K'
+                    print(end_str) if self.hide_on_exit else print(f'{end_str}[OK]')
             elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                 print(clear_line, end='\r', flush=True)
                 if not self.hide_on_exit:
@@ -1019,89 +1035,3 @@ class ProgressBar:
 
     def update(self):
         self._progress += 1
-
-# verbosity level of logging functions
-# __UI_VERBOSE_LEVEL__ = 4
-
-# def set_verbose(verbose: int) -> NoReturn:
-# 	"""Set the verbosity of all functions.
-
-# 	Parameters
-# 	----------
-# 	verbose : int
-#         4 = show everything
-# 		3 = show all messages but no progress
-# 		2 = show warnings/errors and progress
-#         1 = show warnings/errors but no progress
-#         0 = hide everything
-# 	"""
-# 	global __UI_VERBOSE_LEVEL__
-# 	if type(verbose) != int or verbose not in [0, 1, 2, 3, 4]:
-# 		raise TypeError('"verbose" must be either 0, 1, 2, 3 or 4')
-# 	__UI_VERBOSE_LEVEL__ = verbose
-
-# def get_verbose():
-#     return __UI_VERBOSE_LEVEL__
-
-# def PRINT(*args, **kwargs):
-#     if __UI_VERBOSE_LEVEL__ >= 3:
-#         print(*args, **kwargs)
-
-# def INFO(message: str) -> NoReturn:
-#     """Print a INFO message in blue.
-#     Only shown if __UI_VERBOSE_LEVEL__ >= 3.
-
-#     Parameters
-#     ----------
-#     message : string
-#     Message to display.
-#     """
-#     if __UI_VERBOSE_LEVEL__ >= 3:
-#         print(f'{bg_cyan}{fg_black}[ INFO ]{reset} {message}')
-
-# def LOG(message: str) -> NoReturn:
-#     """Print a INFO message in green, reporting the time as well.
-#     Only shown if __UI_VERBOSE_LEVEL__ >= 3.
-
-#     Parameters
-#     ----------
-#     message : string
-#     Message to display.
-#     """
-#     if __UI_VERBOSE_LEVEL__ >= 3:
-#         datetime_str = _datetime.now().strftime('%H:%M:%S')
-#         print(f'{bg_green}{fg_black}[ {datetime_str} ]{reset} {message}')
-
-# def WARNING(message: str, stop: bool=False) -> NoReturn:
-#     """Print a WARNING message in yellow.
-#     Only shown if __UI_VERBOSE_LEVEL__ >= 1.
-
-#     Parameters
-#     ----------
-#     message : string
-#     Message to display.
-#     stop : boolean
-#     If True, it stops the execution (default : False).
-#     """
-#     if __UI_VERBOSE_LEVEL__ >= 1:
-#         print(f'{bg_yellow}{fg_black}[ WARNING ]{reset} {message}')
-#         if stop:
-#             sys.exit()
-
-# def ERROR(message: str, stop: bool=True) -> NoReturn:
-#     """Print an ERROR message in red.
-#     Only shown if __UI_VERBOSE_LEVEL__ >= 1.
-
-#     Parameters
-#     ----------
-#     message : string
-#         Message to display.
-#     stop : boolean
-#         If True, it stops the execution (default : True).
-#     """
-#     if __UI_VERBOSE_LEVEL__ >= 1:
-#         print(f'{bg_red}{fg_black}[ ERROR ]{reset} {message}')
-#     if stop:
-#         sys.exit()
-
-# setup_logger()# TODO: move to __init__.py

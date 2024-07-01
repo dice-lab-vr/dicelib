@@ -2240,7 +2240,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=None, n_ctrl_pts=None, n_pts_eval=None, seg_len_eval=None, resample=False, segment_len=None, streamline_pts=None, verbose=3, force=False ):
+def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=None, n_ctrl_pts=None, n_pts_eval=None, seg_len_eval=None, do_resample=False, segment_len=None, streamline_pts=None, verbose=3, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
 
     Parameters
@@ -2267,14 +2267,14 @@ cpdef spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type
     seg_len_eval : float
         Segment length used to compute the number of points in which the spline is evaluated; computed as the length of the reduced streamline divided by 'seg_len_eval'. If None and "n_pts_eval" is None, "segment_len_eval" is set to 0.5 (default: None).  
 
-    resample : boolean
+    do_resample : boolean
         If True, the final streamlines are resampled to have a constant segment length (see 'segment_len' and 'streamline_pts' parameters). If False, the point of the final streamlines are more dense where the curvature is high (default: False).
 
     segment_len : float
-        Sampling resolution of the final streamline after interpolation. NOTE: if 'resample' is True, either 'segment_len' or 'streamline_pts' must be set (default: None).
+        Sampling resolution of the final streamline after interpolation. NOTE: if 'do_resample' is True, either 'segment_len' or 'streamline_pts' must be set (default: None).
 
     streamline_pts : int
-        Number of points in each of the final streamlines. NOTE: if 'resample' is True, either 'streamline_pts' or 'segment_len' must be set (default: None).
+        Number of points in each of the final streamlines. NOTE: if 'do_resample' is True, either 'streamline_pts' or 'segment_len' must be set (default: None).
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
@@ -2291,7 +2291,7 @@ cpdef spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type
         if seg_len_eval is not None:
             logger.warning('\'seg_len_eval\' parameter will be ignored because \'n_pts_eval\' is set')
 
-    if resample:
+    if do_resample:
         if segment_len is not None and streamline_pts is not None:
             logger.error('Either \'streamline_pts\' or \'segment_len\' must be set, not both.')
         if segment_len is None and streamline_pts is None:
@@ -2306,10 +2306,10 @@ cpdef spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type
 
     else:
         if segment_len is not None and segment_len != 0:
-            logger.warning('\'segment_len\' parameter will be ignored because \'resample\' is set to False')
+            logger.warning('\'segment_len\' parameter will be ignored because \'do_resample\' is set to False')
             segment_len = 0
         if streamline_pts is not None and streamline_pts != 0:
-            logger.warning('\'streamline_pts\' parameter will be ignored because \'resample\' is set to False')
+            logger.warning('\'streamline_pts\' parameter will be ignored because \'do_resample\' is set to False')
             streamline_pts = 0
         if seg_len_eval is None:
             seg_len_eval = 0.5
@@ -2372,7 +2372,7 @@ cpdef spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type
 
         logger.subinfo(f'Output tractogram: {output_tractogram}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Spline type: {spline_type}', indent_lvl=2, indent_char='-')
-        if resample:
+        if do_resample:
             if segment_len != 0:
                 logger.subinfo(f'Resampling in equidistant points with segment length equal to {segment_len:.2f}', indent_lvl=2, indent_char='-')
             if streamline_pts != 0:
@@ -2391,7 +2391,7 @@ cpdef spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
                     break # no more data, stop reading
-                smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, n_pts_final=streamline_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha, n_pts_red=n_ctrl_pts, n_pts_eval=n_pts_eval, seg_len_eval=seg_len_eval, resample=resample)
+                smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, n_pts_final=streamline_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha, n_pts_red=n_ctrl_pts, n_pts_eval=n_pts_eval, seg_len_eval=seg_len_eval, do_resample=do_resample)
                 TCK_out.write_streamline( smoothed_streamline, n )
                 n_written += 1
                 pbar.update()
