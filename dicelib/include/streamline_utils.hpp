@@ -150,7 +150,7 @@ int create_replicas_point( float* ptr_pts_in, double* ptr_pts_out, double* ptr_b
 void create_replicas_streamline( float* fiber, unsigned int pts, float* fiber_out, float* pts_replica, int nReplicas, double* ptrBlurRho, double* ptrBlurAngle, double* ptrBlurWeights, bool doApplyBlur) 
 {
 
-    float P[nReplicas][3] = {0};
+    float *P = new float[nReplicas*3] {0};
 
     // From trk2dictionary_c.cpp (function fiberForwardModel) with few changes to save the output in fiber_out
 
@@ -206,9 +206,9 @@ void create_replicas_streamline( float* fiber, unsigned int pts, float* fiber_ou
         S2.x = S1.x + R*nr.x;
         S2.y = S1.y + R*nr.y;
         S2.z = S1.z + R*nr.z;
-        P[k][0] = S2.x;
-        P[k][1] = S2.y;
-        P[k][2] = S2.z;
+        P[k*3+0] = S2.x;
+        P[k*3+1] = S2.y;
+        P[k*3+2] = S2.z;
 
         // save the first point of the k-th replica
         fiber_out[k*pts*3+0] = S2.x;
@@ -261,26 +261,27 @@ void create_replicas_streamline( float* fiber, unsigned int pts, float* fiber_ou
             if ( ptrBlurWeights[k] < 1e-3 )
                 continue;
 
-            P_old.x = P[k][0];
-            P_old.y = P[k][1];
-            P_old.z = P[k][2];
+            P_old.x = P[k*3+0];
+            P_old.y = P[k*3+1];
+            P_old.z = P[k*3+2];
             len = (S2.x-P_old.x)*n.x + (S2.y-P_old.y)*n.y + (S2.z-P_old.z)*n.z;
             if ( len>0 )
             {
-                P[k][0] += dir1.x * len;
-                P[k][1] += dir1.y * len;
-                P[k][2] += dir1.z * len;
+                P[k*3+0] += dir1.x * len;
+                P[k*3+1] += dir1.y * len;
+                P[k*3+2] += dir1.z * len;
 
                 // save the i-th point of k-th replica
                 ii = pts_replica[k];
-                fiber_out[k*pts*3+ii*3+0] = P[k][0];
-                fiber_out[k*pts*3+ii*3+1] = P[k][1];
-                fiber_out[k*pts*3+ii*3+2] = P[k][2];
+                fiber_out[k*pts*3+ii*3+0] = P[k*3+0];
+                fiber_out[k*pts*3+ii*3+1] = P[k*3+1];
+                fiber_out[k*pts*3+ii*3+2] = P[k*3+2];
                 pts_replica[k] += 1;
 
             }
         }
     }
+    delete[] P;
 }
 
 
