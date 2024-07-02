@@ -78,5 +78,7 @@ dice_tractogram_locate = "dicelib.scripts.dice_tractogram:tractogram_locate"
 
 [tool.setuptools]
 packages = [
-    "dicelib"
+    "dicelib",
+    "dicelib.scripts"
 ]
+include-package-data = false
