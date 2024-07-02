@@ -40,23 +40,23 @@ jobs:
           [
             {
               py: cp38,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-11]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-12]
             },
             {
               py: cp39,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-11]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-12]
             },
             {
               py: cp310,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-11]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-12]
             },
             {
               py: cp311,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-11]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-12]
             },
             {
               py: cp312,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-11]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-12]
             },
             {
               py: cp38,
@@ -94,7 +94,8 @@ jobs:
       - name: Build wheel ${{ matrix.config.py }}-${{ matrix.config.arch[1] }}
         uses: pypa/cibuildwheel@v2.19.1
         env:
-          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.config.arch[2] }}
+          CIBW_ENVIRONMENT_MACOS: >
+            MACOSX_DEPLOYMENT_TARGET=${{ matrix.config.arch[2] }}
           CIBW_PLATFORM: macos
           CIBW_BUILD: ${{ matrix.config.py }}-${{ matrix.config.arch[1] }}
           CIBW_ARCHS_MACOS: ${{ matrix.config.arch[0] }}
