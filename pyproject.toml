@@ -82,3 +82,6 @@ packages = [
     "dicelib.scripts"
 ]
 include-package-data = false
+
+[tool.cibuildwheel]
+build-verbosity = 3
