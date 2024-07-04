@@ -338,8 +338,7 @@ cdef class Tcz:
             fib_len = length(streamline_to_be_resampled, len(streamline_to_be_resampled))
 
             if self.segment_len != 0:
-                n = int(fib_len / self.segment_len)
-                number_of_points = n
+                number_of_points = int(fib_len / self.segment_len)
 
             new_streamline = resample(streamline_to_be_resampled, number_of_points)
 
