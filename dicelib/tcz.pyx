@@ -44,6 +44,8 @@ cdef class Tcz:
     cdef readonly   bint                            is_open
     cdef readonly   float[:,::1]                    streamline
     cdef readonly   unsigned int                    max_points
+    cdef readonly   double                          segment_len
+    cdef readonly   double                          epsilon
     cdef            FILE *                          fp
     cdef            unsigned short int *            buffer
     cdef            unsigned short int *            buffer_ptr
@@ -159,14 +161,14 @@ cdef class Tcz:
         self.header['datatype'] = 'Float16'
 
         if 'epsilon' not in self.header:
-            self.header['epsilon'] = 0.3
+            self.epsilon = 0.3
         else:
-            self.header['epsilon'] = float(self.header['epsilon'])
+            self.epsilon = float(self.header['epsilon'])
 
         if 'segment_len' not in self.header:
-            self.header['segment_len'] = 0.5
+            self.segment_len = 0.5
         else:
-            self.header['segment_len'] = float(self.header['segment_len'])
+            self.segment_len = float(self.header['segment_len'])
 
         if 'representation' not in self.header:
             self.header['representation'] = 'polyline'
@@ -270,7 +272,7 @@ cdef class Tcz:
             raise RuntimeError( 'File is not open for writing/appending' )
 
         if self.header['representation'] in ['spline', 'rdp']:
-            streamline, n = rdp_reduction(streamline, n, float(self.header['epsilon']))
+            streamline, n = rdp_reduction(streamline, n, self.epsilon)
 
         fwrite( <void *> &n, sizeof(unsigned short int), 1, self.fp)
 
@@ -335,10 +337,10 @@ cdef class Tcz:
 
             fib_len = length(streamline_to_be_resampled, len(streamline_to_be_resampled))
 
-            if float(self.header['segment_len']) != 0:
-                n = int(fib_len / float(self.header['segment_len']))
+            if self.segment_len != 0:
+                n = int(fib_len / self.segment_len)
+                number_of_points = n
 
-            number_of_points = n
             new_streamline = resample(streamline_to_be_resampled, number_of_points)
 
             return number_of_points, new_streamline

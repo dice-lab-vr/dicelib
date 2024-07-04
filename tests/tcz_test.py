@@ -21,8 +21,8 @@ def test_create_in_read_mode_successfully():
     assert tcz.header['blur_gauss_min'] == 34.0
     assert tcz.header['representation'] == 'polyline'
     assert tcz.header['datatype'] == 'Float16'
-    assert tcz.header['segment_len'] == 0.8
-    assert tcz.header['epsilon'] == 0.4
+    assert tcz.segment_len == 0.7
+    assert tcz.epsilon == 0.4
     assert tcz.max_points == 1000
     assert len(tcz.streamline) == 1000
     assert type(tcz.streamline[0][0]) is float
@@ -30,7 +30,7 @@ def test_create_in_read_mode_successfully():
 
 def test_create_in_read_mode_no_segment_len_will_setup_segment_len_automatically():
     tcz = Tcz('tests/dicelib/mock/demo_fibers_no_segment_len.tcz', 'r', None, 1000)
-    assert tcz.header['segment_len'] == 0.5
+    assert tcz.segment_len == 0.5
 
 
 def test_create_in_read_mode_streamline_spline_successfully():

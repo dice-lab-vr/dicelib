@@ -3,7 +3,7 @@ blur_core_extent: 12.3
 blur_gauss_extent: 34.4
 blur_spacing: 23.1
 blur_gauss_min: 34.0
-segment_len: 0.8
+segment_len: 0.7
 epsilon: 0.4
 representation: polyline
 count: 0000283522
