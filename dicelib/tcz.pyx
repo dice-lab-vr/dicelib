@@ -324,7 +324,7 @@ cdef class Tcz:
 
            ptr += 3
 
-        if self.header['representation'] == 'spline' and self.header['epsilon'] != 0:
+        if self.header['representation'] == 'spline' and self.epsilon != 0:
 
             if number_of_points == 2: # no need to smooth with two points only
                 streamline_to_be_resampled = self.streamline[:number_of_points, :]
