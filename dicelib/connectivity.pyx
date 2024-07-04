@@ -505,10 +505,10 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     if blur_gauss_min<=0:
         logger.error( '"blur_gauss_min" must be > 0' )
     logger.subinfo( 'Blur parameters:', indent_char='*')
-    logger.subinfo( f'- blur_core_extent:  {blur_core_extent}', indent_lvl=1, indent_char='-')
-    logger.subinfo( f'- blur_gauss_extent: {blur_gauss_extent}', indent_lvl=1, indent_char='-')
-    logger.subinfo( f'- blur_spacing:      {blur_spacing}', indent_lvl=1, indent_char='-')
-    logger.subinfo( f'- blur_gauss_min:    {blur_gauss_min}', indent_lvl=1, indent_char='-')
+    logger.subinfo( f'blur_core_extent:  {blur_core_extent}', indent_lvl=1, indent_char='-')
+    logger.subinfo( f'blur_gauss_extent: {blur_gauss_extent}', indent_lvl=1, indent_char='-')
+    logger.subinfo( f'blur_spacing:      {blur_spacing}', indent_lvl=1, indent_char='-')
+    logger.subinfo( f'blur_gauss_min:    {blur_gauss_min}', indent_lvl=1, indent_char='-')
 
     # fiber_shift
     if np.isscalar(fiber_shift) :
@@ -564,7 +564,8 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
                 blurWeights[i_r] = 1.0
             else:
                 blurWeights[i_r] = np.exp( -(blurRho[i_r] - core_extent)**2 / (2.0*blur_sigma**2) )
-    logger.subinfo(f'Number of replicas for each streamline: {nReplicas}', indent_lvl=1, indent_char='-')
+    if nReplicas > 0:
+        logger.subinfo(f'Number of replicas for each streamline: {nReplicas}', indent_lvl=1, indent_char='-')
 
     # compute the grid of voxels for the radial search
     threshold = core_extent + gauss_extent
@@ -614,14 +615,13 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     try:
         # open the input file
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
-        # str_count = 0
 
         n_streamlines = int( TCK_in.header['count'] )
         logger.subinfo( f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*')
 
         # check if #(weights)==n_streamlines
         if n_streamlines!=w.size:
-            logger.error( f'Number of weights is different from number of streamlines ({w.size}, {n_streamlines}) ' )
+            logger.error(f'Number of weights ({w.size}) is different from the number of streamline ({n_streamlines})')
 
         zeros_count = 0
 
@@ -713,7 +713,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
 
 
 
-def build_connectome( input_assignments: str, output_connectome: str, input_weights: str=None, input_tractogram: str=None, input_nodes: str=None, atlas_dist: float=2.0, metric: str='sum', symmetric: bool=False, verbose: int=3, force: bool=False, log_list=None ):
+def build_connectome( input_assignments: str, output_connectome: str, input_weights: str=None, input_tractogram: str=None, input_nodes: str=None, atlas_dist: float=2.0, metric: str='sum', symmetric: bool=False, n_threads: int=None, verbose: int=3, force: bool=False, log_list=None ):
     """Build the (weighted) connectome having the assignments or the tractogram and an atlas.
 
     Parameters
@@ -763,9 +763,9 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
     else:
         # check input tractogram and parcellation
         if input_tractogram is None:
-            logger.error(f'Tractogram file \'{input_tractogram}\' not found. Required if the assignments does not exist.')
+            logger.error(f'Tractogram file not provided. Required if the assignments does not exist.')
         if input_nodes is None:
-            logger.error(f'Nodes file \'{input_nodes}\' not found. Required if the assignments does not exist.')
+            logger.error(f'Nodes file not provided. Required if the assignments does not exist.')
         files.extend([
             File(name='tractogram_in', type_='input', path=input_tractogram, ext=['.tck']),
             File(name='nodes_in', type_='input', path=input_nodes, ext=['.nii', '.nii.gz'])
@@ -779,7 +779,7 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
         log_list2 = []
         ret_subinfo2 = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
         with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo2, log_list=log_list2) as pbar:
-            assign(input_tractogram, input_nodes, input_assignments, atlas_dist, verbose=1, log_list=log_list2)
+            assign(input_tractogram, input_nodes, input_assignments, atlas_dist, verbose=1, n_threads=n_threads, log_list=log_list2)
         set_verbose('connectivity', verbose)
 
     check_params(files=files, force=force)
@@ -792,6 +792,14 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
         asgn = np.load( input_assignments, allow_pickle=False ).astype(np.int32)
     n_streamlines = asgn.shape[0]
     asgn_sort = np.sort(asgn, axis=1) # shape = (n_streamlines, 2)
+
+    # check if the assignments match with the number of streamlines in the tractogram
+    if input_tractogram is not None:
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
+        n_str_tck = int( TCK_in.header['count'] )
+        TCK_in.close()
+        if n_streamlines != n_str_tck:
+            logger.error(f'Number of streamlines in the tractogram ({n_str_tck}) is different from the number of streamline assignments ({n_streamlines})')
     
     # streamline weights
     if input_weights is None:
@@ -804,7 +812,7 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
             w = np.load( input_weights, allow_pickle=False ).astype(np.float64)
         # check if #(weights)==n_streamlines
         if n_streamlines != w.size:
-            logger.error(f'# of weights ({w.size}) is different from # of streamline assignments ({n_streamlines})')
+            logger.error(f'Number of weights ({w.size}) is different from the number of streamline assignments ({n_streamlines})')
 
     # metric
     if metric not in ['sum', 'mean', 'min', 'max']:

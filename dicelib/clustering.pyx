@@ -529,11 +529,13 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
     cdef float d1_x = 0
     cdef float d1_y = 0
     cdef float d1_z = 0
-    cdef int [:,:] clust_idx = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
+    cdef int [:,::1] clust_idx = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
+    cdef int [:] bundle_n_streamlines = np.zeros(len(filenames), dtype=np.int32)
     cdef bool metric_mean = metric == 'mean'
     
     with nogil:
         for i in range(in_streamlines_view.shape[0]):
+            bundle_n_streamlines[i] = n_streamlines[i]
             for j in range(1, n_streamlines[i], 1):
                 if metric_mean:
                     t, flipped = compute_dist_mean(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
@@ -575,7 +577,7 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
                                      fib_centr_dist[i], clst_streamlines_view[i], idx_closest[i], idx_closest_return[i], j)
 
 
-    return clst_streamlines, centr_len, new_c, idx_cl_return
+    return clst_streamlines, centr_len, new_c, idx_cl_return, clust_idx, bundle_n_streamlines, idx_cl
     
 
 
@@ -632,8 +634,9 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 
 
 def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=None, atlas: str=None, conn_thr: float=2.0,
-                    clust_thr: float=2.0, metric: str="mean", n_pts: int=12, n_threads: int=None, force: bool=False,
-                    max_open: int=None, verbose: int=3, keep_temp_files: bool=False, max_bytes: int=0, log_list=None):
+                    clust_thr: float=2.0, metric: str="mean", n_pts: int=12, weights_in: str=None, weights_metric: str="sum",
+                    weights_out: str=None, n_threads: int=None, force: bool=False, max_open: int=None, verbose: int=3,
+                    keep_temp_files: bool=False, max_bytes: int=0, log_list=None):
     """Cluster streamlines in a tractogram based on a given metric. Possible metrics are "mean" and "max" (default: "mean").
 
     Parameters
@@ -652,6 +655,12 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         Metric to use for the clustering. Either "mean" or "max" (default: "mean").
     n_pts : int, optional
         Number of points to resample the streamlines to (default: 10).
+    weights_in : str, optional
+        Path to the weights containing a scalar value for each streamline.
+    weights_metric : str, optional
+        Metric used to assign a weight to each resulting centroid. Either "min", "max", "median", "mean" or "sum" (default: "sum").
+    weights_out : str, optional
+        Path to the output weights file.
     n_threads : int, optional
         Number of threads to use for the clustering.
     force : bool, optional
@@ -674,12 +683,20 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
     dirs = [
         Dir(name='tmp_folder', path=temp_folder)
     ]
+    if weights_in is not None:
+        files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
+    if weights_out is not None:
+        files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
     nums = [
         Num(name='clust_thr', value=clust_thr, min_=0.0, include_min=False),
-        Num(name='atlas_dist', value=conn_thr, min_=0.0, include_min=True)
+        Num(name='atlas_dist', value=conn_thr, min_=0.0, include_min=True),
+        Num(name='n_pts', value=n_pts, min_=2)
     ]
     if n_threads is not None:
         nums.append(Num(name='n_threads', value=n_threads, min_=1))
+
+    if weights_metric not in ['min', 'max', 'median', 'sum', 'mean']:
+        logger.error(f'Option {weights_metric} not valid, please choose between min, max, median, mean or sum')
     check_params(files=files, dirs=dirs, nums=nums, force=force)
     
     tmp_dir_is_created = False
@@ -695,6 +712,9 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         """Yield successive n-sized chunks from lst."""
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
+
+    if weights_in:
+        w = np.loadtxt(weights_in)
 
     if n_threads:
         MAX_THREAD = n_threads
@@ -793,6 +813,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
         ref_indices = []
+        w_out = []
         TCK_out_size = 0
 
         # retreieve total memory available
@@ -866,7 +887,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                                         n_pts=n_pts,
                                         metric=metric) for chunk, num_fibs in chunk_list]
                 for i, f in enumerate(as_completed(future)):
-                    bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst = f.result()
+                    bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst, fib_clust, bundle_size, idx_cl = f.result()
 
                     for i_b in range(len(bundle_num_c)):
                         ref_indices.extend(idx_clst[i_b][:bundle_num_c[i_b]].tolist())
@@ -874,9 +895,59 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                         for i_s in range(bundle_num_c[i_b]):
                             TCK_out.write_streamline(new_centroids[i_s, :new_centroids_len[i_s]], new_centroids_len[i_s] )
                             TCK_out_size += 1
+
+                    for i_b, s_b in enumerate(bundle_size):
+                        streamlines_cluster = [fib_clust[i_b][s] for s in range(s_b)]
+                        streamline_indices = [idx_cl[i_b][s] for s in range(s_b)]
+                        if weights_in is not None:
+                            if weights_metric == 'sum':
+                                clusters_v = np.unique(streamlines_cluster)
+                                for c in clusters_v:
+                                    fib_indices = np.where(streamlines_cluster == c)[0]
+                                    tmp_i = [streamline_indices[ii] for ii in fib_indices]
+                                    tmp_w = w[tmp_i]
+                                    w_out.append(np.sum(tmp_w))
+                            elif weights_metric == 'mean':
+                                clusters_v = np.unique(streamlines_cluster)
+                                for c in clusters_v:
+                                    fib_indices = np.where(streamlines_cluster == c)[0]
+                                    tmp_i = [streamline_indices[ii] for ii in fib_indices]
+                                    tmp_w = w[tmp_i]
+                                    w_out.append(np.mean(tmp_w))
+                            elif weights_metric == 'min':
+                                clusters_v = np.unique(streamlines_cluster)
+                                for c in clusters_v:
+                                    fib_indices = np.where(streamlines_cluster == c)[0]
+                                    tmp_i = [streamline_indices[ii] for ii in fib_indices]
+                                    tmp_w = w[tmp_i]
+                                    w_out.append(np.min(tmp_w))
+                            elif weights_metric == 'max':
+                                clusters_v = np.unique(streamlines_cluster)
+                                for c in clusters_v:
+                                    fib_indices = np.where(streamlines_cluster == c)[0]
+                                    tmp_i = [streamline_indices[ii] for ii in fib_indices]
+                                    tmp_w = w[tmp_i]
+                                    w_out.append(np.max(tmp_w))
+                            elif weights_metric == 'median':
+                                clusters_v = np.unique(streamlines_cluster)
+                                for c in clusters_v:
+                                    fib_indices = np.where(streamlines_cluster == c)[0]
+                                    tmp_i = [streamline_indices[ii] for ii in fib_indices]
+                                    tmp_w = w[tmp_i]
+                                    w_out.append(np.median(tmp_w))
+
                     pbar.update()
                 TCK_out.close( write_eof=True, count= TCK_out_size)
 
+            if weights_out is not None:
+                print('Saving weights')
+                w_out = np.array(w_out)
+                if weights_out.endswith('.txt'):
+                    np.savetxt(weights_out, w_out)
+                else:
+                    np.save(weights_out, w_out, allow_pickle=False)
+
+            ret_clust_idx = np.asarray(streamlines_cluster)
             t1 = time.time()
             logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_lvl=1, indent_char='*')
             logger.info( f'[ {format_time(t1 - t0)} ]' )
@@ -893,12 +964,16 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             if tmp_dir_is_created:
                 shutil.rmtree(temp_folder)
 
+    
     else:
         logger.info(f'Clustering')
         logger.subinfo(f'Number of input streamlines: {num_streamlines}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Clustering hreshold: {clust_thr}', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Clustering threshold: {clust_thr}', indent_lvl=1, indent_char='*')
         logger.subinfo(f'Number of points: {n_pts}', indent_lvl=1, indent_char='*')
         t0 = time.time()
+
+        ref_indices = []
+        streamlines_cluster = []
 
         hash_superset = np.empty( num_streamlines, dtype=int)
 
@@ -907,19 +982,20 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             hash_superset[i] = hash(np.array(TCK_in.streamline[:TCK_in.n_pts]).tobytes())
         TCK_in.close()
 
-
         clust_idx, set_centroids = cluster(tractogram_in,
                                             metric=metric,
                                             threshold=clust_thr,
                                             n_pts=n_pts,
                                             verbose=verbose
                                             )
+
+        ret_clust_idx = np.asarray(clust_idx)
         centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
         new_c = closest_streamline(tractogram_in, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
         
         TCK_out = LazyTractogram(tractogram_out, mode='w', header=TCK_in.header)
         TCK_out_size = 0
-        ref_indices = []
+
         for i, n_c in enumerate(new_c):
             hash_val = hash(np.array(n_c[:centr_len[i]]).tobytes())
             ref_indices.append( np.flatnonzero(hash_superset == hash_val)[0] )
@@ -936,7 +1012,41 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             if tmp_dir_is_created:
                 shutil.rmtree(temp_folder)  
 
+        if weights_in is not None:
+            w = np.loadtxt(weights_in)
+            if weights_metric == 'sum':
+                cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
+                for i in range(len(ref_indices)):
+                    fib_indices = np.where(ret_clust_idx == i)[0]
+                    cluster_fibs[i] = np.sum(w[fib_indices])
+            elif weights_metric == 'mean':
+                cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
+                for i in range(len(ref_indices)):
+                    fib_indices = np.where(ret_clust_idx == i)[0]
+                    cluster_fibs[i] = np.mean(w[fib_indices])
+            elif weights_metric == 'min':
+                cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
+                for i in range(len(ref_indices)):
+                    fib_indices = np.where(ret_clust_idx == i)[0]
+                    cluster_fibs[i] = np.min(w[fib_indices])
+            elif weights_metric == 'max':
+                cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
+                for i in range(len(ref_indices)):
+                    fib_indices = np.where(ret_clust_idx == i)[0]
+                    cluster_fibs[i] = np.max(w[fib_indices])
+            elif weights_metric == 'median':
+                cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
+                for i in range(len(ref_indices)):
+                    fib_indices = np.where(ret_clust_idx == i)[0]
+                    cluster_fibs[i] = np.median(w[fib_indices])
+
+            if weights_out.endswith('.txt'):
+                np.savetxt(weights_out, cluster_fibs)
+            else:
+                np.save(weights_out, cluster_fibs, allow_pickle=False)
+
     if TCK_in is not None:
         TCK_in.close()
 
-    return ref_indices
+
+    return ref_indices, ret_clust_idx

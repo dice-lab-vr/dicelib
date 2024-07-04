@@ -25,7 +25,10 @@ def connectome_build():
         [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'help': '''\
                                    Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
                                    Argument is the maximum radius in mm
-                                   Used only if \'assignments_in\' does not exist'''}]
+                                   Used only if \'assignments_in\' does not exist'''}],
+        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
+                                 Number of threads to use.
+                                 If None, all the available threads will be used'''}]
     ]
     options = setup_parser(build_connectome.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -39,6 +42,7 @@ def connectome_build():
         options.atlas_dist,
         options.metric,
         options.symmetric,
+        options.n_threads,
         options.verbose,
         options.force
     )
