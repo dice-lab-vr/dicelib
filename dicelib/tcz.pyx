@@ -328,17 +328,12 @@ cdef class Tcz:
                 streamline_to_be_resampled = self.streamline[:number_of_points, :]
                 points_for_resampling = number_of_points
             else:
-                segment_len_eval = float(self.header['segment_len'])
-                length_reduced_streamline = length(self.streamline[:number_of_points, :], number_of_points)
-
-                points_catmull_rom = int(length_reduced_streamline / segment_len_eval)
+                max_point_catmull_rom = 50
                 streamline_to_be_resampled = np.asarray(
-                    CatmullRom_smooth(self.streamline[:number_of_points, :], matrix, 0.5, points_catmull_rom)
+                    CatmullRom_smooth(self.streamline[:number_of_points, :], matrix, 0.5, max_point_catmull_rom)
                 )
-                points_for_resampling = points_catmull_rom
 
-
-            fib_len = length(streamline_to_be_resampled, points_for_resampling)
+            fib_len = length(streamline_to_be_resampled, len(streamline_to_be_resampled))
 
             if float(self.header['segment_len']) != 0:
                 n = int(fib_len / float(self.header['segment_len']))
