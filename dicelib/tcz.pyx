@@ -339,13 +339,11 @@ cdef class Tcz:
 
             if number_of_points == 2: # no need to smooth with two points only
                 streamline_to_be_resampled = self.streamline[:number_of_points, :]
-                points_for_resampling = number_of_points
             else:
                 max_point_catmull_rom = 50
                 streamline_to_be_resampled = CatmullRom_smooth(
                     self.streamline[:number_of_points, :], matrix, 0.5, max_point_catmull_rom
                 )
-                points_for_resampling = max_point_catmull_rom
 
             fib_len = length(streamline_to_be_resampled, len(streamline_to_be_resampled))
 
