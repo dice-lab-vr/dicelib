@@ -44,8 +44,8 @@ cdef class Tcz:
     cdef readonly   bint                            is_open
     cdef readonly   float[:,::1]                    streamline
     cdef readonly   unsigned int                    max_points
-    cdef readonly   double                          segment_len
-    cdef readonly   double                          epsilon
+    cdef readonly   float                           segment_len
+    cdef readonly   float                           epsilon
     cdef            FILE *                          fp
     cdef            unsigned short int *            buffer
     cdef            unsigned short int *            buffer_ptr
@@ -99,6 +99,17 @@ cdef class Tcz:
             self._read_header()
 
         elif self.mode == 'w':
+
+            if 'epsilon' not in header:
+                self.epsilon = 0.3
+            else:
+                self.epsilon = float(header['epsilon'])
+
+            if 'segment_len' not in header:
+                self.segment_len = 0.5
+            else:
+                self.segment_len = float(header['segment_len'])
+
             # file is open for writing => need to write a header to disk
             self._write_header(header)
 
@@ -331,9 +342,10 @@ cdef class Tcz:
                 points_for_resampling = number_of_points
             else:
                 max_point_catmull_rom = 50
-                streamline_to_be_resampled = np.asarray(
-                    CatmullRom_smooth(self.streamline[:number_of_points, :], matrix, 0.5, max_point_catmull_rom)
+                streamline_to_be_resampled = CatmullRom_smooth(
+                    self.streamline[:number_of_points, :], matrix, 0.5, max_point_catmull_rom
                 )
+                points_for_resampling = max_point_catmull_rom
 
             fib_len = length(streamline_to_be_resampled, len(streamline_to_be_resampled))
 
@@ -341,8 +353,6 @@ cdef class Tcz:
                 number_of_points = int(fib_len / self.segment_len)
 
             new_streamline = resample(streamline_to_be_resampled, number_of_points)
-
-            return number_of_points, new_streamline
 
         else:
             new_streamline = self.streamline[:number_of_points,:]

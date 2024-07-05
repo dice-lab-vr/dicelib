@@ -21,8 +21,8 @@ def test_create_in_read_mode_successfully():
     assert tcz.header['blur_gauss_min'] == 34.0
     assert tcz.header['representation'] == 'polyline'
     assert tcz.header['datatype'] == 'Float16'
-    assert tcz.segment_len == 0.7
-    assert tcz.epsilon == 0.4
+    assert tcz.segment_len == pytest.approx(0.7, abs=0.01)
+    assert tcz.epsilon == pytest.approx(0.4, abs=0.01)
     assert tcz.max_points == 1000
     assert len(tcz.streamline) == 1000
     assert type(tcz.streamline[0][0]) is float
@@ -50,13 +50,15 @@ def test_create_in_write_mode_successfully():
         'blur_spacing': '3.3',
         'blur_gauss_min': '4.4',
         'epsilon': '0.005',
-        'segment_len': '0.5',
+        'segment_len': '0.8',
         'representation': 'spline',
         'datatype': 'Float32LE',
         'count': '999',
         'timestamp': '2040-01-01T00:00:00.000Z',
     }
     tcz = Tcz('tests/dicelib/mock/demo_fibers_write.tcz', 'w', header_test)
+    assert tcz.segment_len == pytest.approx(0.8, abs=0.01)
+    assert tcz.epsilon == pytest.approx(0.005, abs=0.001)
     assert tcz.streamline is None
 
 
