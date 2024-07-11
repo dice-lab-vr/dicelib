@@ -2297,10 +2297,13 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         if segment_len is None and streamline_pts is None:
             segment_len = 0.5
             streamline_pts = 0
-        if segment_len is None:
-            segment_len = 0
-        if streamline_pts is None:
-            streamline_pts = 0
+        else:
+            if segment_len is None:
+                segment_len = 0
+                if streamline_pts < 2:
+                    logger.error('\'streamline_pts\' parameter must be greater than 1')
+            if streamline_pts is None:
+                streamline_pts = 0
         if seg_len_eval is None:
             seg_len_eval = 0.5
 
