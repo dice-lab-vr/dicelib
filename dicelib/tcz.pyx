@@ -349,6 +349,9 @@ cdef class Tcz:
 
             if self.segment_len != 0:
                 number_of_points = int(fib_len / self.segment_len)
+                # streamlines must not have less than two points
+                if number_of_points < 2:
+                    number_of_points = 2
 
             new_streamline = resample(streamline_to_be_resampled, number_of_points)
 
