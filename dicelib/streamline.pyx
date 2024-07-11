@@ -273,6 +273,8 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red =
             n_pts_out = int(fib_len / segment_len)
         if n_pts_final!=0:
             n_pts_out = n_pts_final
+        if n_pts_out < 2:
+            n_pts_out = 2
         # resample smoothed streamline
         resampled_fib = resample(smoothed_fib, n_pts_out)
         return resampled_fib, n_pts_out
@@ -283,6 +285,9 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red =
 
 
 cpdef resample (streamline, nb_pts) :
+    if nb_pts < 2:
+        nb_pts = 2
+
     cdef int nb_pts_in = streamline.shape[0]
     cdef resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef size_t i = 0
