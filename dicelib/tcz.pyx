@@ -12,7 +12,6 @@ from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
 from dicelib.tractogram import LazyTractogram
 from dicelib.blur import Blur
-from dicelib.header import Header
 
 cdef extern from "float16_float32_encode_decode.hpp":
     float float16_to_float32(const unsigned short value)
