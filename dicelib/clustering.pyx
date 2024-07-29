@@ -1050,3 +1050,75 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
 
     return ref_indices, ret_clust_idx
+
+
+cpdef closest_centroid_pt(float[:,::1] centroid, float[:,::1] streamline, float[:] streamline_values, int num_pt):
+
+    cdef float dist_d = 0
+    cdef float dist_f = 0
+    cdef float dist_min = 1e6
+    cdef float d_x = 0
+    cdef float d_y = 0
+    cdef float d_z = 0
+    cdef size_t  i = 0
+    cdef size_t  j = 0
+    cdef float[:] proj_values = np.zeros(num_pt, dtype=np.float32)
+
+    for i in xrange(num_pt):
+
+        dist_d = 0
+        dist_f = 0
+        dist_min = 1e6
+        for j in xrange(num_pt):
+            # direct
+            d_x = (centroid[i][0] - streamline[j][0])**2
+            d_y = (centroid[i][1] - streamline[j][1])**2
+            d_z = (centroid[i][2] - streamline[j][2])**2
+            dist_d = sqrt(d_x + d_y + d_z)
+
+            # flipped
+            d_x = (centroid[i][0] - streamline[num_pt-j-1][0])**2
+            d_y = (centroid[i][1] - streamline[num_pt-j-1][1])**2
+            d_z = (centroid[i][2] - streamline[num_pt-j-1][2])**2
+            dist_f = sqrt(d_x + d_y + d_z)
+
+            if dist_d < dist_f:
+                if dist_d < dist_min:
+                    dist_min = dist_d
+                    proj_values[i] = streamline_values[j]
+            else:
+                if dist_f < dist_min:
+                    dist_min = dist_f
+                    proj_values[i] = streamline_values[num_pt-j-1]
+
+    return proj_values
+
+
+cpdef project_values_on_centroid(filename_tractogram: str, float[:,:] streamline_vals, thr: float=20.0 ):
+
+    cdef LazyTractogram TCK_in = LazyTractogram( filename_tractogram, mode='r', max_points=1000 )
+    cdef float* vers = <float*>malloc(3*sizeof(float))
+    cdef float* lengths = <float*>malloc(1000*sizeof(float))
+    cdef float[:,::1] centroid_resampled = np.empty( (256, 3), dtype=np.float32 )
+    cdef float[:,::1] streamline_resampled = np.empty( (256, 3), dtype=np.float32 )
+    cdef float[:] proj_values = np.zeros(256, dtype=np.float32)
+    cdef float[:] final_values = np.zeros(256, dtype=np.float32)
+    cdef float[:,:] streamline_values = streamline_vals
+    cdef int num_str = int( TCK_in.header['count'] )
+    cdef size_t i = 0
+    cdef size_t j = 0
+
+    _, centroid = cluster(filename_tractogram, threshold=thr, n_pts=12)
+    set_number_of_points( centroid[0], 256, centroid_resampled, vers, lengths)
+
+    for i in xrange(num_str):
+        proj_values[:] = 0
+        TCK_in.read_streamline()
+        set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], 256, streamline_resampled, vers, lengths)
+        proj_values = closest_centroid_pt(centroid_resampled, streamline_resampled, streamline_values[i], 256)
+        for j in xrange(256):
+            final_values[j] += proj_values[j]
+
+    TCK_in.close()
+    return np.asarray(final_values)
+        
