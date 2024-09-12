@@ -1048,7 +1048,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
     if TCK_in is not None:
         TCK_in.close()
 
-
     return ref_indices, ret_clust_idx
 
 
