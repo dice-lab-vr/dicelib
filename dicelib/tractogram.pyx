@@ -925,7 +925,7 @@ cpdef tsf_create( input_tractogram: str, output_tsf: str, file: str, check_orien
 
     if check_orientation:
         TCK_in = LazyTractogram(input_tractogram, mode='r')
-        num_streamlines = TCK_in.header['count']
+        num_streamlines = int(TCK_in.header['count'])
         TCK_out = LazyTractogram(output_tractogram, mode='w', header=TCK_in.header)
         TCK_in.read_streamline()
         ref_streamline[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts]
