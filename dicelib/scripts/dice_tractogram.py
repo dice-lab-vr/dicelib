@@ -160,8 +160,9 @@ def tractogram_create_tsf():
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['tsf_out'], {'type': str, 'help': 'Output tsf file'}],
-        [['--orientation', '-o'], {'action': 'store_true', 'default': False, 'help': 'Color based on orientation'}],
-        [['--file'], {'type': str, 'help': 'Color based on given file'}]
+        [['file'], {'type': str, 'help': 'Color based on given file'}],
+        [['--check_orientation', '-check'], {'action': 'store_true', 'default': False, 'help': 'Check if the streamlines are oriented and orient them if needed'}],
+        [['--tractogram_out'], {'type': str, 'default': None, 'help': 'Output tractogram with oriented streamlines if orientation is True'}]
     ]
     options = setup_parser(tsf_create.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -169,8 +170,9 @@ def tractogram_create_tsf():
     tsf_create(
         options.tractogram_in,
         options.tsf_out,
-        options.orientation,
         options.file,
+        options.check_orientation,
+        options.tractogram_out,
         options.verbose,
         options.force
     )

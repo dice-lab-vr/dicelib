@@ -631,3 +631,26 @@ cdef float[:] check_grid(float[:] grid, float alpha, float[:, :] vertices):
         i += 1
     return grid
 
+
+cpdef bint is_flipped( float[:,::1] fib_in, float[:,::1] ref_fib):
+
+    cdef float dist_d=0
+    cdef float dist_i=0
+    cdef int i = 0
+
+    d1_x = (ref_fib[0][0] - fib_in[0][0])**2
+    d1_y = (ref_fib[0][1] - fib_in[0][1])**2
+    d1_z = (ref_fib[0][2] - fib_in[0][2])**2
+
+    dist_d = sqrt(d1_x + d1_y + d1_z)
+
+    d1_x = (ref_fib[0][0] - fib_in[-1][0])**2
+    d1_y = (ref_fib[0][1] - fib_in[-1][1])**2
+    d1_z = (ref_fib[0][2] - fib_in[-1][2])**2
+
+    dist_i = sqrt(d1_x + d1_y + d1_z)
+
+    if dist_d > dist_i:
+        return True
+    else:
+        return False
