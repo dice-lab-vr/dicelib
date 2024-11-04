@@ -928,7 +928,7 @@ cpdef tsf_create( input_tractogram: str, output_tsf: str, file: str, check_orien
         num_streamlines = int(TCK_in.header['count'])
         TCK_out = LazyTractogram(output_tractogram, mode='w', header=TCK_in.header)
         TCK_in.read_streamline()
-        ref_streamline[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts]
+        ref_streamline[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
         ref_n_pts = TCK_in.n_pts
         with ProgressBar( total=num_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
             for i in range(int(num_streamlines)-1):
@@ -953,8 +953,6 @@ cpdef tsf_create( input_tractogram: str, output_tsf: str, file: str, check_orien
     else:
         values = np.loadtxt(file)
 
-    if values.size != int(num_streamlines):
-        logger.error("The number of streamlines in the tractogram and the number of values in the file do not match")
     scalar_arr, n_pts_list = color_by_scalar_file(TCK_in, values, int(num_streamlines))
 
     tsf = Tsf(output_tsf, 'w', header=TCK_in.header)
