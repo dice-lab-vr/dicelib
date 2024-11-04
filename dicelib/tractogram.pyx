@@ -904,10 +904,19 @@ cpdef tsf_create( input_tractogram: str, output_tsf: str, file: str, check_orien
 
     set_verbose('tractogram', verbose)
     
-    files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
-            File(name='file', type_='input', path=file, ext=['.txt', '.npy']),
-            File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf'),
-            File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')]
+    if check_orientation:
+        if output_tractogram is None:
+            raise ValueError("Please specify an output tractogram")
+
+    if output_tractogram:
+        files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+                File(name='file', type_='input', path=file, ext=['.txt', '.npy']),
+                File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf'),
+                File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')]
+    else:
+        files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+                File(name='file', type_='input', path=file, ext=['.txt', '.npy']),
+                File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf')]
         
 
     cdef float[:,::1] ref_streamline = np.empty((2000,3), dtype=np.float32)
