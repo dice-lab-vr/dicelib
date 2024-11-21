@@ -67,6 +67,7 @@ def tractogram_cluster():
                                             If \'median\', the final weight is the median of all the weights of the streamlines in the cluster.
                                             If \'min\', the final weight is the minimum of all the weights of the streamlines in the cluster'''}],
         [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files for parallel clustering'}],
+        [['--save_clust_idx', '-s'], {'action': 'store_true', 'help': 'Save the indices of the cluster to which each input streamline belongs'}],
         [['--max_open_files'], {'type': int, 'default': None, 'metavar': 'MAX_OPEN_FILES', 'help': 'Maximum number of files opened at the same time used to split the streamlines into bundles for parallel clustering'}],
         [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform parallel clustering. If None, all the available threads will be used'}],
         [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
@@ -89,6 +90,7 @@ def tractogram_cluster():
         force=options.force,
         verbose=options.verbose,
         keep_temp_files=options.keep_temp,
+        save_clust_idx=options.save_clust_idx,
         max_open=options.max_open_files
     )
 
