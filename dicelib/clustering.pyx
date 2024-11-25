@@ -135,6 +135,55 @@ cdef (int, int) compute_dist_mean(float[:,::1] fib_in, float[:,:,::1] target, fl
     return (num_c, flipped)
 
 
+cdef (int, int) compute_dist_mean_SED(float[:,::1] fib_in, float[:,:,::1] target, float thr,
+                            float d1_x, float d1_y, float d1_z, int num_c, int num_pt) noexcept nogil:
+    """Compute the distance between a fiber and a set of centroids using the averaged squared euclidean distance (ASED)
+    Note: same as compute_dist_mean() but without the square root and comparing the mean to the threshold squared"""
+    cdef float meandist_pt   = 0
+    cdef float meandist_pt_d = 0
+    cdef float meandist_pt_i = 0
+    cdef float meandist_fib = 10000000000
+    cdef int  i = 0
+    cdef int  j = 0
+    cdef int idx_ret = 0
+    cdef int flipped_temp = 0
+    cdef int flipped = 0
+
+    for i in xrange(num_c):
+        meandist_pt_d = 0
+        meandist_pt_i = 0
+
+        for j in xrange(num_pt):
+
+            d1_x = (target[i][j][0] - fib_in[j][0])**2
+            d1_y = (target[i][j][1] - fib_in[j][1])**2
+            d1_z = (target[i][j][2] - fib_in[j][2])**2
+
+            meandist_pt_d += (d1_x + d1_y + d1_z)
+
+
+            d1_x = (target[i][j][0] - fib_in[num_pt-j-1][0])**2
+            d1_y = (target[i][j][1] - fib_in[num_pt-j-1][1])**2
+            d1_z = (target[i][j][2] - fib_in[num_pt-j-1][2])**2
+            
+            meandist_pt_i += (d1_x + d1_y + d1_z)
+        if meandist_pt_d < meandist_pt_i:
+            meandist_pt = meandist_pt_d/num_pt
+            flipped_temp = 0
+        else:
+            meandist_pt = meandist_pt_i/num_pt
+            flipped_temp = 1
+        
+        if meandist_pt < meandist_fib:
+            meandist_fib = meandist_pt
+            flipped = flipped_temp
+            idx_ret = i
+    if meandist_fib < thr**2:
+        return (idx_ret, flipped)
+
+    return (num_c, flipped)
+
+
 cdef (int, int) compute_dist_max(float[:,::1] fib_in, float[:,:,::1] target, float thr,
                             float d1_x, float d1_y, float d1_z, int num_c, int num_pt) noexcept nogil:
     """Compute the distance between a fiber and a set of centroids"""
@@ -262,6 +311,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
 
     cdef int nb_pts = n_pts
     cdef bool metric_mean = metric == 'mean'
+    cdef bool metric_ASED = metric == 'ASED'
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
     cdef float[:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
@@ -314,6 +364,8 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
 
             if metric_mean:
                 t, flipped = compute_dist_mean(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
+            elif metric_ASED:
+                t, flipped = compute_dist_mean_SED(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
             else:
                 t, flipped = compute_dist_max(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
 
@@ -532,6 +584,7 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
     cdef int [:,::1] clust_idx = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
     cdef int [:] bundle_n_streamlines = np.zeros(len(filenames), dtype=np.int32)
     cdef bool metric_mean = metric == 'mean'
+    cdef bool metric_ASED = metric == 'ASED'
     
     with nogil:
         for i in range(in_streamlines_view.shape[0]):
@@ -539,6 +592,8 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
             for j in range(1, n_streamlines[i], 1):
                 if metric_mean:
                     t, flipped = compute_dist_mean(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
+                elif metric_ASED:
+                    t, flipped = compute_dist_mean_SED(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
                 else:
                     t, flipped = compute_dist_max(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
 
@@ -652,7 +707,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
     clust_thr : float, optional
         Distance threshold used for the final clustering (default: 2.0).
     metric : str, optional
-        Metric to use for the clustering. Either "mean" or "max" (default: "mean").
+        Metric to use for the clustering. Either "mean", "max" or "ASED" (default: "mean").
     n_pts : int, optional
         Number of points to resample the streamlines to (default: 10).
     weights_in : str, optional
@@ -707,8 +762,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         tmp_dir_is_created = True
     
     # other checks
-    if metric not in ['mean', 'max']:
-        logger.error(f'Invalid metric, must be \'mean\' or \'max\'')
+    if metric not in ['mean', 'max', 'ASED']:
+        logger.error(f'Invalid metric, must be \'mean\', \'max\' or \'ASED\'')
 
     def compute_chunks(lst, n):
         """Yield successive n-sized chunks from lst."""
@@ -948,7 +1003,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 TCK_out.close( write_eof=True, count= TCK_out_size)
 
             if weights_out is not None:
-                print('Saving weights')
                 w_out = np.array(w_out)
                 if weights_out.endswith('.txt'):
                     np.savetxt(weights_out, w_out)
