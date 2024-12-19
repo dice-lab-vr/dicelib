@@ -66,6 +66,12 @@ def tractogram_cluster():
                                             If \'max\', the final weight is the maximum of all the weights of the streamlines in the cluster.
                                             If \'median\', the final weight is the median of all the weights of the streamlines in the cluster.
                                             If \'min\', the final weight is the minimum of all the weights of the streamlines in the cluster'''}],
+        [['--weights_clustering_in', '-w_c_in'], {'type': str, 'default': None, 'help': '''\
+                                            Path to the weights file (.txt or .bin) containing a scalar value for each streamline (e.g., FICO values from purifibre).
+                                            They are used during the clustering to compute the weighted mean of the centroids.
+                                            If None, all the streamlines will contribute equally to the centroid.'''}],
+        [['--weights_clustering_out', '-w_c_out'], {'type': str, 'default': None, 'help': '''\
+                                            Path to the output weights file (.txt or .npy). For each centroid, the resulting weight is computed as the mean of the input weights (i.e., the "-w_c_in") of the streamlines in that cluster.'''}],
         [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files for parallel clustering'}],
         [['--save_clust_idx', '-s'], {'action': 'store_true', 'help': 'Save the indices of the cluster to which each input streamline belongs'}],
         [['--max_open_files'], {'type': int, 'default': None, 'metavar': 'MAX_OPEN_FILES', 'help': 'Maximum number of files opened at the same time used to split the streamlines into bundles for parallel clustering'}],
@@ -85,7 +91,9 @@ def tractogram_cluster():
         n_pts=options.n_pts,
         weights_in=options.weights_in,
         weights_metric=options.weights_metric,
-        weights_out=options.weights_out,        
+        weights_out=options.weights_out,
+        weights_clustering_in=options.weights_clustering_in,
+        weights_clustering_out=options.weights_clustering_out,
         n_threads=options.n_threads,
         force=options.force,
         verbose=options.verbose,

@@ -230,8 +230,8 @@ cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_id
     return distances
 
 
-cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts: int=12,
-              verbose: int=3):
+cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts: int=12, 
+              weights_clustering_in: str='', weights_clustering_out: str='', verbose: int=3):
     """ Cluster streamlines in a tractogram based on a given metric (mean or max distance to the centroids)
 
     Parameters
@@ -242,6 +242,12 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
         Threshold for the clustering.
     n_pts : int, optional
         Number of points to resample the streamlines to.
+    weights_clustering_in : str, optional
+        Path to the weights file (.txt or .bin) containing a scalar value for each streamline (e.g., FICO values from purifibre by Aydogan, ISMRM 2022).
+        They are used during the clustering to compute the weighted mean of the centroids.
+        If None, all the streamlines will contribute equally to the centroid.
+    weights_clustering_out : str, optional
+        Path to the output weights file (.txt or .npy). For each centroid, the resulting weight is computed as the mean of the input weights (i.e., the "-w_c_in") of the streamlines in that cluster.
     verbose : bool, optional
         Whether to print out additional information during the clustering.
     """
@@ -249,6 +255,14 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     if not os.path.isfile(filename_in):
         logger.error(f'File \'{filename_in}\' not found')
 
+    if weights_clustering_in:
+        if not os.path.isfile(weights_clustering_in):
+            logger.error(f'File \'{weights_clustering_in}\' not found')
+        ext_w_cl = os.path.splitext(weights_clustering_in)[1]
+        if ext_w_cl == '.txt':
+            w_cl_in = np.loadtxt(weights_clustering_in)
+        elif ext_w_cl == '.bin':
+            w_cl_in = np.fromfile(weights_clustering_in, dtype=np.float32)
 
     if np.isscalar( threshold ) :
         threshold = threshold
@@ -281,6 +295,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     cdef float[:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::1] streamline_in = np.zeros((nb_pts,3), dtype=np.float32)
     cdef int[:] c_w = np.ones(n_streamlines, dtype=np.int32)
+    cdef float[:] w_cl_out = np.zeros(n_streamlines, dtype=np.float32)
     cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
     cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
     cdef float[:] new_p_centr = np.zeros(3, dtype=np.float32)
@@ -291,13 +306,14 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     cdef int t = 0
     cdef int new_c = 1
     cdef int flipped = 0
-    cdef int weight_centr = 0
+    cdef float weight_centr = 0
     cdef float d1_x = 0
     cdef float d1_y = 0
     cdef float d1_z= 0
 
 
     set_centroids[0] = s0
+    w_cl_out[0] = w_cl_in[0]
     cdef int [:] clust_idx = np.zeros(n_streamlines, dtype=np.int32)
     t1 = time.time()
  
@@ -318,32 +334,44 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
                 t, flipped = compute_dist_max(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
 
             clust_idx[i]= t
-            weight_centr = c_w[t]
+            weight_centr = w_cl_out[t]
             if t < new_c:
+                w_p = w_cl_in[i]
                 if flipped:
                     for p in xrange(nb_pts):
                         pt_centr = set_centroids[t][p]
                         pt_stream_in = streamline_in[nb_pts-p-1]
-                        new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
-                        new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
-                        new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
+                        new_p_centr[0] = (weight_centr * pt_centr[0] + w_p * pt_stream_in[0])/(weight_centr + w_p)
+                        new_p_centr[1] = (weight_centr * pt_centr[1] + w_p * pt_stream_in[1])/(weight_centr + w_p)
+                        new_p_centr[2] = (weight_centr * pt_centr[2] + w_p * pt_stream_in[2])/(weight_centr + w_p)
                         new_centroid[p] = new_p_centr
                 else:
                     for p in xrange(nb_pts):
                         pt_centr = set_centroids[t][p]
                         pt_stream_in = streamline_in[p]
-                        new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
-                        new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
-                        new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
+                        new_p_centr[0] = (weight_centr * pt_centr[0] + w_p * pt_stream_in[0])/(weight_centr + w_p)
+                        new_p_centr[1] = (weight_centr * pt_centr[1] + w_p * pt_stream_in[1])/(weight_centr + w_p)
+                        new_p_centr[2] = (weight_centr * pt_centr[2] + w_p * pt_stream_in[2])/(weight_centr + w_p)
                         new_centroid[p] = new_p_centr
                 c_w[t] += 1
+                w_cl_out[t] += w_cl_in[i]
 
             else:
                 for n_i in xrange(nb_pts):
                     new_centroid[n_i] = streamline_in[n_i]
+                w_cl_out[t] += w_cl_in[i]
                 new_c += 1
             set_centroids[t] = new_centroid
             pbar.update()
+    
+    if weights_clustering_out:
+        n_str_in_c = np.asarray(c_w, dtype=np.float32)
+        final_weights = w_cl_out/n_str_in_c
+        ext_w_cl = os.path.splitext(weights_clustering_out)[1]
+        if ext_w_cl == '.txt':
+            np.savetxt(weights_clustering_out, final_weights[:new_c])
+        elif ext_w_cl == '.npy':
+            np.save(weights_clustering_out, final_weights[:new_c])
     
     if TCK_in is not None:
         TCK_in.close()
@@ -635,7 +663,7 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 
 def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=None, atlas: str=None, conn_thr: float=2.0,
                     clust_thr: float=2.0, metric: str="mean", n_pts: int=12, weights_in: str=None, weights_metric: str="sum",
-                    weights_out: str=None, n_threads: int=None, force: bool=False, max_open: int=None, verbose: int=3,
+                    weights_out: str=None, weights_clustering_in: str=None, weights_clustering_out: str=None, n_threads: int=None, force: bool=False, max_open: int=None, verbose: int=3,
                     keep_temp_files: bool=False, save_clust_idx: bool=False, max_bytes: int=0, log_list=None):
     """Cluster streamlines in a tractogram based on a given metric. Possible metrics are "mean" and "max" (default: "mean").
 
@@ -661,6 +689,12 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         Metric used to assign a weight to each resulting centroid. Either "min", "max", "median", "mean" or "sum" (default: "sum").
     weights_out : str, optional
         Path to the output weights file.
+    weights_clustering_in : str, optional
+        Path to the weights file (.txt or .bin) containing a scalar value for each streamline (e.g., FICO values from purifibre by Aydogan, ISMRM 2022).
+        They are used during the clustering to compute the weighted mean of the centroids.
+        If None, all the streamlines will contribute equally to the centroid.
+    weights_clustering_out : str, optional
+        Path to the output weights file (.txt or .npy). For each centroid, the resulting weight is computed as the mean of the input weights (i.e., the "-w_c_in") of the streamlines in that cluster.
     n_threads : int, optional
         Number of threads to use for the clustering.
     force : bool, optional
@@ -689,6 +723,10 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
     if weights_out is not None:
         files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+    if weights_clustering_in is not None:
+        files.append(File(name='weights_clustering_in', type_='input', path=weights_clustering_in, ext=['.txt', '.bin']))
+    if weights_clustering_out is not None:
+        files.append(File(name='weights_clustering_out', type_='output', path=weights_clustering_out, ext=['.txt', '.npy']))
     nums = [
         Num(name='clust_thr', value=clust_thr, min_=0.0, include_min=False),
         Num(name='atlas_dist', value=conn_thr, min_=0.0, include_min=True),
@@ -709,6 +747,10 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
     # other checks
     if metric not in ['mean', 'max']:
         logger.error(f'Invalid metric, must be \'mean\' or \'max\'')
+    if weights_clustering_in and not weights_clustering_out:
+        logger.warning(f'The centroid are computed as weighted mean (because "weights_clustering_in" provided). No "weights_clustering_out" specified, the weights will not be saved.')
+    if weights_clustering_out and not weights_clustering_in:
+        logger.warning(f'"weights_clustering_in" not provided, "weights_clustering_out" will be ignored.')
 
     def compute_chunks(lst, n):
         """Yield successive n-sized chunks from lst."""
@@ -994,6 +1036,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                                             metric=metric,
                                             threshold=clust_thr,
                                             n_pts=n_pts,
+                                            weights_clustering_in = weights_clustering_in,
+                                            weights_clustering_out = weights_clustering_out,
                                             verbose=verbose
                                             )
 
