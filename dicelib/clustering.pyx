@@ -231,7 +231,7 @@ cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_id
 
 
 cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts: int=12, 
-              weights_clustering_in: str='', weights_clustering_out: str='', verbose: int=3):
+              weights_clustering_in: str=None, weights_clustering_out: str=None, verbose: int=3):
     """ Cluster streamlines in a tractogram based on a given metric (mean or max distance to the centroids)
 
     Parameters
@@ -255,15 +255,6 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     if not os.path.isfile(filename_in):
         logger.error(f'File \'{filename_in}\' not found')
 
-    if weights_clustering_in:
-        if not os.path.isfile(weights_clustering_in):
-            logger.error(f'File \'{weights_clustering_in}\' not found')
-        ext_w_cl = os.path.splitext(weights_clustering_in)[1]
-        if ext_w_cl == '.txt':
-            w_cl_in = np.loadtxt(weights_clustering_in)
-        elif ext_w_cl == '.bin':
-            w_cl_in = np.fromfile(weights_clustering_in, dtype=np.float32)
-
     if np.isscalar( threshold ) :
         threshold = threshold
     
@@ -273,6 +264,17 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     # tractogram_gen = nib.streamlines.load(filename_in, lazy_load=True)
     cdef int n_streamlines = int( TCK_in.header['count'] )
     if n_streamlines == 0: return
+
+    if weights_clustering_in:
+        if not os.path.isfile(weights_clustering_in):
+            logger.error(f'File \'{weights_clustering_in}\' not found')
+        ext_w_cl = os.path.splitext(weights_clustering_in)[1]
+        if ext_w_cl == '.txt':
+            w_cl_in = np.loadtxt(weights_clustering_in)
+        elif ext_w_cl == '.bin':
+            w_cl_in = np.fromfile(weights_clustering_in, dtype=np.float32)
+    else:
+        w_cl_in = np.ones(n_streamlines, dtype=np.float32)
 
     cdef int nb_pts = n_pts
     cdef bool metric_mean = metric == 'mean'
@@ -364,7 +366,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
             set_centroids[t] = new_centroid
             pbar.update()
     
-    if weights_clustering_out:
+    if weights_clustering_in and weights_clustering_out:
         n_str_in_c = np.asarray(c_w, dtype=np.float32)
         final_weights = w_cl_out/n_str_in_c
         ext_w_cl = os.path.splitext(weights_clustering_out)[1]
@@ -693,6 +695,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         Path to the weights file (.txt or .bin) containing a scalar value for each streamline (e.g., FICO values from purifibre by Aydogan, ISMRM 2022).
         They are used during the clustering to compute the weighted mean of the centroids.
         If None, all the streamlines will contribute equally to the centroid.
+        If "atlas" is provided, the weights will be ignored.
     weights_clustering_out : str, optional
         Path to the output weights file (.txt or .npy). For each centroid, the resulting weight is computed as the mean of the input weights (i.e., the "-w_c_in") of the streamlines in that cluster.
     n_threads : int, optional
@@ -751,6 +754,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         logger.warning(f'The centroid are computed as weighted mean (because "weights_clustering_in" provided). No "weights_clustering_out" specified, the weights will not be saved.')
     if weights_clustering_out and not weights_clustering_in:
         logger.warning(f'"weights_clustering_in" not provided, "weights_clustering_out" will be ignored.')
+    if weights_clustering_in and atlas:
+        logger.warning(f'If "atlas" provided, the "weights_clustering_in" will be ignored.')
 
     def compute_chunks(lst, n):
         """Yield successive n-sized chunks from lst."""

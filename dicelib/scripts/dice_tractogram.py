@@ -69,7 +69,8 @@ def tractogram_cluster():
         [['--weights_clustering_in', '-w_c_in'], {'type': str, 'default': None, 'help': '''\
                                             Path to the weights file (.txt or .bin) containing a scalar value for each streamline (e.g., FICO values from purifibre).
                                             They are used during the clustering to compute the weighted mean of the centroids.
-                                            If None, all the streamlines will contribute equally to the centroid.'''}],
+                                            If None, all the streamlines will contribute equally to the centroid.
+                                            If "atlas" is provided, the weights will be ignored.'''}],
         [['--weights_clustering_out', '-w_c_out'], {'type': str, 'default': None, 'help': '''\
                                             Path to the output weights file (.txt or .npy). For each centroid, the resulting weight is computed as the mean of the input weights (i.e., the "-w_c_in") of the streamlines in that cluster.'''}],
         [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files for parallel clustering'}],
