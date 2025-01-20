@@ -67,6 +67,7 @@ def tractogram_cluster():
                                             If \'median\', the final weight is the median of all the weights of the streamlines in the cluster.
                                             If \'min\', the final weight is the minimum of all the weights of the streamlines in the cluster'''}],
         [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files for parallel clustering'}],
+        [['--save_clust_idx', '-s'], {'action': 'store_true', 'help': 'Save the indices of the cluster to which each input streamline belongs'}],
         [['--max_open_files'], {'type': int, 'default': None, 'metavar': 'MAX_OPEN_FILES', 'help': 'Maximum number of files opened at the same time used to split the streamlines into bundles for parallel clustering'}],
         [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform parallel clustering. If None, all the available threads will be used'}],
         [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
@@ -89,6 +90,7 @@ def tractogram_cluster():
         force=options.force,
         verbose=options.verbose,
         keep_temp_files=options.keep_temp,
+        save_clust_idx=options.save_clust_idx,
         max_open=options.max_open_files
     )
 
@@ -160,8 +162,9 @@ def tractogram_create_tsf():
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['tsf_out'], {'type': str, 'help': 'Output tsf file'}],
-        [['--orientation', '-o'], {'action': 'store_true', 'default': False, 'help': 'Color based on orientation'}],
-        [['--file'], {'type': str, 'help': 'Color based on given file'}]
+        [['file'], {'type': str, 'help': 'Color based on given file'}],
+        [['--check_orientation', '-check'], {'action': 'store_true', 'default': False, 'help': 'Check if the streamlines are oriented and orient them if needed'}],
+        [['--tractogram_out'], {'type': str, 'default': None, 'help': 'Output tractogram with oriented streamlines if orientation is True'}]
     ]
     options = setup_parser(tsf_create.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -169,8 +172,9 @@ def tractogram_create_tsf():
     tsf_create(
         options.tractogram_in,
         options.tsf_out,
-        options.orientation,
         options.file,
+        options.check_orientation,
+        options.tractogram_out,
         options.verbose,
         options.force
     )

@@ -1,6 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 
-from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, create_streamline_replicas
+from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, create_streamline_replicas, is_flipped
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 
@@ -385,7 +385,7 @@ cdef class LazyTractogram:
         fseek( self.fp, 0, SEEK_SET )
         line = b'mrtrix tracks\n'
         fwrite( line.c_str(), 1, line.size(), self.fp )
-
+        
         for key, val in header.items():
             if key=='file':
                 continue
@@ -398,6 +398,12 @@ cdef class LazyTractogram:
                 line = f'{key}: {v}\n'
                 fwrite( line.c_str(), 1, line.size(), self.fp )
                 offset += line.size()
+
+        # if "timestamp" not in header:
+        #     line = f'timestamp: {time()}\n'
+        #     fwrite( line.c_str(), 1, line.size(), self.fp )
+        #     offset += line.size()
+        
 
         line = f'{offset+9:.0f}'
         line = f'file: . {offset+9+line.size():.0f}\n'
@@ -881,7 +887,7 @@ def tsf_join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool
     Tsf_out.close(write_eof=True, count=final_pts)
 
 
-def tsf_create( input_tractogram: str, output_tsf: str, orientation: bool=False, file: str=None, verbose: int=3, force: bool=False ):
+cpdef tsf_create( input_tractogram: str, output_tsf: str, file: str, check_orientation: bool=False, output_tractogram: str=None, verbose: int=3, force: bool=False ):
     """Create a tsf file for each streamline in order to color them for visualization.
     
     Parameters
@@ -890,18 +896,34 @@ def tsf_create( input_tractogram: str, output_tsf: str, orientation: bool=False,
         Path to the input tractogram.
     output_tsf: str
         Path to the output tsf file.
-    orientation: bool
-        If True, color the streamlines based on their orientation.
+    check_orientation: bool
+        If True, create a new tractogram with the streamlines oriented in the same direction.
     file: str
         Path to the file containing the scalar values used to color the streamlines.
     """
 
     set_verbose('tractogram', verbose)
     
-    files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
-             File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf')]
+    if check_orientation:
+        if output_tractogram is None:
+            raise ValueError("Please specify an output tractogram")
 
-    if orientation:
+    if output_tractogram:
+        files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+                File(name='file', type_='input', path=file, ext=['.txt', '.npy']),
+                File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf'),
+                File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')]
+    else:
+        files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+                File(name='file', type_='input', path=file, ext=['.txt', '.npy']),
+                File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf')]
+        
+
+    cdef float[:,::1] ref_streamline = np.empty((2000,3), dtype=np.float32)
+    cdef float[:,::1] streamline_out = np.empty((2000,3), dtype=np.float32)
+    
+
+    if check_orientation:
         check_params(files=files, force=force)
     elif file:
         files.append(File(name='file', type_='input', path=file))
@@ -909,14 +931,38 @@ def tsf_create( input_tractogram: str, output_tsf: str, orientation: bool=False,
     else:
         raise ValueError("Please specify a color option")
 
-    TCK_in = LazyTractogram(input_tractogram, mode='r')
-    num_streamlines = TCK_in.header['count']
 
-    if orientation:
-        scalar_arr, n_pts_list = create_color_scalar_file(TCK_in, int(num_streamlines))
+    if check_orientation:
+        TCK_in = LazyTractogram(input_tractogram, mode='r')
+        num_streamlines = int(TCK_in.header['count'])
+        TCK_out = LazyTractogram(output_tractogram, mode='w', header=TCK_in.header)
+        TCK_in.read_streamline()
+        ref_streamline[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
+        ref_n_pts = TCK_in.n_pts
+        with ProgressBar( total=num_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+            for i in range(int(num_streamlines)-1):
+                TCK_in.read_streamline()
+                flip = is_flipped(TCK_in.streamline[:TCK_in.n_pts], ref_streamline[:ref_n_pts])
+                if flip:
+                    streamline_out[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts][::-1]
+                else:
+                    streamline_out[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts]
+                TCK_out.write_streamline(streamline_out, TCK_in.n_pts)
+                pbar.update()
+        TCK_out.close()
+        TCK_in.close()
+        TCK_in = LazyTractogram(output_tractogram, mode='r')
+        num_streamlines = TCK_in.header['count']
+    else:
+        TCK_in = LazyTractogram(input_tractogram, mode='r')
+        num_streamlines = TCK_in.header['count']
+        
+    if file.endswith('.npy'):
+        values = np.load(file)
     else:
         values = np.loadtxt(file)
-        scalar_arr, n_pts_list = color_by_scalar_file(TCK_in, values, int(num_streamlines))
+
+    scalar_arr, n_pts_list = color_by_scalar_file(TCK_in, values, int(num_streamlines))
 
     tsf = Tsf(output_tsf, 'w', header=TCK_in.header)
     tsf.write_scalar(scalar_arr, n_pts_list)
@@ -2297,10 +2343,13 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         if segment_len is None and streamline_pts is None:
             segment_len = 0.5
             streamline_pts = 0
-        if segment_len is None:
-            segment_len = 0
-        if streamline_pts is None:
-            streamline_pts = 0
+        else:
+            if segment_len is None:
+                segment_len = 0
+                if streamline_pts < 2:
+                    logger.error('\'streamline_pts\' parameter must be greater than 1')
+            if streamline_pts is None:
+                streamline_pts = 0
         if seg_len_eval is None:
             seg_len_eval = 0.5
 

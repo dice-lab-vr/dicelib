@@ -388,7 +388,7 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
     cdef LazyTractogram TCK_in = LazyTractogram( tractogram_in, mode='r' )
     cdef int n_streamlines = int( TCK_in.header['count'] )
     cdef float* vers = <float*>malloc(3*sizeof(float))
-    cdef float* lengths = <float*>malloc(1000*sizeof(float))
+    cdef float* lengths = <float*>malloc(2000*sizeof(float))
     cdef size_t p = 0
 
     
@@ -636,7 +636,7 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=None, atlas: str=None, conn_thr: float=2.0,
                     clust_thr: float=2.0, metric: str="mean", n_pts: int=12, weights_in: str=None, weights_metric: str="sum",
                     weights_out: str=None, n_threads: int=None, force: bool=False, max_open: int=None, verbose: int=3,
-                    keep_temp_files: bool=False, max_bytes: int=0, log_list=None):
+                    keep_temp_files: bool=False, save_clust_idx: bool=False, max_bytes: int=0, log_list=None):
     """Cluster streamlines in a tractogram based on a given metric. Possible metrics are "mean" and "max" (default: "mean").
 
     Parameters
@@ -669,6 +669,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         Whether to print out additional information during the clustering.
     keep_temp_files : bool, optional
         Whether to keep temporary files.
+    save_clust_idx : bool, optional
+        Whether to save the cluster indices for all input streamlines.
     """
 
     set_verbose('clustering', verbose)
@@ -878,6 +880,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                         break
 
 
+            tot_centroids = 0 
+            idx_centroid_per_streamline = np.full(num_streamlines, np.nan)
             logger.subinfo(f'Parallel bundles clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
             with ProgressBar(total=len(chunk_list), disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
                 future = [executor.submit(cluster_chunk,
@@ -899,6 +903,10 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                     for i_b, s_b in enumerate(bundle_size):
                         streamlines_cluster = [fib_clust[i_b][s] for s in range(s_b)]
                         streamline_indices = [idx_cl[i_b][s] for s in range(s_b)]
+                        # save idx of centroid per input streamline
+                        idx_centroid_per_streamline[streamline_indices] = np.array(streamlines_cluster) + tot_centroids
+                        tot_centroids += np.array(streamlines_cluster).max() + 1
+                        # compute weights
                         if weights_in is not None:
                             if weights_metric == 'sum':
                                 clusters_v = np.unique(streamlines_cluster)
@@ -947,7 +955,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 else:
                     np.save(weights_out, w_out, allow_pickle=False)
 
-            ret_clust_idx = np.asarray(streamlines_cluster)
+            ret_clust_idx = idx_centroid_per_streamline
             t1 = time.time()
             logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_lvl=1, indent_char='*')
             logger.info( f'[ {format_time(t1 - t0)} ]' )
@@ -1048,5 +1056,79 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
     if TCK_in is not None:
         TCK_in.close()
 
+    if save_clust_idx:
+        np.savetxt(f'{tractogram_out[:len(tractogram_out)-4]}_clust_idx.txt', ret_clust_idx, fmt='%d')
 
     return ref_indices, ret_clust_idx
+
+
+cpdef closest_centroid_pt(float[:,::1] centroid, float[:,::1] streamline, float[:] streamline_values, int num_pt):
+
+    cdef float dist_d = 0
+    cdef float dist_f = 0
+    cdef float dist_min = 1e6
+    cdef float d_x = 0
+    cdef float d_y = 0
+    cdef float d_z = 0
+    cdef size_t  i = 0
+    cdef size_t  j = 0
+    cdef float[:] proj_values = np.zeros(num_pt, dtype=np.float32)
+
+    for i in xrange(num_pt):
+
+        dist_d = 0
+        dist_f = 0
+        dist_min = 1e6
+        for j in xrange(num_pt):
+            # direct
+            d_x = (centroid[i][0] - streamline[j][0])**2
+            d_y = (centroid[i][1] - streamline[j][1])**2
+            d_z = (centroid[i][2] - streamline[j][2])**2
+            dist_d = sqrt(d_x + d_y + d_z)
+
+            # flipped
+            d_x = (centroid[i][0] - streamline[num_pt-j-1][0])**2
+            d_y = (centroid[i][1] - streamline[num_pt-j-1][1])**2
+            d_z = (centroid[i][2] - streamline[num_pt-j-1][2])**2
+            dist_f = sqrt(d_x + d_y + d_z)
+
+            if dist_d < dist_f:
+                if dist_d < dist_min:
+                    dist_min = dist_d
+                    proj_values[i] = streamline_values[j]
+            else:
+                if dist_f < dist_min:
+                    dist_min = dist_f
+                    proj_values[i] = streamline_values[num_pt-j-1]
+
+    return proj_values
+
+
+cpdef project_values_on_centroid(filename_tractogram: str, float[:,:] streamline_vals, thr: float=20.0 ):
+
+    cdef LazyTractogram TCK_in = LazyTractogram( filename_tractogram, mode='r', max_points=1000 )
+    cdef float* vers = <float*>malloc(3*sizeof(float))
+    cdef float* lengths = <float*>malloc(1000*sizeof(float))
+    cdef float[:,::1] centroid_resampled = np.empty( (256, 3), dtype=np.float32 )
+    cdef float[:,::1] streamline_resampled = np.empty( (256, 3), dtype=np.float32 )
+    cdef float[:] proj_values = np.zeros(256, dtype=np.float32)
+    cdef float[:] final_values = np.zeros(256, dtype=np.float32)
+    cdef float[:,:] streamline_values = streamline_vals
+    cdef int num_str = int( TCK_in.header['count'] )
+    cdef size_t i = 0
+    cdef size_t j = 0
+
+    _, centroid = cluster(filename_tractogram, threshold=thr, n_pts=12)
+    set_number_of_points( centroid[0], 256, centroid_resampled, vers, lengths)
+
+    for i in xrange(num_str):
+        proj_values[:] = 0
+        TCK_in.read_streamline()
+        set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], 256, streamline_resampled, vers, lengths)
+        proj_values = closest_centroid_pt(centroid_resampled, streamline_resampled, streamline_values[i], 256)
+        for j in xrange(256):
+            final_values[j] += proj_values[j]
+
+    TCK_in.close()
+    return np.asarray(final_values)
+        

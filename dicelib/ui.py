@@ -28,12 +28,12 @@ def _in_notebook() -> bool:
         pass # Python interpreter
 
 # ASCII art
-ascii_art = f'''\
+ascii_art = f"""
        ___           ___ __  
   ____/ (_)_______  / (_) /_ 
- / __  / / ___/ _ \/ / / __ \\
+ / __  / / ___/ _ \\/ / / __ \\
 / /_/ / / /__/  __/ / / /_/ /
-\__,_/_/\___/\___/_/_/_.___/ [v{get_version()}]'''
+\\__,_/_/\\___/\\___/_/_/_.___/ [v{get_version()}]"""
 
 # ANSI escape codes
 esc = '\x1b['
