@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build wheel ${{ matrix.py }}-${{ matrix.arch[1] }}
-        uses: pypa/cibuildwheel@v2.19.1
+        uses: pypa/cibuildwheel@v2.22.0
         env:
           CIBW_PLATFORM: windows
           CIBW_BUILD: ${{ matrix.py }}-${{ matrix.arch[1] }}
@@ -100,7 +100,7 @@ jobs:
           brew install pipx
 
       - name: Build wheel ${{ matrix.config.py }}-${{ matrix.config.arch[1] }}
-        uses: pypa/cibuildwheel@v2.19.1
+        uses: pypa/cibuildwheel@v2.22.0
         env:
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=${{ matrix.config.arch[2] }}
@@ -134,7 +134,7 @@ jobs:
           platforms: ${{ matrix.arch[2] }}
 
       - name: Build wheel ${{ matrix.py }}-${{ matrix.arch[1] }}
-        uses: pypa/cibuildwheel@v2.19.1
+        uses: pypa/cibuildwheel@v2.22.0
         env:
           CIBW_PLATFORM: linux
           CIBW_BUILD: ${{ matrix.py }}-${{ matrix.arch[1] }}
