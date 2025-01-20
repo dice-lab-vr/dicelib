@@ -1,7 +1,7 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
-## `v1.1.3`<br>_2025-01-20_
+## `v1.2.0`<br>_2025-01-20_
 ### ✨Added
 - Add `closest_centroid_pt` and `project_values_on_centroid` functions
 - Add `check_orientation` option to `tsf_create` function
