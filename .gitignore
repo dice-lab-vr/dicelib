@@ -9,6 +9,7 @@ ehthumbs.db
 Thumbs.db
 __pycache__/
 .vscode/
+.idea/
 .eggs/
 *.egg-info/
 *.so

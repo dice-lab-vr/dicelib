@@ -520,7 +520,7 @@ cdef float[:] compute_tangent(float[:,:] points, float[:] grid):
     return tangent
 
 
-cdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, float alpha=0.5, int num_pts=10):
+cpdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, float alpha=0.5, int num_pts=10):
     """
     Cython implementation of the Catmull-Rom spline algorithm from https://github.com/AudioSceneDescriptionFormat/splines
     """
