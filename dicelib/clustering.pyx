@@ -1037,7 +1037,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         ref_indices = []
         streamlines_cluster = []
 
-        hash_superset = np.empty( num_streamlines, dtype=int)
+        hash_superset = np.empty(num_streamlines, dtype=np.int64)
 
         for i in range(num_streamlines):
             TCK_in._read_streamline()

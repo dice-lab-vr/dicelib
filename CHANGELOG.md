@@ -1,6 +1,25 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.2.0`<br>_2025-01-20_
+### ✨Added
+- Add `closest_centroid_pt` and `project_values_on_centroid` functions
+- Add `check_orientation` option to `tsf_create` function
+- Add `cp313` wheels
+
+### 🛠️Changed
+- Support for `numpy` version `>=2.0.0`
+
+### 🐛Fixed
+- Check on number of points for resample in `smooth`
+- Copy streamline values in `tsf_create` function
+- Add conditional logic for output tractogram in `tsf_create` function
+- Fix `clust_idx` returned by `run_clustering` when using atlas and add option to save them
+- Fix `SyntaxWarning` in `dicelib.ui.ascii_art`
+
+---
+---
+
 ## `v1.1.2`<br>_2024-07-04_
 ### ✨Added
 - Added new options for smoothing
