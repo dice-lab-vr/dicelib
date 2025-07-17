@@ -178,7 +178,7 @@ cdef (int, int) compute_dist_mean_SED(float[:,::1] fib_in, float[:,:,::1] target
             meandist_fib = meandist_pt
             flipped = flipped_temp
             idx_ret = i
-    if meandist_fib < thr**2:
+    if meandist_fib < thr:
         return (idx_ret, flipped)
 
     return (num_c, flipped)
