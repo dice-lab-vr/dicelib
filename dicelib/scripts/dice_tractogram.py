@@ -567,6 +567,7 @@ def tractogram_split():
                                If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
                                If list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.'''}],
         [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
+        [['--save_idx', '-idx'], {'action': 'store_true', 'help': 'Save one text file per bundle containing the indices that its streamlines have in the input tractogram'}],
         [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}]
 
     ]
@@ -581,6 +582,7 @@ def tractogram_split():
         options.weights_in,
         options.max_open,
         options.prefix,
+        options.save_idx,
         options.verbose,
         options.force
     )

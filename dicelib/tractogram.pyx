@@ -1288,7 +1288,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, prefix: str='bundle_', verbose: int=3, force: bool=False, log_list=None ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, prefix: str='bundle_', out_idx: bool=False, verbose: int=3, force: bool=False, log_list=None ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -1320,6 +1320,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
 
     prefix : string
         Prefix for the output filenames (default : 'bundle_').
+
+    out_idx : boolean
+        If True, save the indices that the streamlines in splitted tractograms had in the input one. 
+        A text file will be created for each splitted tractogram, using the same filename prefix and a '_idx.txt' suffix. (default : False).
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
@@ -1424,6 +1428,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
     TCK_outs_size   = {}
     if weights_in is not None:
         WEIGHTS_out_idx = {}
+    if out_idx:
+        IDX_outs = {} # key: id bundle, value: list of indices of the bundle's streamlines
     n_written         = 0
     unassigned_count  = 0 
     try:
@@ -1481,6 +1487,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             tmp.close( write_eof=False, count=0 )
             if weights_in is not None:
                 WEIGHTS_out_idx[key] = i+1
+            if out_idx:
+                IDX_outs[key] = []
 
         # add key for non-connecting streamlines
         if unassigned_count and len(regions)==0:
@@ -1492,7 +1500,8 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             if weights_in is not None:
                 WEIGHTS_out_idx[key] = 0
 
-        logger.debug(f'Created {len(TCK_outs)} empty files for output tractograms')
+        n_bundles = len(TCK_outs)
+        logger.debug(f'Created {n_bundles} empty files for output tractograms')
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
@@ -1551,6 +1560,11 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                 # store the index of the corresponding weight
                 if weights_in is not None:
                     w_idx[i] = WEIGHTS_out_idx[key]
+
+                # store the index of the streamline in the input tractogram
+                if out_idx:
+                    IDX_outs[key].append(i)
+
                 pbar.update()
 
         # create individual weight files for each splitted tractogram
@@ -1567,6 +1581,18 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
                         np.savetxt( os.path.join(output_folder,f'{pref_key}.txt'), w_bundle, fmt='%.5e' )
                     else:
                         np.save( os.path.join(output_folder,f'{pref_key}.npy'), w_bundle, allow_pickle=False )
+
+        # create individual idx files for each splitted tractogram
+        if out_idx:
+            logger.subinfo(f'Saving one indices file per bundle (having as filename "{prefix}<key>_idx.txt")', indent_char='*', indent_lvl=1)
+            with ProgressBar(total=n_bundles, disable=verbose < 3, hide_on_exit=True) as pbar:
+                for key, idx_list in IDX_outs.items():
+                    if key == 'unassigned':
+                        pref_key = 'unassigned'
+                    else:
+                        pref_key = f'{prefix}{key}'
+                    np.savetxt(os.path.join(output_folder, f'{pref_key}_idx.txt'), np.array(idx_list, dtype=np.int32), fmt='%d')
+                    pbar.update()
 
         if len(regions)==0:
             if unassigned_count:
