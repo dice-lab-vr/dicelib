@@ -191,13 +191,29 @@ class Logger(logging.getLoggerClass()):
             if indent_lvl >= 0 and indent_char is not None:
                 indent = '   ' * indent_lvl
                 msg = f'{indent}{msg}' if indent_char == '' else f'{indent}{indent_char} {msg}'
-            if _in_notebook() and with_progress:
-                print(msg, end='  ', flush=True)
+            if _in_notebook():
+                if with_progress:
+                    print(msg, end='  ', flush=True)
+                else:
+                    print(msg, flush=True)
             else:
                 self._log(SUBINFO, msg, args, stacklevel=stacklevel, **kwargs)
             if with_progress:
                 for i in stream_handler_indices:
                     self.handlers[i].terminator = '\n'
+        return msg
+    
+    def warning(self, msg, stacklevel=1, *args, **kwargs):
+        if self.isEnabledFor(logging.WARNING):
+            stream_handler_indices = []
+            for i, handler in enumerate(self.handlers):
+                    if type(handler) is logging.StreamHandler:
+                        stream_handler_indices.append(i)
+            if _in_notebook():
+                msg = f'{bg_yellow}{fg_black} {logging.getLevelName(logging.WARNING)} {reset} {fg_yellow}{msg}{reset}'
+                print(msg, flush=True)
+            else:
+                self._log(logging.WARNING, msg, args, stacklevel=stacklevel, **kwargs)
         return msg
     
     def error(self, msg, stacklevel=2, *args, **kwargs):
@@ -1019,7 +1035,7 @@ class ProgressBar:
             if type(self.subinfo) is bool and self.subinfo or type(self.subinfo) is str and self.subinfo != '':
                 if _in_notebook():
                     print(clear_line, end='', flush=True)
-                    print(f'\r{self.subinfo}', flush=True) if self.hide_on_exit else print(f'\r{self.subinfo}[OK]', flush=True)
+                    print(f'\r{self.subinfo}', flush=True) if self.hide_on_exit else print(f'\r{self.subinfo} [OK]', flush=True)
                 else:
                     end_str = f'{esc}1D{esc}0K' if self.total is None else f'{esc}{self._percent_len}D{esc}0K'
                     print(end_str) if self.hide_on_exit else print(f'{end_str}[OK]')
