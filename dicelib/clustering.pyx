@@ -26,6 +26,66 @@ from libcpp cimport bool
 
 logger = setup_logger('clustering')
 
+
+
+def carica_flags(str path_file, int n_streamlines):
+    """
+    Loads decision flags for each streamline based on region indices.
+
+    The function reads a file containing pairs of region indices (start and end)
+    for each streamline, checks for consistency with the expected number of
+    streamlines, and assigns a flag according to the relative order:
+    - 1 if the start region index is smaller than the end region index
+    - 2 if the end region index is smaller than the start region index
+    - 0 if the indices are equal or if no file is provided
+
+    """
+    if path_file is not None:
+        """
+        with open(path_file, 'r') as f:
+            lines = f.readlines()
+        
+        for i, line in enumerate(lines):
+            parts = line.strip().split()
+                
+            # Controlla che ci siano esattamente 2 elementi
+            if len(parts) != 2:
+                logger.error(f"Invalid format at line {i+1}: '{line.strip()}'")
+      
+            # Controlla che entrambi siano numeri interi
+            if not all(p.lstrip('-').isdigit() for p in parts):
+                logger.error(f"Non-numeric values at line {i+1}: '{line.strip()}'")
+        """
+        asgn = np.loadtxt(path_file, dtype=np.int32)
+        if asgn.shape[0] != n_streamlines:
+            logger.error(f"Mismatch: region file has {asgn.shape[0]} rows, "f"but expected {n_streamlines} streamlines.")
+            return None
+        else:
+            flags = np.zeros(asgn.shape[0], dtype=np.int32)
+
+            flags[asgn[:, 0] < asgn[:, 1]] = 1
+            flags[asgn[:, 1] < asgn[:, 0]] = 2
+
+            return flags
+    return None
+
+
+def carica_regioni(str path_file, int n_streamlines):
+    """
+    Loads the start and end region indices for each streamline.
+
+    The function reads a text file where each row contains two integer values
+    representing the start and end regions of a streamline.
+    It checks that the number of rows matches the expected number of streamlines
+    """
+    if path_file is None:
+        return None
+    asgn = np.loadtxt(path_file, dtype=np.int32)
+    if asgn.shape[0] != n_streamlines or asgn.shape[1] != 2:
+        logger.error(f"Region file shape {asgn.shape}, atteso ({n_streamlines}, 2).")
+        return None
+    return asgn
+
 cdef void tot_lenght(float[:,::1] fib_in, float* length) noexcept nogil:
     cdef size_t i = 0
 
@@ -85,6 +145,111 @@ cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] res
 
     # free(vers)
     # free(lengths)
+
+cdef (int, int) compute_dist_mean_ema(float[:,::1] fib_in,float[:,:,::1] targets,int[:,::1] centroid_regions,int[:] s_regions,int flag,float thr,float d1_x, float d1_y, float d1_z,int num_c, int num_pt,bint single) noexcept nogil:
+    """
+
+    - flag: indicates the current orientation state of the fiber relative to the target
+        0 = perform both direct and reversed distance calculations (double calculation)
+        1 = only direct distance calculation
+        2 = only reversed distance calculation
+
+    - single: boolean indicating the type of clustering
+        True  = single clustering (requires checking centroid regions for double calculation)
+        False = parallel clustering (no double calculation needed)
+
+    - centroid_regions: a matrix where each row corresponds to a centroid and contains the
+    start and end regions of that centroid
+
+    - s_regions: an array containing the start and end regions of a given streamline
+
+    """
+    cdef float meandist_fib = 1e10
+    cdef float meandist_pt, dist1, dist2
+    cdef int idx_ret = 0
+    cdef int flipped = 0
+    cdef int flipped_temp
+    cdef int i, j
+
+    for i in range(num_c):
+
+        """
+
+        Compute the mean distance between the target points and the input fiber (fib_in),
+        taking into account possible reversal of the fiber.
+
+        - If flag is 0 or certain region conditions are met (single case with specific region mismatch):
+        * Compute the distance in both original and reversed order (dist1 and dist2).
+        * Choose the smaller distance and set 'flipped_temp' accordingly (0 = original, 1 = reversed).
+
+        - If flag is 1:
+        * Compute the distance assuming the fiber is in the original order.
+        * Set 'flipped_temp' to 0.
+
+        - Otherwise (flag not 0 or 1):
+        * Compute the distance assuming the fiber is reversed.
+        * Set 'flipped_temp' to 1.
+
+        This ensures that the mean distance calculation accounts for possible fiber orientation
+
+        """
+
+        if (
+            flag == 0 or ( single and
+            ((s_regions[0] == centroid_regions[i,0] and s_regions[1] != centroid_regions[i,1]) or
+            (s_regions[0] == centroid_regions[i,1] and s_regions[1] != centroid_regions[i,0]) or
+            (s_regions[1] == centroid_regions[i,0] and s_regions[0] != centroid_regions[i,1]) or
+            (s_regions[1] == centroid_regions[i,1] and s_regions[0] != centroid_regions[i,0])))
+        ):
+            flag=0
+            dist1 = 0.0
+            dist2 = 0.0
+            for j in range(num_pt):
+                d1_x = (targets[i, j, 0] - fib_in[j, 0]) ** 2
+                d1_y = (targets[i, j, 1] - fib_in[j, 1]) ** 2
+                d1_z = (targets[i, j, 2] - fib_in[j, 2]) ** 2
+                dist1 += sqrt(d1_x + d1_y + d1_z)
+
+                d1_x = (targets[i, j, 0] - fib_in[num_pt - j - 1, 0]) ** 2
+                d1_y = (targets[i, j, 1] - fib_in[num_pt - j - 1, 1]) ** 2
+                d1_z = (targets[i, j, 2] - fib_in[num_pt - j - 1, 2]) ** 2
+                dist2 += sqrt(d1_x + d1_y + d1_z)
+
+            if dist2 < dist1:
+                meandist_pt = dist2
+                flipped_temp = 1
+            else:
+                meandist_pt = dist1
+                flipped_temp = 0
+
+        elif flag == 1:
+            flipped_temp = 0
+            meandist_pt = 0.0
+            for j in range(num_pt):
+                d1_x = (targets[i, j, 0] - fib_in[j, 0]) ** 2
+                d1_y = (targets[i, j, 1] - fib_in[j, 1]) ** 2
+                d1_z = (targets[i, j, 2] - fib_in[j, 2]) ** 2
+                meandist_pt += sqrt(d1_x + d1_y + d1_z)
+
+        else: 
+            flipped_temp = 1
+            meandist_pt = 0.0
+            for j in range(num_pt):
+                d1_x = (targets[i, j, 0] - fib_in[num_pt - j - 1, 0]) ** 2
+                d1_y = (targets[i, j, 1] - fib_in[num_pt - j - 1, 1]) ** 2
+                d1_z = (targets[i, j, 2] - fib_in[num_pt - j - 1, 2]) ** 2
+                meandist_pt += sqrt(d1_x + d1_y + d1_z)
+
+        meandist_pt /= num_pt
+
+        if meandist_pt < meandist_fib:
+            meandist_fib = meandist_pt
+            idx_ret = i
+            flipped = flipped_temp
+
+    if meandist_fib < thr:
+        return (idx_ret, flipped)
+    return (num_c, flipped )
 
 
 cdef (int, int) compute_dist_mean(float[:,::1] fib_in, float[:,:,::1] target, float thr,
@@ -278,8 +443,7 @@ cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_id
 
     return distances
 
-
-cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts: int=12,
+cpdef cluster(filename_in: str, metric: str="mean",file_region : str=None,threshold: float=4.0, n_pts: int=12,
               verbose: int=3):
     """ Cluster streamlines in a tractogram based on a given metric (mean or max distance to the centroids)
 
@@ -287,6 +451,8 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     ----------
     filename_in : str
         Path to the input tractogram file.
+    file_regiom : str
+        Path to the file storing the region indices of each streamline.
     threshold : float, optional
         Threshold for the clustering.
     n_pts : int, optional
@@ -312,6 +478,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     cdef int nb_pts = n_pts
     cdef bool metric_mean = metric == 'mean'
     cdef bool metric_ASED = metric == 'ASED'
+    cdef bool metric_mean_ema = metric == 'mean_ema'
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
     cdef float[:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
@@ -346,8 +513,38 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     cdef float d1_y = 0
     cdef float d1_z= 0
 
+    cdef int[:] flipped_array = np.zeros(n_streamlines, dtype=np.int32)
+    cdef float[:,::1] s0_direct = np.empty( (n_pts, 3), dtype=np.float32 )
 
-    set_centroids[0] = s0
+    """"
+    Create an array to load the decision flags used in the computation, 
+    then load the regions corresponding to each streamline, 
+    and finally create an array to store the regions of the centroids
+
+    """
+    cdef int[:] flags_view = carica_flags(file_region,n_streamlines)
+    cdef int[:,::1] regions_view =carica_regioni(file_region, n_streamlines)      
+    cdef int[:,::1] centroid_regions = np.empty((n_streamlines, 2), dtype=np.int32)
+
+
+    if metric == "mean_ema":
+        # Initialize the first centroid based on the first streamline and adjust its orientation depending on flag
+        if flags_view[0] == 2:
+            for pp in xrange(nb_pts):
+                s0_direct[pp][0] = s0[nb_pts-pp-1][0]
+                s0_direct[pp][1] = s0[nb_pts-pp-1][1]
+                s0_direct[pp][2] = s0[nb_pts-pp-1][2]
+
+            set_centroids[0] = s0_direct
+            centroid_regions[0,0] = regions_view[0,1]
+            centroid_regions[0,1] = regions_view[0,0] 
+        else:
+            set_centroids[0] = s0
+            centroid_regions[0,0] = regions_view[0,0]
+            centroid_regions[0,1] = regions_view[0,1]
+    else:
+        set_centroids[0] = s0
+
     cdef int [:] clust_idx = np.zeros(n_streamlines, dtype=np.int32)
     t1 = time.time()
  
@@ -364,6 +561,8 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
 
             if metric_mean:
                 t, flipped = compute_dist_mean(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
+            elif metric_mean_ema:
+                    t, flipped = compute_dist_mean_ema(streamline_in, set_centroids[:new_c], centroid_regions, regions_view[i], flags_view[i],thr, d1_x, d1_y, d1_z, new_c, nb_pts , True )
             elif metric_ASED:
                 t, flipped = compute_dist_mean_SED(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
             else:
@@ -391,8 +590,21 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
                 c_w[t] += 1
 
             else:
-                for n_i in xrange(nb_pts):
-                    new_centroid[n_i] = streamline_in[n_i]
+                if metric_mean_ema :
+                    if flags_view[i] == 2:
+                    # Reverse points and swap regions if flagged as flipped for 'mean_ema'
+                        for n_i in xrange(nb_pts):
+                            new_centroid[n_i] = streamline_in[nb_pts - n_i - 1]
+                        centroid_regions[t,0] = regions_view[i,1]
+                        centroid_regions[t,1] = regions_view[i,0]
+                    else:
+                        for n_i in xrange(nb_pts):
+                            new_centroid[n_i] = streamline_in[n_i]
+                        centroid_regions[t,0] = regions_view[i,0]
+                        centroid_regions[t,1] = regions_view[i,1]
+                else:
+                    for n_i in xrange(nb_pts):
+                        new_centroid[n_i] = streamline_in[n_i]
                 new_c += 1
             set_centroids[t] = new_centroid
             pbar.update()
@@ -402,6 +614,241 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     return clust_idx, set_centroids[:new_c]
 
 
+
+cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, n_pts: int=10, metric: str="mean", file_region: str=None, int[:,::1] flag_array=None):
+    """ Cluster streamlines in a tractogram based on average euclidean distance.
+
+    Parameters
+    ----------
+    filenames : list[str]
+        List of paths to the input tractogram files.
+    threshold : float, optional
+        Threshold for the clustering.
+    n_pts : int, optional
+        Number of points to resample the streamlines to.
+    file_region : str, optional
+        Path to the file storing the region indices of each streamline.
+    flag_array : int[:,::1], optional
+        Array containing an index for each streamline indicating the orientation type used during distance calculation.
+    
+    """
+
+    cdef float[:,:,:,::1] set_centroids = np.zeros((len(filenames), num_fibs, n_pts, 3), dtype=np.float32)
+    cdef LazyTractogram TCK_in
+    cdef int [:] n_streamlines = np.zeros(len(filenames), dtype=np.int32)
+    cdef int [:] header_params = np.zeros(len(filenames), dtype=np.intc)
+    cdef size_t i = 0
+    cdef size_t j = 0
+    cdef size_t pp = 0
+
+    idx_cl = np.zeros((len(filenames), num_fibs), dtype=np.intc)
+    cdef int[:,::1] idx_closest = idx_cl
+    cdef float* vers = <float*>malloc(3*sizeof(float))
+    cdef float* lengths = <float*>malloc(1000*sizeof(float))
+
+    for i, filename in enumerate(filenames):
+        TCK_in = LazyTractogram( filename, mode='r', max_points=1000 )
+        idx = np.load(f'{filename[:len(filename)-4]}.npy').astype(np.intc)
+        idx_cl[i, :idx.shape[0]] = idx
+        n_streamlines[i] = int(TCK_in.header['count'])
+        header_params[i] = int(TCK_in.header['file'][2:])
+        TCK_in._read_streamline()
+        if TCK_in.n_pts == n_pts: # no need to resample
+            for pp in xrange(n_pts): # copy streamline
+                set_centroids[i, 0, pp, 0] = TCK_in.streamline[pp][0]
+                set_centroids[i, 0, pp, 1] = TCK_in.streamline[pp][1]
+                set_centroids[i, 0, pp, 2] = TCK_in.streamline[pp][2]
+        else:
+            set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, set_centroids[i, 0], vers, lengths)
+        TCK_in.close()
+
+
+    in_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), 1000, 3), dtype=np.float32)
+    
+    cdef float[:,:,:,::1] in_streamlines_view = in_streamlines
+    cdef int [:,::1] len_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
+    cdef float[:,:,:,::1] resampled_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), n_pts, 3), dtype=np.float32)
+
+    for i, filename in enumerate(filenames):
+        TCK_in = LazyTractogram( filename, mode='r', max_points=1000 )
+        for st in range(n_streamlines[i]):
+            TCK_in._read_streamline()
+            in_streamlines[i][st][:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts]
+            len_streamlines[i][st] = TCK_in.n_pts
+            if TCK_in.n_pts == n_pts: # no need to resample
+                for pp in xrange(n_pts): # copy streamline
+                    resampled_streamlines[i, st, pp, 0] = TCK_in.streamline[pp][0]
+                    resampled_streamlines[i, st, pp, 1] = TCK_in.streamline[pp][1]
+                    resampled_streamlines[i, st, pp, 2] = TCK_in.streamline[pp][2]
+            else:
+                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, resampled_streamlines[i, st], vers, lengths)
+        TCK_in.close()
+    free(vers)
+    free(lengths)
+    
+    cdef int nb_pts = n_pts
+    idx_cl_return = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.intc)
+    cdef int[:,::1] idx_closest_return = idx_cl_return
+    cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
+    cdef float[:,:] fib_centr_dist = np.zeros((len(filenames), int(np.max(n_streamlines)))).astype(np.float32)
+    fib_centr_dist[:] = 1000
+    clst_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), 1000, 3), dtype=np.float32)
+    cdef float[:,:,:,::1] clst_streamlines_view = clst_streamlines
+    cdef int[:,::1] c_w = np.ones((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
+    cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
+    cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
+    cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
+    centr_len = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
+    cdef int [:,:] centr_len_view = centr_len
+    cdef size_t  p = 0
+    cdef size_t  n_i = 0
+    cdef float thr = threshold
+    cdef int t = 0
+    cdef int c_i = 0
+    new_c = np.ones(len(filenames), dtype=np.int32)
+    cdef int [:] new_c_view = new_c
+    cdef int flipped = 0
+    cdef int weight_centr = 0
+    cdef float d1_x = 0
+    cdef float d1_y = 0
+    cdef float d1_z = 0
+    cdef int [:,::1] clust_idx = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
+    cdef int [:] bundle_n_streamlines = np.zeros(len(filenames), dtype=np.int32)
+    cdef bool metric_mean = metric == 'mean'
+    cdef bool metric_ASED = metric == 'ASED'
+    cdef bool metric_ema = metric == 'mean_ema'
+
+    # Creating empty arrays for the correct functioning of the compute_dist_mean_ema function
+    cdef int[:, ::1] empty_centroid_regions = np.empty((0, 0), dtype=np.int32)
+    cdef int[:] empty_s_regions = np.empty((0,), dtype=np.int32)
+
+    
+    with nogil:
+        for i in range(in_streamlines_view.shape[0]):
+            bundle_n_streamlines[i] = n_streamlines[i]
+
+            if metric_ema:
+                # Initialize the first centroid based on the first streamline of the bundle
+                if flag_array[i,0] == 2:
+                    for pp in xrange(nb_pts):
+                        set_centroids[i, 0, pp, 0] = resampled_streamlines[i, 0, nb_pts-pp-1, 0]
+                        set_centroids[i, 0, pp, 1] = resampled_streamlines[i, 0, nb_pts-pp-1, 1]
+                        set_centroids[i, 0, pp, 2] = resampled_streamlines[i, 0, nb_pts-pp-1, 2]
+                        
+        
+            for j in range(1, n_streamlines[i], 1):
+                if metric_mean:
+                    t, flipped = compute_dist_mean(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
+                elif metric_ema:
+                    t, flipped = compute_dist_mean_ema(
+                        resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], empty_centroid_regions, empty_s_regions, flag_array[i,j], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts , False
+                    )   
+                elif metric_ASED:
+                    t, flipped = compute_dist_mean_SED(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
+                else:
+                    t, flipped = compute_dist_max(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
+
+                clust_idx[i,j]= t
+                weight_centr = c_w[i,t]
+                
+                if t < new_c_view[i]:
+                    if flipped:
+                        for p in xrange(nb_pts):
+                            pt_centr = set_centroids[i,t,p]
+                            pt_stream_in = resampled_streamlines[i, j][nb_pts-p-1]
+                            new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
+                            new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
+                            new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
+                            new_centroid[p] = new_p_centr
+                    else:
+                        for p in xrange(nb_pts):
+                            pt_centr = set_centroids[i,t,p]
+                            pt_stream_in = resampled_streamlines[i, j][p]
+                            new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
+                            new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
+                            new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
+                            new_centroid[p] = new_p_centr
+                    
+                    set_centroids[i, t] = new_centroid
+                    c_w[i,t] += 1
+
+                else:
+                    if metric_ema and flag_array[i, j] == 2:
+                        #reverse the points of the streamline before assigning it to the centroid
+                        for n_i in xrange(nb_pts):
+                            new_centroid[n_i] = resampled_streamlines[i, j][nb_pts - n_i - 1]
+                        set_centroids[i, t] = new_centroid 
+
+                    else:
+                        for n_i in xrange(nb_pts):
+                            new_centroid[n_i] = resampled_streamlines[i, j][n_i]
+                        set_centroids[i, t] = new_centroid
+    
+                    new_c_view[i] += 1
+                    c_w[i,t] = 1
+ 
+
+        for i in range(in_streamlines_view.shape[0]):
+            for j in range(n_streamlines[i]):
+                c_i = clust_idx[i,j]
+                closest_streamline_s( in_streamlines_view[i,j,:len_streamlines[i][j]], len_streamlines[i][j], c_i,
+                                     set_centroids[i, c_i], resampled_streamlines[i, j], nb_pts, centr_len_view[i],
+                                     fib_centr_dist[i], clst_streamlines_view[i], idx_closest[i], idx_closest_return[i], j)
+
+
+    return clst_streamlines, centr_len, new_c, idx_cl_return, clust_idx, bundle_n_streamlines, idx_cl
+
+
+cdef void closest_streamline_s( float[:,::1] streamline_in, int n_pts, int c_i, float[:,::1] target, float[:,::1] fib_in,
+                                int nb_pts, int [:] centr_len, float[:] fib_centr_dist, float[:,:,::1] closest_streamlines,
+                                int[:] idx_closest, int[:] idx_closest_return, int jj) noexcept nogil:
+    cdef float maxdist_pt   = 0
+    cdef float maxdist_pt_d = 0
+    cdef float maxdist_pt_i = 0
+    cdef float d1_x = 0
+    cdef float d1_y = 0
+    cdef float d1_z= 0
+    cdef float d2_x = 0
+    cdef float d2_y = 0
+    cdef float d2_z= 0
+    cdef int  j = 0
+
+    maxdist_pt_d = 0
+    maxdist_pt_i = 0
+
+    for j in range(nb_pts):
+
+        d1_x = (fib_in[j][0] - target[j][0])**2
+        d1_y = (fib_in[j][1] - target[j][1])**2
+        d1_z = (fib_in[j][2] - target[j][2])**2
+
+        maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
+
+        d2_x = (fib_in[j][0] - target[nb_pts-j-1][0])**2
+        d2_y = (fib_in[j][1] - target[nb_pts-j-1][1])**2
+        d2_z = (fib_in[j][2] - target[nb_pts-j-1][2])**2
+
+        maxdist_pt_i += sqrt(d2_x + d2_y + d2_z)
+
+    if maxdist_pt_d < maxdist_pt_i:
+        maxdist_pt = maxdist_pt_d/nb_pts
+    else:
+        maxdist_pt = maxdist_pt_i/nb_pts
+    
+    if maxdist_pt < fib_centr_dist[c_i]: 
+        fib_centr_dist[c_i] = maxdist_pt
+        copy_s(streamline_in, closest_streamlines[c_i], n_pts)
+        centr_len[c_i] = n_pts
+        idx_closest_return[c_i] = idx_closest[jj]
+
+
+cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept nogil:
+    cdef size_t i = 0
+    for i in range(n_pts):
+        fib_out[i][0] = fib_in[i][0]
+        fib_out[i][1] = fib_in[i][1]
+        fib_out[i][2] = fib_in[i][2]
+    
 cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=3):
     """
     Compute the distance between a fiber and a set of centroids
@@ -488,208 +935,9 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
     return centroids
 
 
-cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, n_pts: int=10, metric: str="mean"):
-    """ Cluster streamlines in a tractogram based on average euclidean distance.
-
-    Parameters
-    ----------
-    filenames : list[str]
-        List of paths to the input tractogram files.
-    threshold : float, optional
-        Threshold for the clustering.
-    n_pts : int, optional
-        Number of points to resample the streamlines to.
-
-    """
-
-    cdef float[:,:,:,::1] set_centroids = np.zeros((len(filenames), num_fibs, n_pts, 3), dtype=np.float32)
-    cdef LazyTractogram TCK_in
-    cdef int [:] n_streamlines = np.zeros(len(filenames), dtype=np.int32)
-    cdef int [:] header_params = np.zeros(len(filenames), dtype=np.intc)
-    cdef size_t i = 0
-    cdef size_t j = 0
-    cdef size_t pp = 0
-
-    idx_cl = np.zeros((len(filenames), num_fibs), dtype=np.intc)
-    cdef int[:,::1] idx_closest = idx_cl
-    cdef float* vers = <float*>malloc(3*sizeof(float))
-    cdef float* lengths = <float*>malloc(1000*sizeof(float))
-
-    for i, filename in enumerate(filenames):
-        TCK_in = LazyTractogram( filename, mode='r', max_points=1000 )
-        idx = np.load(f'{filename[:len(filename)-4]}.npy').astype(np.intc)
-        idx_cl[i, :idx.shape[0]] = idx
-        n_streamlines[i] = int(TCK_in.header['count'])
-        header_params[i] = int(TCK_in.header['file'][2:])
-        TCK_in._read_streamline()
-        if TCK_in.n_pts == n_pts: # no need to resample
-            for pp in xrange(n_pts): # copy streamline
-                set_centroids[i, 0, pp, 0] = TCK_in.streamline[pp][0]
-                set_centroids[i, 0, pp, 1] = TCK_in.streamline[pp][1]
-                set_centroids[i, 0, pp, 2] = TCK_in.streamline[pp][2]
-        else:
-            set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, set_centroids[i, 0], vers, lengths)
-        TCK_in.close()
-
-
-    in_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), 1000, 3), dtype=np.float32)
-    
-    cdef float[:,:,:,::1] in_streamlines_view = in_streamlines
-    cdef int [:,::1] len_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
-    cdef float[:,:,:,::1] resampled_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), n_pts, 3), dtype=np.float32)
-
-    for i, filename in enumerate(filenames):
-        TCK_in = LazyTractogram( filename, mode='r', max_points=1000 )
-        for st in range(n_streamlines[i]):
-            TCK_in._read_streamline()
-            in_streamlines[i][st][:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts]
-            len_streamlines[i][st] = TCK_in.n_pts
-            if TCK_in.n_pts == n_pts: # no need to resample
-                for pp in xrange(n_pts): # copy streamline
-                    resampled_streamlines[i, st, pp, 0] = TCK_in.streamline[pp][0]
-                    resampled_streamlines[i, st, pp, 1] = TCK_in.streamline[pp][1]
-                    resampled_streamlines[i, st, pp, 2] = TCK_in.streamline[pp][2]
-            else:
-                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, resampled_streamlines[i, st], vers, lengths)
-        TCK_in.close()
-    free(vers)
-    free(lengths)
-    
-    cdef int nb_pts = n_pts
-    idx_cl_return = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.intc)
-    cdef int[:,::1] idx_closest_return = idx_cl_return
-    cdef float [:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
-    cdef float[:,:] fib_centr_dist = np.zeros((len(filenames), int(np.max(n_streamlines)))).astype(np.float32)
-    fib_centr_dist[:] = 1000
-    clst_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), 1000, 3), dtype=np.float32)
-    cdef float[:,:,:,::1] clst_streamlines_view = clst_streamlines
-    cdef int[:,::1] c_w = np.ones((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
-    cdef float[:] pt_centr = np.zeros(3, dtype=np.float32)
-    cdef float[:] pt_stream_in = np.zeros(3, dtype=np.float32)
-    cdef float [:] new_p_centr = np.zeros(3, dtype=np.float32)
-    centr_len = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
-    cdef int [:,:] centr_len_view = centr_len
-    cdef size_t  p = 0
-    cdef size_t  n_i = 0
-    cdef float thr = threshold
-    cdef int t = 0
-    cdef int c_i = 0
-    new_c = np.ones(len(filenames), dtype=np.int32)
-    cdef int [:] new_c_view = new_c
-    cdef int flipped = 0
-    cdef int weight_centr = 0
-    cdef float d1_x = 0
-    cdef float d1_y = 0
-    cdef float d1_z = 0
-    cdef int [:,::1] clust_idx = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
-    cdef int [:] bundle_n_streamlines = np.zeros(len(filenames), dtype=np.int32)
-    cdef bool metric_mean = metric == 'mean'
-    cdef bool metric_ASED = metric == 'ASED'
-    
-    with nogil:
-        for i in range(in_streamlines_view.shape[0]):
-            bundle_n_streamlines[i] = n_streamlines[i]
-            for j in range(1, n_streamlines[i], 1):
-                if metric_mean:
-                    t, flipped = compute_dist_mean(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
-                elif metric_ASED:
-                    t, flipped = compute_dist_mean_SED(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
-                else:
-                    t, flipped = compute_dist_max(resampled_streamlines[i, j], set_centroids[i,:new_c_view[i]], thr, d1_x, d1_y, d1_z, new_c_view[i], nb_pts)
-
-                clust_idx[i,j]= t
-                weight_centr = c_w[i,t]
-                if t < new_c_view[i]:
-                    if flipped:
-                        for p in xrange(nb_pts):
-                            pt_centr = set_centroids[i,t,p]
-                            pt_stream_in = resampled_streamlines[i, j][nb_pts-p-1]
-                            new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
-                            new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
-                            new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
-                            new_centroid[p] = new_p_centr
-                    else:
-                        for p in xrange(nb_pts):
-                            pt_centr = set_centroids[i,t,p]
-                            pt_stream_in = resampled_streamlines[i, j][p]
-                            new_p_centr[0] = (weight_centr * pt_centr[0] + pt_stream_in[0])/(weight_centr+1)
-                            new_p_centr[1] = (weight_centr * pt_centr[1] + pt_stream_in[1])/(weight_centr+1)
-                            new_p_centr[2] = (weight_centr * pt_centr[2] + pt_stream_in[2])/(weight_centr+1)
-                            new_centroid[p] = new_p_centr
-                    c_w[i,t] += 1
-
-                else:
-                    for n_i in xrange(nb_pts):
-                        new_centroid[n_i] = resampled_streamlines[i, j][n_i]
-                    new_c_view[i] += 1
-                set_centroids[i,t] = new_centroid
-
-        for i in range(in_streamlines_view.shape[0]):
-            for j in range(n_streamlines[i]):
-                c_i = clust_idx[i,j]
-                closest_streamline_s( in_streamlines_view[i,j,:len_streamlines[i][j]], len_streamlines[i][j], c_i,
-                                     set_centroids[i, c_i], resampled_streamlines[i, j], nb_pts, centr_len_view[i],
-                                     fib_centr_dist[i], clst_streamlines_view[i], idx_closest[i], idx_closest_return[i], j)
-
-
-    return clst_streamlines, centr_len, new_c, idx_cl_return, clust_idx, bundle_n_streamlines, idx_cl
-    
-
-
-cdef void closest_streamline_s( float[:,::1] streamline_in, int n_pts, int c_i, float[:,::1] target, float[:,::1] fib_in,
-                                int nb_pts, int [:] centr_len, float[:] fib_centr_dist, float[:,:,::1] closest_streamlines,
-                                int[:] idx_closest, int[:] idx_closest_return, int jj) noexcept nogil:
-    cdef float maxdist_pt   = 0
-    cdef float maxdist_pt_d = 0
-    cdef float maxdist_pt_i = 0
-    cdef float d1_x = 0
-    cdef float d1_y = 0
-    cdef float d1_z= 0
-    cdef float d2_x = 0
-    cdef float d2_y = 0
-    cdef float d2_z= 0
-    cdef int  j = 0
-
-    maxdist_pt_d = 0
-    maxdist_pt_i = 0
-
-    for j in range(nb_pts):
-
-        d1_x = (fib_in[j][0] - target[j][0])**2
-        d1_y = (fib_in[j][1] - target[j][1])**2
-        d1_z = (fib_in[j][2] - target[j][2])**2
-
-        maxdist_pt_d += sqrt(d1_x + d1_y + d1_z)
-
-        d2_x = (fib_in[j][0] - target[nb_pts-j-1][0])**2
-        d2_y = (fib_in[j][1] - target[nb_pts-j-1][1])**2
-        d2_z = (fib_in[j][2] - target[nb_pts-j-1][2])**2
-
-        maxdist_pt_i += sqrt(d2_x + d2_y + d2_z)
-
-    if maxdist_pt_d < maxdist_pt_i:
-        maxdist_pt = maxdist_pt_d/nb_pts
-    else:
-        maxdist_pt = maxdist_pt_i/nb_pts
-    
-    if maxdist_pt < fib_centr_dist[c_i]: 
-        fib_centr_dist[c_i] = maxdist_pt
-        copy_s(streamline_in, closest_streamlines[c_i], n_pts)
-        centr_len[c_i] = n_pts
-        idx_closest_return[c_i] = idx_closest[jj]
-
-
-cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept nogil:
-    cdef size_t i = 0
-    for i in range(n_pts):
-        fib_out[i][0] = fib_in[i][0]
-        fib_out[i][1] = fib_in[i][1]
-        fib_out[i][2] = fib_in[i][2]
-
-
 
 def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=None, atlas: str=None, conn_thr: float=2.0,
-                    clust_thr: float=2.0, metric: str="mean", n_pts: int=12, weights_in: str=None, weights_metric: str="sum",
+                    clust_thr: float=2.0, metric: str="mean", file_region=None, n_pts: int=12, weights_in: str=None, weights_metric: str="sum",
                     weights_out: str=None, n_threads: int=None, force: bool=False, max_open: int=None, verbose: int=3,
                     keep_temp_files: bool=False, save_clust_idx: bool=False, max_bytes: int=0, log_list=None):
     """Cluster streamlines in a tractogram based on a given metric. Possible metrics are "mean" and "max" (default: "mean").
@@ -762,8 +1010,8 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         tmp_dir_is_created = True
     
     # other checks
-    if metric not in ['mean', 'max', 'ASED']:
-        logger.error(f'Invalid metric, must be \'mean\', \'max\' or \'ASED\'')
+    if metric not in ['mean', 'max', 'ASED', 'mean_ema']:
+        logger.error(f'Invalid metric, must be \'mean\', \'max\' or \'ASED\' or \'mean_ema\'')
 
     def compute_chunks(lst, n):
         """Yield successive n-sized chunks from lst."""
@@ -780,6 +1028,14 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
     TCK_in = LazyTractogram(tractogram_in, mode='r')
     num_streamlines = int(TCK_in.header["count"])
+
+
+    if metric == 'mean_ema' and file_region is not None:
+        # Load the region flags from the file
+
+        if not os.path.isfile(file_region):
+            logger.error(f'Region file not found: {file_region}')
+        all_flags = carica_flags(file_region, num_streamlines)
 
     if atlas:
         chunk_size = int(num_streamlines/MAX_THREAD)
@@ -866,6 +1122,31 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         if warning_msg != '':
             logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
 
+        if metric == 'mean_ema' and file_region is not None:
+            bundle_arrays = {}
+            
+            for i, (bundle_path, _, bundle_size) in bundles.items():
+                try:
+                    # Construct the path to the bundle index file
+                    file_name = os.path.basename(bundle_path).replace(".tck", "_idx.txt")
+                    bundle_index_file = os.path.join("bundles", file_name)
+                    
+                    if not os.path.exists(bundle_index_file):
+                        logger.warning(f"Bundle index file not found: {bundle_index_file}")
+                        bundle_arrays[i] = np.zeros(bundle_size, dtype=np.int32)
+                    else:
+                        # Read the indices of the streamlines in this bundle
+                        bundle_indices = np.loadtxt(bundle_index_file, dtype=np.int32, ndmin=1)
+                        
+                        # Extract the corresponding values from the full arrays
+                        bundle_arrays[i] = np.ascontiguousarray(all_flags[bundle_indices], dtype=np.int32)
+                        
+                except Exception as e:
+                    logger.warning(f"Errore nel bundle {bundle_path}: {e}")
+                    bundle_arrays[i] = np.zeros(bundle_size, dtype=np.int32)
+        else:
+            bundle_arrays = {}
+                
         t1 = time.time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
@@ -883,6 +1164,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         logger.subinfo(f'Number of points: {n_pts}', indent_lvl=1, indent_char='*')
         logger.subinfo(f'Computing workload for parallel clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
         chunk_list = []
+        asgn=[]
         try:
             TCK_out = LazyTractogram(tractogram_out, mode='w', header=TCK_in.header)
             with ProgressBar(subinfo=True, disable=verbose < 3):
@@ -906,6 +1188,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                         to_delete = []
                         new_chunk = []
                         new_chunk_num_streamlines = []
+                        new_asgn = []
                         max_bundle_size = 0
                         for k, bundle in bundles.items():
                             new_chunk_size = len(new_chunk) + 1
@@ -917,6 +1200,10 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                                 new_chunk.append(bundle[0])
                                 new_chunk_num_streamlines.append(bundle[2])
                                 to_delete.append(k)
+
+                                if metric == 'mean_ema':
+                                    # append also the flag array
+                                    new_asgn.append(bundle_arrays[k])
                             else:
                                 # bundle too big
                                 break
@@ -926,6 +1213,29 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                             break
                         
                         chunk_list.append([new_chunk, max(new_chunk_num_streamlines)])
+                        if metric == 'mean_ema':
+                                # create flag array for the chunk
+                                num_fibs = max(new_chunk_num_streamlines)
+                                n_bundles = len(new_asgn)
+                                flags_for_chunk = np.zeros((n_bundles, num_fibs), dtype=np.int32)
+
+                                for ii, arr in enumerate(new_asgn):
+                                    """
+                                    Populate flags_for_chunk for each assignment array:
+                                     - Convert arr to a contiguous int32 ndarray to avoid compilation errors
+                                     - Copy all elements if L <= num_fibs, otherwise truncate to fit
+                                     - Append the completed flags_for_chunk to the overall assignments list
+                                    
+                                    """
+                                    arr_np = np.ascontiguousarray(np.asarray(arr, dtype=np.int32))
+                                    L = arr_np.shape[0]
+                                    if L > num_fibs:
+                                        flags_for_chunk[ii, :num_fibs] = arr_np[:num_fibs]
+                                    else:
+                                        flags_for_chunk[ii, :L] = arr_np
+
+                                asgn.append(flags_for_chunk)
+
                         for k in to_delete:
                             bundles.pop(k)
 
@@ -944,7 +1254,12 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                                         num_fibs,
                                         clust_thr,
                                         n_pts=n_pts,
-                                        metric=metric) for chunk, num_fibs in chunk_list]
+                                        metric=metric,
+                                        file_region=file_region,
+                                        flag_array=asgn[i] if metric == "mean_ema" and file_region is not None else None
+                                        )
+                                        for i, (chunk, num_fibs) in enumerate(chunk_list)]    
+
                 for i, f in enumerate(as_completed(future)):
                     bundle_new_c, bundle_centr_len, bundle_num_c, idx_clst, fib_clust, bundle_size, idx_cl = f.result()
 
@@ -1046,6 +1361,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
 
         clust_idx, set_centroids = cluster(tractogram_in,
                                             metric=metric,
+                                            file_region=file_region,
                                             threshold=clust_thr,
                                             n_pts=n_pts,
                                             verbose=verbose
@@ -1114,7 +1430,6 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         np.savetxt(f'{tractogram_out[:len(tractogram_out)-4]}_clust_idx.txt', ret_clust_idx, fmt='%d')
 
     return ref_indices, ret_clust_idx
-
 
 cpdef closest_centroid_pt(float[:,::1] centroid, float[:,::1] streamline, float[:] streamline_values, int num_pt):
 

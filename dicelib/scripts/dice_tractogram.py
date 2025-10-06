@@ -50,7 +50,9 @@ def tractogram_cluster():
                                             Metric used to cluster the streamlines. Options: \'mean\', \'max\'.
                                             If \'max\', streamlines with ALL the points closer than \'thr\' will be clustered together.
                                             If \'mean\', streamlines with AVERAGE Euclidean distance closer than \'thr\' will be clustered together.
+                                            If \'mean_ema\',same as 'mean' but we determine the streamline direction based on endpoint proximity before the computation
                                             If \'ASED\', streamlines with AVERAGE SQUARED Euclidean distance closer than \'thr\' will be clustered together'''}],
+        [['--region', '-r'], {'type': str, 'default': None,'help': 'Path to a .txt file containing the regions associated with the streamlines (one region per line, in the same order)'}],
         [['--n_pts', '-n'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Resample all streamlines to N_PTS points. Clustering requires streamlines to have the same number of points'}],
         [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': '''\
                                             Path to the atlas file used to split the streamlines into bundles and clustering each of them in parallel;
@@ -83,6 +85,7 @@ def tractogram_cluster():
         conn_thr=options.atlas_dist,
         clust_thr=options.thr,
         metric=options.metric,
+        file_region=options.region,
         n_pts=options.n_pts,
         weights_in=options.weights_in,
         weights_metric=options.weights_metric,
