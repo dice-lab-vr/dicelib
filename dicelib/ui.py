@@ -767,7 +767,7 @@ class ArgumentParser(argparse.ArgumentParser):
         # determine help from format above
         return formatter.format_help()
     
-    def parse_known_args(self, args=None, namespace=None):
+    def parse_known_args(self, args=None, namespace=None, intermixed=None):
         if args is None:
             # args default to the system args
             args = sys.argv[1:]
@@ -799,7 +799,7 @@ class ArgumentParser(argparse.ArgumentParser):
         # parse the arguments and exit if there are any errors
         if self.exit_on_error:
             try:
-                namespace, args = self._parse_known_args(args, namespace)
+                namespace, args = self._parse_known_args(args, namespace) if sys.version_info < (3, 12) else self._parse_known_args(args, namespace, intermixed)
             except argparse.ArgumentError as err:
                 # self.error(str(err))
                 if logger is not None:
@@ -807,7 +807,7 @@ class ArgumentParser(argparse.ArgumentParser):
                 else:
                     self.error(str(err))
         else:
-            namespace, args = self._parse_known_args(args, namespace)
+            namespace, args = self._parse_known_args(args, namespace) if sys.version_info < (3, 12) else self._parse_known_args(args, namespace, intermixed)
 
         if hasattr(namespace, argparse._UNRECOGNIZED_ARGS_ATTR):
             args.extend(getattr(namespace, argparse._UNRECOGNIZED_ARGS_ATTR))
