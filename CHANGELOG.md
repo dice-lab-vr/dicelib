@@ -1,6 +1,14 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.2.1`<br>_2025-10-06_
+### 🐛Fixed
+- Fixed ending points in `smooth`
+- Fix minor bugs (when using jupyter notebooks, windows, and/or newer python versions)
+
+---
+---
+
 ## `v1.2.0`<br>_2025-01-20_
 ### ✨Added
 - Add `closest_centroid_pt` and `project_values_on_centroid` functions

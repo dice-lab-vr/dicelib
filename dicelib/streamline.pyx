@@ -277,9 +277,21 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red =
             n_pts_out = 2
         # resample smoothed streamline
         resampled_fib = resample(smoothed_fib, n_pts_out)
+        resampled_fib[0][0] = fib_ptr[0][0]
+        resampled_fib[0][1] = fib_ptr[0][1]
+        resampled_fib[0][2] = fib_ptr[0][2]
+        resampled_fib[n_pts_out-1][0] = fib_ptr[n_pts_in-1][0]
+        resampled_fib[n_pts_out-1][1] = fib_ptr[n_pts_in-1][1]
+        resampled_fib[n_pts_out-1][2] = fib_ptr[n_pts_in-1][2]
         return resampled_fib, n_pts_out
 
     else:
+        smoothed_fib[0][0] = fib_ptr[0][0]
+        smoothed_fib[0][1] = fib_ptr[0][1]
+        smoothed_fib[0][2] = fib_ptr[0][2]
+        smoothed_fib[n_pts_tot-1][0] = fib_ptr[n_pts_in-1][0]
+        smoothed_fib[n_pts_tot-1][1] = fib_ptr[n_pts_in-1][1]
+        smoothed_fib[n_pts_tot-1][2] = fib_ptr[n_pts_in-1][2]
         return smoothed_fib, n_pts_tot
 
 
@@ -307,6 +319,7 @@ cpdef resample (streamline, nb_pts) :
     resampled_fib[0][0] = fib_in[0][0]
     resampled_fib[0][1] = fib_in[0][1]
     resampled_fib[0][2] = fib_in[0][2]
+
     while sum_step < lengths[nb_pts_in-1]:
         if sum_step == lengths[i]:
             resampled_fib[j][0] = fib_in[i][0] 
@@ -326,6 +339,7 @@ cpdef resample (streamline, nb_pts) :
             sum_step += step_size
         else:
             i+=1
+
     resampled_fib[nb_pts-1][0] = fib_in[nb_pts_in-1][0]
     resampled_fib[nb_pts-1][1] = fib_in[nb_pts_in-1][1]
     resampled_fib[nb_pts-1][2] = fib_in[nb_pts_in-1][2]
