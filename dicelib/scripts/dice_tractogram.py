@@ -85,7 +85,7 @@ def tractogram_cluster():
         n_pts=options.n_pts,
         weights_in=options.weights_in,
         weights_metric=options.weights_metric,
-        weights_out=options.weights_out,        
+        weights_out=options.weights_out,
         n_threads=options.n_threads,
         force=options.force,
         verbose=options.verbose,
@@ -147,7 +147,7 @@ def tractogram_cluster():
 #         )
 #     except Exception:
 #         raise ValueError("Error loading input tractogram")
-    
+
 #     try:
 #         save_tractogram(sft_in, options.tractogram_out)
 #     except (OSError, TypeError) as e:
@@ -195,7 +195,7 @@ def tractogram_filter():
         [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
         [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
         [['--random', '-r'], {'type': float, 'default': 1.0, 'help': '''\
-                              Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all. 
+                              Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all.
                               This filter is applied after all others'''}]
     ]
     options = setup_parser(tract_filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
@@ -248,7 +248,7 @@ def tractogram_info():
         [['--max_field_length', '-m'], {'type': int, 'help': 'Maximum length allowed for printing a field value'}]
     ]
     options = setup_parser(info.__doc__.split('\n')[0], args)
-    
+
     # call actual function
     info(
         options.tractogram_in,
@@ -271,9 +271,9 @@ def tractogram_join():
     options = setup_parser(tract_join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     # call actual function
-    tract_join( 
+    tract_join(
         options.tractograms_in,
-        options.tractogram_out, 
+        options.tractogram_out,
         options.weights_in,
         options.weights_out,
         options.verbose,
@@ -468,24 +468,24 @@ def tractogram_smooth():
         [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
         [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': 'Type of spline to use for the smoothing'}],
         [['--epsilon', '-e'], {'type': float, 'default': None, 'help': '''\
-                               Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline. 
+                               Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline.
                                NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.
                                      If None and "n_ctrl_pts" is None, "epsilon" is set to 0.3.'''}],
         [['--n_ctrl_pts', '-n'], {'type': int, 'default': None, 'help': '''\
-                                  Number of control points used to interpolate the streamlines. 
+                                  Number of control points used to interpolate the streamlines.
                                   NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.'''}],
         [['--do_resample', '-r'], {'action': 'store_true', 'default': False, 'help': '''\
-                                   If True, the final streamlines are resampled to have a constant segment length (see "segment_len" and "streamline_pts" parameters). 
+                                   If True, the final streamlines are resampled to have a constant segment length (see "segment_len" and "streamline_pts" parameters).
                                    If False, the point of the final streamlines are more dense where the curvature is high.'''}],
         [['--segment_len', '-l'], {'type': float, 'default': None, 'help': '''\
-                                   Sampling resolution of the final streamline after interpolation. 
+                                   Sampling resolution of the final streamline after interpolation.
                                    NOTE: if 'do_resample' is True, either "segment_len" or "streamline_pts" must be set, by default "segment_len" is used.
                                    If None and "streamline_pts" is None, "segment_len" is set to 0.5.'''}],
         [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': '''\
-                                      Number of points in each of the final streamlines. 
+                                      Number of points in each of the final streamlines.
                                       NOTE: if 'do_resample' is True, either "streamline_pts" or "segment_len" must be set, by default "segment_len" is used.'''}],
         [['--n_pts_eval', '-n_ev'], {'type': int, 'default': None, 'help': '''\
-                                     Number of points in which the spline is evaluated. 
+                                     Number of points in which the spline is evaluated.
                                      If None, the number of points is computed using "segment_len_eval"'''}],
         [['--segment_len_eval', '-l_ev'], {'type': float, 'default': None, 'help': '''\
                                            Segment length used to compute the number of points in which the spline is evaluated; computed as the length of the reduced streamline divided by "segment_len_eval".
@@ -583,3 +583,27 @@ def tractogram_split():
         options.verbose,
         options.force
     )
+
+
+def tractogram_fico():
+    '''
+    Entry point for the tractogram.compute_fico function.
+    '''
+    args = [
+        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
+        [['input_sph_func'], {'type': str, 'help': 'Input spherical function to compare streamline trajectories against'}],
+        [['output_weights'], {'type': str, 'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}]
+    ]
+    options = setup_parser(compute_lengths.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    try:
+        # call the actual function
+        compute_lengths(
+            options.input_tractogram,
+            options.input_sph_func,
+            options.output_weights,
+            options.verbose,
+            options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
