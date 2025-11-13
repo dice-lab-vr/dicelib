@@ -3199,7 +3199,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def compute_fico( input_tractogram: str, input_sph_func: str, output_file: str=None, verbose: int=3, force: bool=False ) -> np.ndarray:
+def compute_fico( input_tractogram: str, input_sph_func: str, output_weights: str=None, verbose: int=3, force: bool=False ) -> np.ndarray:
     """Compute the FICO weights of the streamlines in a tractogram.
 
     Parameters
@@ -3211,7 +3211,7 @@ def compute_fico( input_tractogram: str, input_sph_func: str, output_file: str=N
         Path to the file (.nii.gz) containing the spherical function againt which each streamline is evaluated.
         TODO: finish documentation
 
-    output_file : string (optional)
+    output_weights : string (optional)
         Path to the file (.txt or .npy) that will contain the FICO weights.
 
     verbose : int
@@ -3225,8 +3225,8 @@ def compute_fico( input_tractogram: str, input_sph_func: str, output_file: str=N
     set_verbose('tractogram', verbose)
 
     files = [File(name='input_tractogram', type_='input', path=input_tractogram)]
-    if output_file is not None:
-        files.append(File(name='output_file', type_='output', path=output_file, ext=['.txt', '.npy']))
+    if output_weights is not None:
+        files.append(File(name='output_weights', type_='output', path=output_weights, ext=['.txt', '.npy']))
     check_params(files=files, force=force)
 
     #----- iterate over input streamlines -----
@@ -3255,14 +3255,14 @@ def compute_fico( input_tractogram: str, input_sph_func: str, output_file: str=N
             logger.subinfo(f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*', indent_lvl=1)
             logger.subinfo(f'min: {fico.min():.3f}  max: {fico.max():.3f}  mean: {fico.mean():.3f}  std: {fico.std():.3f}', indent_char='*', indent_lvl=1)
 
-        if output_file is None:
+        if output_weights is None:
             return fico
         else:
-            output_file_ext = os.path.splitext(output_file)[1]
-            if output_file_ext == '.txt':
-                np.savetxt(output_file, fico, fmt='%.4f')
-            elif output_file_ext == '.npy':
-                np.save(output_file, fico, allow_pickle=False)
+            output_weights_ext = os.path.splitext(output_weights)[1]
+            if output_weights_ext == '.txt':
+                np.savetxt(output_weights, fico, fmt='%.4f')
+            elif output_weights_ext == '.npy':
+                np.save(output_weights, fico, allow_pickle=False)
 
     except Exception as e:
         logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )

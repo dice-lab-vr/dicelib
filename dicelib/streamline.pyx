@@ -18,22 +18,22 @@ cdef extern from "streamline_utils.hpp":
     ) nogil
 
 cdef extern from "streamline_utils.hpp":
-    int create_replicas_point( 
-        float* ptr_pts_in, double* ptr_pts_out, double* ptr_blur_rho, double* ptr_blur_angle, int n_replicas, float fiberShiftX, float fiberShiftY, float fiberShiftZ 
+    int create_replicas_point(
+        float* ptr_pts_in, double* ptr_pts_out, double* ptr_blur_rho, double* ptr_blur_angle, int n_replicas, float fiberShiftX, float fiberShiftY, float fiberShiftZ
     ) nogil
 
 cdef extern from "streamline_utils.hpp":
-    void create_replicas_streamline( 
-        float* fiber, unsigned int pts, float* fiber_out, float* pts_replica, int nReplicas, double* ptrBlurRho, double* ptrBlurAngle, double* ptrBlurWeights, bool doApplyBlur  
+    void create_replicas_streamline(
+        float* fiber, unsigned int pts, float* fiber_out, float* pts_replica, int nReplicas, double* ptrBlurRho, double* ptrBlurAngle, double* ptrBlurWeights, bool doApplyBlur
     ) nogil
 
 
 cpdef double [:,::1] space_tovox(streamline, header,curr_space = None ):
     """Method to change space reference of streamlines (.tck)
-    Note that if curr_space is None, space is interpreted as RASmm 
+    Note that if curr_space is None, space is interpreted as RASmm
 
-    Allowed spaces tranformation: 
-    voxmm --> vox 
+    Allowed spaces tranformation:
+    voxmm --> vox
     rasmm --> vox
 
     Parameters:
@@ -41,24 +41,24 @@ cpdef double [:,::1] space_tovox(streamline, header,curr_space = None ):
     -----------
 
     streamline : Numpy array Nx3
-        Data of the streamline, coordinates 
-    header : NiftiHeader 
+        Data of the streamline, coordinates
+    header : NiftiHeader
         header of the image
-    curr space : string 
+    curr space : string
         coordinates space of streamline to transform
     """
     streamline = np.asarray(streamline)
     voxsize = np.asarray(header["pixdim"][1:4]) #resolution
     affine = np.asarray([header["srow_x"],header["srow_y"],header["srow_z"],[0,0,0,1]]) #affine retrieved from the header
     inverse = np.linalg.inv(affine) #inverse of affine
-    small = inverse[:-1,:-1].T 
+    small = inverse[:-1,:-1].T
     val = inverse[:-1,-1]
     # if curr_space == "voxmm":
     #     streamline /= voxsize
-    # elif curr_space == "rasmm": 
-    #     streamline = np.matmul(streamline,inverse[:-1,:-1].T) + inverse[:-1,-1] #same as nibabel.affines.apply_affine() 
-    #     streamline += voxsize/2 #to point center of the voxel 
-    #     streamline = np.floor(streamline) #cast 
+    # elif curr_space == "rasmm":
+    #     streamline = np.matmul(streamline,inverse[:-1,:-1].T) + inverse[:-1,-1] #same as nibabel.affines.apply_affine()
+    #     streamline += voxsize/2 #to point center of the voxel
+    #     streamline = np.floor(streamline) #cast
 
 
     if not streamline.flags['C_CONTIGUOUS']:
@@ -73,7 +73,7 @@ cpdef double [:,::1] space_tovox(streamline, header,curr_space = None ):
     cdef double [:,::1] streamline_view = np.double(streamline)
     cdef double [:,::1] small_view = small
     cdef float  [::1] voxsize_view = voxsize
-    cdef double [::1] val_view = val  
+    cdef double [::1] val_view = val
     cdef double somma = 0.0
     cdef size_t ii, yy
 
@@ -81,13 +81,13 @@ cpdef double [:,::1] space_tovox(streamline, header,curr_space = None ):
         for ii in range(streamline_view.shape[0]):
             for yy in range(streamline_view.shape[1]):
                 streamline_view[ii][yy] = streamline_view[ii][yy]/voxsize_view[yy]
-    else :     #rasmm 
+    else :     #rasmm
         for ii in range(streamline_view.shape[0]):
             for yy in range(streamline_view.shape[1]):
-                somma = ((streamline_view[ii,0]*small_view[0,yy] + streamline_view[ii,1]*small_view[1,yy] + streamline_view[ii,2]*small_view[2,yy]) + val_view[yy]) 
+                somma = ((streamline_view[ii,0]*small_view[0,yy] + streamline_view[ii,1]*small_view[1,yy] + streamline_view[ii,2]*small_view[2,yy]) + val_view[yy])
                 somma += (voxsize_view[yy]/2)
                 streamline_view[ii][yy] = floor(somma)
-    
+
     return streamline_view
 
 
@@ -163,7 +163,7 @@ cpdef smooth( streamline, n_pts, control_point_ratio, segment_len ):
 
     cdef float [:,:] streamline_in = streamline
     cdef float [:,:] streamline_out = np.ascontiguousarray( np.zeros( (3*1000,1) ).astype(np.float32) )
-    
+
     n = smooth_c( &streamline_in[0,0], n_pts, &streamline_out[0,0], control_point_ratio, segment_len )
     if n != 0 :
         streamline = np.reshape( streamline_out[:3*n].copy(), (n,3) )
@@ -191,11 +191,11 @@ cpdef rdp_reduction( streamline, n_pts, epsilon, n_pts_red=0 ):
     n : int
         Number of points in the smoothed streamline
     """
-    
+
     cdef float [:,:] streamline_in = streamline
     cdef float [:,:] streamline_out = np.ascontiguousarray( np.zeros( (3*1000,1) ).astype(np.float32) )
     cdef int nPtsred = n_pts_red
-    
+
     n = rdp_red_c( &streamline_in[0,0], n_pts, &streamline_out[0,0], epsilon, nPtsred)
     if n != 0 :
         streamline = np.reshape( streamline_out[:3*n].copy(), (n,3) )
@@ -251,7 +251,7 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red =
                                         [-3, 3, -2, -1],
                                         [0, 0, 1, 0],
                                         [1, 0, 0, 0]]).astype(np.float32)
-    # check number of points 
+    # check number of points
     if n_red==2: # no need to smooth
         smoothed_fib = fib_red_ptr
         n_pts_tot = n_red
@@ -308,7 +308,7 @@ cpdef resample (streamline, nb_pts) :
     cdef float[:] vers = np.zeros(3, dtype=np.float32)
     cdef float[:] lengths = np.zeros(nb_pts_in, dtype=np.float32)
     cdef float[:,::1] fib_in = np.ascontiguousarray(streamline, dtype=np.float32)
-    
+
     resample_len(fib_in, &lengths[0])
 
     cdef float step_size = lengths[nb_pts_in-1]/(nb_pts-1)
@@ -322,7 +322,7 @@ cpdef resample (streamline, nb_pts) :
 
     while sum_step < lengths[nb_pts_in-1]:
         if sum_step == lengths[i]:
-            resampled_fib[j][0] = fib_in[i][0] 
+            resampled_fib[j][0] = fib_in[i][0]
             resampled_fib[j][1] = fib_in[i][1]
             resampled_fib[j][2] = fib_in[i][2]
             j += 1
@@ -357,10 +357,10 @@ cdef void resample_len(float[:,::1] fib_in, float* length):
 
 cpdef float [:,::1] create_replicas( float [:,::1] in_pts, double [:] blurRho, double [:] blurAngle, int nReplicas, float fiber_shiftX, float fiber_shiftY, float fiber_shiftZ):
     """ Generate the replicas of an ending point given the grid coordinates.
-    
+
     Parameters
     -----------------
-    
+
     TODO
 
     """
@@ -374,10 +374,10 @@ cpdef float [:,::1] create_replicas( float [:,::1] in_pts, double [:] blurRho, d
 
 cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nReplicas, double [:] blurRho, double [:] blurAngle, double [:] blurWeights, bool blurApply):
     """ Generate the replicas of an entire streamline given the grid coordinates.
-    
+
     Parameters
     ----------
-    
+
     in_str : n_pts_strX3 numpy array
         Input streamline data
 
@@ -390,7 +390,7 @@ cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nRepl
     blurRho : nReplicas numpy array
         Distance values for the replicas
 
-    blurAngle : nReplicas numpy array 
+    blurAngle : nReplicas numpy array
         Angle values for the replicas
 
     blurWeights : nReplicas numpy array
@@ -425,19 +425,19 @@ cpdef sampling(float [:,::1] streamline_view, float [:,:,::1] img_view, int npoi
     Parameters
     ----------
     streamline : Nx3 numpy array
-        The streamline data, coordinates 
-    img : numpy array 
-        data of the image 
-    npoints : int  
-        points of the streamline 
+        The streamline data, coordinates
+    img : numpy array
+        data of the image
+    npoints : int
+        points of the streamline
     Returns
     -------
     value : numpy array of dim (npoint,)
-        values that correspond to coordinates of streamline in the image space 
-         
+        values that correspond to coordinates of streamline in the image space
+
     """
 
-    value = np.empty([npoints,], dtype= float) 
+    value = np.empty([npoints,], dtype= float)
     opt_value = 0
     cdef size_t ii
 
@@ -445,10 +445,10 @@ cpdef sampling(float [:,::1] streamline_view, float [:,:,::1] img_view, int npoi
         vox_coords = np.array([int(streamline_view[ii,0]), int(streamline_view[ii,1]), int(streamline_view[ii,2])])
         if mask_view[<int>vox_coords[0], <int>vox_coords[1], <int>vox_coords[2]] == 0:
             value[ii] = np.nan
-        else: 
+        else:
             value[ii] = img_view[<int>streamline_view[ii,0],<int>streamline_view[ii,1],<int>streamline_view[ii,2]] #cast int values
-         
-        
+
+
     if option == "mean":
         opt_value = np.nanmean(value)
         return opt_value
@@ -481,7 +481,7 @@ cpdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] re
     resampled_fib[0][2] = fib_in[0][2]
     while sum_step < lengths[nb_pts_in-1]:
         if sum_step == lengths[i]:
-            resampled_fib[j][0] = fib_in[i][0] 
+            resampled_fib[j][0] = fib_in[i][0]
             resampled_fib[j][1] = fib_in[i][1]
             resampled_fib[j][2] = fib_in[i][2]
             j += 1
@@ -514,7 +514,7 @@ cdef void tot_lenght(float[:,::1] fib_in, float[::1] length):# noexcept nogil:
 cdef float[:] compute_tangent(float[:,:] points, float[:] grid):
     cdef float[:] x0 = points[0]
     cdef float[:] x1 = points[1]
-    cdef float[:] x2 = points[2]   
+    cdef float[:] x2 = points[2]
     cdef float t0 = grid[0]
     cdef float t1 = grid[1]
     cdef float t2 = grid[2]
@@ -530,7 +530,7 @@ cdef float[:] compute_tangent(float[:,:] points, float[:] grid):
         v1[i] = (x1[i] - x0[i]) / delta1
     for i in range(3):
         tangent[i] = (delta0 * v1[i] + delta1 * v0[i]) / (delta0 + delta1)
-        
+
     return tangent
 
 
@@ -564,7 +564,7 @@ cdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, flo
     for i in range(tangent.shape[0]):
         tangents[2*i+1] = tangent[i]
         tangents[2*i+2] = tangent[i]
-    
+
 
     # Calculate tangent for "natural" end condition
     x0, x1 = vertices[0], vertices[1]
@@ -587,11 +587,11 @@ cdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, flo
         v1 = np.asarray(tangents[2*i+1])
         t0 = grid[i]
         t1 = grid[i+1]
-        
+
         # for j in range(4):
         #     for k in range(3):
         #         prod[j][k] = matrix[j][0] * x0[k] + matrix[j][1] * x1[k] + matrix[j][2] * v0[k] + matrix[j][3] * v1[k]
-        prod = matrix @ np.array([x0, x1, (t1 - t0) * v0, (t1 - t0) * v1])      
+        prod = matrix @ np.array([x0, x1, (t1 - t0) * v0, (t1 - t0) * v1])
         for j in range(4):
             for k in range(3):
                 segments[i][j][k] = prod[j][k]
@@ -603,7 +603,8 @@ cdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, flo
         else:
             idx_temp = len(grid) - 2
 
-        t0, t1 = grid[idx_temp:idx_temp+2]
+        t0 = grid[idx_temp:idx_temp+2][0]
+        t1 = grid[idx_temp:idx_temp+2][1]
         tt = (t[i] - t0) / (t1 - t0)
         coefficients = segments[idx_temp]
         powers = np.arange(len(coefficients))[::-1]
@@ -631,7 +632,7 @@ cdef float[:] check_grid(float[:] grid, float alpha, float[:, :] vertices):
         for jj in range(3):
             x0[jj] = vertices[ii][jj]
             x1[jj] = vertices[ii+1][jj]
-        
+
         # rewrite diff to avoid numpy overhead
         diff = np.sqrt((x1[0] - x0[0])**2 + (x1[1] - x0[1])**2 + (x1[2] - x0[2])**2)**alpha
         # x0 = np.asarray(vertices[ii])
