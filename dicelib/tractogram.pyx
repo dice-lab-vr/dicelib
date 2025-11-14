@@ -3200,7 +3200,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: str=None, verbose: int=3, force: bool=False ):
+cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: str=None, normalize: bool=True, verbose: int=3, force: bool=False ):
     """Compute the FICO weights of the streamlines in a tractogram.
 
     Parameters
@@ -3214,6 +3214,9 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
 
     output_weights : string (optional)
         Path to the file (.txt or .npy) that will contain the FICO weights.
+
+    normalize : boolean (optional)
+        Normalize spherical function in each voxel to its maximum value (default : True)
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
@@ -3295,13 +3298,15 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
                         if o<0 or o>=500:
                             logger.error( f'This should not happen: o={o}, ox={ox}, oy={oy}' )
 
-                        # FICO calculation
-                        m = np.max( sf[ vox[0], vox[1], vox[2], : ] )
-                        if m > 0:
-                            # normalize
-                            w[j-1] = sf[ vox[0], vox[1], vox[2], o ] / m # j-1 is because n_pts points -> n_pts-1 segments
-                        else:
-                            w[j-1] = 0
+                        # check alignment of local orientation to spherical function in current voxel
+                        if not normalize:
+                            w[j-1] = sf[ vox[0], vox[1], vox[2], o ] # j-1 is because n_pts points -> n_pts-1 segments
+                        else
+                            m = np.max( sf[ vox[0], vox[1], vox[2], : ] )
+                            if m > 0:
+                                w[j-1] = sf[ vox[0], vox[1], vox[2], o ] / m # normalization by the max value in the voxel
+                            else:
+                                w[j-1] = 0
 
                         p1[0] = p2[0]
                         p1[1] = p2[1]
@@ -3329,3 +3334,4 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
             TCK_in.close()
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
+    return fico
