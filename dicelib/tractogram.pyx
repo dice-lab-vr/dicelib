@@ -3233,9 +3233,6 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
     fico : array of float
         FICO weights of all streamlines in the tractogram.
     """
-    # cdef double [:,::1] wm_aff_inv
-    # cdef double [::1,:] M_inv
-    # cdef double [:] abc_inv
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
     cdef float [:] dir = np.zeros(3, dtype=np.float32)
@@ -3245,6 +3242,9 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
     cdef float [::1] w    = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
     cdef short [:] htable = amico.lut.load_precomputed_hash_table( 500 )
     cdef float [:] P, toVOXMM, pixdim
+    # cdef double [:,::1] wm_aff_inv
+    # cdef double [::1,:] M_inv
+    # cdef double [:] abc_inv
 
     t0 = time()
     set_verbose('tractogram', verbose)
@@ -3286,8 +3286,6 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
         logger.subinfo(f'Trimming: {trim*100:.1f}% of points at each extremity', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
 
-        TDI = np.zeros( sf.shape[:3], dtype=np.float32 )
-
         # process every streamline
         fico = np.zeros( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
@@ -3303,22 +3301,27 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
                         fico[i] = 0
                         continue
 
-                    # apply_affine_1pt(TCK_in.streamline[trim_offset], M_inv, abc_inv, p1)#TODO: fix coordinates
                     P = TCK_in.streamline[trim_offset]
+                    # apply_affine_1pt(P, M_inv, abc_inv, p1) #TODO: fix coordinates
+                    # p1[0] += shift
+                    # p1[1] += shift
+                    # p1[2] += shift
                     p1[0] = P[0] * toVOXMM[0] + P[1] * toVOXMM[1] + P[2] * toVOXMM[2]  + toVOXMM[3]  + shift
                     p1[1] = P[0] * toVOXMM[4] + P[1] * toVOXMM[5] + P[2] * toVOXMM[6]  + toVOXMM[7]  + shift
                     p1[2] = P[0] * toVOXMM[8] + P[1] * toVOXMM[9] + P[2] * toVOXMM[10] + toVOXMM[11] + shift
 
                     for j in range(trim_offset+1,TCK_in.n_pts-trim_offset):
-                        # apply_affine_1pt(TCK_in.streamline[j], M_inv, abc_inv, p2)
                         P = TCK_in.streamline[j]
+                        # apply_affine_1pt(P, M_inv, abc_inv, p2)
+                        # p2[0] += shift
+                        # p2[1] += shift
+                        # p2[2] += shift
                         p2[0] = P[0] * toVOXMM[0] + P[1] * toVOXMM[1] + P[2] * toVOXMM[2]  + toVOXMM[3]  + shift
                         p2[1] = P[0] * toVOXMM[4] + P[1] * toVOXMM[5] + P[2] * toVOXMM[6]  + toVOXMM[7]  + shift
                         p2[2] = P[0] * toVOXMM[8] + P[1] * toVOXMM[9] + P[2] * toVOXMM[10] + toVOXMM[11] + shift
                         vox[0] = int( floor(0.5*(p2[0]+p1[0])) )
                         vox[1] = int( floor(0.5*(p2[1]+p1[1])) )
                         vox[2] = int( floor(0.5*(p2[2]+p1[2])) )
-                        TDI[ vox[0], vox[1], vox[2] ] += 1
 
                         # check if dir[1] is negative and flip (because hash tables cover half sphere)
                         dir[1] = p2[1]-p1[1]
@@ -3354,7 +3357,6 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
                     fico[i] = np.nanmin( w[:n] )
                     pbar.update()
             logger.subinfo(f'FICO:  min={fico.min():.3f}  max={fico.max():.3f}  mean={fico.mean():.3f}  std={fico.std():.3f}', indent_char='*', indent_lvl=1)
-            nib.Nifti1Image( TDI, sf_nii.affine ).to_filename( '/Users/ale/Documents/UniVR/Projects/COMMIT_blur/test_connection_strength/straight_bundle/test_fico/TDI.nii.gz' )
 
         if output_weights is None:
             return fico
