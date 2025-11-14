@@ -588,6 +588,9 @@ def compute_fico():
         [['input_sph_func'], {'type': str, 'help': 'Input spherical function to compare streamline trajectories against'}],
         [['output_weights'], {'type': str, 'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}],
         [['--normalize', '-n'], {'action': 'store_true', 'help': 'Normalize spherical function in each voxel to its maximum value'}],
+        [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': 'Percentage of points to skip at each extremity'}],
+        [['--shift', '-s'], {'type': float, 'default': 0, 'help': '''If necessary, apply a shift to streamline coordinates to account for
+                             differences between softwares. The value is specified in voxel units.'''}]
     ]
     options = setup_parser(dicelib.tractogram.compute_fico.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
@@ -598,6 +601,8 @@ def compute_fico():
             options.input_sph_func,
             options.output_weights,
             options.normalize,
+            options.trim,
+            options.shift,
             options.verbose,
             options.force
         )

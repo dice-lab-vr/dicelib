@@ -16,7 +16,7 @@ import numpy as np
 
 from dicelib.streamline cimport apply_affine_1pt
 
-from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round
+from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round, floor
 from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
@@ -3200,7 +3200,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: str=None, normalize: bool=True, verbose: int=3, force: bool=False ):
+cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: str=None, normalize: bool=False, trim: float=0.05, shift: float=0, verbose: int=3, force: bool=False ):
     """Compute the FICO weights of the streamlines in a tractogram.
 
     Parameters
@@ -3216,7 +3216,14 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
         Path to the file (.txt or .npy) that will contain the FICO weights.
 
     normalize : boolean (optional)
-        Normalize spherical function in each voxel to its maximum value (default : True)
+        Normalize spherical function in each voxel to its maximum value (default : False)
+
+    trim : float (optional)
+        Percentage of points to skip at each extremity (default : 0.05)
+
+    shift : float (optional)
+        If necessary, apply a shift to streamline coordinates to account for
+        differences between softwares. The value is in voxel units (default : 0).
 
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
@@ -3226,21 +3233,22 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
     fico : array of float
         FICO weights of all streamlines in the tractogram.
     """
-    cdef double [:,::1] wm_aff_inv
-    cdef double [::1,:] M_inv
-    cdef double [:] abc_inv
+    # cdef double [:,::1] wm_aff_inv
+    # cdef double [::1,:] M_inv
+    # cdef double [:] abc_inv
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
     cdef float [:] dir = np.zeros(3, dtype=np.float32)
     cdef double m
-    cdef int ox, oy, o
+    cdef int ox, oy, o, trim_offset, n
     cdef int [::1] vox    = np.zeros(3, dtype=np.int32)
     cdef float [::1] w    = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
     cdef short [:] htable = amico.lut.load_precomputed_hash_table( 500 )
+    cdef float [:] P, toVOXMM, pixdim
 
+    t0 = time()
     set_verbose('tractogram', verbose)
     logger.info('Computing FICO weights of streamlines')
-    logger.debug( f'hash table: size={htable.shape[0]}, min={np.min(htable)}, max={np.max(htable)}'  )
 
     files = [File(name='input_tractogram', type_='input', path=input_tractogram)]
     files.append(File(name='input_sph_func', type_='input', path=input_sph_func))
@@ -3248,26 +3256,39 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
         files.append(File(name='output_weights', type_='output', path=output_weights, ext=['.txt', '.npy']))
     check_params(files=files, force=force)
 
+    if trim<0 or trim>=0.5:
+        logger.error('"trim" must be in [0..0.5)')
+
     #----- iterate over input streamlines -----
     TCK_in = None
-    t0 = time()
+    logger.debug( f'hash table: size={htable.shape[0]}, min={np.min(htable)}, max={np.max(htable)}'  )
     try:
         # open tractogram
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
+        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
         if n_streamlines <= 0:
             logger.error('The tractogram is empty')
-        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
 
         # open spherical functions
         sf_nii = nib.load( input_sph_func )
         sf_hdr = sf_nii.header if nib.__version__ >= '2.0.0' else sf_nii.get_header()
         sf = np.ascontiguousarray(sf_nii.get_fdata(), dtype=np.float32)
-        wm_aff_inv  = np.linalg.inv(sf_nii.affine)
-        M_inv       = wm_aff_inv[:3, :3].T
-        abc_inv     = wm_aff_inv[:3, 3]
-        logger.subinfo(f'Spherical functions: {sf_nii.shape[0]}x{sf_nii.shape[1]}x{sf_nii.shape[2]}x{sf_nii.shape[3]}', indent_char='*', indent_lvl=1)
+        # wm_aff_inv  = np.linalg.inv(sf_nii.affine)
+        # M_inv       = wm_aff_inv[:3, :3].T
+        # abc_inv     = wm_aff_inv[:3, 3]
+        M = sf_nii.affine.copy()
+        pixdim = np.asarray( sf_hdr.get_zooms(), dtype=np.float32 )
+        M[:3, :3] = M[:3, :3].dot( np.diag([1./pixdim[0],1./pixdim[1],1./pixdim[2]]) )
+        toVOXMM = np.ravel(np.linalg.inv(M)).astype('<f4')
 
+        logger.subinfo(f'Spherical functions: {sf_nii.shape[0]}x{sf_nii.shape[1]}x{sf_nii.shape[2]}x{sf_nii.shape[3]}', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Trimming: {trim*100:.1f}% of points at each extremity', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
+
+        TDI = np.zeros( sf.shape[:3], dtype=np.float32 )
+
+        # process every streamline
         fico = np.zeros( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
             with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
@@ -3275,12 +3296,29 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
                     TCK_in.read_streamline()
                     if TCK_in.n_pts==0:
                         break # no more data, stop reading
-                    apply_affine_1pt(TCK_in.streamline[0], M_inv, abc_inv, p1)
-                    for j in range(1,TCK_in.n_pts):
-                        apply_affine_1pt(TCK_in.streamline[j], M_inv, abc_inv, p2)
-                        vox[0] = int( 0.5*(p2[0]+p1[0]) )
-                        vox[1] = int( 0.5*(p2[1]+p1[1]) )
-                        vox[2] = int( 0.5*(p2[2]+p1[2]) )
+                    n = 0
+                    trim_offset = int( floor(TCK_in.n_pts*trim) ) # skip 'trim' percent of points
+                    if TCK_in.n_pts - trim_offset*2 <=0 :
+                        logger.warning( f'"trim" too high, streamline {i} is empty; FICO set to 0' )
+                        fico[i] = 0
+                        continue
+
+                    # apply_affine_1pt(TCK_in.streamline[trim_offset], M_inv, abc_inv, p1)#TODO: fix coordinates
+                    P = TCK_in.streamline[trim_offset]
+                    p1[0] = P[0] * toVOXMM[0] + P[1] * toVOXMM[1] + P[2] * toVOXMM[2]  + toVOXMM[3]  + shift
+                    p1[1] = P[0] * toVOXMM[4] + P[1] * toVOXMM[5] + P[2] * toVOXMM[6]  + toVOXMM[7]  + shift
+                    p1[2] = P[0] * toVOXMM[8] + P[1] * toVOXMM[9] + P[2] * toVOXMM[10] + toVOXMM[11] + shift
+
+                    for j in range(trim_offset+1,TCK_in.n_pts-trim_offset):
+                        # apply_affine_1pt(TCK_in.streamline[j], M_inv, abc_inv, p2)
+                        P = TCK_in.streamline[j]
+                        p2[0] = P[0] * toVOXMM[0] + P[1] * toVOXMM[1] + P[2] * toVOXMM[2]  + toVOXMM[3]  + shift
+                        p2[1] = P[0] * toVOXMM[4] + P[1] * toVOXMM[5] + P[2] * toVOXMM[6]  + toVOXMM[7]  + shift
+                        p2[2] = P[0] * toVOXMM[8] + P[1] * toVOXMM[9] + P[2] * toVOXMM[10] + toVOXMM[11] + shift
+                        vox[0] = int( floor(0.5*(p2[0]+p1[0])) )
+                        vox[1] = int( floor(0.5*(p2[1]+p1[1])) )
+                        vox[2] = int( floor(0.5*(p2[2]+p1[2])) )
+                        TDI[ vox[0], vox[1], vox[2] ] += 1
 
                         # check if dir[1] is negative and flip (because hash tables cover half sphere)
                         dir[1] = p2[1]-p1[1]
@@ -3299,23 +3337,24 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
                             logger.error( f'This should not happen: o={o}, ox={ox}, oy={oy}' )
 
                         # check alignment of local orientation to spherical function in current voxel
-                        if not normalize:
-                            w[j-1] = sf[ vox[0], vox[1], vox[2], o ] # j-1 is because n_pts points -> n_pts-1 segments
-                        else
+                        if normalize == False:
+                            w[n] = sf[ vox[0], vox[1], vox[2], o ]
+                        else:
                             m = np.max( sf[ vox[0], vox[1], vox[2], : ] )
                             if m > 0:
-                                w[j-1] = sf[ vox[0], vox[1], vox[2], o ] / m # normalization by the max value in the voxel
+                                w[n] = sf[ vox[0], vox[1], vox[2], o ] / m # normalization by the max value in the voxel
                             else:
-                                w[j-1] = 0
+                                w[n] = 0
 
                         p1[0] = p2[0]
                         p1[1] = p2[1]
                         p1[2] = p2[2]
+                        n += 1
 
-                    o = int( TCK_in.n_pts/2.0*0.1 ) # skip 10% of points
-                    fico[i] = np.nanmin( w[o:TCK_in.n_pts-1-o] )
+                    fico[i] = np.nanmin( w[:n] )
                     pbar.update()
             logger.subinfo(f'FICO:  min={fico.min():.3f}  max={fico.max():.3f}  mean={fico.mean():.3f}  std={fico.std():.3f}', indent_char='*', indent_lvl=1)
+            nib.Nifti1Image( TDI, sf_nii.affine ).to_filename( '/Users/ale/Documents/UniVR/Projects/COMMIT_blur/test_connection_strength/straight_bundle/test_fico/TDI.nii.gz' )
 
         if output_weights is None:
             return fico
@@ -3332,6 +3371,7 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
     finally:
         if TCK_in is not None:
             TCK_in.close()
+
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
     return fico
