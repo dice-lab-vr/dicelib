@@ -1,6 +1,13 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.3.0`<br>_2025-11-14_
+### ✨Added
+- Added function to compute FICO weights (`dice_tractogram_fico` script)
+
+---
+---
+
 ## `v1.2.1`<br>_2025-10-06_
 ### 🐛Fixed
 - Fixed ending points in `smooth`
