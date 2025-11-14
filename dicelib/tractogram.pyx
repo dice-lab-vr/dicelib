@@ -3,6 +3,7 @@
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, create_streamline_replicas, is_flipped
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
+import amico
 
 import ast
 import os
@@ -15,7 +16,7 @@ import numpy as np
 
 from dicelib.streamline cimport apply_affine_1pt
 
-from libc.math cimport isinf, isnan, NAN, sqrt
+from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round
 from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
@@ -2909,7 +2910,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
                     voxel_checked = np.zeros((npoints,3), dtype=np.int32)
                     value = np.zeros(2000, dtype=np.float32)
                     for ii in range(npoints):
-                        moved_pt = apply_affine_1pt(TCK_in.streamline[ii], M_inv, abc_inv, moved_pt)
+                        apply_affine_1pt( TCK_in.streamline[ii], M_inv, abc_inv, moved_pt )
                         vox_coords[0] = int(moved_pt[0])
                         vox_coords[1] = int(moved_pt[1])
                         vox_coords[2] = int(moved_pt[2])
@@ -3199,7 +3200,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def compute_fico( input_tractogram: str, input_sph_func: str, output_weights: str=None, verbose: int=3, force: bool=False ) -> np.ndarray:
+cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: str=None, verbose: int=3, force: bool=False ):
     """Compute the FICO weights of the streamlines in a tractogram.
 
     Parameters
@@ -3222,38 +3223,94 @@ def compute_fico( input_tractogram: str, input_sph_func: str, output_weights: st
     fico : array of float
         FICO weights of all streamlines in the tractogram.
     """
+    cdef double [:,::1] wm_aff_inv
+    cdef double [::1,:] M_inv
+    cdef double [:] abc_inv
+    cdef float [:] p1 = np.zeros(3, dtype=np.float32)
+    cdef float [:] p2 = np.zeros(3, dtype=np.float32)
+    cdef float [:] dir = np.zeros(3, dtype=np.float32)
+    cdef double m
+    cdef int ox, oy, o
+    cdef int [::1] vox    = np.zeros(3, dtype=np.int32)
+    cdef float [::1] w    = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
+    cdef short [:] htable = amico.lut.load_precomputed_hash_table( 500 )
+
     set_verbose('tractogram', verbose)
+    logger.info('Computing FICO weights of streamlines')
+    logger.debug( f'hash table: size={htable.shape[0]}, min={np.min(htable)}, max={np.max(htable)}'  )
 
     files = [File(name='input_tractogram', type_='input', path=input_tractogram)]
+    files.append(File(name='input_sph_func', type_='input', path=input_sph_func))
     if output_weights is not None:
         files.append(File(name='output_weights', type_='output', path=output_weights, ext=['.txt', '.npy']))
     check_params(files=files, force=force)
 
     #----- iterate over input streamlines -----
     TCK_in = None
+    t0 = time()
     try:
-        # open the input file
+        # open tractogram
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
         if n_streamlines <= 0:
             logger.error('The tractogram is empty')
+        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
 
-        logger.info('Streamline lengths')
-        t0 = time()
-        fico = np.empty( n_streamlines, dtype=np.float32 )
+        # open spherical functions
+        sf_nii = nib.load( input_sph_func )
+        sf_hdr = sf_nii.header if nib.__version__ >= '2.0.0' else sf_nii.get_header()
+        sf = np.ascontiguousarray(sf_nii.get_fdata(), dtype=np.float32)
+        wm_aff_inv  = np.linalg.inv(sf_nii.affine)
+        M_inv       = wm_aff_inv[:3, :3].T
+        abc_inv     = wm_aff_inv[:3, 3]
+        logger.subinfo(f'Spherical functions: {sf_nii.shape[0]}x{sf_nii.shape[1]}x{sf_nii.shape[2]}x{sf_nii.shape[3]}', indent_char='*', indent_lvl=1)
+
+        fico = np.zeros( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
             with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
                 for i in range( n_streamlines ):
                     TCK_in.read_streamline()
                     if TCK_in.n_pts==0:
                         break # no more data, stop reading
+                    apply_affine_1pt(TCK_in.streamline[0], M_inv, abc_inv, p1)
+                    for j in range(1,TCK_in.n_pts):
+                        apply_affine_1pt(TCK_in.streamline[j], M_inv, abc_inv, p2)
+                        vox[0] = int( 0.5*(p2[0]+p1[0]) )
+                        vox[1] = int( 0.5*(p2[1]+p1[1]) )
+                        vox[2] = int( 0.5*(p2[2]+p1[2]) )
 
-                    fico[i] = i#?????????( TCK_in.streamline, TCK_in.n_pts )
+                        # check if dir[1] is negative and flip (because hash tables cover half sphere)
+                        dir[1] = p2[1]-p1[1]
+                        if dir[1] >= 0:
+                            dir[0] = p2[0]-p1[0]
+                            dir[2] = p2[2]-p1[2]
+                        else:
+                            dir[1] = -dir[1]
+                            dir[0] = p1[0]-p2[0]
+                            dir[2] = p1[2]-p2[2]
+
+                        ox = int( round(atan2( sqrt(dir[0]*dir[0]+dir[1]*dir[1]), dir[2] )/M_PI*180.0) )
+                        oy = int( round(atan2( dir[1], dir[0] )/M_PI*180.0) )
+                        o = htable[ox*181 + oy]
+                        if o<0 or o>=500:
+                            logger.error( f'This should not happen: o={o}, ox={ox}, oy={oy}' )
+
+                        # FICO calculation
+                        m = np.max( sf[ vox[0], vox[1], vox[2], : ] )
+                        if m > 0:
+                            # normalize
+                            w[j-1] = sf[ vox[0], vox[1], vox[2], o ] / m # j-1 is because n_pts points -> n_pts-1 segments
+                        else:
+                            w[j-1] = 0
+
+                        p1[0] = p2[0]
+                        p1[1] = p2[1]
+                        p1[2] = p2[2]
+
+                    o = int( TCK_in.n_pts/2.0*0.1 ) # skip 10% of points
+                    fico[i] = np.nanmin( w[o:TCK_in.n_pts-1-o] )
                     pbar.update()
-
-        if n_streamlines>0:
-            logger.subinfo(f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*', indent_lvl=1)
-            logger.subinfo(f'min: {fico.min():.3f}  max: {fico.max():.3f}  mean: {fico.mean():.3f}  std: {fico.std():.3f}', indent_char='*', indent_lvl=1)
+            logger.subinfo(f'FICO:  min={fico.min():.3f}  max={fico.max():.3f}  mean={fico.mean():.3f}  std={fico.std():.3f}', indent_char='*', indent_lvl=1)
 
         if output_weights is None:
             return fico
