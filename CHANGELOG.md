@@ -3,7 +3,7 @@
 
 ## `v1.3.0`<br>_2025-11-14_
 ### ✨Added
-- Added function to compute FICO weights (`dice_tractogram_fico` script)
+- Added function to compute streamline coherence with underlying FOD  (`dice_tractogram_coherence` script)
 
 ---
 ---

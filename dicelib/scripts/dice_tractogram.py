@@ -579,24 +579,24 @@ def split():
     )
 
 
-def compute_fico():
+def compute_coherence():
     '''
-    Entry point for the tractogram.compute_fico function.
+    Entry point for the tractogram.compute_coherence function.
     '''
     args = [
         [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
         [['input_sph_func'], {'type': str, 'help': 'Input spherical function to compare streamline trajectories against'}],
         [['output_weights'], {'type': str, 'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}],
-        [['--normalize', '-n'], {'action': 'store_true', 'help': 'Normalize spherical function in each voxel to its maximum value'}],
+        [['--normalize', '-n'], {'action': 'store_true', 'help': 'Normalize spherical functions in each voxel to their maximum value'}],
         [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': 'Percentage of points to skip at each extremity'}],
         [['--shift', '-s'], {'type': float, 'default': 0, 'help': '''If necessary, apply a shift to streamline coordinates to account for
-                             differences between softwares. The value is specified in voxel units.'''}]
+differences between softwares. The value is specified in voxel units.'''}]
     ]
-    options = setup_parser(dicelib.tractogram.compute_fico.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+    options = setup_parser(dicelib.tractogram.compute_coherence.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     try:
         # call the actual function
-        dicelib.tractogram.compute_fico(
+        dicelib.tractogram.compute_coherence(
             options.input_tractogram,
             options.input_sph_func,
             options.output_weights,

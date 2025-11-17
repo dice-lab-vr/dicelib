@@ -3101,8 +3101,8 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: str=None, normalize: bool=False, trim: float=0.05, shift: float=0, verbose: int=3, force: bool=False ):
-    """Compute the FICO weights of the streamlines in a tractogram.
+cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weights: str=None, normalize: bool=False, trim: float=0.05, shift: float=0, verbose: int=3, force: bool=False ):
+    """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
 
     Parameters
     ----------
@@ -3125,8 +3125,8 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
 
     Returns
     -------
-    fico : array of float
-        FICO weights of all streamlines in the tractogram.
+    coherence : array of float
+        Coherence weights.
     """
     cdef float [::1] w = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
@@ -3137,7 +3137,7 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
     cdef int vx, vy, vz
     cdef float [:,::1] SHbasis
     cdef short [:] htable
-    cdef float [:] P, toVOXMM, pixdim, fico, sf_voxel
+    cdef float [:] P, toVOXMM, pixdim, coherence, sf_voxel
     # cdef double [:,::1] wm_aff_inv
     # cdef double [::1,:] M_inv
     # cdef double [:] abc_inv
@@ -3197,7 +3197,7 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
         logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
 
         # process every streamline
-        fico = np.zeros( n_streamlines, dtype=np.float32 )
+        coherence = np.zeros( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
             with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
                 for i in range( n_streamlines ):
@@ -3208,7 +3208,7 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
                     trim_offset = int( floor(TCK_in.n_pts*trim) ) # skip 'trim' percent of points
                     if TCK_in.n_pts - trim_offset*2 <=0 :
                         logger.warning( f'"trim" too high, streamline {i} is empty; FICO set to 0' )
-                        fico[i] = 0
+                        coherence[i] = 0
                         continue
 
                     P = TCK_in.streamline[trim_offset]
@@ -3268,18 +3268,18 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
                         p1[2] = p2[2]
                         n += 1
 
-                    fico[i] = np.nanmin( w[:n] )
+                    coherence[i] = np.nanmin( w[:n] )
                     pbar.update()
-            logger.subinfo(f'FICO:  min={np.min(fico):.3f}  max={np.max(fico):.3f}  mean={np.mean(fico):.3f}  std={np.mean(fico):.3f}', indent_char='*', indent_lvl=1)
+            logger.subinfo(f'FICO:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.mean(coherence):.3f}', indent_char='*', indent_lvl=1)
 
         if output_weights is None:
-            return fico
+            return coherence
         else:
             output_weights_ext = os.path.splitext(output_weights)[1]
             if output_weights_ext == '.txt':
-                np.savetxt(output_weights, fico, fmt='%.4f')
+                np.savetxt(output_weights, coherence, fmt='%.4f')
             elif output_weights_ext == '.npy':
-                np.save(output_weights, fico, allow_pickle=False)
+                np.save(output_weights, coherence, allow_pickle=False)
 
     except Exception as e:
         logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
@@ -3290,4 +3290,4 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
 
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
-    return fico
+    return coherence
