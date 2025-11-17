@@ -162,7 +162,6 @@ def create_tsf():
     ]
     options = setup_parser(dicelib.tractogram.tsf_create.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.tsf_create(
         options.tractogram_in,
         options.tsf_out,
@@ -194,7 +193,6 @@ def filter():
     ]
     options = setup_parser(dicelib.tractogram.filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.filter(
         options.tractogram_in,
         options.tractogram_out,
@@ -222,7 +220,6 @@ def indices():
     ]
     options = setup_parser(dicelib.tractogram.recompute_indices.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.recompute_indices(
         options.input_indices,
         options.dictionary_kept,
@@ -243,7 +240,6 @@ def info():
     ]
     options = setup_parser(dicelib.tractogram.info.__doc__.split('\n')[0], args)
 
-    # call actual function
     dicelib.tractogram.info(
         options.tractogram_in,
         options.lengths,
@@ -264,7 +260,6 @@ def join():
     ]
     options = setup_parser(dicelib.tractogram.join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.join(
         options.tractograms_in,
         options.tractogram_out,
@@ -286,7 +281,6 @@ def join_tsf():
     ]
     options = setup_parser(dicelib.tractogram.tsf_join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.tsf_join(
         options.tsf_in,
         options.tsf_out,
@@ -307,7 +301,6 @@ def compute_lengths():
     options = setup_parser(dicelib.tractogram.compute_lengths.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     try:
-        # call the actual function
         dicelib.tractogram.compute_lengths(
             options.tractogram_in,
             options.lengths_out,
@@ -330,7 +323,6 @@ def locate():
     ]
     options = setup_parser(dicelib.tractogram.get_indices_of_streamlines.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.get_indices_of_streamlines(
         options.tractogram_subset_in,
         options.tractogram_in,
@@ -352,7 +344,6 @@ def resample():
     ]
     options = setup_parser(dicelib.tractogram.resample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.resample(
         options.tractogram_in,
         options.tractogram_out,
@@ -377,7 +368,6 @@ def sample():
     ]
     options = setup_parser(dicelib.tractogram.sample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.sample(
         options.tractogram_in,
         options.image_in,
@@ -406,7 +396,6 @@ def sanitize():
     ]
     options = setup_parser(dicelib.tractogram.sanitize.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.sanitize(
         options.tractogram_in,
         options.gray_matter,
@@ -437,7 +426,6 @@ def shuffle():
     ]
     options = setup_parser(dicelib.tractogram.shuffle.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.shuffle(
         options.tractogram_in,
         options.tractogram_out,
@@ -488,7 +476,6 @@ def smooth():
 
     options = setup_parser(dicelib.tractogram.spline_smoothing_v2.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.spline_smoothing_v2(
         options.tractogram_in,
         options.tractogram_out,
@@ -527,7 +514,6 @@ def sort():
     ]
     options = setup_parser(dicelib.tractogram.sort.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.sort(
         options.tractogram_in,
         options.atlas,
@@ -565,7 +551,6 @@ def split():
     ]
     options = setup_parser(dicelib.tractogram.split.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
-    # call actual function
     dicelib.tractogram.split(
         options.tractogram_in,
         options.assignments_in,
@@ -584,22 +569,23 @@ def compute_coherence():
     Entry point for the tractogram.compute_coherence function.
     '''
     args = [
-        [['input_tractogram'], {'type': str, 'help': 'Input tractogram'}],
-        [['input_sph_func'], {'type': str, 'help': 'Input spherical function to compare streamline trajectories against'}],
-        [['output_weights'], {'type': str, 'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}],
+        [['input_tractogram'], {'help': 'Input tractogram'}],
+        [['input_sph_func'], {'help': 'Input spherical function to compare streamline trajectories against'}],
+        [['output_weights'], {'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}],
+        [['--metric', '-m'], {'choices': ['min','mean','max'], 'default': 'min', 'help': '''Once the coherence is computed for all segments, metric to use as summary for a streamline'''}],
         [['--normalize', '-n'], {'action': 'store_true', 'help': 'Normalize spherical functions in each voxel to their maximum value'}],
         [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': 'Percentage of points to skip at each extremity'}],
-        [['--shift', '-s'], {'type': float, 'default': 0, 'help': '''If necessary, apply a shift to streamline coordinates to account for
+        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': '''If necessary, apply a shift to streamline coordinates to account for
 differences between softwares. The value is specified in voxel units.'''}]
     ]
     options = setup_parser(dicelib.tractogram.compute_coherence.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
 
     try:
-        # call the actual function
         dicelib.tractogram.compute_coherence(
             options.input_tractogram,
             options.input_sph_func,
             options.output_weights,
+            options.metric,
             options.normalize,
             options.trim,
             options.shift,

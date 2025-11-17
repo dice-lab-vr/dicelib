@@ -3101,32 +3101,34 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weights: str=None, normalize: bool=False, trim: float=0.05, shift: float=0, verbose: int=3, force: bool=False ):
-    """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
+cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weights: str=None, metric: str='min', normalize: bool=False, trim: float=0.05, shift: float=0.5, verbose: int=3, force: bool=False ):
+    """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD)
 
     Parameters
     ----------
     input_tractogram : string
-        Path to the file (.tck) containing the streamlines to process.
+        Path to the file (.tck) containing the streamlines to process
     input_sph_func : string
-        Path to the file (.nii.gz) containing the spherical function againt which each streamline is evaluated.
-        TODO: finish this part of documentation
+        Path to the file (.nii.gz) containing the spherical function against which each streamline is evaluated.
+        For instance, one can use the FODs estimated with MrTrix's dwi2fod command.
     output_weights : string (optional)
-        Path to the file (.txt or .npy) that will contain the FICO weights.
+        Path to the file (.txt or .npy) that will contain the estimated coherence weights
+    metric : one of ['min','mean', 'max']
+        Once the coherence is computed for all segments, metric to use as summary for a streamline (default : min)
     normalize : boolean (optional)
         Normalize spherical function in each voxel to its maximum value (default : False)
     trim : float (optional)
         Percentage of points to skip at each extremity (default : 0.05)
     shift : float (optional)
-        If necessary, apply a shift to streamline coordinates to account for
-        differences between softwares. The value is in voxel units (default : 0).
+        If necessary, apply a shift (in voxel units) to streamline coordinates to
+        account for differences between software packages (default : 0.5)
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3)
 
     Returns
     -------
     coherence : array of float
-        Coherence weights.
+        Coherence weights
     """
     cdef float [::1] w = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
@@ -3144,7 +3146,7 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
 
     t0 = time()
     set_verbose('tractogram', verbose)
-    logger.info('Computing FICO weights of streamlines')
+    logger.info('Computing coherence of streamlines')
 
     files = [File(name='input_tractogram', type_='input', path=input_tractogram)]
     files.append(File(name='input_sph_func', type_='input', path=input_sph_func))
@@ -3154,6 +3156,8 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
 
     if trim<0 or trim>=0.5:
         logger.error('"trim" must be in [0..0.5)')
+    if metric not in ['min','mean','max']:
+        logger.error('"metric" must be one of [min, mean, max])')
 
     #----- iterate over input streamlines -----
     TCK_in = None
@@ -3193,8 +3197,10 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
         M[:3, :3] = M[:3, :3].dot( np.diag([1./pixdim[0],1./pixdim[1],1./pixdim[2]]) )
         toVOXMM = np.ravel(np.linalg.inv(M)).astype('<f4')
 
-        logger.subinfo(f'Trimming: {trim*100:.1f}% of points at each extremity', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Summary metric: {metric}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Trimmed {trim*100:.1f}% of points at each extremity', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
 
         # process every streamline
         coherence = np.zeros( n_streamlines, dtype=np.float32 )
@@ -3204,10 +3210,10 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
                     TCK_in.read_streamline()
                     if TCK_in.n_pts==0:
                         break # no more data, stop reading
-                    n = 0
+
                     trim_offset = int( floor(TCK_in.n_pts*trim) ) # skip 'trim' percent of points
                     if TCK_in.n_pts - trim_offset*2 <=0 :
-                        logger.warning( f'"trim" too high, streamline {i} is empty; FICO set to 0' )
+                        logger.warning( f'"trim" too high, streamline {i} is empty; coherence set to 0' )
                         coherence[i] = 0
                         continue
 
@@ -3219,7 +3225,7 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
                     p1[0] = P[0] * toVOXMM[0] + P[1] * toVOXMM[1] + P[2] * toVOXMM[2]  + toVOXMM[3]  + shift
                     p1[1] = P[0] * toVOXMM[4] + P[1] * toVOXMM[5] + P[2] * toVOXMM[6]  + toVOXMM[7]  + shift
                     p1[2] = P[0] * toVOXMM[8] + P[1] * toVOXMM[9] + P[2] * toVOXMM[10] + toVOXMM[11] + shift
-
+                    n = 0
                     for j in range(trim_offset+1,TCK_in.n_pts-trim_offset):
                         P = TCK_in.streamline[j]
                         # apply_affine_1pt(P, M_inv, abc_inv, p2)
@@ -3251,9 +3257,7 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
                             logger.error( f'This should not happen: o={o}, ox={ox}, oy={oy}' )
 
                         # check alignment of local orientation to spherical function in current voxel
-                        # niiFOD_img[ix,iy,iz,id] = SHbasis[id,:].flatten() * niiFODSH_img[ix,iy,iz,:]
                         if normalize == False:
-                            # w[n] = niiSF_img[ vx, vy, vz, o ]
                             w[n] = SHbasis[o,:] @ niiSF_img[vx,vy,vz,:]
                         else:
                             sf_voxel = SHbasis @ niiSF_img[vx,vy,vz,:]
@@ -3262,15 +3266,23 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
                                 w[n] = sf_voxel[o] / m # normalization by the max value in the voxel
                             else:
                                 w[n] = 0
+                        # crop to zero negative values
+                        if w[n] < 0:
+                            w[n] = 0
 
                         p1[0] = p2[0]
                         p1[1] = p2[1]
                         p1[2] = p2[2]
                         n += 1
 
-                    coherence[i] = np.nanmin( w[:n] )
+                    if metric=='min':
+                        coherence[i] = np.nanmin( w[:n] )
+                    elif metric=='mean':
+                        coherence[i] = np.nanmean( w[:n] )
+                    elif metric=='max':
+                        coherence[i] = np.nanmax( w[:n] )
                     pbar.update()
-            logger.subinfo(f'FICO:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.mean(coherence):.3f}', indent_char='*', indent_lvl=1)
+            logger.subinfo(f'Coherence:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.mean(coherence):.3f}', indent_char='*', indent_lvl=1)
 
         if output_weights is None:
             return coherence
