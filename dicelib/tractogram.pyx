@@ -3106,7 +3106,7 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-    input_sp_func : string
+    input_sph_func : string
         Path to the file (.nii.gz) containing the spherical function againt which each streamline is evaluated.
         TODO: finish this part of documentation
     output_weights : string (optional)
@@ -3164,18 +3164,24 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
             logger.error('The tractogram is empty')
 
         # open spherical functions
-        sf_nii = nib.load( input_sph_func )
-        sf_hdr = sf_nii.header if nib.__version__ >= '2.0.0' else sf_nii.get_header()
-        sf = np.ascontiguousarray(sf_nii.get_fdata(), dtype=np.float32)
-        # wm_aff_inv  = np.linalg.inv(sf_nii.affine)
+        niiSF = nib.load( input_sph_func )
+        niiSF_hdr = niiSF.header if nib.__version__ >= '2.0.0' else niiSF.get_header()
+        niiSF_img = np.ascontiguousarray(niiSF.get_fdata(), dtype=np.float32)
+        logger.subinfo(f'Spherical functions: {niiSF.shape[0]}x{niiSF.shape[1]}x{niiSF.shape[2]}x{niiSF.shape[3]} (l_max={})', indent_char='*', indent_lvl=1)
+        n_sh_coeff = niiSF_img.shape[3]
+        lmax = (-3.0 + np.sqrt(1+8*n_sh_coeff)) / 2
+        if not lmax.is_integer() :
+            logger.error( f'The number of coefficients ({n_sh_coeff}) is not compatible with any SH basis' )
+        lmax = int(lmax)
+
+        # wm_aff_inv  = np.linalg.inv(niiSF.affine)
         # M_inv       = wm_aff_inv[:3, :3].T
         # abc_inv     = wm_aff_inv[:3, 3]
-        M = sf_nii.affine.copy()
-        pixdim = np.asarray( sf_hdr.get_zooms(), dtype=np.float32 )
+        M = niiSF.affine.copy()
+        pixdim = np.asarray( niiSF_hdr.get_zooms(), dtype=np.float32 )
         M[:3, :3] = M[:3, :3].dot( np.diag([1./pixdim[0],1./pixdim[1],1./pixdim[2]]) )
         toVOXMM = np.ravel(np.linalg.inv(M)).astype('<f4')
 
-        logger.subinfo(f'Spherical functions: {sf_nii.shape[0]}x{sf_nii.shape[1]}x{sf_nii.shape[2]}x{sf_nii.shape[3]}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Trimming: {trim*100:.1f}% of points at each extremity', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
 
@@ -3234,11 +3240,11 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
 
                         # check alignment of local orientation to spherical function in current voxel
                         if normalize == False:
-                            w[n] = sf[ vox[0], vox[1], vox[2], o ]
+                            w[n] = niiSF_img[ vox[0], vox[1], vox[2], o ]
                         else:
-                            m = np.max( sf[ vox[0], vox[1], vox[2], : ] )
+                            m = np.max( niiSF_img[ vox[0], vox[1], vox[2], : ] )
                             if m > 0:
-                                w[n] = sf[ vox[0], vox[1], vox[2], o ] / m # normalization by the max value in the voxel
+                                w[n] = niiSF_img[ vox[0], vox[1], vox[2], o ] / m # normalization by the max value in the voxel
                             else:
                                 w[n] = 0
 
