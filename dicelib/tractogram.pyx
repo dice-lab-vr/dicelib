@@ -400,12 +400,6 @@ cdef class LazyTractogram:
                 fwrite( line.c_str(), 1, line.size(), self.fp )
                 offset += line.size()
 
-        # if "timestamp" not in header:
-        #     line = f'timestamp: {time()}\n'
-        #     fwrite( line.c_str(), 1, line.size(), self.fp )
-        #     offset += line.size()
-
-
         line = f'{offset+9:.0f}'
         line = f'file: . {offset+9+line.size():.0f}\n'
         fwrite( line.c_str(), 1, line.size(), self.fp )
@@ -740,7 +734,6 @@ def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, id
     ----------
     needle_filename : string
         Path to the file (.tck) containing the subset of streamlines to find.
-
     haystack_filename : string
         Path to the file (.tck) containing the full set of streamlines in which to search.
 
@@ -805,38 +798,40 @@ def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, id
 
 
 def create_color_scalar_file(streamline, num_streamlines):
-        """
-        Create a scalar file for each streamline in order to color them.
-        Parameters
-        ----------
-        streamlines: list
-            List of streamlines.
-        Returns
-        -------
-        scalar_file: str
-            Path to scalar file.
-        """
-        scalar_list = list()
-        n_pts_list = list()
-        for i in range(num_streamlines):
-            # pt_list = list()
-            streamline.read_streamline()
-            n_pts_list.append(streamline.n_pts)
-            for j in range(streamline.n_pts):
-                scalar_list.extend([float(j)])
-            # scalar_list.append(pt_list)
-        return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
+    """Create a scalar file for each streamline in order to color them.
+
+    Parameters
+    ----------
+    streamlines: list
+        List of streamlines.
+
+    Returns
+    -------
+    scalar_file: str
+        Path to scalar file.
+    """
+    scalar_list = list()
+    n_pts_list = list()
+    for i in range(num_streamlines):
+        # pt_list = list()
+        streamline.read_streamline()
+        n_pts_list.append(streamline.n_pts)
+        for j in range(streamline.n_pts):
+            scalar_list.extend([float(j)])
+        # scalar_list.append(pt_list)
+    return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
 
 
 def color_by_scalar_file(TCK_in, values, num_streamlines):
-    """
-    Color streamlines based on sections.
+    """Color streamlines based on sections.
+
     Parameters
     ----------
     TCK_in: array
         Input LazyTractogram object.
     values: list
         List of scalars used to color the streamlines.
+
     Returns
     -------
     array
@@ -976,7 +971,6 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
@@ -1048,13 +1042,10 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-
     compute_lengths : boolean
         Show stats on streamline lengths (default : False).
-
     max_field_length : int
         Maximum length allowed for printing a field value (default : all chars)
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
     """
@@ -1123,35 +1114,25 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-
     output_tractogram : string
         Path to the file where to store the filtered tractogram.
-
     minlength : float
         Keep streamlines with length [in mm] >= this value.
-
     maxlength : float
         Keep streamlines with length [in mm] <= this value.
-
     minweight : float
        Keep streamlines with weight >= this value.
-
     maxweight : float
         Keep streamlines with weight <= this value.
-
     weights_in : str
         Scalar file (.txt or .npy) with the input streamline weights.
-
     weights_out : str
         Scalar file (.txt or .npy) for the output streamline weights.
-
     random : float
         Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all.
         This filter is applied after all others (default : 1).
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
     """
@@ -1296,35 +1277,27 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to split.
-
     input_assignments : string
         File containing the streamline assignments (two numbers/row); these can be stored as
         either a simple .txt file or according to the NUMPY format (.npy), which is faster.
-
     output_folder : string
         Output folder for the splitted tractograms.
-
     regions_in : list of integers
         If a single integer is provided, only streamlines assigned to that region will be extracted.
         If two integers are provided, only streamlines connecting those two regions will be extracted.
-
     weights_in : string
         Text file with the input streamline weights (one row/streamline). If not None, one individual
         file will be created for each splitted tractogram, using the same filename prefix.
-
     max_open : integer
         Maximum number of files opened at the same time (default : None).
         If the specified value exceeds the system limit, an attempt is made to increase the latter so that `max_open` equals the 90% of the system limit
         If None, the following values are used:
             - on Unix: 90% of half the default system hard limit
             - on Windows: 90% of twice the default system limit
-
     prefix : string
         Prefix for the output filenames (default : 'bundle_').
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
     """
@@ -1618,19 +1591,14 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
     ----------
     input_list : list of str
         List of the paths to the files (.tck) to join.
-
     output_tractogram : string
         Path to the file where to store the resulting tractogram.
-
     weights_list : list of str
         List of scalar file (.txt or .npy) with the input streamline weights; same order of input_list!
-
     weights_out : str
         Scalar file (.txt or .npy) for the output streamline weights.
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
     """
@@ -1730,36 +1698,26 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to sort.
-
     input_atlas : string
         Path to the file (.nii.gz) containing the gray matter parcellation.
-
     output_tractogram : string
         Path to the file where to store the sorted tractogram. If not specified (default),
         the new file will be created by appending '_sorted' to the input filename.
-
     atlas_dist : float
         atlas_dist : float
         Distance in voxels to consider in the radial search when computing the assignments.
-
     weights_in : string
         Text file with the input streamline weights (one row/streamline).
-
     weights_out : str
         Scalar file (.txt or .npy) for the output streamline weights.
-
     tmp_folder : str
         Path to the temporary folder used to store the intermediate files.
-
     keep_tmp_folder : boolean
         Keep the temporary folder (default : False).
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
-
     """
     from dicelib.connectivity import assign #build_connectome
 
@@ -1860,31 +1818,22 @@ def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: in
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to shuffle.
-
     output_tractogram : string
         Path to the file where to store the shuffled tractogram. If not specified (default), the new file will be created by appending '_shuffled' to the input filename.
-
     n_tmp_groups : int
         Number of temporary groups to split the streamlines. Each group will contain approximately the same number of streamlines, chosen randomly. The final shuffled tractogram will be created by concatenating the shuffled groups. This parameter must be greater than 1 (default : 100).
-
     seed : int
         Seed for the random shuffling (default : None).
-
     weights_in : string
         Text file with the input streamline weights (one row/streamline).
-
     weights_out : str
         Scalar file (.txt or .npy) for the output streamline weights, shuffled in the same order of the streamlines.
-
     tmp_folder : str
         Path to the temporary folder used to store the intermediate files.
-
     keep_tmp_folder : boolean
         Keep the temporary folder (default : False).
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
     """
@@ -2030,30 +1979,22 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-
     gray_matter : string
         Path to the gray matter.
-
     white_matter : string
         Path to the white matter.
-
     output_tractogram : string
         Path to the file where to store the filtered tractogram. If not specified (default),
         the new file will be created by appending '_sanitized' to the input filename.
-
     step : float = 0.2
         Length of each step done when trying to reach the gray matter [in mm].
-
     max_dist : float = 2
         Maximum distance tested when trying to reach the gray matter [in mm]. Suggestion: use double (largest) voxel size.
-
     save_connecting_tck : boolean
         Save in output also the tractogram containing only the real connecting streamlines (default : False).
         If True, the file will be created by appending '_only_connecting' to the input filename.
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
      """
@@ -2294,38 +2235,27 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-
     output_tractogram : string
         Path to the file where to store the filtered tractogram. If not specified (default),
         the new file will be created by appending '_smooth' to the input filename.
-
     spline_type : string
         Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default: 'centripetal').
-
     epsilon : float
         Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default: None).
-
     n_ctrl_pts : int
         Number of control points of the spline used by Ramer-Douglas-Peucker algorithm. NOTE: either 'epsilon' or 'n_ctrl_pts' must be set (default: None).
-
     n_pts_eval : int
         Number of points in which the spline is evaluated. If None, the number of points is computed using 'seg_len_eval' (default: None).
-
     seg_len_eval : float
         Segment length used to compute the number of points in which the spline is evaluated; computed as the length of the reduced streamline divided by 'seg_len_eval'. If None and "n_pts_eval" is None, "segment_len_eval" is set to 0.5 (default: None).
-
     do_resample : boolean
         If True, the final streamlines are resampled to have a constant segment length (see 'segment_len' and 'streamline_pts' parameters). If False, the point of the final streamlines are more dense where the curvature is high (default: False).
-
     segment_len : float
         Sampling resolution of the final streamline after interpolation. NOTE: if 'do_resample' is True, either 'segment_len' or 'streamline_pts' must be set (default: None).
-
     streamline_pts : int
         Number of points in each of the final streamlines. NOTE: if 'do_resample' is True, either 'streamline_pts' or 'segment_len' must be set (default: None).
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
     """
@@ -2448,7 +2378,6 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 
         logger.subinfo(f'Number of smoothed streamlines: {n_written}', indent_lvl=2, indent_char='-')
 
-
     except Exception as e:
         TCK_out.close()
         if os.path.exists( output_tractogram ):
@@ -2476,32 +2405,23 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-
     output_tractogram : string
         Path to the file where to store the filtered tractogram. If not specified (default),
         the new file will be created by appending '_smooth' to the input filename.
-
     mask : string
         Path to the mask file (.nii) to constrain the smoothing to a specific region (default : None).
-
     pts_cutoff : float
         Percentage of points of the streamline that must be inside the mask to be considered (default : 0.5).
-
     spline_type : string
         Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default : 'centripetal').
-
     epsilon : float
         Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).
-
     segment_len : float
         Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set.
-
     streamline_pts : int
         Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
     """
@@ -2680,20 +2600,15 @@ cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-
     output_tractogram : string
         Path to the file where to store the filtered tractogram. If not specified (default),
         the new file will be created by appending '_smooth' to the input filename.
-
     control_point_ratio : float
         Percent of control points to use in the interpolating spline (default : 0.25).
-
     segment_len : float
         Sampling resolution of the final streamline after interpolation (default : 1.0).
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
     """
@@ -2773,10 +2688,8 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
     ----------
     input_indices : array of integers
         Indices of the streamlines in the original tractogram.
-
     dictionary_kept : dictionary
         Dictionary of the streamlines kept after filtering.
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
@@ -2953,7 +2866,6 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
 
                     pbar.update()
 
-
     except Exception as e:
         if TCK_in is not None:
             TCK_in.close()
@@ -2973,17 +2885,13 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-
     output_tractogram : string
         Path to the file where to store the filtered tractogram. If not specified (default),
         the new file will be created by appending '_nbpts' to the input filename.
-
     nb_pts : int
         Number of points to set for each streamline.
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
     """
@@ -3049,32 +2957,23 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-
     output_tractogram : string
         Path to the file where to store the output tractogram.
-
     blur_core_extent: float
         Extent of the core inside which the segments have equal contribution to the central one used by COMMITblur.
-
     blur_gauss_extent: float
         Extent of the gaussian damping at the border used by COMMITblur.
-
     blur_spacing : float
         To obtain the blur effect, streamlines are duplicated and organized in a cartesian grid;
         this parameter controls the spacing of the grid in mm (defaut : 0.25).
-
     blur_gauss_min: float
         Minimum value of the Gaussian to consider when computing the sigma (default : 0.1).
-
     blur_apply_to: array of bool
         For each input streamline, decide whether blur is applied or not to it (default : None, meaning apply to all).
-
     save_weights : boolean
         Save the weights of the replicas in the output tractogram (default : False). # TODO: check this output
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
     force : boolean
         Force overwriting of the output (default : False).
     """
@@ -3207,24 +3106,18 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
-
     input_sp_func : string
         Path to the file (.nii.gz) containing the spherical function againt which each streamline is evaluated.
-        TODO: finish documentation
-
+        TODO: finish this part of documentation
     output_weights : string (optional)
         Path to the file (.txt or .npy) that will contain the FICO weights.
-
     normalize : boolean (optional)
         Normalize spherical function in each voxel to its maximum value (default : False)
-
     trim : float (optional)
         Percentage of points to skip at each extremity (default : 0.05)
-
     shift : float (optional)
         If necessary, apply a shift to streamline coordinates to account for
         differences between softwares. The value is in voxel units (default : 0).
-
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
 
