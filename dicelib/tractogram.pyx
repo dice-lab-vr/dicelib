@@ -4,6 +4,8 @@ from dicelib.streamline import apply_smoothing, length as streamline_length, rdp
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 import amico
+from dipy.reconst.shm import real_sh_tournier
+from dipy.core.geometry import cart2sphere
 
 import ast
 import os
@@ -3126,15 +3128,16 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
     fico : array of float
         FICO weights of all streamlines in the tractogram.
     """
+    cdef float [::1] w = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
     cdef float [:] dir = np.zeros(3, dtype=np.float32)
-    cdef double m
+    cdef float m
     cdef int ox, oy, o, trim_offset, n
-    cdef int [::1] vox    = np.zeros(3, dtype=np.int32)
-    cdef float [::1] w    = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
-    cdef short [:] htable = amico.lut.load_precomputed_hash_table( 500 )
-    cdef float [:] P, toVOXMM, pixdim
+    cdef int vx, vy, vz
+    cdef float [:,::1] SHbasis
+    cdef short [:] htable
+    cdef float [:] P, toVOXMM, pixdim, fico, sf_voxel
     # cdef double [:,::1] wm_aff_inv
     # cdef double [::1,:] M_inv
     # cdef double [:] abc_inv
@@ -3154,7 +3157,6 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
 
     #----- iterate over input streamlines -----
     TCK_in = None
-    logger.debug( f'hash table: size={htable.shape[0]}, min={np.min(htable)}, max={np.max(htable)}'  )
     try:
         # open tractogram
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
@@ -3167,12 +3169,21 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
         niiSF = nib.load( input_sph_func )
         niiSF_hdr = niiSF.header if nib.__version__ >= '2.0.0' else niiSF.get_header()
         niiSF_img = np.ascontiguousarray(niiSF.get_fdata(), dtype=np.float32)
-        logger.subinfo(f'Spherical functions: {niiSF.shape[0]}x{niiSF.shape[1]}x{niiSF.shape[2]}x{niiSF.shape[3]} (l_max={})', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Spherical functions: {niiSF.shape[0]}x{niiSF.shape[1]}x{niiSF.shape[2]}x{niiSF.shape[3]}', indent_char='*', indent_lvl=1)
         n_sh_coeff = niiSF_img.shape[3]
         lmax = (-3.0 + np.sqrt(1+8*n_sh_coeff)) / 2
         if not lmax.is_integer() :
             logger.error( f'The number of coefficients ({n_sh_coeff}) is not compatible with any SH basis' )
         lmax = int(lmax)
+
+        # load set of directions/hash table used internally by COMMIT
+        dirs  = amico.lut.load_directions( 500 )
+        logger.debug( f'directions: {dirs.shape[0]}x{dirs.shape[1]}'  )
+        htable = amico.lut.load_precomputed_hash_table( 500 )
+        logger.debug( f'hash table: {htable.shape[0]}x1 [min={np.min(htable)}, max={np.max(htable)}]'  )
+        _, theta, phi = cart2sphere( dirs[:,0], dirs[:,1], dirs[:,2] )
+        tmp, _, _ = real_sh_tournier( lmax, theta, phi )
+        SHbasis = np.asarray(tmp,dtype=np.float32)
 
         # wm_aff_inv  = np.linalg.inv(niiSF.affine)
         # M_inv       = wm_aff_inv[:3, :3].T
@@ -3218,9 +3229,9 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
                         p2[0] = P[0] * toVOXMM[0] + P[1] * toVOXMM[1] + P[2] * toVOXMM[2]  + toVOXMM[3]  + shift
                         p2[1] = P[0] * toVOXMM[4] + P[1] * toVOXMM[5] + P[2] * toVOXMM[6]  + toVOXMM[7]  + shift
                         p2[2] = P[0] * toVOXMM[8] + P[1] * toVOXMM[9] + P[2] * toVOXMM[10] + toVOXMM[11] + shift
-                        vox[0] = int( floor(0.5*(p2[0]+p1[0])) )
-                        vox[1] = int( floor(0.5*(p2[1]+p1[1])) )
-                        vox[2] = int( floor(0.5*(p2[2]+p1[2])) )
+                        vx = int( floor(0.5*(p2[0]+p1[0])) )
+                        vy = int( floor(0.5*(p2[1]+p1[1])) )
+                        vz = int( floor(0.5*(p2[2]+p1[2])) )
 
                         # check if dir[1] is negative and flip (because hash tables cover half sphere)
                         dir[1] = p2[1]-p1[1]
@@ -3232,6 +3243,7 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
                             dir[0] = p1[0]-p2[0]
                             dir[2] = p1[2]-p2[2]
 
+                        # get the closest direction from the 500 internally used by COMMIT/AMICO
                         ox = int( round(atan2( sqrt(dir[0]*dir[0]+dir[1]*dir[1]), dir[2] )/M_PI*180.0) )
                         oy = int( round(atan2( dir[1], dir[0] )/M_PI*180.0) )
                         o = htable[ox*181 + oy]
@@ -3239,12 +3251,15 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
                             logger.error( f'This should not happen: o={o}, ox={ox}, oy={oy}' )
 
                         # check alignment of local orientation to spherical function in current voxel
+                        # niiFOD_img[ix,iy,iz,id] = SHbasis[id,:].flatten() * niiFODSH_img[ix,iy,iz,:]
                         if normalize == False:
-                            w[n] = niiSF_img[ vox[0], vox[1], vox[2], o ]
+                            # w[n] = niiSF_img[ vx, vy, vz, o ]
+                            w[n] = SHbasis[o,:] @ niiSF_img[vx,vy,vz,:]
                         else:
-                            m = np.max( niiSF_img[ vox[0], vox[1], vox[2], : ] )
+                            sf_voxel = SHbasis @ niiSF_img[vx,vy,vz,:]
+                            m = np.max( sf_voxel )
                             if m > 0:
-                                w[n] = niiSF_img[ vox[0], vox[1], vox[2], o ] / m # normalization by the max value in the voxel
+                                w[n] = sf_voxel[o] / m # normalization by the max value in the voxel
                             else:
                                 w[n] = 0
 
@@ -3255,7 +3270,7 @@ cpdef compute_fico( input_tractogram: str, input_sph_func: str, output_weights: 
 
                     fico[i] = np.nanmin( w[:n] )
                     pbar.update()
-            logger.subinfo(f'FICO:  min={fico.min():.3f}  max={fico.max():.3f}  mean={fico.mean():.3f}  std={fico.std():.3f}', indent_char='*', indent_lvl=1)
+            logger.subinfo(f'FICO:  min={np.min(fico):.3f}  max={np.max(fico):.3f}  mean={np.mean(fico):.3f}  std={np.mean(fico):.3f}', indent_char='*', indent_lvl=1)
 
         if output_weights is None:
             return fico
