@@ -5,7 +5,6 @@ from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 import amico
 from dipy.reconst.shm import real_sh_tournier
-from dipy.core.geometry import cart2sphere
 
 import ast
 import os
@@ -3180,14 +3179,20 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
             logger.error( f'The number of coefficients ({n_sh_coeff}) is not compatible with any SH basis' )
         lmax = int(lmax)
 
-        # load set of directions/hash table used internally by COMMIT
+        # construct the SH basis to sample the spherical function
+        # (using the 500 directions/hash table used internally by COMMIT)
         dirs  = amico.lut.load_directions( 500 )
         logger.debug( f'directions: {dirs.shape[0]}x{dirs.shape[1]}'  )
         htable = amico.lut.load_precomputed_hash_table( 500 )
         logger.debug( f'hash table: {htable.shape[0]}x1 [min={np.min(htable)}, max={np.max(htable)}]'  )
-        _, theta, phi = cart2sphere( dirs[:,0], dirs[:,1], dirs[:,2] )
+        theta = np.zeros( dirs.shape[0] )
+        phi = np.zeros( dirs.shape[0] )
+        for i in range(theta.size):
+            phi[i] = atan2( dirs[i,1], dirs[i,0] )#/M_PI*180.0
+            theta[i] = atan2( sqrt(dirs[i,0]*dirs[i,0]+dirs[i,1]*dirs[i,1]), dirs[i,2] )#/M_PI*180.0
         tmp, _, _ = real_sh_tournier( lmax, theta, phi )
         SHbasis = np.asarray(tmp,dtype=np.float32)
+        del dirs, theta, phi, tmp
 
         # wm_aff_inv  = np.linalg.inv(niiSF.affine)
         # M_inv       = wm_aff_inv[:3, :3].T
@@ -3282,7 +3287,7 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
                     elif metric=='max':
                         coherence[i] = np.nanmax( w[:n] )
                     pbar.update()
-            logger.subinfo(f'Coherence:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.mean(coherence):.3f}', indent_char='*', indent_lvl=1)
+            logger.subinfo(f'Estimated weights:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.mean(coherence):.3f}', indent_char='*', indent_lvl=1)
 
         if output_weights is None:
             return coherence
