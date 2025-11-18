@@ -3,7 +3,7 @@
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, create_streamline_replicas, is_flipped
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
-import amico
+import amico.lut
 from dipy.reconst.shm import real_sh_tournier
 
 import ast

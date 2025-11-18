@@ -6,9 +6,7 @@ logger = setup_logger('dice_tractogram')
 
 
 def assign():
-    '''
-    Entry point for the tractogram assignment function.
-    '''
+    '''Entry point for the tractogram assignment function'''
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['atlas'], {'type': str, 'help': 'Path to the atlas file used to compute streamlines assignments'}],
@@ -32,10 +30,7 @@ def assign():
 
 
 def cluster():
-    '''
-    Entry point for the tractogram clustering function.
-    '''
-    # parse the input parameters
+    '''Entry point for the tractogram clustering function'''
     args = [
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['thr'], {'type': float, 'help': 'Distance threshold [in mm] used to cluster the streamlines'}],
@@ -87,6 +82,408 @@ def cluster():
         save_clust_idx=options.save_clust_idx,
         max_open=options.max_open_files
     )
+
+
+def create_tsf():
+    '''Entry point for the tractogram tsf function'''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tsf_out'], {'type': str, 'help': 'Output tsf file'}],
+        [['file'], {'type': str, 'help': 'Color based on given file'}],
+        [['--check_orientation', '-check'], {'action': 'store_true', 'default': False, 'help': 'Check if the streamlines are oriented and orient them if needed'}],
+        [['--tractogram_out'], {'type': str, 'default': None, 'help': 'Output tractogram with oriented streamlines if orientation is True'}]
+    ]
+    options = setup_parser(dicelib.tractogram.tsf_create.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.tsf_create(
+        options.tractogram_in,
+        options.tsf_out,
+        options.file,
+        options.check_orientation,
+        options.tractogram_out,
+        options.verbose,
+        options.force
+    )
+
+
+def filter():
+    '''Entry point for the tractogram filtering function'''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
+        [['--minlength', '-minl'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
+        [['--maxlength', '-maxl'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
+        [['--minweight', '-minw'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
+        [['--maxweight', '-maxw'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
+        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
+        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
+        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': '''\
+                              Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all.
+                              This filter is applied after all others'''}]
+    ]
+    options = setup_parser(dicelib.tractogram.filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.filter(
+        options.tractogram_in,
+        options.tractogram_out,
+        options.minlength,
+        options.maxlength,
+        options.minweight,
+        options.maxweight,
+        options.weights_in,
+        options.weights_out,
+        options.random,
+        options.verbose,
+        options.force
+    )
+
+
+def indices():
+    '''Entry point for the tractogram indices function'''
+    args = [
+        [['indices_in'], {'type': str, 'help': 'Indices to recompute'}],
+        [['dictionary_kept'], {'type': str, 'help': 'Dictionary of kept streamlines'}],
+        [['indices_out'], {'type': str, 'help': 'Output indices file'}]
+    ]
+    options = setup_parser(dicelib.tractogram.recompute_indices.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.recompute_indices(
+        options.input_indices,
+        options.dictionary_kept,
+        options.output_indices,
+        verbose=options.verbose
+    )
+
+
+def info():
+    '''Entry point for the tractogram info function'''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['--lengths', '-l'], {'action': 'store_true', 'help': 'Show stats on streamline lengths'}],
+        [['--max_field_length', '-m'], {'type': int, 'help': 'Maximum length allowed for printing a field value'}]
+    ]
+    options = setup_parser(dicelib.tractogram.info.__doc__.split('\n')[0], args)
+
+    dicelib.tractogram.info(
+        options.tractogram_in,
+        options.lengths,
+        options.max_field_length
+    )
+
+
+def join():
+    '''Entry point for the tractogram join function'''
+    args = [
+        [['tractograms_in'], {'type': str, 'nargs': '*', 'help': 'Input tractograms (2 or more filenames)'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
+        [['--weights_in'], {'type': str, 'nargs': '*', 'default': [], 'help': 'Input streamline weights (.txt or .npy). NOTE: the order must be the same of the input tractograms'}],
+        [['--weights_out'], {'type': str, 'help': 'Output streamline weights (.txt or .npy)'}]
+    ]
+    options = setup_parser(dicelib.tractogram.join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.join(
+        options.tractograms_in,
+        options.tractogram_out,
+        options.weights_in,
+        options.weights_out,
+        options.verbose,
+        options.force
+    )
+
+
+def join_tsf():
+    '''Entry point for the tractogram join tsf function'''
+    args = [
+        [['tsf_in'], {'type': str, 'nargs': '+', 'help': 'Input tsf files'}],
+        [['tsf_out'], {'type': str, 'help': 'Output tsf file'}]
+    ]
+    options = setup_parser(dicelib.tractogram.tsf_join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.tsf_join(
+        options.tsf_in,
+        options.tsf_out,
+        options.verbose,
+        options.force
+    )
+
+
+def compute_lengths():
+    '''
+    Entry point for the tractogram lengths function.
+    '''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['lengths_out'], {'type': str, 'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}]
+    ]
+    options = setup_parser(dicelib.tractogram.compute_lengths.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    try:
+        dicelib.tractogram.compute_lengths(
+            options.tractogram_in,
+            options.lengths_out,
+            options.verbose,
+            options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+
+def locate():
+    '''Entry point for the tractogram find function'''
+    args = [
+        [['tractogram_subset_in'], {'type': str, 'help': 'Tractogram containing the subset of streamlines to find'}],
+        [['tractogram_in'], {'type': str, 'help': 'Tractogram containing the full set of streamlines in which to search'}],
+        [['indices_out'], {'type': str, 'help': 'Output file (.txt or .npy) containing the indices of the subset streamlines in the full tractogram'}]
+    ]
+    options = setup_parser(dicelib.tractogram.get_indices_of_streamlines.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.get_indices_of_streamlines(
+        options.tractogram_subset_in,
+        options.tractogram_in,
+        options.indices_out,
+        options.verbose,
+        options.force
+    )
+
+
+def resample():
+    '''Entry point for the tractogram resampling function'''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['n_pts'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Number of points per streamline'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}]
+    ]
+    options = setup_parser(dicelib.tractogram.resample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.resample(
+        options.tractogram_in,
+        options.tractogram_out,
+        options.n_pts,
+        options.verbose,
+        options.force,
+    )
+
+
+def sample():
+    '''Entry point for the tractogram sampling function'''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['image_in'], {'type': str, 'help': 'Input image'}],
+        [['file_out'], {'type': str, 'help': 'Path to the file (.txt) where the method saves the sampled values'}],
+        [['--mask', '-m'], {'type': str, 'default': None, 'help': 'Optional mask to restrict the sampling voxels'}],
+        [['--option'], {'type': str, 'nargs': '?', 'default': 'No_opt', 'choices': ['No_opt', 'mean', 'median', 'min', 'max'], 'help': 'Operation to apply on streamlines (if No_opt: no operation applied'}],
+        [['--collapse_pts', '-c'], {'action': 'store_true', 'default': False, 'help': 'Collapse the values of points falling in the same voxel (default : False).'}]
+    ]
+    options = setup_parser(dicelib.tractogram.sample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.sample(
+        options.tractogram_in,
+        options.image_in,
+        options.file_out,
+        options.mask,
+        options.option,
+        options.collapse_pts,
+        options.force,
+        options.verbose
+    )
+
+
+def sanitize():
+    '''Entry point for the tractogram sanitization function'''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['gray_matter'], {'type': str, 'help': 'Path to the gray matter'}],
+        [['white_matter'], {'type': str, 'help': 'Path to the white matter'}],
+        [['--tractogram_out', '-out'], {'type': str, 'help': 'Output tractogram (if None: "_sanitized" appended to the input filename)'}],
+        [['--step', '-s'], {'type': float, 'default': 0.2, 'help': 'Step size [in mm] used to extend or shorten the streamlines'}],
+        [['--max_dist', '-d'], {'type': float, 'default': 2, 'help': 'Maximum distance [in mm] used when extending or shortening the streamlines'}],
+        [['--save_connecting_tck', '-conn'], {'action': 'store_true', 'default': False, 'help': 'Save also tractogram with only the actual connecting streamlines (if True: "_only_connecting" appended to the output filename)'}]
+    ]
+    options = setup_parser(dicelib.tractogram.sanitize.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.sanitize(
+        options.tractogram_in,
+        options.gray_matter,
+        options.white_matter,
+        options.tractogram_out,
+        options.step,
+        options.max_dist,
+        options.save_connecting_tck,
+        options.verbose,
+        options.force
+    )
+
+
+def shuffle():
+    '''Entry point for the tractogram shuffling function'''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
+        [['--n_tmp_groups', '-g'], {'type': int, 'default': 100, 'help': 'Number of temporary groups used to shuffle the streamlines'}],
+        [['--seed', '-s'], {'type': int, 'default': None, 'help': 'Seed used for the random shuffling'}],
+        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
+        [['--weights_out', '-o'], {'type': str, 'default': None, 'help': 'Output streamline weights (.txt or .npy)'}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_shuffle', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
+        [['--keep_tmp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}]
+    ]
+    options = setup_parser(dicelib.tractogram.shuffle.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.shuffle(
+        options.tractogram_in,
+        options.tractogram_out,
+        options.n_tmp_groups,
+        options.seed,
+        options.weights_in,
+        options.weights_out,
+        options.tmp_folder,
+        options.keep_tmp,
+        options.verbose,
+        options.force
+    )
+
+
+def smooth():
+    '''Entry point for the tractogram smoothing function'''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
+        [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': 'Type of spline to use for the smoothing'}],
+        [['--epsilon', '-e'], {'type': float, 'default': None, 'help': '''\
+                               Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline.
+                               NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.
+                                     If None and "n_ctrl_pts" is None, "epsilon" is set to 0.3.'''}],
+        [['--n_ctrl_pts', '-n'], {'type': int, 'default': None, 'help': '''\
+                                  Number of control points used to interpolate the streamlines.
+                                  NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.'''}],
+        [['--do_resample', '-r'], {'action': 'store_true', 'default': False, 'help': '''\
+                                   If True, the final streamlines are resampled to have a constant segment length (see "segment_len" and "streamline_pts" parameters).
+                                   If False, the point of the final streamlines are more dense where the curvature is high.'''}],
+        [['--segment_len', '-l'], {'type': float, 'default': None, 'help': '''\
+                                   Sampling resolution of the final streamline after interpolation.
+                                   NOTE: if 'do_resample' is True, either "segment_len" or "streamline_pts" must be set, by default "segment_len" is used.
+                                   If None and "streamline_pts" is None, "segment_len" is set to 0.5.'''}],
+        [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': '''\
+                                      Number of points in each of the final streamlines.
+                                      NOTE: if 'do_resample' is True, either "streamline_pts" or "segment_len" must be set, by default "segment_len" is used.'''}],
+        [['--n_pts_eval', '-n_ev'], {'type': int, 'default': None, 'help': '''\
+                                     Number of points in which the spline is evaluated.
+                                     If None, the number of points is computed using "segment_len_eval"'''}],
+        [['--segment_len_eval', '-l_ev'], {'type': float, 'default': None, 'help': '''\
+                                           Segment length used to compute the number of points in which the spline is evaluated; computed as the length of the reduced streamline divided by "segment_len_eval".
+                                           If None and "n_pts_eval" is None, "segment_len_eval" is set to 0.5'''}]
+    ]
+    options = setup_parser(dicelib.tractogram.spline_smoothing_v2.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.spline_smoothing_v2(
+        options.tractogram_in,
+        options.tractogram_out,
+        options.type,
+        options.epsilon,
+        options.n_ctrl_pts,
+        options.n_pts_eval,
+        options.segment_len_eval,
+        options.do_resample,
+        options.segment_len,
+        options.streamline_pts,
+        options.verbose,
+        options.force
+    )
+
+
+def sort():
+    '''Entry point for the tractogram sorting function'''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['atlas'], {'type': str, 'help': 'Path to the atlas file used to sort the streamlines'}],
+        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
+        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': '''\
+                                  Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
+                                  Argument is the maximum radius in mm'''}],
+        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights (.txt or .npy)'}],
+        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights (.txt or .npy)'}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_sort', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
+        [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}],
+        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
+                                 Number of threads to use.
+                                 If None, all the available threads will be used'''}]
+    ]
+    options = setup_parser(dicelib.tractogram.sort.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.sort(
+        options.tractogram_in,
+        options.atlas,
+        options.tractogram_out,
+        options.atlas_dist,
+        options.weights_in,
+        options.weights_out,
+        options.tmp_folder,
+        options.keep_temp,
+        options.n_threads,
+        options.verbose,
+        options.force
+    )
+
+
+def split():
+    '''Entry point for the tractogram splitting function'''
+    args = [
+        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
+        [['assignments_in'], {'type': str, 'help': 'Text file with the streamline assignments'}],
+        [['--output_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
+        [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': 'Prefix for the output filenames'}],
+        [['--regions', '-r'], {'type': str, 'default': None, 'help': '''\
+                               Only streamlines connecting the provided region(s) will be extracted.
+                               If None, all the bundles (plus the unassigned streamlines) will be extracted.
+                               If a single region is provided, all bundles connecting this region with any other will be extracted.
+                               If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
+                               If list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.'''}],
+        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
+        [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}]
+
+    ]
+    options = setup_parser(dicelib.tractogram.split.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    dicelib.tractogram.split(
+        options.tractogram_in,
+        options.assignments_in,
+        options.output_folder,
+        options.regions,
+        options.weights_in,
+        options.max_open,
+        options.prefix,
+        options.verbose,
+        options.force
+    )
+
+
+def compute_coherence():
+    '''Entry point for the tractogram.compute_coherence function'''
+    args = [
+        [['input_tractogram'], {'help': 'Input tractogram'}],
+        [['input_sph_func'], {'help': 'Input spherical function to compare streamline trajectories against'}],
+        [['output_weights'], {'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}],
+        [['--metric', '-m'], {'choices': ['min','mean','max'], 'default': 'min', 'help': '''Once the coherence is computed for all segments, metric to use as summary for a streamline'''}],
+        [['--normalize', '-n'], {'action': 'store_true', 'help': 'Normalize spherical functions in each voxel to their maximum value'}],
+        [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': 'Percentage of points to skip at each extremity'}],
+        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': '''If necessary, apply a shift to streamline coordinates to account for
+differences between softwares. The value is specified in voxel units.'''}]
+    ]
+    options = setup_parser(dicelib.tractogram.compute_coherence.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    try:
+        dicelib.tractogram.compute_coherence(
+            options.input_tractogram,
+            options.input_sph_func,
+            options.output_weights,
+            options.metric,
+            options.normalize,
+            options.trim,
+            options.shift,
+            options.verbose,
+            options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 # def compress():
@@ -146,451 +543,3 @@ def cluster():
 #         save_tractogram(sft_in, options.tractogram_out)
 #     except (OSError, TypeError) as e:
 #         ERROR(f"Output not valid: {e}")
-
-
-def create_tsf():
-    '''
-    Entry point for the tractogram tsf function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tsf_out'], {'type': str, 'help': 'Output tsf file'}],
-        [['file'], {'type': str, 'help': 'Color based on given file'}],
-        [['--check_orientation', '-check'], {'action': 'store_true', 'default': False, 'help': 'Check if the streamlines are oriented and orient them if needed'}],
-        [['--tractogram_out'], {'type': str, 'default': None, 'help': 'Output tractogram with oriented streamlines if orientation is True'}]
-    ]
-    options = setup_parser(dicelib.tractogram.tsf_create.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.tsf_create(
-        options.tractogram_in,
-        options.tsf_out,
-        options.file,
-        options.check_orientation,
-        options.tractogram_out,
-        options.verbose,
-        options.force
-    )
-
-
-def filter():
-    '''
-    Entry point for the tractogram filtering function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--minlength', '-minl'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
-        [['--maxlength', '-maxl'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
-        [['--minweight', '-minw'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
-        [['--maxweight', '-maxw'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
-        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights'}],
-        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights'}],
-        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': '''\
-                              Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all.
-                              This filter is applied after all others'''}]
-    ]
-    options = setup_parser(dicelib.tractogram.filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.filter(
-        options.tractogram_in,
-        options.tractogram_out,
-        options.minlength,
-        options.maxlength,
-        options.minweight,
-        options.maxweight,
-        options.weights_in,
-        options.weights_out,
-        options.random,
-        options.verbose,
-        options.force
-    )
-
-
-def indices():
-    '''
-    Entry point for the tractogram indices function.
-    '''
-    # parse the input parameters
-    args = [
-        [['indices_in'], {'type': str, 'help': 'Indices to recompute'}],
-        [['dictionary_kept'], {'type': str, 'help': 'Dictionary of kept streamlines'}],
-        [['indices_out'], {'type': str, 'help': 'Output indices file'}]
-    ]
-    options = setup_parser(dicelib.tractogram.recompute_indices.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.recompute_indices(
-        options.input_indices,
-        options.dictionary_kept,
-        options.output_indices,
-        verbose=options.verbose
-    )
-
-
-def info():
-    '''
-    Entry point for the tractogram info function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['--lengths', '-l'], {'action': 'store_true', 'help': 'Show stats on streamline lengths'}],
-        [['--max_field_length', '-m'], {'type': int, 'help': 'Maximum length allowed for printing a field value'}]
-    ]
-    options = setup_parser(dicelib.tractogram.info.__doc__.split('\n')[0], args)
-
-    dicelib.tractogram.info(
-        options.tractogram_in,
-        options.lengths,
-        options.max_field_length
-    )
-
-
-def join():
-    '''
-    Entry point for the tractogram join function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractograms_in'], {'type': str, 'nargs': '*', 'help': 'Input tractograms (2 or more filenames)'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--weights_in'], {'type': str, 'nargs': '*', 'default': [], 'help': 'Input streamline weights (.txt or .npy). NOTE: the order must be the same of the input tractograms'}],
-        [['--weights_out'], {'type': str, 'help': 'Output streamline weights (.txt or .npy)'}]
-    ]
-    options = setup_parser(dicelib.tractogram.join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.join(
-        options.tractograms_in,
-        options.tractogram_out,
-        options.weights_in,
-        options.weights_out,
-        options.verbose,
-        options.force
-    )
-
-
-def join_tsf():
-    '''
-    Entry point for the tractogram join tsf function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tsf_in'], {'type': str, 'nargs': '+', 'help': 'Input tsf files'}],
-        [['tsf_out'], {'type': str, 'help': 'Output tsf file'}]
-    ]
-    options = setup_parser(dicelib.tractogram.tsf_join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.tsf_join(
-        options.tsf_in,
-        options.tsf_out,
-        options.verbose,
-        options.force
-    )
-
-
-def compute_lengths():
-    '''
-    Entry point for the tractogram lengths function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['lengths_out'], {'type': str, 'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}]
-    ]
-    options = setup_parser(dicelib.tractogram.compute_lengths.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    try:
-        dicelib.tractogram.compute_lengths(
-            options.tractogram_in,
-            options.lengths_out,
-            options.verbose,
-            options.force
-        )
-    except Exception as e:
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-
-def locate():
-    '''
-    Entry point for the tractogram find function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_subset_in'], {'type': str, 'help': 'Tractogram containing the subset of streamlines to find'}],
-        [['tractogram_in'], {'type': str, 'help': 'Tractogram containing the full set of streamlines in which to search'}],
-        [['indices_out'], {'type': str, 'help': 'Output file (.txt or .npy) containing the indices of the subset streamlines in the full tractogram'}]
-    ]
-    options = setup_parser(dicelib.tractogram.get_indices_of_streamlines.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.get_indices_of_streamlines(
-        options.tractogram_subset_in,
-        options.tractogram_in,
-        options.indices_out,
-        options.verbose,
-        options.force
-    )
-
-
-def resample():
-    '''
-    Entry point for the tractogram resampling function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['n_pts'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Number of points per streamline'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}]
-    ]
-    options = setup_parser(dicelib.tractogram.resample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.resample(
-        options.tractogram_in,
-        options.tractogram_out,
-        options.n_pts,
-        options.verbose,
-        options.force,
-    )
-
-
-def sample():
-    '''
-    Entry point for the tractogram sampling function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['image_in'], {'type': str, 'help': 'Input image'}],
-        [['file_out'], {'type': str, 'help': 'Path to the file (.txt) where the method saves the sampled values'}],
-        [['--mask', '-m'], {'type': str, 'default': None, 'help': 'Optional mask to restrict the sampling voxels'}],
-        [['--option'], {'type': str, 'nargs': '?', 'default': 'No_opt', 'choices': ['No_opt', 'mean', 'median', 'min', 'max'], 'help': 'Operation to apply on streamlines (if No_opt: no operation applied'}],
-        [['--collapse_pts', '-c'], {'action': 'store_true', 'default': False, 'help': 'Collapse the values of points falling in the same voxel (default : False).'}]
-    ]
-    options = setup_parser(dicelib.tractogram.sample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.sample(
-        options.tractogram_in,
-        options.image_in,
-        options.file_out,
-        options.mask,
-        options.option,
-        options.collapse_pts,
-        options.force,
-        options.verbose
-    )
-
-
-def sanitize():
-    '''
-    Entry point for the tractogram sanitization function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['gray_matter'], {'type': str, 'help': 'Path to the gray matter'}],
-        [['white_matter'], {'type': str, 'help': 'Path to the white matter'}],
-        [['--tractogram_out', '-out'], {'type': str, 'help': 'Output tractogram (if None: "_sanitized" appended to the input filename)'}],
-        [['--step', '-s'], {'type': float, 'default': 0.2, 'help': 'Step size [in mm] used to extend or shorten the streamlines'}],
-        [['--max_dist', '-d'], {'type': float, 'default': 2, 'help': 'Maximum distance [in mm] used when extending or shortening the streamlines'}],
-        [['--save_connecting_tck', '-conn'], {'action': 'store_true', 'default': False, 'help': 'Save also tractogram with only the actual connecting streamlines (if True: "_only_connecting" appended to the output filename)'}]
-    ]
-    options = setup_parser(dicelib.tractogram.sanitize.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.sanitize(
-        options.tractogram_in,
-        options.gray_matter,
-        options.white_matter,
-        options.tractogram_out,
-        options.step,
-        options.max_dist,
-        options.save_connecting_tck,
-        options.verbose,
-        options.force
-    )
-
-
-def shuffle():
-    '''
-    Entry point for the tractogram shuffling function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--n_tmp_groups', '-g'], {'type': int, 'default': 100, 'help': 'Number of temporary groups used to shuffle the streamlines'}],
-        [['--seed', '-s'], {'type': int, 'default': None, 'help': 'Seed used for the random shuffling'}],
-        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
-        [['--weights_out', '-o'], {'type': str, 'default': None, 'help': 'Output streamline weights (.txt or .npy)'}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_shuffle', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
-        [['--keep_tmp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}]
-    ]
-    options = setup_parser(dicelib.tractogram.shuffle.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.shuffle(
-        options.tractogram_in,
-        options.tractogram_out,
-        options.n_tmp_groups,
-        options.seed,
-        options.weights_in,
-        options.weights_out,
-        options.tmp_folder,
-        options.keep_tmp,
-        options.verbose,
-        options.force
-    )
-
-
-def smooth():
-    '''
-    Entry point for the tractogram smoothing function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': 'Type of spline to use for the smoothing'}],
-        [['--epsilon', '-e'], {'type': float, 'default': None, 'help': '''\
-                               Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline.
-                               NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.
-                                     If None and "n_ctrl_pts" is None, "epsilon" is set to 0.3.'''}],
-        [['--n_ctrl_pts', '-n'], {'type': int, 'default': None, 'help': '''\
-                                  Number of control points used to interpolate the streamlines.
-                                  NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.'''}],
-        [['--do_resample', '-r'], {'action': 'store_true', 'default': False, 'help': '''\
-                                   If True, the final streamlines are resampled to have a constant segment length (see "segment_len" and "streamline_pts" parameters).
-                                   If False, the point of the final streamlines are more dense where the curvature is high.'''}],
-        [['--segment_len', '-l'], {'type': float, 'default': None, 'help': '''\
-                                   Sampling resolution of the final streamline after interpolation.
-                                   NOTE: if 'do_resample' is True, either "segment_len" or "streamline_pts" must be set, by default "segment_len" is used.
-                                   If None and "streamline_pts" is None, "segment_len" is set to 0.5.'''}],
-        [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': '''\
-                                      Number of points in each of the final streamlines.
-                                      NOTE: if 'do_resample' is True, either "streamline_pts" or "segment_len" must be set, by default "segment_len" is used.'''}],
-        [['--n_pts_eval', '-n_ev'], {'type': int, 'default': None, 'help': '''\
-                                     Number of points in which the spline is evaluated.
-                                     If None, the number of points is computed using "segment_len_eval"'''}],
-        [['--segment_len_eval', '-l_ev'], {'type': float, 'default': None, 'help': '''\
-                                           Segment length used to compute the number of points in which the spline is evaluated; computed as the length of the reduced streamline divided by "segment_len_eval".
-                                           If None and "n_pts_eval" is None, "segment_len_eval" is set to 0.5'''}]
-    ]
-
-    options = setup_parser(dicelib.tractogram.spline_smoothing_v2.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.spline_smoothing_v2(
-        options.tractogram_in,
-        options.tractogram_out,
-        options.type,
-        options.epsilon,
-        options.n_ctrl_pts,
-        options.n_pts_eval,
-        options.segment_len_eval,
-        options.do_resample,
-        options.segment_len,
-        options.streamline_pts,
-        options.verbose,
-        options.force
-    )
-
-
-def sort():
-    '''
-    Entry point for the tractogram sorting function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['atlas'], {'type': str, 'help': 'Path to the atlas file used to sort the streamlines'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': '''\
-                                  Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
-                                  Argument is the maximum radius in mm'''}],
-        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights (.txt or .npy)'}],
-        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights (.txt or .npy)'}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_sort', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
-        [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}],
-        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
-                                 Number of threads to use.
-                                 If None, all the available threads will be used'''}]
-    ]
-    options = setup_parser(dicelib.tractogram.sort.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.sort(
-        options.tractogram_in,
-        options.atlas,
-        options.tractogram_out,
-        options.atlas_dist,
-        options.weights_in,
-        options.weights_out,
-        options.tmp_folder,
-        options.keep_temp,
-        options.n_threads,
-        options.verbose,
-        options.force
-    )
-
-
-def split():
-    '''
-    Entry point for the tractogram splitting function.
-    '''
-    # parse the input parameters
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['assignments_in'], {'type': str, 'help': 'Text file with the streamline assignments'}],
-        [['--output_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
-        [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': 'Prefix for the output filenames'}],
-        [['--regions', '-r'], {'type': str, 'default': None, 'help': '''\
-                               Only streamlines connecting the provided region(s) will be extracted.
-                               If None, all the bundles (plus the unassigned streamlines) will be extracted.
-                               If a single region is provided, all bundles connecting this region with any other will be extracted.
-                               If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
-                               If list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.'''}],
-        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
-        [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}]
-
-    ]
-    options = setup_parser(dicelib.tractogram.split.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.split(
-        options.tractogram_in,
-        options.assignments_in,
-        options.output_folder,
-        options.regions,
-        options.weights_in,
-        options.max_open,
-        options.prefix,
-        options.verbose,
-        options.force
-    )
-
-
-def compute_coherence():
-    '''
-    Entry point for the tractogram.compute_coherence function.
-    '''
-    args = [
-        [['input_tractogram'], {'help': 'Input tractogram'}],
-        [['input_sph_func'], {'help': 'Input spherical function to compare streamline trajectories against'}],
-        [['output_weights'], {'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}],
-        [['--metric', '-m'], {'choices': ['min','mean','max'], 'default': 'min', 'help': '''Once the coherence is computed for all segments, metric to use as summary for a streamline'''}],
-        [['--normalize', '-n'], {'action': 'store_true', 'help': 'Normalize spherical functions in each voxel to their maximum value'}],
-        [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': 'Percentage of points to skip at each extremity'}],
-        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': '''If necessary, apply a shift to streamline coordinates to account for
-differences between softwares. The value is specified in voxel units.'''}]
-    ]
-    options = setup_parser(dicelib.tractogram.compute_coherence.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    try:
-        dicelib.tractogram.compute_coherence(
-            options.input_tractogram,
-            options.input_sph_func,
-            options.output_weights,
-            options.metric,
-            options.normalize,
-            options.trim,
-            options.shift,
-            options.verbose,
-            options.force
-        )
-    except Exception as e:
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
