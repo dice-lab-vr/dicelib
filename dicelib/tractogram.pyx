@@ -3282,7 +3282,7 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
                     elif metric=='max':
                         coherence[i] = np.nanmax( w[:n] )
                     pbar.update()
-            logger.subinfo(f'Estimated weights:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.mean(coherence):.3f}', indent_char='*', indent_lvl=1)
+            logger.subinfo(f'Estimated weights:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.std(coherence):.3f}', indent_char='*', indent_lvl=1)
 
         if output_weights is None:
             return coherence
