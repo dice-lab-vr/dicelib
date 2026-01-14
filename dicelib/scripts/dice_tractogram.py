@@ -486,6 +486,30 @@ differences between softwares. The value is specified in voxel units.'''}]
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
+def compute_tdi():
+    '''Entry point for the tractogram.compute_tdi function'''
+    args = [
+        [['input_tractogram'], {'help': 'Input tractogram'}],
+        [['input_ref_image'], {'help': 'Reference image to infer geometry/orientation'}],
+        [['output_map'], {'help': 'Output TDI image'}],
+        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': '''If necessary, apply a shift to streamline coordinates to account for
+differences between softwares. The value is specified in voxel units.'''}]
+    ]
+    options = setup_parser(dicelib.tractogram.compute_coherence.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    try:
+        dicelib.tractogram.compute_tdi(
+            options.input_tractogram,
+            options.input_ref_image,
+            options.output_map,
+            options.shift,
+            options.verbose,
+            options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+
 # def compress():
 #     # parse the input parameters
 #     args = [

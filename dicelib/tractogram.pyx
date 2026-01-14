@@ -3303,3 +3303,94 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
     return coherence
+
+
+cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str, shift: float=0.5, verbose: int=3, force: bool=False ):
+    """Compute the TDI from a tractogram
+    """
+    cdef float [:] p1 = np.zeros(3, dtype=np.float32)
+    cdef float [:] p2 = np.zeros(3, dtype=np.float32)
+    cdef float [:] P
+    cdef double [:,::1] wm_aff_inv
+    cdef double [::1,:] M_inv
+    cdef double [:] abc_inv
+    cdef float [:,:,::1] niiTDI_img
+
+    t0 = time()
+    set_verbose('tractogram', verbose)
+    logger.info('Computing TDI')
+
+    files = [File(name='input_tractogram', type_='input', path=input_tractogram)]
+    files.append(File(name='input_ref_image', type_='input', path=input_ref_image))
+    if output_map is not None:
+        files.append(File(name='output_map', type_='output', path=output_map, ext=['.nii.gz']))
+    check_params(files=files, force=force)
+
+    #----- iterate over input streamlines -----
+    TCK_in = None
+    try:
+        # open tractogram
+        TCK_in = LazyTractogram( input_tractogram, mode='r' )
+        n_streamlines = int( TCK_in.header['count'] )
+        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
+        if n_streamlines <= 0:
+            logger.error('The tractogram is empty')
+
+        # open reference image
+        niiREF = nib.load( input_ref_image )
+        niiREF_hdr = niiREF.header if nib.__version__ >= '2.0.0' else niiREF.get_header()
+        logger.subinfo(f'Reference image: {niiREF.shape[0]}x{niiREF.shape[1]}x{niiREF.shape[2]}', indent_char='*', indent_lvl=1)
+
+        wm_aff_inv  = np.linalg.inv(niiREF.affine)
+        M_inv       = wm_aff_inv[:3, :3].T
+        abc_inv     = wm_aff_inv[:3, 3]
+        # M = niiSF.affine.copy()
+        # pixdim = np.asarray( niiSF_hdr.get_zooms(), dtype=np.float32 )
+        # M[:3, :3] = M[:3, :3].dot( np.diag([1./pixdim[0],1./pixdim[1],1./pixdim[2]]) )
+        # toVOXMM = np.ravel(np.linalg.inv(M)).astype('<f4')
+
+        logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
+
+        # process every streamline
+        niiTDI_img = np.zeros( niiREF.shape[:3], dtype=np.float32 )
+        if n_streamlines>0:
+            with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+                for i in range( n_streamlines ):
+                    TCK_in.read_streamline()
+                    if TCK_in.n_pts==0:
+                        break # no more data, stop reading
+
+                    P = TCK_in.streamline[0]
+                    apply_affine_1pt(P, M_inv, abc_inv, p1)
+                    if shift>0:
+                        p1[0] += shift
+                        p1[1] += shift
+                        p1[2] += shift
+                    n = 0
+                    for j in range(TCK_in.n_pts):
+                        P = TCK_in.streamline[j]
+                        apply_affine_1pt(P, M_inv, abc_inv, p2)
+                        if shift>0:
+                            p2[0] += shift
+                            p2[1] += shift
+                            p2[2] += shift
+                        vx = int( 0.5*(p2[0]+p1[0]) )
+                        vy = int( 0.5*(p2[1]+p1[1]) )
+                        vz = int( 0.5*(p2[2]+p1[2]) )
+                        niiTDI_img[vx,vy,vz] += 1
+                        p1[0] = p2[0]
+                        p1[1] = p2[1]
+                        p1[2] = p2[2]
+                    pbar.update()
+            logger.subinfo(f'Estimated values:  min={np.min(niiTDI_img):.3f}  max={np.max(niiTDI_img):.3f}  mean={np.mean(niiTDI_img):.3f}  std={np.std(niiTDI_img):.3f}', indent_char='*', indent_lvl=1)
+        nib.Nifti1Image( niiTDI_img, niiREF.affine ).to_filename( output_map )
+
+    except Exception as e:
+        logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
+
+    finally:
+        if TCK_in is not None:
+            TCK_in.close()
+
+    t1 = time()
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
