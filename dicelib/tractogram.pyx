@@ -2389,285 +2389,285 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, shift: float=0.5, verbose=3, force=False ):
-    """Smooth each streamline in the input tractogram using Catmull-Rom splines.
-    More info at http://algorithmist.net/docs/catmullrom.pdf.
+# cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, shift: float=0.5, verbose=3, force=False ):
+#     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
+#     More info at http://algorithmist.net/docs/catmullrom.pdf.
 
-    Parameters
-    ----------
-    input_tractogram : string
-        Path to the file (.tck) containing the streamlines to process.
-    output_tractogram : string
-        Path to the file where to store the filtered tractogram. If not specified (default),
-        the new file will be created by appending '_smooth' to the input filename.
-    mask : string
-        Path to the mask file (.nii) to constrain the smoothing to a specific region (default : None).
-    pts_cutoff : float
-        Percentage of points of the streamline that must be inside the mask to be considered (default : 0.5).
-    spline_type : string
-        Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default : 'centripetal').
-    epsilon : float
-        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).
-    segment_len : float
-        Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set.
-    streamline_pts : int
-        Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
-    shift : float (optional)
-        If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages (default : 0.5)
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
-    """
+#     Parameters
+#     ----------
+#     input_tractogram : string
+#         Path to the file (.tck) containing the streamlines to process.
+#     output_tractogram : string
+#         Path to the file where to store the filtered tractogram. If not specified (default),
+#         the new file will be created by appending '_smooth' to the input filename.
+#     mask : string
+#         Path to the mask file (.nii) to constrain the smoothing to a specific region (default : None).
+#     pts_cutoff : float
+#         Percentage of points of the streamline that must be inside the mask to be considered (default : 0.5).
+#     spline_type : string
+#         Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default : 'centripetal').
+#     epsilon : float
+#         Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).
+#     segment_len : float
+#         Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set.
+#     streamline_pts : int
+#         Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
+#     shift : float (optional)
+#         If necessary, apply a shift (in voxel units) to streamline coordinates to
+#         account for differences between software packages (default : 0.5)
+#     verbose : int
+#         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+#     force : boolean
+#         Force overwriting of the output (default : False).
+#     """
 
-    set_verbose('tractogram', verbose)
+#     set_verbose('tractogram', verbose)
 
-    if segment_len==None and streamline_pts==None:
-        logger.error('Either \'streamline_pts\' or \'segment_len\' must be set.')
-    if segment_len!=None and streamline_pts!=None:
-        logger.error('Either \'streamline_pts\' or \'segment_len\' must be set, not both.')
+#     if segment_len==None and streamline_pts==None:
+#         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set.')
+#     if segment_len!=None and streamline_pts!=None:
+#         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set, not both.')
 
-    if output_tractogram is None :
-        basename, extension = os.path.splitext(input_tractogram)
-        output_tractogram = basename+'_smooth'+extension
+#     if output_tractogram is None :
+#         basename, extension = os.path.splitext(input_tractogram)
+#         output_tractogram = basename+'_smooth'+extension
 
-    files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram),
-        File(name='output_tractogram', type_='output', path=output_tractogram, ext=['.tck', '.trk'])
-    ]
-    if mask is not None:
-        files.append( {'type_': 'input', 'name': 'mask', 'path': mask} )
-    nums = [
-        Num(name='epsilon', value=epsilon, min_=0.0, max_=None,)
-    ]
-    check_params(files=files, nums=nums, force=force)
+#     files = [
+#         File(name='input_tractogram', type_='input', path=input_tractogram),
+#         File(name='output_tractogram', type_='output', path=output_tractogram, ext=['.tck', '.trk'])
+#     ]
+#     if mask is not None:
+#         files.append( {'type_': 'input', 'name': 'mask', 'path': mask} )
+#     nums = [
+#         Num(name='epsilon', value=epsilon, min_=0.0, max_=None,)
+#     ]
+#     check_params(files=files, nums=nums, force=force)
 
-    if spline_type == 'centripetal':
-        alpha = 0.5
-    elif spline_type == 'chordal':
-        alpha = 1.0
-    elif spline_type == 'uniform':
-        alpha = 0.0
-    else:
-        logger.error('\'spline_type\' parameter must be \'centripetal\', \'uniform\' or \'chordal\'')
+#     if spline_type == 'centripetal':
+#         alpha = 0.5
+#     elif spline_type == 'chordal':
+#         alpha = 1.0
+#     elif spline_type == 'uniform':
+#         alpha = 0.0
+#     else:
+#         logger.error('\'spline_type\' parameter must be \'centripetal\', \'uniform\' or \'chordal\'')
 
-    # if epsilon < 0 :
-    #     raise ValueError( "'epsilon' parameter must be non-negative" )
+#     # if epsilon < 0 :
+#     #     raise ValueError( "'epsilon' parameter must be non-negative" )
 
-    # cdef float [:,:] smoothed_fib = np.zeros((1000,3), dtype=np.float32)
-    # cdef float [:,:] resampled_fib = np.zeros((1000,3), dtype=np.float32)
-    cdef int n_pts_tot = 0
-    cdef int n_pts_in = 0
-    cdef int[:,:,:] mask_view
-    cdef float[:] pt_aff = np.zeros(3, dtype=np.float32)
-    cdef cbool in_mask
-    cdef float fib_len = 0
-    cdef int n_pts_out = 0
-    cdef int in_mask_count
-    cdef float epsilon_tmp
-    cdef int n_pts_tmp = 0
-    cdef size_t i, j = 0
-    cdef int attempts = 0
-    cdef float threshold = pts_cutoff
+#     # cdef float [:,:] smoothed_fib = np.zeros((1000,3), dtype=np.float32)
+#     # cdef float [:,:] resampled_fib = np.zeros((1000,3), dtype=np.float32)
+#     cdef int n_pts_tot = 0
+#     cdef int n_pts_in = 0
+#     cdef int[:,:,:] mask_view
+#     cdef float[:] pt_aff = np.zeros(3, dtype=np.float32)
+#     cdef cbool in_mask
+#     cdef float fib_len = 0
+#     cdef int n_pts_out = 0
+#     cdef int in_mask_count
+#     cdef float epsilon_tmp
+#     cdef int n_pts_tmp = 0
+#     cdef size_t i, j = 0
+#     cdef int attempts = 0
+#     cdef float threshold = pts_cutoff
 
-    if mask is not None:
-        if not os.path.isfile(mask):
-            logger.error(f'File \'mask\' not found')
-        mask_nii = nib.load(mask)
-        mask_view = np.ascontiguousarray(mask_nii.get_fdata(), dtype=np.int32)
-        affine_inv = np.linalg.inv(mask_nii.affine)
+#     if mask is not None:
+#         if not os.path.isfile(mask):
+#             logger.error(f'File \'mask\' not found')
+#         mask_nii = nib.load(mask)
+#         mask_view = np.ascontiguousarray(mask_nii.get_fdata(), dtype=np.int32)
+#         affine_inv = np.linalg.inv(mask_nii.affine)
 
-    try:
-        TCK_in = LazyTractogram( input_tractogram, mode='r' )
-        n_streamlines = int( TCK_in.header['count'] )
+#     try:
+#         TCK_in = LazyTractogram( input_tractogram, mode='r' )
+#         n_streamlines = int( TCK_in.header['count'] )
 
-        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+#         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
 
-        logger.info('Smoothing tractogram')
-        t0 = time()
-        logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'{input_tractogram}', indent_lvl=2, indent_char='-')
-        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='-')
+#         logger.info('Smoothing tractogram')
+#         t0 = time()
+#         logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
+#         logger.subinfo(f'{input_tractogram}', indent_lvl=2, indent_char='-')
+#         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='-')
 
-        mb = os.path.getsize( input_tractogram )/1.0E6
-        if mb >= 1E3:
-            logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
-        else:
-            logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+#         mb = os.path.getsize( input_tractogram )/1.0E6
+#         if mb >= 1E3:
+#             logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
+#         else:
+#             logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
 
-        logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'{output_tractogram}', indent_lvl=2, indent_char='-')
-        logger.subinfo(f'Spline type: {spline_type}', indent_lvl=1, indent_char='-')
-        if not segment_len==None:
-            logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
-        if not streamline_pts==None:
-            logger.subinfo(f'Number of points: {streamline_pts}', indent_lvl=1, indent_char='-')
-        if mask is not None:
-            logger.subinfo(f'Mask: {mask}', indent_lvl=1, indent_char='-')
+#         logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
+#         logger.subinfo(f'{output_tractogram}', indent_lvl=2, indent_char='-')
+#         logger.subinfo(f'Spline type: {spline_type}', indent_lvl=1, indent_char='-')
+#         if not segment_len==None:
+#             logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
+#         if not streamline_pts==None:
+#             logger.subinfo(f'Number of points: {streamline_pts}', indent_lvl=1, indent_char='-')
+#         if mask is not None:
+#             logger.subinfo(f'Mask: {mask}', indent_lvl=1, indent_char='-')
 
-        if streamline_pts!=None:
-            n_pts_out = streamline_pts
-        else:
-            n_pts_out = 50
-
-
-        # process each streamline
-        with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
-            for i in range( n_streamlines ):
-                epsilon_tmp = epsilon
-                in_mask = False
-                TCK_in.read_streamline()
-                n_pts_in = TCK_in.n_pts
-                if TCK_in.n_pts==0:
-                    break # no more data, stop reading
-                while in_mask==False:
-                    # smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha)
-                    fib_red_ptr, n_red = rdp_reduction(TCK_in.streamline, n_pts_in, epsilon_tmp)
-
-                    # check number of points
-                    if n_red==2: # no need to smooth
-                        smoothed_fib = fib_red_ptr
-                        n_pts_tot = n_red
-                        in_mask = True
-                    else:
-                        smoothed_fib =  apply_smoothing(fib_red_ptr, alpha, n_pts_out)
-                        in_mask_count = 0
-                        for j in range(n_pts_out):
-                            pt_aff = apply_affine_1pt(smoothed_fib[j,:], affine_inv, pt_aff, shift)
-                            if mask_view[<int>pt_aff[0], <int>pt_aff[1], <int>pt_aff[2]] > 0:
-                                in_mask_count += 1
-                        if in_mask_count > threshold*n_pts_out:
-                            in_mask = True
-                        else:
-                            # reduce epsilon and try again
-                            attempts += 1
-                            epsilon_tmp = epsilon_tmp-0.1
-                            if epsilon_tmp < 0.1:
-                                smoothed_fib = fib_red_ptr
-                                n_pts_tot = n_pts_in
-                                in_mask = True
-
-                    # compute streamline length
-                    fib_len = streamline_length( smoothed_fib, n_pts_out )
-
-                    if segment_len!=None:
-                        n_pts_out = int(fib_len / segment_len)
-
-                    # resample smoothed streamline
-                    resampled_fib = s_resample(smoothed_fib, n_pts_out)
-
-                TCK_out.write_streamline( resampled_fib, n_pts_out )
-                pbar.update()
-
-    except Exception as e:
-        TCK_out.close()
-        if os.path.exists( output_tractogram ):
-            os.remove( output_tractogram )
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-    finally:
-        TCK_in.close()
-        TCK_out.close()
-
-    mb = os.path.getsize( output_tractogram )/1.0E6
-    logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-    if mb >= 1E3:
-        logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
-    else:
-        logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-    t1 = time()
-    logger.info( f'[ {format_time(t1 - t0)} ]' )
+#         if streamline_pts!=None:
+#             n_pts_out = streamline_pts
+#         else:
+#             n_pts_out = 50
 
 
+#         # process each streamline
+#         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
+#             for i in range( n_streamlines ):
+#                 epsilon_tmp = epsilon
+#                 in_mask = False
+#                 TCK_in.read_streamline()
+#                 n_pts_in = TCK_in.n_pts
+#                 if TCK_in.n_pts==0:
+#                     break # no more data, stop reading
+#                 while in_mask==False:
+#                     # smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha)
+#                     fib_red_ptr, n_red = rdp_reduction(TCK_in.streamline, n_pts_in, epsilon_tmp)
 
-cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=3, force=False ):
-    """Smooth each streamline in the input tractogram using Catmull-Rom splines.
-    More info at http://algorithmist.net/docs/catmullrom.pdf.
+#                     # check number of points
+#                     if n_red==2: # no need to smooth
+#                         smoothed_fib = fib_red_ptr
+#                         n_pts_tot = n_red
+#                         in_mask = True
+#                     else:
+#                         smoothed_fib =  apply_smoothing(fib_red_ptr, alpha, n_pts_out)
+#                         in_mask_count = 0
+#                         for j in range(n_pts_out):
+#                             pt_aff = apply_affine_1pt(smoothed_fib[j,:], affine_inv, pt_aff, shift)
+#                             if mask_view[<int>pt_aff[0], <int>pt_aff[1], <int>pt_aff[2]] > 0:
+#                                 in_mask_count += 1
+#                         if in_mask_count > threshold*n_pts_out:
+#                             in_mask = True
+#                         else:
+#                             # reduce epsilon and try again
+#                             attempts += 1
+#                             epsilon_tmp = epsilon_tmp-0.1
+#                             if epsilon_tmp < 0.1:
+#                                 smoothed_fib = fib_red_ptr
+#                                 n_pts_tot = n_pts_in
+#                                 in_mask = True
 
-    Parameters
-    ----------
-    input_tractogram : string
-        Path to the file (.tck) containing the streamlines to process.
-    output_tractogram : string
-        Path to the file where to store the filtered tractogram. If not specified (default),
-        the new file will be created by appending '_smooth' to the input filename.
-    control_point_ratio : float
-        Percent of control points to use in the interpolating spline (default : 0.25).
-    segment_len : float
-        Sampling resolution of the final streamline after interpolation (default : 1.0).
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
-    """
+#                     # compute streamline length
+#                     fib_len = streamline_length( smoothed_fib, n_pts_out )
 
-    set_verbose('tractogram', verbose)
+#                     if segment_len!=None:
+#                         n_pts_out = int(fib_len / segment_len)
 
-    if output_tractogram is None :
-        basename, extension = os.path.splitext(input_tractogram)
-        output_tractogram = basename+'_smooth'+extension
-    files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram),
-        File(name='output_tractogram', type_='output', path=output_tractogram, ext=['.tck', '.trk'])
-    ]
-    nums = [
-        Num(name='control_point_ratio', value=control_point_ratio, min_=0.0, max_=1.0, include_min=False),
-        Num(name='segment_len', value=segment_len, min_=0.0, max_=None, include_min=False)
-    ]
-    check_params(files=files, nums=nums, force=force)
+#                     # resample smoothed streamline
+#                     resampled_fib = s_resample(smoothed_fib, n_pts_out)
 
-    try:
-        TCK_in = LazyTractogram( input_tractogram, mode='r' )
-        n_streamlines = int( TCK_in.header['count'] )
+#                 TCK_out.write_streamline( resampled_fib, n_pts_out )
+#                 pbar.update()
 
-        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+#     except Exception as e:
+#         TCK_out.close()
+#         if os.path.exists( output_tractogram ):
+#             os.remove( output_tractogram )
+#         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
-        logger.info('Smoothing tractogram')
-        t0 = time()
-        logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'{input_tractogram}', indent_lvl=2, indent_char='-')
-        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='-')
+#     finally:
+#         TCK_in.close()
+#         TCK_out.close()
 
-        mb = os.path.getsize( input_tractogram )/1.0E6
-        if mb >= 1E3:
-            logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
-        else:
-            logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+#     mb = os.path.getsize( output_tractogram )/1.0E6
+#     logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+#     if mb >= 1E3:
+#         logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
+#     else:
+#         logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+#     t1 = time()
+#     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
-        logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'{output_tractogram}', indent_lvl=2, indent_char='-')
-        logger.subinfo(f'Control points: {control_point_ratio*100.0:.1f}%', indent_lvl=1, indent_char='-')
-        logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
 
-        # process each streamline
-        with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
-            for i in range( n_streamlines ):
 
-                TCK_in.read_streamline()
-                if TCK_in.n_pts==0:
-                    break # no more data, stop reading
-                smoothed_streamline, n = smooth( TCK_in.streamline, TCK_in.n_pts, control_point_ratio, segment_len )
-                TCK_out.write_streamline( smoothed_streamline, n )
-                pbar.update()
+# cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=3, force=False ):
+#     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
+#     More info at http://algorithmist.net/docs/catmullrom.pdf.
 
-    except Exception as e:
-        TCK_out.close()
-        if os.path.exists( output_tractogram ):
-            os.remove( output_tractogram )
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+#     Parameters
+#     ----------
+#     input_tractogram : string
+#         Path to the file (.tck) containing the streamlines to process.
+#     output_tractogram : string
+#         Path to the file where to store the filtered tractogram. If not specified (default),
+#         the new file will be created by appending '_smooth' to the input filename.
+#     control_point_ratio : float
+#         Percent of control points to use in the interpolating spline (default : 0.25).
+#     segment_len : float
+#         Sampling resolution of the final streamline after interpolation (default : 1.0).
+#     verbose : int
+#         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+#     force : boolean
+#         Force overwriting of the output (default : False).
+#     """
 
-    finally:
-        TCK_in.close()
-        TCK_out.close()
+#     set_verbose('tractogram', verbose)
 
-    mb = os.path.getsize( output_tractogram )/1.0E6
-    if mb >= 1E3:
-        logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
-    else:
-        logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-    t1 = time()
-    logger.info( f'[ {format_time(t1 - t0)} ]' )
+#     if output_tractogram is None :
+#         basename, extension = os.path.splitext(input_tractogram)
+#         output_tractogram = basename+'_smooth'+extension
+#     files = [
+#         File(name='input_tractogram', type_='input', path=input_tractogram),
+#         File(name='output_tractogram', type_='output', path=output_tractogram, ext=['.tck', '.trk'])
+#     ]
+#     nums = [
+#         Num(name='control_point_ratio', value=control_point_ratio, min_=0.0, max_=1.0, include_min=False),
+#         Num(name='segment_len', value=segment_len, min_=0.0, max_=None, include_min=False)
+#     ]
+#     check_params(files=files, nums=nums, force=force)
+
+#     try:
+#         TCK_in = LazyTractogram( input_tractogram, mode='r' )
+#         n_streamlines = int( TCK_in.header['count'] )
+
+#         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+
+#         logger.info('Smoothing tractogram')
+#         t0 = time()
+#         logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
+#         logger.subinfo(f'{input_tractogram}', indent_lvl=2, indent_char='-')
+#         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='-')
+
+#         mb = os.path.getsize( input_tractogram )/1.0E6
+#         if mb >= 1E3:
+#             logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
+#         else:
+#             logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+
+#         logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
+#         logger.subinfo(f'{output_tractogram}', indent_lvl=2, indent_char='-')
+#         logger.subinfo(f'Control points: {control_point_ratio*100.0:.1f}%', indent_lvl=1, indent_char='-')
+#         logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
+
+#         # process each streamline
+#         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+#             for i in range( n_streamlines ):
+
+#                 TCK_in.read_streamline()
+#                 if TCK_in.n_pts==0:
+#                     break # no more data, stop reading
+#                 smoothed_streamline, n = smooth( TCK_in.streamline, TCK_in.n_pts, control_point_ratio, segment_len )
+#                 TCK_out.write_streamline( smoothed_streamline, n )
+#                 pbar.update()
+
+#     except Exception as e:
+#         TCK_out.close()
+#         if os.path.exists( output_tractogram ):
+#             os.remove( output_tractogram )
+#         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+#     finally:
+#         TCK_in.close()
+#         TCK_out.close()
+
+#     mb = os.path.getsize( output_tractogram )/1.0E6
+#     if mb >= 1E3:
+#         logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
+#     else:
+#         logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
+#     t1 = time()
+#     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbose=3, force=False):
