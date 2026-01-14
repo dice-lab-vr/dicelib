@@ -2389,7 +2389,7 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, verbose=3, force=False ):
+cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, shift: float=0.5, verbose=3, force=False ):
     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
     More info at http://algorithmist.net/docs/catmullrom.pdf.
 
@@ -2412,6 +2412,9 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
         Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set.
     streamline_pts : int
         Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
+    shift : float (optional)
+        If necessary, apply a shift (in voxel units) to streamline coordinates to
+        account for differences between software packages (default : 0.5)
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
     force : boolean
@@ -2531,9 +2534,8 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
                         smoothed_fib =  apply_smoothing(fib_red_ptr, alpha, n_pts_out)
                         in_mask_count = 0
                         for j in range(n_pts_out):
-                            pt_aff = apply_affine_1pt(smoothed_fib[j,:], affine_inv, pt_aff)
-                            #FIXME: check the 0.5 shift and make parametric as all other functions
-                            if mask_view[<int>(pt_aff[0]+0.5), <int>(pt_aff[1]+0.5), <int>(pt_aff[2]+0.5)] > 0:
+                            pt_aff = apply_affine_1pt(smoothed_fib[j,:], affine_inv, pt_aff, shift)
+                            if mask_view[<int>pt_aff[0], <int>pt_aff[1], <int>pt_aff[2]] > 0:
                                 in_mask_count += 1
                         if in_mask_count > threshold*n_pts_out:
                             in_mask = True
