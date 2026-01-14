@@ -3125,10 +3125,8 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
     cdef int vx, vy, vz
     cdef float [:,::1] SHbasis
     cdef short [:] htable
-    cdef float [:] P, toVOXMM, pixdim, coherence, sf_voxel
-    # cdef double [:,::1] affine_inv
-    # cdef double [::1,:] M_inv
-    # cdef double [:] abc_inv
+    cdef float [:] P, coherence, sf_voxel
+    cdef double [:,::1] affine_inv
 
     t0 = time()
     set_verbose('tractogram', verbose)
@@ -3157,7 +3155,6 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
 
         # open spherical functions
         niiSF = nib.load( input_sph_func )
-        niiSF_hdr = niiSF.header if nib.__version__ >= '2.0.0' else niiSF.get_header()
         niiSF_img = np.ascontiguousarray(niiSF.get_fdata(), dtype=np.float32)
         logger.subinfo(f'Spherical functions: {niiSF.shape[0]}x{niiSF.shape[1]}x{niiSF.shape[2]}x{niiSF.shape[3]}', indent_char='*', indent_lvl=1)
         n_sh_coeff = niiSF_img.shape[3]
@@ -3165,6 +3162,7 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
         if not lmax.is_integer() :
             logger.error( f'The number of coefficients ({n_sh_coeff}) is not compatible with any SH basis' )
         lmax = int(lmax)
+        affine_inv  = np.linalg.inv(niiSF.affine)
 
         # construct the SH basis to sample the spherical function
         # (using the 500 directions/hash table used internally by COMMIT)
@@ -3180,14 +3178,6 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
         tmp, _, _ = real_sh_tournier( lmax, theta, phi )
         SHbasis = np.asarray(tmp,dtype=np.float32)
         del dirs, theta, phi, tmp
-
-        # affine_inv  = np.linalg.inv(niiSF.affine)
-        # M_inv       = affine_inv[:3, :3].T
-        # abc_inv     = affine_inv[:3, 3]
-        M = niiSF.affine.copy()
-        pixdim = np.asarray( niiSF_hdr.get_zooms(), dtype=np.float32 )
-        M[:3, :3] = M[:3, :3].dot( np.diag([1./pixdim[0],1./pixdim[1],1./pixdim[2]]) )
-        toVOXMM = np.ravel(np.linalg.inv(M)).astype('<f4')
 
         logger.subinfo(f'Summary metric: {metric}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
@@ -3210,23 +3200,11 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
                         continue
 
                     P = TCK_in.streamline[trim_offset]
-                    # apply_affine_1pt(P, M_inv, abc_inv, p1) #TODO: fix coordinates
-                    # p1[0] += shift
-                    # p1[1] += shift
-                    # p1[2] += shift
-                    p1[0] = P[0] * toVOXMM[0] + P[1] * toVOXMM[1] + P[2] * toVOXMM[2]  + toVOXMM[3]  + shift
-                    p1[1] = P[0] * toVOXMM[4] + P[1] * toVOXMM[5] + P[2] * toVOXMM[6]  + toVOXMM[7]  + shift
-                    p1[2] = P[0] * toVOXMM[8] + P[1] * toVOXMM[9] + P[2] * toVOXMM[10] + toVOXMM[11] + shift
+                    apply_affine_1pt(P, affine_inv, p1, shift)
                     n = 0
                     for j in range(trim_offset+1,TCK_in.n_pts-trim_offset):
                         P = TCK_in.streamline[j]
-                        # apply_affine_1pt(P, M_inv, abc_inv, p2)
-                        # p2[0] += shift
-                        # p2[1] += shift
-                        # p2[2] += shift
-                        p2[0] = P[0] * toVOXMM[0] + P[1] * toVOXMM[1] + P[2] * toVOXMM[2]  + toVOXMM[3]  + shift
-                        p2[1] = P[0] * toVOXMM[4] + P[1] * toVOXMM[5] + P[2] * toVOXMM[6]  + toVOXMM[7]  + shift
-                        p2[2] = P[0] * toVOXMM[8] + P[1] * toVOXMM[9] + P[2] * toVOXMM[10] + toVOXMM[11] + shift
+                        apply_affine_1pt(P, affine_inv, p2, shift)
                         vx = int( floor(0.5*(p2[0]+p1[0])) )
                         vy = int( floor(0.5*(p2[1]+p1[1])) )
                         vz = int( floor(0.5*(p2[2]+p1[2])) )
@@ -3364,9 +3342,9 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
                         P = TCK_in.streamline[j]
                         apply_affine_1pt(P, affine_inv, p2, shift)
                         # assign the whole segment length to the voxel of its centrois
-                        vx = int( 0.5*(p2[0]+p1[0]) )
-                        vy = int( 0.5*(p2[1]+p1[1]) )
-                        vz = int( 0.5*(p2[2]+p1[2]) )
+                        vx = int( floor(0.5*(p2[0]+p1[0])) )
+                        vy = int( floor(0.5*(p2[1]+p1[1])) )
+                        vz = int( floor(0.5*(p2[2]+p1[2])) )
                         niiTDI_img[vx,vy,vz] += sqrt( (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2 + (p2[2] - p1[2])**2)
                         # update point
                         p1[0] = p2[0]
