@@ -3067,7 +3067,6 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     blurApplyTo = blur_apply_to
 
     ###########################################
-
     # process each streamline
     with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
         for i in range( n_streamlines ):
@@ -3117,7 +3116,9 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
         If necessary, apply a shift (in voxel units) to streamline coordinates to
         account for differences between software packages (default : 0.5)
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3)
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+    force : boolean
+        Force overwriting of the output (default : False).
 
     Returns
     -------
@@ -3307,6 +3308,22 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
 
 cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str, shift: float=0.5, verbose: int=3, force: bool=False ):
     """Compute the TDI from a tractogram
+
+    Parameters
+    ----------
+    input_tractogram : string
+        Path to the file (.tck) containing the streamlines to process
+    input_ref_image : string
+        Path to the reference image (.nii.gz) to infer geometry/orientation
+    output_map : string
+        Path to the file (.nii.gz) that will contain the estimated TDI map
+    shift : float (optional)
+        If necessary, apply a shift (in voxel units) to streamline coordinates to
+        account for differences between software packages (default : 0.5)
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+    force : boolean
+        Force overwriting of the output (default : False).
     """
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
@@ -3338,18 +3355,13 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
 
         # open reference image
         niiREF = nib.load( input_ref_image )
-        niiREF_hdr = niiREF.header if nib.__version__ >= '2.0.0' else niiREF.get_header()
         logger.subinfo(f'Reference image: {niiREF.shape[0]}x{niiREF.shape[1]}x{niiREF.shape[2]}', indent_char='*', indent_lvl=1)
 
         wm_aff_inv  = np.linalg.inv(niiREF.affine)
         M_inv       = wm_aff_inv[:3, :3].T
         abc_inv     = wm_aff_inv[:3, 3]
-        # M = niiSF.affine.copy()
-        # pixdim = np.asarray( niiSF_hdr.get_zooms(), dtype=np.float32 )
-        # M[:3, :3] = M[:3, :3].dot( np.diag([1./pixdim[0],1./pixdim[1],1./pixdim[2]]) )
-        # toVOXMM = np.ravel(np.linalg.inv(M)).astype('<f4')
 
-        logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Coordinates will be shifted by {shift:.1f} voxels', indent_char='*', indent_lvl=1)
 
         # process every streamline
         niiTDI_img = np.zeros( niiREF.shape[:3], dtype=np.float32 )
@@ -3374,10 +3386,12 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
                             p2[0] += shift
                             p2[1] += shift
                             p2[2] += shift
+                        # attributes the whole segment length to the voxel of its centrois
                         vx = int( 0.5*(p2[0]+p1[0]) )
                         vy = int( 0.5*(p2[1]+p1[1]) )
                         vz = int( 0.5*(p2[2]+p1[2]) )
-                        niiTDI_img[vx,vy,vz] += 1
+                        niiTDI_img[vx,vy,vz] += sqrt( (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2 + (p2[2] - p1[2])**2)
+                        # update point
                         p1[0] = p2[0]
                         p1[1] = p2[1]
                         p1[2] = p2[2]
