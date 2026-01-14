@@ -91,6 +91,7 @@ cpdef double [:,::1] space_tovox(streamline, header,curr_space = None ):
     return streamline_view
 
 
+#TODO: replace this function everywhere with apply_affine_1pt
 cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
                                 float [:] abc, float [:,::1] end_pts_trans) noexcept nogil:
 
@@ -105,10 +106,10 @@ cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
 
     return end_pts_trans
 
-cdef float [:] apply_affine_1pt(float [:] orig_pt, double[::1,:] M, double[:] abc, float [:] moved_pt):
-    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[1,0] + orig_pt[2]*M[2,0]) + abc[0])
-    moved_pt[1] = float((orig_pt[0]*M[0,1] + orig_pt[1]*M[1,1] + orig_pt[2]*M[2,1]) + abc[1])
-    moved_pt[2] = float((orig_pt[0]*M[0,2] + orig_pt[1]*M[1,2] + orig_pt[2]*M[2,2]) + abc[2])
+cdef float [:] apply_affine_1pt(float [:] orig_pt, double[:,::1] M, float [:] moved_pt):
+    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[0,1] + orig_pt[2]*M[0,2]) + M[0,3])
+    moved_pt[1] = float((orig_pt[0]*M[1,0] + orig_pt[1]*M[1,1] + orig_pt[2]*M[1,2]) + M[1,3])
+    moved_pt[2] = float((orig_pt[0]*M[2,0] + orig_pt[1]*M[2,1] + orig_pt[2]*M[2,2]) + M[2,3])
     return moved_pt
 
 

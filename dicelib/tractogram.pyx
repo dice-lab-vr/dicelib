@@ -2015,12 +2015,8 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     wm_nii = nib.load(white_matter)
     cdef int[:,:,::1] wm = np.ascontiguousarray(wm_nii.get_fdata(), dtype=np.int32)
     wm_header = wm_nii.header
-    cdef double [:,::1] wm_affine  = wm_nii.affine
-    cdef double [::1,:] M_dir      = wm_affine[:3, :3].T
-    cdef double [:]     abc_dir    = wm_affine[:3, 3]
-    cdef double [:,::1] wm_aff_inv = np.linalg.inv(wm_affine) #inverse of affine
-    cdef double [::1,:] M_inv      = wm_aff_inv[:3, :3].T
-    cdef double [:]     abc_inv    = wm_aff_inv[:3, 3]
+    cdef double [:,::1] affine  = wm_nii.affine
+    cdef double [:,::1] affine_inv = np.linalg.inv(affine) #inverse of affine
     gm_nii = nib.load(gray_matter)
     cdef int[:,:,::1] gm = np.ascontiguousarray(gm_nii.get_fdata(), dtype=np.int32)
     gm_header = gm_nii.header
@@ -2088,8 +2084,8 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
                 fib = np.asarray(TCK_in.streamline)
                 fib = fib[:TCK_in.n_pts, :]
                 for n in xrange(3): # move first 3 point at each end
-                    fib[n,:] = apply_affine_1pt(fib[n,:], M_inv, abc_inv, moved_pt)
-                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], M_inv, abc_inv, moved_pt)
+                    fib[n,:] = apply_affine_1pt(fib[n,:], affine_inv, moved_pt)
+                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], affine_inv, moved_pt)
                 fib+=0.5 # move to center
 
                 ok_both  = np.zeros(2, dtype=np.int32)
@@ -2173,12 +2169,12 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
                 # bring points back to original space
                 fib=fib-0.5 # move back to corner
                 for n in xrange(2):
-                    fib[n,:] = apply_affine_1pt( fib[n,:], M_dir, abc_dir, moved_pt)
-                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], M_dir, abc_dir, moved_pt)
+                    fib[n,:] = apply_affine_1pt( fib[n,:], affine, moved_pt)
+                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], affine, moved_pt)
                 if del_both[0] == False:
-                    fib[2,:] = apply_affine_1pt( fib[2,:], M_dir, abc_dir, moved_pt)
+                    fib[2,:] = apply_affine_1pt( fib[2,:], affine, moved_pt)
                 if del_both[1] == False:
-                    fib[idx_last-2,:] = apply_affine_1pt( fib[idx_last-2,:], M_dir, abc_dir, moved_pt)
+                    fib[idx_last-2,:] = apply_affine_1pt( fib[idx_last-2,:], affine, moved_pt)
 
                 TCK_out.write_streamline( fib, n_pts_out )
                 n_tot += 1
@@ -2463,7 +2459,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
     cdef int[:,:,:] mask_view
     cdef float[:] pt_aff = np.zeros(3, dtype=np.float32)
     cdef double [:,::1] mask_aff_inv
-    cdef double [::1,:] M_inv
+    cdef double [:,::1] M_inv
     cdef double [:] abc_inv
     cdef cbool in_mask
     cdef float fib_len = 0
@@ -2480,9 +2476,7 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
             logger.error(f'File \'mask\' not found')
         mask_nii = nib.load(mask)
         mask_view = np.ascontiguousarray(mask_nii.get_fdata(), dtype=np.int32)
-        mask_aff_inv = np.linalg.inv(mask_nii.affine)
-        M_inv = mask_aff_inv[:3, :3].T
-        abc_inv = mask_aff_inv[:3, 3]
+        affine_inv = np.linalg.inv(mask_nii.affine)
 
     try:
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
@@ -2540,7 +2534,8 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
                         smoothed_fib =  apply_smoothing(fib_red_ptr, alpha, n_pts_out)
                         in_mask_count = 0
                         for j in range(n_pts_out):
-                            pt_aff = apply_affine_1pt(smoothed_fib[j,:], M_inv, abc_inv, pt_aff)
+                            pt_aff = apply_affine_1pt(smoothed_fib[j,:], affine_inv, pt_aff)
+                            #FIXME: check the 0.5 shift and make parametric as all other functions
                             if mask_view[<int>(pt_aff[0]+0.5), <int>(pt_aff[1]+0.5), <int>(pt_aff[2]+0.5)] > 0:
                                 in_mask_count += 1
                         if in_mask_count > threshold*n_pts_out:
@@ -2785,9 +2780,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
 
     cdef float [:,:,::1] img_view = np.ascontiguousarray(img_data).astype(np.float32)
     cdef float [:,:,::1] mask_view = np.ascontiguousarray(mask_data).astype(np.float32)
-    cdef double [:,::1] wm_aff_inv  = np.linalg.inv(Img.affine) #inverse of affine
-    cdef double [::1,:] M_inv       = wm_aff_inv[:3, :3].T
-    cdef double [:] abc_inv         = wm_aff_inv[:3, 3]
+    cdef double [:,::1] affine_inv  = np.linalg.inv(Img.affine) #inverse of affine
     cdef float [:] moved_pt         = np.zeros(3, dtype=np.float32)
     cdef size_t ii                  = 0
     cdef size_t jj                  = 0
@@ -2819,7 +2812,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
                     voxel_checked = np.zeros((npoints,3), dtype=np.int32)
                     value = np.zeros(2000, dtype=np.float32)
                     for ii in range(npoints):
-                        apply_affine_1pt( TCK_in.streamline[ii], M_inv, abc_inv, moved_pt )
+                        apply_affine_1pt( TCK_in.streamline[ii], affine_inv, moved_pt )
                         vox_coords[0] = int(moved_pt[0])
                         vox_coords[1] = int(moved_pt[1])
                         vox_coords[2] = int(moved_pt[2])
@@ -3135,7 +3128,7 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
     cdef float [:,::1] SHbasis
     cdef short [:] htable
     cdef float [:] P, toVOXMM, pixdim, coherence, sf_voxel
-    # cdef double [:,::1] wm_aff_inv
+    # cdef double [:,::1] affine_inv
     # cdef double [::1,:] M_inv
     # cdef double [:] abc_inv
 
@@ -3190,9 +3183,9 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
         SHbasis = np.asarray(tmp,dtype=np.float32)
         del dirs, theta, phi, tmp
 
-        # wm_aff_inv  = np.linalg.inv(niiSF.affine)
-        # M_inv       = wm_aff_inv[:3, :3].T
-        # abc_inv     = wm_aff_inv[:3, 3]
+        # affine_inv  = np.linalg.inv(niiSF.affine)
+        # M_inv       = affine_inv[:3, :3].T
+        # abc_inv     = affine_inv[:3, 3]
         M = niiSF.affine.copy()
         pixdim = np.asarray( niiSF_hdr.get_zooms(), dtype=np.float32 )
         M[:3, :3] = M[:3, :3].dot( np.diag([1./pixdim[0],1./pixdim[1],1./pixdim[2]]) )
@@ -3328,8 +3321,8 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
     cdef float [:] P
-    cdef double [:,::1] wm_aff_inv
-    cdef double [::1,:] M_inv
+    cdef double [:,::1] affine_inv
+    cdef double [:,::1] M_inv
     cdef double [:] abc_inv
     cdef float [:,:,::1] niiTDI_img
 
@@ -3356,12 +3349,8 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
         # open reference image
         niiREF = nib.load( input_ref_image )
         logger.subinfo(f'Reference image: {niiREF.shape[0]}x{niiREF.shape[1]}x{niiREF.shape[2]}', indent_char='*', indent_lvl=1)
-
-        wm_aff_inv  = np.linalg.inv(niiREF.affine)
-        M_inv       = wm_aff_inv[:3, :3].T
-        abc_inv     = wm_aff_inv[:3, 3]
-
         logger.subinfo(f'Coordinates will be shifted by {shift:.1f} voxels', indent_char='*', indent_lvl=1)
+        affine_inv  = np.linalg.inv(niiREF.affine)
 
         # process every streamline
         niiTDI_img = np.zeros( niiREF.shape[:3], dtype=np.float32 )
@@ -3373,7 +3362,7 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
                         break # no more data, stop reading
 
                     P = TCK_in.streamline[0]
-                    apply_affine_1pt(P, M_inv, abc_inv, p1)
+                    apply_affine_1pt(P, affine_inv, p1)
                     if shift>0:
                         p1[0] += shift
                         p1[1] += shift
@@ -3381,12 +3370,12 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
                     n = 0
                     for j in range(TCK_in.n_pts):
                         P = TCK_in.streamline[j]
-                        apply_affine_1pt(P, M_inv, abc_inv, p2)
+                        apply_affine_1pt(P, affine_inv, p2)
                         if shift>0:
                             p2[0] += shift
                             p2[1] += shift
                             p2[2] += shift
-                        # attributes the whole segment length to the voxel of its centrois
+                        # assign the whole segment length to the voxel of its centrois
                         vx = int( 0.5*(p2[0]+p1[0]) )
                         vy = int( 0.5*(p2[1]+p1[1]) )
                         vz = int( 0.5*(p2[2]+p1[2]) )
