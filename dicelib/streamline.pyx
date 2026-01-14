@@ -106,10 +106,10 @@ cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
 
     return end_pts_trans
 
-cdef float [:] apply_affine_1pt(float [:] orig_pt, double[:,::1] M, float [:] moved_pt):
-    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[0,1] + orig_pt[2]*M[0,2]) + M[0,3])
-    moved_pt[1] = float((orig_pt[0]*M[1,0] + orig_pt[1]*M[1,1] + orig_pt[2]*M[1,2]) + M[1,3])
-    moved_pt[2] = float((orig_pt[0]*M[2,0] + orig_pt[1]*M[2,1] + orig_pt[2]*M[2,2]) + M[2,3])
+cdef float [:] apply_affine_1pt(float [:] orig_pt, double[:,::1] M, float [:] moved_pt, float shift=0):
+    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[0,1] + orig_pt[2]*M[0,2]) + M[0,3] + shift)
+    moved_pt[1] = float((orig_pt[0]*M[1,0] + orig_pt[1]*M[1,1] + orig_pt[2]*M[1,2]) + M[1,3] + shift)
+    moved_pt[2] = float((orig_pt[0]*M[2,0] + orig_pt[1]*M[2,1] + orig_pt[2]*M[2,2]) + M[2,3] + shift)
     return moved_pt
 
 

@@ -2458,9 +2458,6 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
     cdef int n_pts_in = 0
     cdef int[:,:,:] mask_view
     cdef float[:] pt_aff = np.zeros(3, dtype=np.float32)
-    cdef double [:,::1] mask_aff_inv
-    cdef double [:,::1] M_inv
-    cdef double [:] abc_inv
     cdef cbool in_mask
     cdef float fib_len = 0
     cdef int n_pts_out = 0
@@ -2554,7 +2551,6 @@ cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pt
 
                     if segment_len!=None:
                         n_pts_out = int(fib_len / segment_len)
-
 
                     # resample smoothed streamline
                     resampled_fib = s_resample(smoothed_fib, n_pts_out)
@@ -3322,8 +3318,6 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
     cdef float [:] P
     cdef double [:,::1] affine_inv
-    cdef double [:,::1] M_inv
-    cdef double [:] abc_inv
     cdef float [:,:,::1] niiTDI_img
 
     t0 = time()
@@ -3349,7 +3343,7 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
         # open reference image
         niiREF = nib.load( input_ref_image )
         logger.subinfo(f'Reference image: {niiREF.shape[0]}x{niiREF.shape[1]}x{niiREF.shape[2]}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Coordinates will be shifted by {shift:.1f} voxels', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Coordinate shift: {shift:.1f} voxels', indent_char='*', indent_lvl=1)
         affine_inv  = np.linalg.inv(niiREF.affine)
 
         # process every streamline
@@ -3362,19 +3356,11 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
                         break # no more data, stop reading
 
                     P = TCK_in.streamline[0]
-                    apply_affine_1pt(P, affine_inv, p1)
-                    if shift>0:
-                        p1[0] += shift
-                        p1[1] += shift
-                        p1[2] += shift
+                    apply_affine_1pt(P, affine_inv, p1, shift)
                     n = 0
                     for j in range(TCK_in.n_pts):
                         P = TCK_in.streamline[j]
-                        apply_affine_1pt(P, affine_inv, p2)
-                        if shift>0:
-                            p2[0] += shift
-                            p2[1] += shift
-                            p2[2] += shift
+                        apply_affine_1pt(P, affine_inv, p2, shift)
                         # assign the whole segment length to the voxel of its centrois
                         vx = int( 0.5*(p2[0]+p1[0]) )
                         vy = int( 0.5*(p2[1]+p1[1]) )
