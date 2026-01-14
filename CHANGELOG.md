@@ -1,6 +1,17 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.3.0`<br>_2026-01-14_
+### ✨Added
+- Added function to compute streamline coherence with underlying FOD  (`dice_tractogram_coherence` script)
+- Added function to compute TDI maps  (`dice_tractogram_tdi` script)
+
+### 🛠️Changed
+- Minor modifications toward an alignment in the way voxel coordiantes are computed
+
+---
+---
+
 ## `v1.2.1`<br>_2025-10-06_
 ### 🐛Fixed
 - Fixed ending points in `smooth`

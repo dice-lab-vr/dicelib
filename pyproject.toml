@@ -8,14 +8,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dmri-dicelib"
-version = "1.2.1"
+version = "1.3.0"
 dependencies = [
     "cython>=3.0.10",
     "nibabel>=5.2.1",
     "numpy>=1.24.4",
     "psutil>=5.9.8",
     "pywin32>=306; sys_platform=='win32'",
-    "scipy>=1.10.1"
+    "scipy>=1.10.1",
+    "dmri-amico>=2.0.1"
 ]
 requires-python = ">=3.8"
 authors = [
@@ -56,25 +57,27 @@ Changelog = "https://github.com/dice-lab-vr/dicelib/blob/master/CHANGELOG.md"
 dice_connectome_build = "dicelib.scripts.dice_connectome:connectome_build"
 dice_image_extract = "dicelib.scripts.dice_image:image_extract"
 dice_image_tdi_ends = "dicelib.scripts.dice_image:image_tdi_ends"
-dice_tractogram_assign = "dicelib.scripts.dice_tractogram:tractogram_assign"
-dice_tractogram_cluster = "dicelib.scripts.dice_tractogram:tractogram_cluster"
-dice_tractogram_compress = "dicelib.scripts.dice_tractogram:tractogram_compress"
-dice_tractogram_convert = "dicelib.scripts.dice_tractogram:tractogram_convert"
-dice_tractogram_filter = "dicelib.scripts.dice_tractogram:tractogram_filter"
-dice_tractogram_indices = "dicelib.scripts.dice_tractogram:tractogram_indices"
-dice_tractogram_info = "dicelib.scripts.dice_tractogram:tractogram_info"
-dice_tractogram_join = "dicelib.scripts.dice_tractogram:tractogram_join"
-dice_tractogram_lengths = "dicelib.scripts.dice_tractogram:tractogram_lengths"
-dice_tractogram_resample = "dicelib.scripts.dice_tractogram:tractogram_resample"
-dice_tractogram_sample = "dicelib.scripts.dice_tractogram:tractogram_sample"
-dice_tractogram_sanitize = "dicelib.scripts.dice_tractogram:tractogram_sanitize"
-dice_tractogram_shuffle = "dicelib.scripts.dice_tractogram:tractogram_shuffle"
-dice_tractogram_smooth = "dicelib.scripts.dice_tractogram:tractogram_smooth"
-dice_tractogram_sort = "dicelib.scripts.dice_tractogram:tractogram_sort"
-dice_tractogram_split = "dicelib.scripts.dice_tractogram:tractogram_split"
-dice_tractogram_create_tsf = "dicelib.scripts.dice_tractogram:tractogram_create_tsf"
-dice_tractogram_join_tsf = "dicelib.scripts.dice_tractogram:tractogram_join_tsf"
-dice_tractogram_locate = "dicelib.scripts.dice_tractogram:tractogram_locate"
+dice_tractogram_assign = "dicelib.scripts.dice_tractogram:assign"
+dice_tractogram_cluster = "dicelib.scripts.dice_tractogram:cluster"
+#dice_tractogram_compress = "dicelib.scripts.dice_tractogram:compress"
+#dice_tractogram_convert = "dicelib.scripts.dice_tractogram:convert"
+dice_tractogram_filter = "dicelib.scripts.dice_tractogram:filter"
+dice_tractogram_coherence = "dicelib.scripts.dice_tractogram:compute_coherence"
+dice_tractogram_tdi = "dicelib.scripts.dice_tractogram:compute_tdi"
+dice_tractogram_indices = "dicelib.scripts.dice_tractogram:indices"
+dice_tractogram_info = "dicelib.scripts.dice_tractogram:info"
+dice_tractogram_join = "dicelib.scripts.dice_tractogram:join"
+dice_tractogram_lengths = "dicelib.scripts.dice_tractogram:compute_lengths"
+dice_tractogram_resample = "dicelib.scripts.dice_tractogram:resample"
+dice_tractogram_sample = "dicelib.scripts.dice_tractogram:sample"
+dice_tractogram_sanitize = "dicelib.scripts.dice_tractogram:sanitize"
+dice_tractogram_shuffle = "dicelib.scripts.dice_tractogram:shuffle"
+dice_tractogram_smooth = "dicelib.scripts.dice_tractogram:smooth"
+dice_tractogram_sort = "dicelib.scripts.dice_tractogram:sort"
+dice_tractogram_split = "dicelib.scripts.dice_tractogram:split"
+dice_tractogram_create_tsf = "dicelib.scripts.dice_tractogram:create_tsf"
+dice_tractogram_join_tsf = "dicelib.scripts.dice_tractogram:join_tsf"
+dice_tractogram_locate = "dicelib.scripts.dice_tractogram:locate"
 
 [tool.setuptools]
 packages = [
