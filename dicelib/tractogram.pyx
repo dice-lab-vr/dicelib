@@ -1,26 +1,25 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
-
-from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, create_streamline_replicas, is_flipped
-from dicelib.ui import ProgressBar, set_verbose, setup_logger
-from dicelib.utils import check_params, Dir, File, Num, format_time
-from dipy.reconst.shm import real_sh_tournier
 import amico.lut
 import ast, random as rnd
 import os, sys, shutil
 import nibabel as nib
 import numpy as np
-
-from dicelib.streamline cimport apply_affine_1pt
-
 from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round, floor
 from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
-
 from time import time
 
+from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, create_streamline_replicas, is_flipped, apply_affine_1pt
+from dicelib.ui import ProgressBar, set_verbose, setup_logger
+from dicelib.utils import check_params, Dir, File, Num, format_time
+
+import warnings
+warnings.filterwarnings('ignore', module='dipy')
+from dipy.reconst.shm import real_sh_tournier
+#TODO: remove DIPY depenendecy (for only 1 function)
 
 cdef float[1] NAN1 = {NAN}
 cdef float[3] NAN3 = {NAN, NAN, NAN}
