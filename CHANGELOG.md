@@ -7,7 +7,8 @@
 - Added function to compute TDI maps  (`dice_tractogram_tdi` script)
 
 ### 🛠️Changed
-- Minor modifications toward an alignment in the way voxel coordiantes are computed
+- Minor modifications towards an alignment in the way voxel coordinates are computed
+- Documentation of entry-point scripts is automatically taken from docstrings of corresponding functions
 
 ---
 ---

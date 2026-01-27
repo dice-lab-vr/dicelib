@@ -2,6 +2,7 @@ from dicelib.clustering import run_clustering
 import dicelib.connectivity
 import dicelib.tractogram
 from dicelib.ui import setup_logger, setup_parser
+from numpydoc.docscrape import NumpyDocString
 logger = setup_logger('dice_tractogram')
 
 
@@ -455,20 +456,25 @@ def split():
         options.force
     )
 
+def get_argparse_info_from_docstring( docstring ):
+    ds = NumpyDocString( docstring )
+    p = dict( [ (p.name,' '.join(p.desc)) for p in ds['Parameters'] ] )
+    s = ' '.join(ds['Summary'])
+    return s, p
 
 def compute_coherence():
     '''Entry point for the tractogram.compute_coherence function'''
+    summary, desc = get_argparse_info_from_docstring( dicelib.tractogram.compute_coherence.__doc__  )
     args = [
-        [['input_tractogram'], {'help': 'Input tractogram'}],
-        [['input_sph_func'], {'help': 'Input spherical function to compare streamline trajectories against'}],
-        [['output_weights'], {'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}],
-        [['--metric', '-m'], {'choices': ['min','mean','max'], 'default': 'min', 'help': '''Once the coherence is computed for all segments, metric to use as summary for a streamline'''}],
-        [['--normalize', '-n'], {'action': 'store_true', 'help': 'Normalize spherical functions in each voxel to their maximum value'}],
-        [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': 'Percentage of points to skip at each extremity'}],
-        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': '''If necessary, apply a shift to streamline coordinates to account for
-differences between softwares. The value is specified in voxel units.'''}]
+        [['input_tractogram'], {'help': desc['input_tractogram']}],
+        [['input_sph_func'], {'help': desc['input_sph_func']}],
+        [['output_weights'], {'help': desc['output_weights']}],
+        [['--metric', '-m'], {'choices': ['min','mean','max'], 'default': 'min', 'help': desc['metric']}],
+        [['--normalize', '-n'], {'action': 'store_true', 'help': desc['normalize']}],
+        [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}],
+        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
     ]
-    options = setup_parser(dicelib.tractogram.compute_coherence.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+    options = setup_parser(summary, args, add_force=True, add_verbose=True)
 
     try:
         dicelib.tractogram.compute_coherence(

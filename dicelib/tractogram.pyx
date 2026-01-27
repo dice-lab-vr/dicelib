@@ -970,7 +970,7 @@ def compute_lengths( input_tractogram: str, output_scalar_file: str=None, verbos
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process.
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
 
     Returns
     -------
@@ -1045,7 +1045,7 @@ def info( input_tractogram: str, compute_lengths: bool=False, max_field_length: 
     max_field_length : int
         Maximum length allowed for printing a field value (default : all chars)
     verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
     """
     set_verbose('tractogram', verbose)
 
@@ -1129,10 +1129,10 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     random : float
         Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all.
         This filter is applied after all others (default : 1).
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False
+        Force overwriting of the output files
     """
     set_verbose('tractogram', verbose)
 
@@ -1294,10 +1294,10 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
             - on Windows: 90% of twice the default system limit
     prefix : string
         Prefix for the output filenames (default : 'bundle_').
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False
+        Force overwriting of the output files
     """
 
     set_verbose('tractogram', verbose)
@@ -1595,10 +1595,10 @@ def join( input_list: list[str], output_tractogram: str, weights_list: list[str]
         List of scalar file (.txt or .npy) with the input streamline weights; same order of input_list!
     weights_out : str
         Scalar file (.txt or .npy) for the output streamline weights.
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False
+        Force overwriting of the output files
     """
     set_verbose('tractogram', verbose)
 
@@ -1712,10 +1712,10 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
         Path to the temporary folder used to store the intermediate files.
     keep_tmp_folder : boolean
         Keep the temporary folder (default : False).
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False
+        Force overwriting of the output files
     """
     from dicelib.connectivity import assign #build_connectome
 
@@ -1830,10 +1830,10 @@ def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: in
         Path to the temporary folder used to store the intermediate files.
     keep_tmp_folder : boolean
         Keep the temporary folder (default : False).
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False
+        Force overwriting of the output files
     """
     set_verbose('tractogram', verbose)
 
@@ -1991,10 +1991,10 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     save_connecting_tck : boolean
         Save in output also the tractogram containing only the real connecting streamlines (default : False).
         If True, the file will be created by appending '_only_connecting' to the input filename.
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False
+        Force overwriting of the output files
      """
 
     set_verbose('tractogram', verbose)
@@ -2248,10 +2248,10 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         Sampling resolution of the final streamline after interpolation. NOTE: if 'do_resample' is True, either 'segment_len' or 'streamline_pts' must be set (default: None).
     streamline_pts : int
         Number of points in each of the final streamlines. NOTE: if 'do_resample' is True, either 'streamline_pts' or 'segment_len' must be set (default: None).
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False
+        Force overwriting of the output files
     """
 
     set_verbose('tractogram', verbose)
@@ -2417,10 +2417,10 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 #     shift : float (optional)
 #         If necessary, apply a shift (in voxel units) to streamline coordinates to
 #         account for differences between software packages (default : 0.5)
-#     verbose : int
-#         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-#     force : boolean
-#         Force overwriting of the output (default : False).
+#     verbose : int, default=3
+#         What information to print, must be in [0...4] as defined in ui.set_verbose()
+#     force : boolean, default=False
+#         Force overwriting of the output files
 #     """
 
 #     set_verbose('tractogram', verbose)
@@ -2598,10 +2598,10 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 #         Percent of control points to use in the interpolating spline (default : 0.25).
 #     segment_len : float
 #         Sampling resolution of the final streamline after interpolation (default : 1.0).
-#     verbose : int
-#         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-#     force : boolean
-#         Force overwriting of the output (default : False).
+#     verbose : int, default=3
+#         What information to print, must be in [0...4] as defined in ui.set_verbose()
+#     force : boolean, default=False
+#         Force overwriting of the output files
 #     """
 
 #     set_verbose('tractogram', verbose)
@@ -2681,8 +2681,8 @@ def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbo
         Indices of the streamlines in the original tractogram.
     dictionary_kept : dictionary
         Dictionary of the streamlines kept after filtering.
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
 
     Returns
     -------
@@ -2739,10 +2739,10 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
         apply some operation on values
     collpase : boolean
         If True, the method will collapse the values of points falling in the same voxel (default : False).
-    force : boolean
-        Force overwriting of the output (default : False).
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+    force : boolean, default=False
+        Force overwriting of the output files
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
 
     Returns
     -------
@@ -2879,10 +2879,10 @@ cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=Fal
         the new file will be created by appending '_nbpts' to the input filename.
     nb_pts : int
         Number of points to set for each streamline.
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False
+        Force overwriting of the output files
     """
     set_verbose('tractogram', verbose)
 
@@ -2961,10 +2961,10 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
         For each input streamline, decide whether blur is applied or not to it (default : None, meaning apply to all).
     save_weights : boolean
         Save the weights of the replicas in the output tractogram (default : False). # TODO: check this output
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False
+        Force overwriting of the output files
     """
     set_verbose('tractogram', verbose)
 
@@ -3088,30 +3088,32 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
 
 
 cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weights: str=None, metric: str='min', normalize: bool=False, trim: float=0.05, shift: float=0.5, verbose: int=3, force: bool=False ):
-    """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD)
+    """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
+
+    The file containing the spherical functions should follow MrTrix3 convention for the spherical harmonics;
+    for instance, one can load the FODs estimated with MrTrix's dwi2fod command.
 
     Parameters
     ----------
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to process
     input_sph_func : string
-        Path to the file (.nii.gz) containing the spherical function against which each streamline is evaluated.
-        For instance, one can use the FODs estimated with MrTrix's dwi2fod command.
-    output_weights : string (optional)
+        Path to the file (.nii.gz) containing the spherical function against which each streamline is evaluated
+    output_weights : string, optional
         Path to the file (.txt or .npy) that will contain the estimated coherence weights
-    metric : one of ['min','mean', 'max']
-        Once the coherence is computed for all segments, metric to use as summary for a streamline (default : min)
-    normalize : boolean (optional)
-        Normalize spherical function in each voxel to its maximum value (default : False)
-    trim : float (optional)
-        Percentage of points to skip at each extremity (default : 0.05)
-    shift : float (optional)
+    metric : {'min', 'mean', 'max'}, default='min'
+        ciao
+    normalize : boolean, default=False
+        Normalize spherical function in each voxel to its maximum value
+    trim : float, default=0.05
+        Percentage of points to skip at each extremity
+    shift : float, default=0.5
         If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages (default : 0.5)
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+        account for differences between software packages
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False, default=False
+        Force overwriting of the output
 
     Returns
     -------
@@ -3278,7 +3280,7 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
 
 
 cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str, shift: float=0.5, verbose: int=3, force: bool=False ):
-    """Compute the TDI from a tractogram
+    """Compute the TDI from a tractogram.
 
     Parameters
     ----------
@@ -3288,13 +3290,13 @@ cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str,
         Path to the reference image (.nii.gz) to infer geometry/orientation
     output_map : string
         Path to the file (.nii.gz) that will contain the estimated TDI map
-    shift : float (optional)
+    shift : float, dafault=0.5
         If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages (default : 0.5)
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-    force : boolean
-        Force overwriting of the output (default : False).
+        account for differences between software packages
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    force : boolean, default=False, default=False
+        Force overwriting of the output
     """
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
