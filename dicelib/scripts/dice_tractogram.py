@@ -1,8 +1,7 @@
 from dicelib.clustering import run_clustering
 import dicelib.connectivity
 import dicelib.tractogram
-from dicelib.ui import setup_logger, setup_parser
-from numpydoc.docscrape import NumpyDocString
+from dicelib.ui import setup_logger, setup_parser, get_argparse_info_from_docstring
 logger = setup_logger('dice_tractogram')
 
 
@@ -426,41 +425,31 @@ def sort():
 
 
 def split():
-    '''Entry point for the tractogram splitting function'''
+    '''Entry point for the tractogram.split function'''
+    summary, desc = get_argparse_info_from_docstring( dicelib.tractogram.split.__doc__  )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['assignments_in'], {'type': str, 'help': 'Text file with the streamline assignments'}],
-        [['--output_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': 'Output folder for the splitted tractograms'}],
-        [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': 'Prefix for the output filenames'}],
-        [['--regions', '-r'], {'type': str, 'default': None, 'help': '''\
-                               Only streamlines connecting the provided region(s) will be extracted.
-                               If None, all the bundles (plus the unassigned streamlines) will be extracted.
-                               If a single region is provided, all bundles connecting this region with any other will be extracted.
-                               If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
-                               If list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.'''}],
-        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
-        [['--max_open', '-m'], {'type': int, 'help': 'Maximum number of files opened at the same time'}]
-
+        [['tractogram_in'], {'type': str, 'help': desc['input_tractogram']}],
+        [['assignments_in'], {'type': str, 'help': desc['input_assignments']}],
+        [['--output_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': desc['output_folder']}],
+        [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': desc['prefix']}],
+        [['--regions', '-r'], {'type': str, 'default': None, 'help': desc['regions_in']}],
+        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': desc['weights_in']}],
+        [['--max_open', '-m'], {'type': int, 'default': None, 'help': desc['max_open']}]
     ]
-    options = setup_parser(dicelib.tractogram.split.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+    options = setup_parser(summary, args, add_force=True, add_verbose=True)
 
     dicelib.tractogram.split(
         options.tractogram_in,
         options.assignments_in,
         options.output_folder,
+        options.prefix,
         options.regions,
         options.weights_in,
         options.max_open,
-        options.prefix,
         options.verbose,
         options.force
     )
 
-def get_argparse_info_from_docstring( docstring ):
-    ds = NumpyDocString( docstring )
-    p = dict( [ (p.name,' '.join(p.desc)) for p in ds['Parameters'] ] )
-    s = ' '.join(ds['Summary'])
-    return s, p
 
 def compute_coherence():
     '''Entry point for the tractogram.compute_coherence function'''
@@ -494,14 +483,14 @@ def compute_coherence():
 
 def compute_tdi():
     '''Entry point for the tractogram.compute_tdi function'''
+    summary, desc = get_argparse_info_from_docstring( dicelib.tractogram.compute_tdi.__doc__  )
     args = [
-        [['input_tractogram'], {'help': 'Input tractogram'}],
-        [['input_ref_image'], {'help': 'Reference image to infer geometry/orientation'}],
-        [['output_map'], {'help': 'Output TDI image'}],
-        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': '''If necessary, apply a shift to streamline coordinates to account for
-differences between softwares. The value is specified in voxel units.'''}]
+        [['input_tractogram'], {'help': desc['input_tractogram']}],
+        [['input_ref_image'], {'help': desc['input_ref_image']}],
+        [['output_map'], {'help': desc['output_map']}],
+        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
     ]
-    options = setup_parser(dicelib.tractogram.compute_coherence.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+    options = setup_parser(summary, args, add_force=True, add_verbose=True)
 
     try:
         dicelib.tractogram.compute_tdi(

@@ -1268,7 +1268,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', regions_in: str=None, weights_in: str=None, max_open: int=None, prefix: str='bundle_', verbose: int=3, force: bool=False, log_list=None ):
+def split( input_tractogram: str, input_assignments: str, output_folder: str='bundles', prefix: str='bundle_', regions_in: str=None, weights_in: str=None, max_open: int=None, verbose: int=3, force: bool=False, log_list=None ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -1276,28 +1276,30 @@ def split( input_tractogram: str, input_assignments: str, output_folder: str='bu
     input_tractogram : string
         Path to the file (.tck) containing the streamlines to split.
     input_assignments : string
-        File containing the streamline assignments (two numbers/row); these can be stored as
-        either a simple .txt file or according to the NUMPY format (.npy), which is faster.
-    output_folder : string
+        Path to the file (.txt or .npy) containing the streamlines' assignments (two numbers/row).
+    output_folder : string, default="bundles"
         Output folder for the splitted tractograms.
-    regions_in : list of integers
-        If a single integer is provided, only streamlines assigned to that region will be extracted.
-        If two integers are provided, only streamlines connecting those two regions will be extracted.
-    weights_in : string
-        Text file with the input streamline weights (one row/streamline). If not None, one individual
-        file will be created for each splitted tractogram, using the same filename prefix.
-    max_open : integer
-        Maximum number of files opened at the same time (default : None).
-        If the specified value exceeds the system limit, an attempt is made to increase the latter so that `max_open` equals the 90% of the system limit
-        If None, the following values are used:
+    prefix : string, default="bundle_"
+        Prefix for the output filenames.
+    regions_in : list of integers, optional
+        Only streamlines connecting the provided region(s) will be extracted.
+        If not specified, all bundles will be extracted (along with all unassigned streamlines).
+        If a single region is provided, all bundles connecting this region with any other will be extracted.
+        If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
+        If a list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.
+    weights_in : string, optional
+        Path to the file (.txt or .npy) containing one weight for each input streamline (one row/streamline).
+        If not None, one individual file will be created for each splitted tractogram, using the same filename prefix.
+    max_open : integer, optional
+        Maximum number of underlying files opened at the same time.
+        If not specified, the value is automatically set to:
             - on Unix: 90% of half the default system hard limit
             - on Windows: 90% of twice the default system limit
-    prefix : string
-        Prefix for the output filenames (default : 'bundle_').
+        Else the value exceeds system limits, an attempt is made to adjust it.
     verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose()
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
     force : boolean, default=False
-        Force overwriting of the output files
+        Force overwriting of the output files.
     """
 
     set_verbose('tractogram', verbose)
@@ -3096,24 +3098,25 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
     Parameters
     ----------
     input_tractogram : string
-        Path to the file (.tck) containing the streamlines to process
+        Path to the file (.tck) containing the streamlines to process.
     input_sph_func : string
-        Path to the file (.nii.gz) containing the spherical function against which each streamline is evaluated
+        Path to the file (.nii.gz) containing the spherical function against which each streamline is evaluated.
     output_weights : string, optional
-        Path to the file (.txt or .npy) that will contain the estimated coherence weights
+        Path to the file (.txt or .npy) that will contain the estimated coherence weights;
+        if not specified, such weights will not be saved.
     metric : {'min', 'mean', 'max'}, default='min'
-        ciao
+        Metric to use as summary once the coherence is computed for all segments of a streamline.
     normalize : boolean, default=False
-        Normalize spherical function in each voxel to its maximum value
+        Normalize spherical function in each voxel to its maximum value.
     trim : float, default=0.05
-        Percentage of points to skip at each extremity
+        Percentage of points to skip at each extremity.
     shift : float, default=0.5
         If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages
+        account for differences between software packages.
     verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose()
-    force : boolean, default=False, default=False
-        Force overwriting of the output
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
+    force : boolean, default=False
+        Force overwriting of the output files.
 
     Returns
     -------
@@ -3280,23 +3283,23 @@ cpdef compute_coherence( input_tractogram: str, input_sph_func: str, output_weig
 
 
 cpdef compute_tdi( input_tractogram: str, input_ref_image: str, output_map: str, shift: float=0.5, verbose: int=3, force: bool=False ):
-    """Compute the TDI from a tractogram.
+    """Compute the voxelwise TDI map from a tractogram.
 
     Parameters
     ----------
     input_tractogram : string
-        Path to the file (.tck) containing the streamlines to process
+        Path to the file (.tck) containing the streamlines to process.
     input_ref_image : string
-        Path to the reference image (.nii.gz) to infer geometry/orientation
+        Path to the reference image (.nii.gz) to infer geometry/orientation.
     output_map : string
-        Path to the file (.nii.gz) that will contain the estimated TDI map
+        Path to the file (.nii.gz) that will contain the estimated TDI map.
     shift : float, dafault=0.5
         If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages
+        account for differences between software packages.
     verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose()
-    force : boolean, default=False, default=False
-        Force overwriting of the output
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
+    force : boolean, default=False
+        Force overwriting of the output files.
     """
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
