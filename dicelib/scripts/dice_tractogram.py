@@ -156,19 +156,24 @@ def indices():
 
 
 def info():
-    '''Entry point for the tractogram info function'''
+    '''Entry point for the tractogram.info function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.info.__doc__  )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['--lengths', '-l'], {'action': 'store_true', 'help': 'Show stats on streamline lengths'}],
-        [['--max_field_length', '-m'], {'type': int, 'help': 'Maximum length allowed for printing a field value'}]
-    ]
-    options = setup_parser(dicelib.tractogram.info.__doc__.split('\n')[0], args)
+        [['tractogram'], {'type': str, 'help': desc['tractogram']}],
+        [['--max_field_length', '-m'], {'type': int, 'help': desc['max_field_length']}],
+        [['--lengths', '-l'], {'action': 'store_true', 'help': desc['compute_lengths']}]
 
-    dicelib.tractogram.info(
-        options.tractogram_in,
-        options.lengths,
-        options.max_field_length
-    )
+    ]
+    options = setup_parser(summary, args, epilog=notes, add_force=False, add_verbose=True)
+    try:
+        dicelib.tractogram.info(
+            tractogram=options.tractogram,
+            max_field_length=options.max_field_length,
+            compute_lengths=options.lengths,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def join():
@@ -426,56 +431,57 @@ def sort():
 
 def split():
     '''Entry point for the tractogram.split function'''
-    summary, desc = get_argparse_info_from_docstring( dicelib.tractogram.split.__doc__  )
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.split.__doc__  )
     args = [
-        [['tractogram_in'], {'type': str, 'help': desc['input_tractogram']}],
-        [['assignments_in'], {'type': str, 'help': desc['input_assignments']}],
-        [['--output_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': desc['output_folder']}],
+        [['tractogram'], {'type': str, 'help': desc['in_tractogram']}],
+        [['assignments'], {'type': str, 'help': desc['in_assignments']}],
+        [['--out_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': desc['out_folder']}],
         [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': desc['prefix']}],
-        [['--regions', '-r'], {'type': str, 'default': None, 'help': desc['regions_in']}],
-        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': desc['weights_in']}],
+        [['--regions', '-r'], {'type': str, 'default': None, 'help': desc['in_regions']}],
+        [['--weights', '-w'], {'type': str, 'default': None, 'help': desc['in_weights']}],
         [['--max_open', '-m'], {'type': int, 'default': None, 'help': desc['max_open']}]
     ]
-    options = setup_parser(summary, args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.split(
-        options.tractogram_in,
-        options.assignments_in,
-        options.output_folder,
-        options.prefix,
-        options.regions,
-        options.weights_in,
-        options.max_open,
-        options.verbose,
-        options.force
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.split(
+            in_tractogram=options.tractogram,
+            in_assignments=options.assignments,
+            out_folder=options.out_folder,
+            prefix=options.prefix,
+            in_regions=options.in_regions,
+            in_weights=options.in_weights,
+            max_open=options.max_open,
+            verbose=options.verbose,
+            force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def compute_coherence():
     '''Entry point for the tractogram.compute_coherence function'''
-    summary, desc = get_argparse_info_from_docstring( dicelib.tractogram.compute_coherence.__doc__  )
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.compute_coherence.__doc__ )
     args = [
-        [['input_tractogram'], {'help': desc['input_tractogram']}],
-        [['input_sph_func'], {'help': desc['input_sph_func']}],
-        [['output_weights'], {'help': desc['output_weights']}],
+        [['tractogram'], {'help': desc['tractogram']}],
+        [['sph_func'], {'help': desc['sph_func']}],
+        [['out_weights'], {'help': desc['out_weights']}],
         [['--metric', '-m'], {'choices': ['min','mean','max'], 'default': 'min', 'help': desc['metric']}],
         [['--normalize', '-n'], {'action': 'store_true', 'help': desc['normalize']}],
         [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}],
         [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
     ]
-    options = setup_parser(summary, args, add_force=True, add_verbose=True)
-
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
         dicelib.tractogram.compute_coherence(
-            options.input_tractogram,
-            options.input_sph_func,
-            options.output_weights,
-            options.metric,
-            options.normalize,
-            options.trim,
-            options.shift,
-            options.verbose,
-            options.force
+            tractogram=options.tractogram,
+            sph_func=options.sph_func,
+            out_weights=options.out_weights,
+            metric=options.metric,
+            normalize=options.normalize,
+            trim=options.trim,
+            shift=options.shift,
+            verbose=options.verbose,
+            force=options.force
         )
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
@@ -483,23 +489,22 @@ def compute_coherence():
 
 def compute_tdi():
     '''Entry point for the tractogram.compute_tdi function'''
-    summary, desc = get_argparse_info_from_docstring( dicelib.tractogram.compute_tdi.__doc__  )
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.compute_tdi.__doc__  )
     args = [
-        [['input_tractogram'], {'help': desc['input_tractogram']}],
-        [['input_ref_image'], {'help': desc['input_ref_image']}],
-        [['output_map'], {'help': desc['output_map']}],
+        [['tractogram'], {'help': desc['tractogram']}],
+        [['ref_image'], {'help': desc['ref_image']}],
+        [['out_map'], {'help': desc['out_map']}],
         [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
     ]
-    options = setup_parser(summary, args, add_force=True, add_verbose=True)
-
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
         dicelib.tractogram.compute_tdi(
-            options.input_tractogram,
-            options.input_ref_image,
-            options.output_map,
-            options.shift,
-            options.verbose,
-            options.force
+            tractogram=options.tractogram,
+            ref_image=options.ref_image,
+            out_map=options.out_map,
+            shift=options.shift,
+            verbose=options.verbose,
+            force=options.force
         )
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')

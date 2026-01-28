@@ -836,11 +836,14 @@ def get_argparse_info_from_docstring( docstring ):
     ds = NumpyDocString( docstring )
     p = dict( [ (p.name,'\n'.join(p.desc).replace('%','%%')) for p in ds['Parameters'] ] )
     s = ' '.join(ds['Summary'])
-    return s, p
+    e = None
+    if len( ds['Extended Summary'] ) > 0:
+        e = '\n'.join(ds['Extended Summary'])
+    return s, p, e
 
 
-def setup_parser(description: str, args: list, add_force: bool=False, add_verbose: bool=False) -> argparse.Namespace:
-    parser = ArgumentParser(description=description)
+def setup_parser(description: str, args: list, add_force: bool=False, add_verbose: bool=False, epilog: str=None) -> argparse.Namespace:
+    parser = ArgumentParser(description=description, epilog=epilog)
     # specific arguments
     for arg in args:
         parser.add_argument(*arg[0], **arg[1])
