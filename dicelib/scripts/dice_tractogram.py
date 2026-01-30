@@ -177,23 +177,26 @@ def info():
 
 
 def join():
-    '''Entry point for the tractogram join function'''
+    '''Entry point for the tractogram.join function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.join.__doc__  )
     args = [
-        [['tractograms_in'], {'type': str, 'nargs': '*', 'help': 'Input tractograms (2 or more filenames)'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--weights_in'], {'type': str, 'nargs': '*', 'default': [], 'help': 'Input streamline weights (.txt or .npy). NOTE: the order must be the same of the input tractograms'}],
-        [['--weights_out'], {'type': str, 'help': 'Output streamline weights (.txt or .npy)'}]
+        [['tractograms'], {'type': str, 'nargs': '*', 'help': desc['tractograms']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram']}],
+        [['--in_weights', '-wi'], {'type': str, 'nargs': '*', 'default': [], 'help': desc['in_weights']}],
+        [['--out_weights', '-wo'], {'type': str, 'default': None, 'help': desc['out_weights']}]
     ]
-    options = setup_parser(dicelib.tractogram.join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.join(
-        options.tractograms_in,
-        options.tractogram_out,
-        options.weights_in,
-        options.weights_out,
-        options.verbose,
-        options.force
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.join(
+            tractograms=options.tractograms,
+            out_tractogram=options.out_tractogram,
+            in_weights=options.in_weights,
+            out_weights=options.out_weights,
+            verbose=options.verbose,
+            force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def join_tsf():
@@ -213,42 +216,43 @@ def join_tsf():
 
 
 def compute_lengths():
-    '''
-    Entry point for the tractogram lengths function.
-    '''
+    '''Entry point for the tractogram.compute_lengths function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.compute_lengths.__doc__ )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['lengths_out'], {'type': str, 'help': 'Output scalar file (.npy or .txt) that will contain the streamline lengths'}]
+        [['tractogram'], {'type': str, 'help': desc['tractogram']}],
+        [['out_scalar_file'], {'type': str, 'help': desc['out_scalar_file']}]
     ]
-    options = setup_parser(dicelib.tractogram.compute_lengths.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
         dicelib.tractogram.compute_lengths(
-            options.tractogram_in,
-            options.lengths_out,
-            options.verbose,
-            options.force
+            tractogram=options.tractogram,
+            out_scalar_file=options.out_scalar_file,
+            verbose=options.verbose,
+            force=options.force
         )
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def locate():
-    '''Entry point for the tractogram find function'''
+    '''Entry point for the tractogram.get_indices_of_streamlines function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.get_indices_of_streamlines.__doc__ )
     args = [
-        [['tractogram_subset_in'], {'type': str, 'help': 'Tractogram containing the subset of streamlines to find'}],
-        [['tractogram_in'], {'type': str, 'help': 'Tractogram containing the full set of streamlines in which to search'}],
-        [['indices_out'], {'type': str, 'help': 'Output file (.txt or .npy) containing the indices of the subset streamlines in the full tractogram'}]
+        [['tractogram_needle'], {'type': str, 'help': desc['needle']}],
+        [['tractogram_haystack'], {'type': str, 'help': desc['haystack']}],
+        [['out_idx'], {'type': str, 'help': desc['out_idx']}]
     ]
-    options = setup_parser(dicelib.tractogram.get_indices_of_streamlines.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.get_indices_of_streamlines(
-        options.tractogram_subset_in,
-        options.tractogram_in,
-        options.indices_out,
-        options.verbose,
-        options.force
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.get_indices_of_streamlines(
+            needle=options.tractogram_needle,
+            haystack=options.tractogram_haystack,
+            out_idx=options.out_idx,
+            verbose=options.verbose,
+            force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def resample():
