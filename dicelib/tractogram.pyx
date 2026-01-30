@@ -775,7 +775,7 @@ def get_indices_of_streamlines( needle: str, haystack: str, out_idx: str=None, v
             pbar.update()
         TCK_needle.close()
 
-    indices = np.flatnonzero( np.in1d( hash_all, hash_subset, assume_unique=True ) )
+    indices = np.flatnonzero( np.isin( hash_all, hash_subset, assume_unique=True ) )
     logger.subinfo(f'Number of streamlines found: {len(indices)}', indent_lvl=1, indent_char='*')
     # save the indices to file
     if out_idx:
