@@ -257,20 +257,23 @@ def locate():
 
 def resample():
     '''Entry point for the tractogram resampling function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.resample.__doc__ )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['n_pts'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Number of points per streamline'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}]
+        [['tractogram'], {'type': str, 'help': desc['tractogram']}],
+        [['n_pts'], {'type': int, 'help': desc['n_pts']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram']}]
     ]
-    options = setup_parser(dicelib.tractogram.resample.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.resample(
-        options.tractogram_in,
-        options.tractogram_out,
-        options.n_pts,
-        options.verbose,
-        options.force,
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.resample(
+            tractogram=options.tractogram,
+            out_tractogram=options.out_tractogram,
+            n_pts=options.n_pts,
+            verbose=options.verbose,
+            force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def sample():

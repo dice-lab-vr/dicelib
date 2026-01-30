@@ -59,9 +59,9 @@ cdef class LazyTractogram:
 
         Parameters
         ----------
-        filename : string
+        filename : str
             Name of the file containing the tractogram to open.
-        mode : string
+        mode : str
             Opens the tractogram for reading ('r'), writing ('w') or appending ('a') streamlines.
         header : dictionary
             A dictionary of 'key: value' pairs that define the items in the header; this parameter is only required
@@ -466,9 +466,9 @@ cdef class Tsf:
 
         Parameters
         ----------
-        filename : string
+        filename : str
             Name of the tsf file.
-        mode : string
+        mode : str
             Opens the file for reading ('r'), writing ('w') or appending ('a') scalar values.
         header : dictionary
             A dictionary of 'key: value' pairs that define the items in the header.
@@ -729,16 +729,16 @@ def get_indices_of_streamlines( needle: str, haystack: str, out_idx: str=None, v
 
     Parameters
     ----------
-    needle : string
+    needle : str
         Path to the file (.tck) containing the subset of streamlines to find.
-    haystack : string
+    haystack : str
         Path to the file (.tck) containing the full set of streamlines in which to search.
-    out_idx : string, optional
+    out_idx : str, optional
         Path to the file (.txt or .npy) that will contain the indices of the streamline that are found.
 
     Returns
     -------
-    array of int
+    array of integers
         Indices of the streamlines from 'needle' that where found in 'haystack'.
     """
     set_verbose('tractogram', verbose)
@@ -784,6 +784,7 @@ def get_indices_of_streamlines( needle: str, haystack: str, out_idx: str=None, v
             np.savetxt( out_idx, indices, fmt='%d' )
         elif out_idx.endswith('.npy'):
             np.save( out_idx, indices )
+
     # return indices of the streamlines that were found
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
@@ -962,9 +963,9 @@ def compute_lengths( tractogram: str, out_scalar_file: str=None, verbose: int=3,
 
     Parameters
     ----------
-    tractogram : string
+    tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-    out_scalar_file : string, default=None
+    out_scalar_file : str, default=None
         Path to the file (.txt or .npy) that will contain the estimated lenghts.
     verbose : int, default=3
         What information to print, must be in [0...4] as defined in ui.set_verbose().
@@ -1033,7 +1034,7 @@ def info( tractogram: str, max_field_length: int=None, compute_lengths: bool=Fal
 
     Parameters
     ----------
-    tractogram : string
+    tractogram : str
         Path to the file (.tck) containing the streamlines to process.
     max_field_length : int, default=None
         Maximum length allowed for printing the value of each field;
@@ -1111,9 +1112,9 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
 
     Parameters
     ----------
-    input_tractogram : string
+    input_tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-    output_tractogram : string
+    output_tractogram : str
         Path to the file where to store the filtered tractogram.
     minlength : float
         Keep streamlines with length [in mm] >= this value.
@@ -1274,13 +1275,13 @@ def split( in_tractogram: str, in_assignments: str, out_folder: str='bundles', p
 
     Parameters
     ----------
-    in_tractogram : string
+    in_tractogram : str
         Path to the file (.tck) containing the streamlines to split.
-    in_assignments : string
+    in_assignments : str
         Path to the file (.txt or .npy) containing the streamlines' assignments (two numbers/row).
-    out_folder : string, default="bundles"
+    out_folder : str, default="bundles"
         Output folder for the splitted tractograms.
-    prefix : string, default="bundle_"
+    prefix : str, default="bundle_"
         Prefix for the output filenames.
     in_regions : list of integers, optional
         Only streamlines connecting the provided region(s) will be extracted.
@@ -1288,10 +1289,10 @@ def split( in_tractogram: str, in_assignments: str, out_folder: str='bundles', p
         If a single region is provided, all bundles connecting this region with any other will be extracted.
         If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
         If a list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.
-    in_weights : string, optional
+    in_weights : str, optional
         Path to the file (.txt or .npy) containing one weight for each input streamline (one row/streamline).
         If not None, one individual file will be created for each splitted tractogram, using the same filename prefix.
-    max_open : integer, optional
+    max_open : int, optional
         Maximum number of underlying files opened at the same time.
         If not specified, the value is automatically set to:
             - on Unix: 90% of half the default system hard limit
@@ -1592,7 +1593,7 @@ def join( tractograms: list[str], out_tractogram: str, in_weights: list[str]=Non
     ----------
     tractograms : list of str
         List of paths to the files (.tck) to join.
-    out_tractogram : string
+    out_tractogram : str
         Path to the file (.tck) that will contain the resulting tractogram.
     in_weights : list of str, optional
         List of paths to the scalar files (.txt or .npy) that contain the weights of
@@ -1700,17 +1701,17 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
 
     Parameters
     ----------
-    input_tractogram : string
+    input_tractogram : str
         Path to the file (.tck) containing the streamlines to sort.
-    input_atlas : string
+    input_atlas : str
         Path to the file (.nii.gz) containing the gray matter parcellation.
-    output_tractogram : string
+    output_tractogram : str
         Path to the file where to store the sorted tractogram. If not specified (default),
         the new file will be created by appending '_sorted' to the input filename.
     atlas_dist : float
         atlas_dist : float
         Distance in voxels to consider in the radial search when computing the assignments.
-    weights_in : string
+    weights_in : str
         Text file with the input streamline weights (one row/streamline).
     weights_out : str
         Scalar file (.txt or .npy) for the output streamline weights.
@@ -1820,15 +1821,15 @@ def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: in
 
     Parameters
     ----------
-    input_tractogram : string
+    input_tractogram : str
         Path to the file (.tck) containing the streamlines to shuffle.
-    output_tractogram : string
+    output_tractogram : str
         Path to the file where to store the shuffled tractogram. If not specified (default), the new file will be created by appending '_shuffled' to the input filename.
     n_tmp_groups : int
         Number of temporary groups to split the streamlines. Each group will contain approximately the same number of streamlines, chosen randomly. The final shuffled tractogram will be created by concatenating the shuffled groups. This parameter must be greater than 1 (default : 100).
     seed : int
         Seed for the random shuffling (default : None).
-    weights_in : string
+    weights_in : str
         Text file with the input streamline weights (one row/streamline).
     weights_out : str
         Scalar file (.txt or .npy) for the output streamline weights, shuffled in the same order of the streamlines.
@@ -1981,13 +1982,13 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
 
     Parameters
     ----------
-    input_tractogram : string
+    input_tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-    gray_matter : string
+    gray_matter : str
         Path to the gray matter.
-    white_matter : string
+    white_matter : str
         Path to the white matter.
-    output_tractogram : string
+    output_tractogram : str
         Path to the file where to store the filtered tractogram. If not specified (default),
         the new file will be created by appending '_sanitized' to the input filename.
     step : float = 0.2
@@ -2233,12 +2234,12 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 
     Parameters
     ----------
-    input_tractogram : string
+    input_tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-    output_tractogram : string
+    output_tractogram : str
         Path to the file where to store the filtered tractogram. If not specified (default),
         the new file will be created by appending '_smooth' to the input filename.
-    spline_type : string
+    spline_type : str
         Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default: 'centripetal').
     epsilon : float
         Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default: None).
@@ -2452,15 +2453,15 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
 
     Parameters
     ----------
-    input_tractogram : string
+    input_tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-    input_image : string
+    input_image : str
         Path to the image where the method has to sample values.
-    output_file : string
+    output_file : str
         Path to the file (.txt is needed) where the method saves values
-    mask_file : string (default None)
+    mask_file : str (default None)
         Path to the mask file (.nii) to constrain the sampling to a specific region.
-    option : string (default None)
+    option : str (default None)
         apply some operation on values
     collpase : boolean
         If True, the method will collapse the values of points falling in the same voxel (default : False).
@@ -2588,70 +2589,62 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef resample(input_tractogram, output_tractogram, nb_pts, verbose=3, force=False):
-    """Set the number of points of each streamline in the input tractogram.
+cpdef resample( tractogram: str, out_tractogram: str, n_pts: int, verbose: int=3, force: bool=False ):
+    """Resample each streamline in the input tractogram to a given number of points.
 
     Parameters
     ----------
-    input_tractogram : string
+    tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-    output_tractogram : string
-        Path to the file where to store the filtered tractogram. If not specified (default),
-        the new file will be created by appending '_nbpts' to the input filename.
-    nb_pts : int
-        Number of points to set for each streamline.
+    out_tractogram : str
+        Path to the file (.tck) that will contain the resampled streamlines.
+    n_pts : int
+        Number of points for resampling the streamlines.
     verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose()
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
     force : boolean, default=False
-        Force overwriting of the output files
+        Force overwriting of the output files.
     """
     set_verbose('tractogram', verbose)
+    t0 = time()
 
-    if output_tractogram is None :
-        basename, extension = os.path.splitext(input_tractogram)
-        output_tractogram = basename+'_nbpts'+extension
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram),
-        File(name='output_tractogram', type_='output', path=output_tractogram)
+        File(name='tractogram', type_='input', path=tractogram),
+        File(name='out_tractogram', type_='output', path=out_tractogram)
     ]
-    nums = [Num(name='nb_pts', value=nb_pts, min_=2)]
+    nums = [Num(name='n_pts', value=n_pts, min_=2)]
     check_params(files=files, nums=nums, force=force)
 
     cdef float [::1] lengths = np.empty( 1000, dtype=np.float32 )
-    cdef float [:,::1] s0 = np.empty( (nb_pts, 3), dtype=np.float32 )
+    cdef float [:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
     cdef float [::1] vers = np.empty( 3, dtype=np.float32 )
 
-    TCK_in = LazyTractogram( input_tractogram, mode='r' )
-    n_streamlines = int( TCK_in.header['count'] )
-
-    TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
-
     logger.info('Resampling')
-    t0 = time()
-    logger.subinfo(f'Input tractogram: {input_tractogram}', indent_char='*', indent_lvl=1)
+    TCK_in = LazyTractogram( tractogram, mode='r' )
+    n_streamlines = int( TCK_in.header['count'] )
+    logger.subinfo(f'Input tractogram: {tractogram}', indent_char='*', indent_lvl=1)
     logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='*')
+    logger.subinfo(f'Number of points: {n_pts}', indent_lvl=1, indent_char='*')
+    logger.subinfo(f'Output tractogram: {out_tractogram}', indent_char='*', indent_lvl=1)
 
-    mb = os.path.getsize( input_tractogram )/1.0E6
+    mb = os.path.getsize( tractogram )/1.0E6
     if mb >= 1E3:
         logger.debug(f'{mb/1.0E3:.2f} GB')
     else:
         logger.debug(f'{mb:.2f} MB')
 
-    logger.subinfo(f'Number of points: {nb_pts}', indent_lvl=1, indent_char='*')
-    logger.subinfo(f'Output tractogram: {output_tractogram}', indent_char='*', indent_lvl=1)
-
-    # process each streamline
+    # iterate over input streamlines
+    TCK_out = LazyTractogram( out_tractogram, mode='w', header=TCK_in.header )
     with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
         for i in range( n_streamlines ):
             TCK_in.read_streamline()
-            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0, vers, lengths)
-            TCK_out.write_streamline( s0, nb_pts )
+            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, s0, vers, lengths)
+            TCK_out.write_streamline( s0, n_pts )
             pbar.update()
-
     TCK_in.close()
     TCK_out.close()
 
-    mb = os.path.getsize( output_tractogram )/1.0E6
+    mb = os.path.getsize( out_tractogram )/1.0E6
     if mb >= 1E3:
         logger.debug( f'{mb/1.0E3:.2f} GB')
     else:
@@ -2665,9 +2658,9 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
 
     Parameters
     ----------
-    input_tractogram : string
+    input_tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-    output_tractogram : string
+    output_tractogram : str
         Path to the file where to store the output tractogram.
     blur_core_extent: float
         Extent of the core inside which the segments have equal contribution to the central one used by COMMITblur.
@@ -2817,11 +2810,11 @@ cpdef compute_coherence( tractogram: str, sph_func: str, out_weights: str=None, 
 
     Parameters
     ----------
-    tractogram : string
+    tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-    sph_func : string
+    sph_func : str
         Path to the file (.nii.gz) containing the spherical function against which each streamline is evaluated.
-    out_weights : string
+    out_weights : str
         Path to the file (.txt or .npy) that will contain the estimated coherence weights.
     metric : {'min', 'mean', 'max'}, default='min'
         Metric to use as summary once the coherence is computed for all segments of a streamline.
@@ -3004,11 +2997,11 @@ cpdef compute_tdi( tractogram: str, ref_image: str, out_map: str, shift: float=0
 
     Parameters
     ----------
-    tractogram : string
+    tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-    ref_image : string
+    ref_image : str
         Path to the reference image (.nii.gz) to infer geometry/orientation.
-    out_map : string
+    out_map : str
         Path to the file (.nii.gz) that will contain the estimated TDI map.
     shift : float, dafault=0.5
         If necessary, apply a shift (in voxel units) to streamline coordinates to
@@ -3096,16 +3089,16 @@ cpdef compute_tdi( tractogram: str, ref_image: str, out_map: str, shift: float=0
 
 #     Parameters
 #     ----------
-#     input_tractogram : string
+#     input_tractogram : str
 #         Path to the file (.tck) containing the streamlines to process.
-#     output_tractogram : string
+#     output_tractogram : str
 #         Path to the file where to store the filtered tractogram. If not specified (default),
 #         the new file will be created by appending '_smooth' to the input filename.
-#     mask : string
+#     mask : str
 #         Path to the mask file (.nii) to constrain the smoothing to a specific region (default : None).
 #     pts_cutoff : float
 #         Percentage of points of the streamline that must be inside the mask to be considered (default : 0.5).
-#     spline_type : string
+#     spline_type : str
 #         Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default : 'centripetal').
 #     epsilon : float
 #         Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).
@@ -3288,9 +3281,9 @@ cpdef compute_tdi( tractogram: str, ref_image: str, out_map: str, shift: float=0
 
 #     Parameters
 #     ----------
-#     input_tractogram : string
+#     input_tractogram : str
 #         Path to the file (.tck) containing the streamlines to process.
-#     output_tractogram : string
+#     output_tractogram : str
 #         Path to the file where to store the filtered tractogram. If not specified (default),
 #         the new file will be created by appending '_smooth' to the input filename.
 #     control_point_ratio : float
