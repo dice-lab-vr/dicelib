@@ -6,27 +6,28 @@ logger = setup_logger('dice_tractogram')
 
 
 def assign():
-    '''Entry point for the tractogram assignment function'''
+    '''Entry point for the connectivity.assign function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.connectivity.assign.__doc__  )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['atlas'], {'type': str, 'help': 'Path to the atlas file used to compute streamlines assignments'}],
-        [['assignments_out'], {'type': str, 'help': 'Output assignments file (.txt or .npy)'}],
-        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': '''\
-                                  Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
-                                  Argument is the maximum radius in mm'''}],
-        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
-                                 Number of threads to use to perform the assignment.
-                                 If None, all the available threads will be used'''}]
+        [['tractogram'], {'type': str, 'help': desc['tractogram']}],
+        [['atlas'], {'type': str, 'help': desc['atlas']}],
+        [['out_assignments'], {'type': str, 'help': desc['out_assignments']}],
+        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'help': desc['atlas_dist']}],
+        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': desc['n_threads']}]
     ]
-    options = setup_parser(dicelib.connectivity.assign.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.connectivity.assign(options.tractogram_in,
-           options.atlas,
-           options.assignments_out,
-           options.atlas_dist,
-           options.n_threads,
-           options.force,
-           options.verbose)
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.connectivity.assign(
+            tractogram=options.tractogram,
+            atlas=options.atlas,
+            out_assignments=options.out_assignments,
+            atlas_dist=options.atlas_dist,
+            n_threads=options.n_threads,
+            verbose=options.verbose,
+            force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def cluster():
@@ -84,75 +85,58 @@ def cluster():
     )
 
 
-def create_tsf():
-    '''Entry point for the tractogram tsf function'''
-    args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tsf_out'], {'type': str, 'help': 'Output tsf file'}],
-        [['file'], {'type': str, 'help': 'Color based on given file'}],
-        [['--check_orientation', '-check'], {'action': 'store_true', 'default': False, 'help': 'Check if the streamlines are oriented and orient them if needed'}],
-        [['--tractogram_out'], {'type': str, 'default': None, 'help': 'Output tractogram with oriented streamlines if orientation is True'}]
-    ]
-    options = setup_parser(dicelib.tractogram.tsf_create.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.tsf_create(
-        options.tractogram_in,
-        options.tsf_out,
-        options.file,
-        options.check_orientation,
-        options.tractogram_out,
-        options.verbose,
-        options.force
-    )
-
-
 def filter():
-    '''Entry point for the tractogram filtering function'''
+    '''Entry point for the tractogram.filter function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.filter.__doc__  )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--minlength', '-minl'], {'type': float, 'help': 'Keep streamlines with length [in mm] >= this value'}],
-        [['--maxlength', '-maxl'], {'type': float, 'help': 'Keep streamlines with length [in mm] <= this value'}],
-        [['--minweight', '-minw'], {'type': float, 'help': 'Keep streamlines with weight >= this value'}],
-        [['--maxweight', '-maxw'], {'type': float, 'help': 'Keep streamlines with weight <= this value'}],
-        [['--weights_in', '-wi'], {'type': str, 'help': 'Text file with the input streamline weights'}],
-        [['--weights_out', '-wo'], {'type': str, 'help': 'Text file for the output streamline weights'}],
-        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': '''\
-                              Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all.
-                              This filter is applied after all others'''}]
+        [['tractogram'], {'type': str, 'help': desc['tractogram']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram']}],
+        [['--minlength', '-minl'], {'type': float, 'help': desc['minlength']}],
+        [['--maxlength', '-maxl'], {'type': float, 'help': desc['maxlength']}],
+        [['--minweight', '-minw'], {'type': float, 'help': desc['minweight']}],
+        [['--maxweight', '-maxw'], {'type': float, 'help': desc['maxweight']}],
+        [['--weights', '-wi'], {'type': str, 'help': desc['weights']}],
+        [['--out_weights', '-wo'], {'type': str, 'help': desc['out_weights']}],
+        [['--random', '-r'], {'type': float, 'default': 1.0, 'help': desc['random']}]
     ]
-    options = setup_parser(dicelib.tractogram.filter.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.filter(
-        options.tractogram_in,
-        options.tractogram_out,
-        options.minlength,
-        options.maxlength,
-        options.minweight,
-        options.maxweight,
-        options.weights_in,
-        options.weights_out,
-        options.random,
-        options.verbose,
-        options.force
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.filter(
+            tractogram=options.tractogram,
+            out_tractogram=options.out_tractogram,
+            minlength=options.minlength,
+            maxlength=options.maxlength,
+            minweight=options.minweight,
+            maxweight=options.maxweight,
+            weights=options.weights,
+            out_weights=options.out_weights,
+            random=options.random,
+            verbose=options.verbose,
+            force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def indices():
-    '''Entry point for the tractogram indices function'''
+    '''Entry point for the tractogram.recompute_indices function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.recompute_indices.__doc__  )
     args = [
-        [['indices_in'], {'type': str, 'help': 'Indices to recompute'}],
-        [['dictionary_kept'], {'type': str, 'help': 'Dictionary of kept streamlines'}],
-        [['indices_out'], {'type': str, 'help': 'Output indices file'}]
+        [['indices'], {'type': str, 'help': desc['indices']}],
+        [['kept'], {'type': str, 'help': desc['kept']}],
+        [['out_indices'], {'type': str, 'help': desc['out_indices']}]
     ]
-    options = setup_parser(dicelib.tractogram.recompute_indices.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.recompute_indices(
-        options.input_indices,
-        options.dictionary_kept,
-        options.output_indices,
-        verbose=options.verbose
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.recompute_indices(
+            indices=options.indices,
+            kept=options.kept,
+            out_indices=options.out_indices,
+            verbose=options.verbose,
+            force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def info():
@@ -197,22 +181,6 @@ def join():
         )
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-
-def join_tsf():
-    '''Entry point for the tractogram join tsf function'''
-    args = [
-        [['tsf_in'], {'type': str, 'nargs': '+', 'help': 'Input tsf files'}],
-        [['tsf_out'], {'type': str, 'help': 'Output tsf file'}]
-    ]
-    options = setup_parser(dicelib.tractogram.tsf_join.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.tsf_join(
-        options.tsf_in,
-        options.tsf_out,
-        options.verbose,
-        options.force
-    )
 
 
 def compute_lengths():
@@ -512,6 +480,50 @@ def compute_tdi():
             shift=options.shift,
             verbose=options.verbose,
             force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+
+def tsf_create():
+    '''Entry point for the tractogram.tsf_create function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.tsf_create.__doc__ )
+    args = [
+        [['tractogram'], {'type': str, 'help': desc['tractogram']}],
+        [['scalars'], {'type': str, 'help': desc['scalars']}],
+        [['out_tsf'], {'type': str, 'help': desc['out_tsf']}],
+        [['--check_orientation', '-check'], {'action': 'store_true', 'default': False, 'help': desc['check_orientation']}],
+        [['--out_tractogram'], {'type': str, 'default': None, 'help': desc['out_tractogram']}]
+    ]
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.tsf_create(
+            tractogram=options.tractogram,
+            scalars=options.scalars,
+            out_tsf=options.out_tsf,
+            check_orientation=options.check_orientation,
+            out_tractogram=options.out_tractogram,
+            verbose=options.verbose,
+            force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+
+def tsf_join():
+    '''Entry point for the tractogram.tsf_join function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.tsf_join.__doc__ )
+    args = [
+        [['tsf_in'], {'type': str, 'nargs': '+', 'help': 'Input tsf files'}],
+        [['tsf_out'], {'type': str, 'help': 'Output tsf file'}]
+    ]
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.tsf_join(
+            options.tsf_in,
+            options.tsf_out,
+            options.verbose,
+            options.force
         )
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')

@@ -23,24 +23,23 @@ from dicelib.tractogram cimport LazyTractogram
 
 logger = setup_logger('connectivity')
 
+
 def compute_chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
 
-cdef compute_grid( float thr, float[:] vox_dim ) :
-
-    """ Compute the offsets grid
+cdef compute_grid( float thr, float[:] vox_dim ):
+    """Compute the offsets grid
         Parameters
         ---------------------
         thr : double
             Radius of the radial search
-            
+
         vox_dim : 1x3 numpy array
             Voxel dimensions
     """
-
     cdef float grid_center[3]
     cdef int thr_grid = <int> np.ceil(thr)
 
@@ -53,7 +52,7 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
 
     grid_center[:] = [ x, y, z ]
 
-    # create the mesh    
+    # create the mesh
     mesh = np.linspace( -thr_grid, thr_grid, 2*thr_grid +1 )
     mx, my, mz = np.meshgrid( mesh, mesh, mesh )
 
@@ -67,22 +66,16 @@ cdef compute_grid( float thr, float[:] vox_dim ) :
     return centers_c
 
 
-
-
 cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end_pts ) noexcept nogil:
+    """Retrieve the coordinates of the streamlines' endpoints.
 
-    """ Retrieve the coordinates of the streamlines' endpoints.
-    
     Parameters
     -----------------
     streamline: Nx3 numpy array
         The streamline data
-        
     n: int
         Writes first n points of the streamline. If n<0 (default), writes all points.
-
     """
- 
     cdef float *ptr = &streamline[0,0]
     cdef float *ptr_end = ptr+n*3-3
 
@@ -104,7 +97,6 @@ cdef float distance2vox(float vox_x_min, float vox_x_max, float vox_y_min, float
 
 
 cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, int[:,:,::1] gm_v) noexcept nogil:
-
     cdef float [:] starting_pt = mat[0]
     cdef float [:] ending_pt = mat[1]
     start_vox[0] = <int> starting_pt[0]
@@ -121,8 +113,7 @@ cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, i
 
 cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, float [:] end_pt_grid, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
                             int[:,:,::1] gm_v, float thr, int[:] count_neighbours) noexcept nogil:
-
-    """ Compute the label assigned to each streamline endpoint and then returns a list of connected regions.
+    """Compute the label assigned to each streamline endpoint and then returns a list of connected regions.
 
     Parameters
     --------------
@@ -235,29 +226,34 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist: float=2.0, n_threads: int=None, force: bool=False, verbose: int=3, log_list=None) :
-    """ Compute the assignments of the streamlines based on a GM atlas.
-    
+cpdef assign(tractogram: str, atlas: str, out_assignments: str, atlas_dist: float=2.0, n_threads: int=None, verbose: int=3, force: bool=False, log_list=None) :
+    """Compute the assignments of the streamlines based on an atlas (i.e. label file).
+
+    A radial search from each streamline endpoint is performed to locate the nearest node
+    and assign the streamline to the corresponding pair of labels; the parameter `atlas_dist`
+    controls the maximum radius in mm of the search.
+
     Parameters
     ----------
-    input_tractogram : string
+    tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-
-    atlas : string
-        Path to the file containing the gray matter parcellation.
-
-    assignments_out : string
-        Path to the file where to store the resulting assignments.
-
-    atlas_dist : int
-        Distance in voxels to consider in the radial search when computing the assignments.
+    atlas : str
+        Path to the file (.nii) containing the atlas/labels.
+    out_assignments : str
+        Path to the file (.txt, .npy) where to store the resulting assignments.
+    atlas_dist : int, default=2.0
+        Distance [in voxels] to consider in the radial search when computing the assignments.
+    n_threads : int, deault=None
+        How many threads to use in parallel for the computations;
+        if not specfied, all available threads will be used.
     """
     set_verbose('connectivity', verbose)
+    t0 = time()
 
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram, ext=['.tck']),
+        File(name='tractogram', type_='input', path=tractogram, ext=['.tck']),
         File(name='atlas', type_='input', path=atlas, ext=['.nii', '.nii.gz']),
-        File(name='assignments_out', type_='output', path=assignments_out, ext=['.txt', '.npy'])
+        File(name='out_assignments', type_='output', path=out_assignments, ext=['.txt', '.npy'])
     ]
     nums = [
         Num(name='atlas_dist', value=atlas_dist, min_=0.0, include_min=True)
@@ -266,31 +262,9 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
         nums.append(Num(name='n_threads', value=n_threads, min_=1))
     check_params(files=files, nums=nums, force=force)
 
+    num_streamlines = int(LazyTractogram(tractogram, mode='r').header["count"])
+    logger.info(f'Computing assignments for {num_streamlines} streamlines')
 
-    # # check if tractogram exists
-    # if not os.path.exists(options.tractogram_in):
-    #     logger.error('Tractogram does not exist')
-
-    # # check if path to save assignments is relative or absolute and create if necessary
-    # if options.assignments_out:
-    #     if not os.path.isabs(options.assignments_out):
-    #         options.assignments_out = os.path.join(os.getcwd(), options.assignments_out)
-    #     if not os.path.isdir(os.path.dirname(options.assignments_out)):
-    #         os.makedirs(os.path.dirname(options.assignments_out))
-
-    # out_assignment_ext = os.path.splitext(options.assignments_out)[1]
-    # if out_assignment_ext not in ['.txt', '.npy']:
-    #     logger.error('Invalid extension for the output scalar file')
-    # elif os.path.isfile(options.assignments_out) and not options.force:
-    #     logger.error('Output scalar file already exists, use -f to overwrite')
-
-
-    # # check if atlas exists
-    # if not os.path.exists(options.atlas):
-    #     logger.error('Atlas does not exist')
-    
-
-    num_streamlines = int(LazyTractogram(input_tractogram, mode='r').header["count"])
     # Load of the gm map
     gm_map_img = nib.load(atlas)
     gm_map_data = gm_map_img.get_fdata()
@@ -298,8 +272,6 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
     if gm_map_dtype.char not in ['b',' h', 'i', 'l', 'B', 'H', 'I', 'L']:
         warning_msg = f'Atlas data type is \'{gm_map_dtype}\'. It is recommended to use an integer data type.'
         logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
-    logger.info(f'Computing assignments for {num_streamlines} streamlines')
-    t0 = time()
 
     if num_streamlines > 3:
         if n_threads:
@@ -308,7 +280,6 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
             MAX_THREAD = os.cpu_count()
     else:
         MAX_THREAD = 1
-
     chunk_size = int(num_streamlines / MAX_THREAD)
     chunk_groups = [e for e in compute_chunks(np.arange(num_streamlines), chunk_size)]
     chunks_asgn = []
@@ -319,7 +290,7 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
             future = [
                 executor.submit(
                     _assign,
-                    input_tractogram,
+                    tractogram,
                     pbar_array,
                     i,
                     start_chunk=int(chunk_groups[i][0]),
@@ -330,16 +301,17 @@ cpdef assign(input_tractogram: str, atlas: str, assignments_out: str, atlas_dist
             ]
             chunks_asgn = [f.result() for f in future]
             chunks_asgn = [c for f in chunks_asgn for c in f]
-    t1 = time()
-    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
-    assignments_out_ext = os.path.splitext(assignments_out)[1]
-    if assignments_out_ext == '.txt':
-        with open(assignments_out, "w") as text_file:
+    out_assignments_ext = os.path.splitext(out_assignments)[1]
+    if out_assignments_ext == '.txt':
+        with open(out_assignments, "w") as text_file:
             for reg in chunks_asgn:
                 print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
     else:
-        np.save(assignments_out, chunks_asgn, allow_pickle=False)
+        np.save(out_assignments, chunks_asgn, allow_pickle=False)
+
+    t1 = time()
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_data, gm_map_img, threshold: 2 ):
@@ -350,13 +322,13 @@ cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start
     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm_map_data, dtype=np.int32)
 
     cdef float [:,::1] inverse = np.ascontiguousarray(inv(affine), dtype=np.float32) #inverse of affine
-    cdef float [::1,:] M = inverse[:3, :3].T 
+    cdef float [::1,:] M = inverse[:3, :3].T
     cdef float [:] abc = inverse[:3, 3]
     cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
 
     cdef float thr = <float> threshold/np.max(voxdims)
     cdef float [:,::1] grid
-    cdef size_t i = 0  
+    cdef size_t i = 0
     cdef int n_streamlines = end_chunk - start_chunk
     cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)
     assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
@@ -418,16 +390,16 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
 
     Parameters
     ----------
-    input_tractogram : string
+    input_tractogram : str
         Path to the file (.tck) containing the streamlines to process.
 
-    output_connectome : string
+    output_connectome : str
         Path to the file where to store the resulting connectome.
 
-    weights_in : string
-        Scalar file (.txt or .npy) for the input streamline weights estimated by COMMITblur.
+    weights_in : str
+        Scalar file (.txt, .npy) for the input streamline weights estimated by COMMITblur.
 
-    input_nodes : string
+    input_nodes : str
         Path to the file containing the gray matter parcellation (nodes of the connectome).
 
     blur_core_extent: float
@@ -444,7 +416,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
         Minimum value of the Gaussian to consider when computing the sigma (default : 0.1).
 
     offset_thr: float
-        Quantity added to the threshold used to compute the assignments of the replicas. 
+        Quantity added to the threshold used to compute the assignments of the replicas.
         If the input streamlines don't have both ending points inside a GM region, increase this value (default : 0.0).
 
     symmetric : boolean
@@ -529,7 +501,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     affine = gm_nii.affine
     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm, dtype=np.int32)
     cdef float [:,::1] inverse = np.ascontiguousarray(inv(affine), dtype=np.float32) #inverse of affine
-    cdef float [::1,:] M = inverse[:3, :3].T 
+    cdef float [::1,:] M = inverse[:3, :3].T
     cdef float [:] abc = inverse[:3, 3]
     cdef float [:] voxdims = np.asarray( gm_header.get_zooms(), dtype = np.float32 )
 
@@ -580,7 +552,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     # print(f'core+gauss = {core_extent + gauss_extent}')
     logger.subinfo(f'Threshold to use when computing assignments (in VOX space): {thr:.3f}', indent_lvl=1, indent_char='-')
 
-    # variables for transformations 
+    # variables for transformations
     cdef float [:,::1] pts_start = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] pts_end   = np.zeros((2,3), dtype=np.float32)
     cdef float *ptr
@@ -611,7 +583,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
 
     #----- iterate over input files -----
     TCK_in = None
-    cdef size_t i, j, k = 0  
+    cdef size_t i, j, k = 0
     try:
         # open the input file
         TCK_in = LazyTractogram( input_tractogram, mode='r' )
@@ -663,16 +635,16 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
 
                     # compute assignments of the replicas
                     for j in range(nReplicas):
-                        points_mat = np.array([[replicas_start[j][0], replicas_start[j][1], replicas_start[j][2]], 
+                        points_mat = np.array([[replicas_start[j][0], replicas_start[j][1], replicas_start[j][2]],
                                                 [replicas_end[j][0], replicas_end[j][1], replicas_end[j][2]]],
                                                 dtype=np.float32)
                         asgn_view[j][:] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret, points_mat, grid, gm_map, thr, count_neighbours)
-                        
+
                     zeros_count += (asgn.size - np.count_nonzero(asgn))
 
                     # find unique assignments and sum the weights of their replicas
                     asgn_sort = np.sort(asgn, axis=1) # shape = (nReplicas, 2)
-                    asgn_unique = np.unique(asgn_sort, axis=0) 
+                    asgn_unique = np.unique(asgn_sort, axis=0)
                     weight_fraction = np.zeros(asgn_unique.shape[0], dtype=np.float64) # one value for each unique pair of ROI
                     for j in range(nReplicas):
                         idx = np.where(np.all(asgn_unique==asgn_sort[j],axis=1)) # find idx in weight_fraction corresponding to the pair of ROI of the current replica
@@ -718,25 +690,25 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
 
     Parameters
     ----------
-    input_weights : string
-        Scalar file (.txt or .npy) for the input streamline weights.
-        
-    input_assignments : string
-        Path to the file (.txt or .npy) containing the streamline assignments.
+    input_weights : str
+        Scalar file (.txt, .npy) for the input streamline weights.
 
-    output_connectome : string
+    input_assignments : str
+        Path to the file (.txt, .npy) containing the streamline assignments.
+
+    output_connectome : str
         Path to the file where to store the resulting connectome.
 
-    input_tractogram : string
+    input_tractogram : str
         Path to the file (.tck) containing the streamlines to process.
 
-    input_nodes : string
+    input_nodes : str
         Path to the file containing the gray matter parcellation (nodes of the connectome).
 
     atlas_dist : float
         Distance [in mm] used to assign streamlines to the atlas' nodes (default: 2.0).
 
-    metric : string
+    metric : str
         Operation to compute the value of the edges, options: sum, mean, min, max (default: sum).
 
     symmetric : boolean
@@ -800,7 +772,7 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
         TCK_in.close()
         if n_streamlines != n_str_tck:
             logger.error(f'Number of streamlines in the tractogram ({n_str_tck}) is different from the number of streamline assignments ({n_streamlines})')
-    
+
     # streamline weights
     if input_weights is None:
         w = np.ones( n_streamlines, dtype=np.int32 )
@@ -850,7 +822,7 @@ def build_connectome( input_assignments: str, output_connectome: str, input_weig
     logger.subinfo('Building connectome', indent_char='*', indent_lvl=1)
     with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True, subinfo=False) as pbar:
         for i in range( n_streamlines ):
-            if asgn_sort[i][0] == 0 or asgn_sort[i][1] == 0: 
+            if asgn_sort[i][0] == 0 or asgn_sort[i][1] == 0:
                 count_unconn += 1
                 continue
 

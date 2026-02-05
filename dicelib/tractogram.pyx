@@ -111,7 +111,7 @@ cdef class LazyTractogram:
 
         self.is_open = True
 
-
+    #TODO: avoid having two identical functions (see https://stackoverflow.com/questions/37854359/using-nogil-with-cpdef-class-method-in-cython)
     cdef int _read_streamline( self ) nogil:
         """Read next streamline from the current position in the file.
 
@@ -200,7 +200,7 @@ cdef class LazyTractogram:
 
         return self.n_pts
 
-
+    #TODO: avoid having two identical functions (see https://stackoverflow.com/questions/37854359/using-nogil-with-cpdef-class-method-in-cython)
     cdef void _write_streamline( self, float [:,:] streamline, int n=-1 ) nogil:
         """Write a streamline at the current position in the file.
 
@@ -484,7 +484,7 @@ cdef class Tsf:
         self.mode = mode
 
         if mode=='r':
-            # TODO
+            # TODO: implement this functionality
             pass
         # open the file
         self.fp = fopen( self.filename, ('r+' if self.mode=='a' else self.mode)+'b' )
@@ -724,6 +724,9 @@ cdef class Tsf:
             fclose( self.fp )
 
 
+#---------------------------------------  FUNCTIONS  ---------------------------------------
+
+
 def get_indices_of_streamlines( needle: str, haystack: str, out_idx: str=None, verbose: int=3, force: bool=False ) -> np.ndarray:
     """Finds the indices of the streamlines in a subset of streamlines from a larger tractogram.
 
@@ -734,7 +737,7 @@ def get_indices_of_streamlines( needle: str, haystack: str, out_idx: str=None, v
     haystack : str
         Path to the file (.tck) containing the full set of streamlines in which to search.
     out_idx : str, optional
-        Path to the file (.txt or .npy) that will contain the indices of the streamline that are found.
+        Path to the file (.txt, .npy) that will contain the indices of the streamline that are found.
 
     Returns
     -------
@@ -742,9 +745,9 @@ def get_indices_of_streamlines( needle: str, haystack: str, out_idx: str=None, v
         Indices of the streamlines from 'needle' that where found in 'haystack'.
     """
     set_verbose('tractogram', verbose)
+    logger.info('Finding indices of streamlines')
     t0 = time()
 
-    logger.info('Finding indices of streamlines')
     files = [File(name='needle', type_='input', path=needle, ext='.tck'),
              File(name='haystack', type_='input', path=haystack, ext='.tck')]
     if out_idx:
@@ -782,7 +785,7 @@ def get_indices_of_streamlines( needle: str, haystack: str, out_idx: str=None, v
         # check if .txt or .npy
         if out_idx.endswith('.txt'):
             np.savetxt( out_idx, indices, fmt='%d' )
-        elif out_idx.endswith('.npy'):
+        else:
             np.save( out_idx, indices )
 
     # return indices of the streamlines that were found
@@ -791,32 +794,33 @@ def get_indices_of_streamlines( needle: str, haystack: str, out_idx: str=None, v
     return indices
 
 
-def create_color_scalar_file(streamline, num_streamlines):
-    """Create a scalar file for each streamline in order to color them.
+#TODO: check if this is needed
+# def create_color_scalar_file(streamline, num_streamlines):
+#     """Create a scalar file for each streamline in order to color them.
+#
+#     Parameters
+#     ----------
+#     streamlines: list
+#         List of streamlines.
+#
+#     Returns
+#     -------
+#     str
+#         Path to scalar file.
+#     """
+#     scalar_list = list()
+#     n_pts_list = list()
+#     for i in range(num_streamlines):
+#         # pt_list = list()
+#         streamline.read_streamline()
+#         n_pts_list.append(streamline.n_pts)
+#         for j in range(streamline.n_pts):
+#             scalar_list.extend([float(j)])
+#         # scalar_list.append(pt_list)
+#     return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
 
-    Parameters
-    ----------
-    streamlines: list
-        List of streamlines.
 
-    Returns
-    -------
-    scalar_file: str
-        Path to scalar file.
-    """
-    scalar_list = list()
-    n_pts_list = list()
-    for i in range(num_streamlines):
-        # pt_list = list()
-        streamline.read_streamline()
-        n_pts_list.append(streamline.n_pts)
-        for j in range(streamline.n_pts):
-            scalar_list.extend([float(j)])
-        # scalar_list.append(pt_list)
-    return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
-
-
-def color_by_scalar_file(TCK_in, values, num_streamlines):
+def _color_by_scalar_file(TCK_in, values, num_streamlines):
     """Color streamlines based on sections.
 
     Parameters
@@ -845,6 +849,81 @@ def color_by_scalar_file(TCK_in, values, num_streamlines):
     return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
 
 
+#TODO: improve/fix documentation
+cpdef tsf_create( tractogram: str, scalars: str, out_tsf: str, check_orientation: bool=False, out_tractogram: str=None, verbose: int=3, force: bool=False ):
+    """Create a tsf file for each streamline in order to color them for visualization.
+
+    Parameters
+    ----------
+    tractogram : str
+        Path to the file (.tck) containing the streamlines to process.
+    scalars : str
+        Path to the file (.txt, .npy) containing the scalars at each streamline's coordinate to be used
+        for coloring the streamlines along their trajectories.
+    out_tsf : str
+        Path to the output tsf file (.???).
+    check_orientation : bool, default=False
+        If True, create a new tractogram with the streamlines oriented in the same direction.
+    out_tractogram : string, optional
+        !!! MISSING DOCUMENTATION !!!
+    """
+    set_verbose('tractogram', verbose)
+
+    if check_orientation:
+        if out_tractogram is None:
+            raise ValueError("Please specify an output tractogram")
+
+    files = [File(name='tractogram', type_='input', path=tractogram, ext='.tck'),
+            File(name='scalars', type_='input', path=scalars, ext=['.txt', '.npy']),
+            File(name='out_tsf', type_='output', path=out_tsf, ext='.tsf')]
+    if out_tractogram:
+        files.append( File(name='out_tractogram', type_='output', path=out_tractogram, ext='.tck') )
+
+    if check_orientation:
+        check_params(files=files, force=force)
+    elif scalars:
+        files.append(File(name='scalars', type_='input', path=scalars, ext=['.txt', '.npy']))
+        check_params(files=files, force=force)
+    else:
+        raise ValueError("Please specify a color option")
+
+    cdef float[:,::1] ref_streamline = np.empty((2000,3), dtype=np.float32)
+    cdef float[:,::1] streamline_out = np.empty((2000,3), dtype=np.float32)
+    if check_orientation:
+        TCK_in = LazyTractogram(tractogram, mode='r')
+        num_streamlines = int(TCK_in.header['count'])
+        TCK_out = LazyTractogram(out_tractogram, mode='w', header=TCK_in.header)
+        TCK_in.read_streamline()
+        ref_streamline[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
+        ref_n_pts = TCK_in.n_pts
+        with ProgressBar( total=num_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+            for i in range(int(num_streamlines)-1):
+                TCK_in.read_streamline()
+                flip = is_flipped(TCK_in.streamline[:TCK_in.n_pts], ref_streamline[:ref_n_pts])
+                if flip:
+                    streamline_out[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts][::-1]
+                else:
+                    streamline_out[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts]
+                TCK_out.write_streamline(streamline_out, TCK_in.n_pts)
+                pbar.update()
+        TCK_out.close()
+        TCK_in.close()
+        TCK_in = LazyTractogram(out_tractogram, mode='r')
+        num_streamlines = TCK_in.header['count']
+    else:
+        TCK_in = LazyTractogram(tractogram, mode='r')
+        num_streamlines = TCK_in.header['count']
+
+    if scalars.endswith('.txt'):
+        values = np.loadtxt(scalars)
+    else:
+        values = np.load(scalars)
+    scalar_arr, n_pts_list = _color_by_scalar_file(TCK_in, values, int(num_streamlines))
+
+    tsf = Tsf(out_tsf, 'w', header=TCK_in.header)
+    tsf.write_scalar(scalar_arr, n_pts_list)
+
+
 def tsf_join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool=False ):
     """Join multiple tsf files into a single tsf file.
 
@@ -855,7 +934,6 @@ def tsf_join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool
     output_tsf: str
         Path to the output tsf file.
     """
-
     set_verbose('tractogram', verbose)
 
     files = [File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf')]
@@ -877,87 +955,6 @@ def tsf_join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool
     Tsf_out.close(write_eof=True, count=final_pts)
 
 
-cpdef tsf_create( input_tractogram: str, output_tsf: str, file: str, check_orientation: bool=False, output_tractogram: str=None, verbose: int=3, force: bool=False ):
-    """Create a tsf file for each streamline in order to color them for visualization.
-
-    Parameters
-    ----------
-    input_tractogram: str
-        Path to the input tractogram.
-    output_tsf: str
-        Path to the output tsf file.
-    check_orientation: bool
-        If True, create a new tractogram with the streamlines oriented in the same direction.
-    file: str
-        Path to the file containing the scalar values used to color the streamlines.
-    """
-
-    set_verbose('tractogram', verbose)
-
-    if check_orientation:
-        if output_tractogram is None:
-            raise ValueError("Please specify an output tractogram")
-
-    if output_tractogram:
-        files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
-                File(name='file', type_='input', path=file, ext=['.txt', '.npy']),
-                File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf'),
-                File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')]
-    else:
-        files = [File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
-                File(name='file', type_='input', path=file, ext=['.txt', '.npy']),
-                File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf')]
-
-
-    cdef float[:,::1] ref_streamline = np.empty((2000,3), dtype=np.float32)
-    cdef float[:,::1] streamline_out = np.empty((2000,3), dtype=np.float32)
-
-
-    if check_orientation:
-        check_params(files=files, force=force)
-    elif file:
-        files.append(File(name='file', type_='input', path=file))
-        check_params(files=files, force=force)
-    else:
-        raise ValueError("Please specify a color option")
-
-
-    if check_orientation:
-        TCK_in = LazyTractogram(input_tractogram, mode='r')
-        num_streamlines = int(TCK_in.header['count'])
-        TCK_out = LazyTractogram(output_tractogram, mode='w', header=TCK_in.header)
-        TCK_in.read_streamline()
-        ref_streamline[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
-        ref_n_pts = TCK_in.n_pts
-        with ProgressBar( total=num_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
-            for i in range(int(num_streamlines)-1):
-                TCK_in.read_streamline()
-                flip = is_flipped(TCK_in.streamline[:TCK_in.n_pts], ref_streamline[:ref_n_pts])
-                if flip:
-                    streamline_out[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts][::-1]
-                else:
-                    streamline_out[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts]
-                TCK_out.write_streamline(streamline_out, TCK_in.n_pts)
-                pbar.update()
-        TCK_out.close()
-        TCK_in.close()
-        TCK_in = LazyTractogram(output_tractogram, mode='r')
-        num_streamlines = TCK_in.header['count']
-    else:
-        TCK_in = LazyTractogram(input_tractogram, mode='r')
-        num_streamlines = TCK_in.header['count']
-
-    if file.endswith('.npy'):
-        values = np.load(file)
-    else:
-        values = np.loadtxt(file)
-
-    scalar_arr, n_pts_list = color_by_scalar_file(TCK_in, values, int(num_streamlines))
-
-    tsf = Tsf(output_tsf, 'w', header=TCK_in.header)
-    tsf.write_scalar(scalar_arr, n_pts_list)
-
-
 def compute_lengths( tractogram: str, out_scalar_file: str=None, verbose: int=3, force: bool=False ) -> np.ndarray:
     """Compute the lengths [in mm] of each streamline in a tractogram.
 
@@ -966,7 +963,7 @@ def compute_lengths( tractogram: str, out_scalar_file: str=None, verbose: int=3,
     tractogram : str
         Path to the file (.tck) containing the streamlines to process.
     out_scalar_file : str, default=None
-        Path to the file (.txt or .npy) that will contain the estimated lenghts.
+        Path to the file (.txt, .npy) that will contain the estimated lenghts.
     verbose : int, default=3
         What information to print, must be in [0...4] as defined in ui.set_verbose().
     force : boolean, default=False
@@ -978,9 +975,10 @@ def compute_lengths( tractogram: str, out_scalar_file: str=None, verbose: int=3,
         Lengths [in mm] of all streamlines in the tractogram.
     """
     set_verbose('tractogram', verbose)
+    logger.info('Computing streamline lengths')
     t0 = time()
 
-    files = [File(name='tractogram', type_='input', path=tractogram)]
+    files = [File(name='tractogram', type_='input', path=tractogram, ext='.tck')]
     if out_scalar_file is not None:
         files.append(File(name='out_scalar_file', type_='output', path=out_scalar_file, ext=['.txt', '.npy']))
     check_params(files=files, force=force)
@@ -996,7 +994,6 @@ def compute_lengths( tractogram: str, out_scalar_file: str=None, verbose: int=3,
         if n_streamlines <= 0:
             logger.error('The tractogram is empty')
 
-        logger.info('Streamline lengths')
         lengths = np.empty( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
             with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
@@ -1012,10 +1009,9 @@ def compute_lengths( tractogram: str, out_scalar_file: str=None, verbose: int=3,
             logger.subinfo(f'min: {lengths.min():.3f}  max: {lengths.max():.3f}  mean: {lengths.mean():.3f}  std: {lengths.std():.3f}', indent_char='*', indent_lvl=1)
 
         if out_scalar_file is not None:
-            out_scalar_file_ext = os.path.splitext(out_scalar_file)[1]
-            if out_scalar_file_ext == '.txt':
+            if out_scalar_file.endswith('.txt'):
                 np.savetxt(out_scalar_file, lengths, fmt='%.4f')
-            elif out_scalar_file_ext == '.npy':
+            else:
                 np.save(out_scalar_file, lengths, allow_pickle=False)
 
     except Exception as e:
@@ -1024,6 +1020,7 @@ def compute_lengths( tractogram: str, out_scalar_file: str=None, verbose: int=3,
     finally:
         if TCK_in is not None:
             TCK_in.close()
+
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
     return streamline_length
@@ -1103,51 +1100,50 @@ def info( tractogram: str, max_field_length: int=None, compute_lengths: bool=Fal
 
     if TCK_in.header['count']:
         return TCK_in.header['count']
-    else:
-        return 0
+    return 0
 
 
-def filter( input_tractogram: str, output_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights_in: str=None, weights_out: str=None, random: float=1.0, verbose: int=3, force: bool=False ):
+def filter( tractogram: str, out_tractogram: str, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, weights: str=None, out_weights: str=None, random: float=1.0, verbose: int=3, force: bool=False ):
     """Filter out the streamlines in a tractogram according to some criteria.
 
     Parameters
     ----------
-    input_tractogram : str
+    tractogram : str
         Path to the file (.tck) containing the streamlines to process.
-    output_tractogram : str
-        Path to the file where to store the filtered tractogram.
-    minlength : float
+    out_tractogram : str
+        Path to the file (.tck) where to store the filtered tractogram.
+    minlength : float, optional
         Keep streamlines with length [in mm] >= this value.
-    maxlength : float
+    maxlength : float, optional
         Keep streamlines with length [in mm] <= this value.
-    minweight : float
+    minweight : float, optional
        Keep streamlines with weight >= this value.
-    maxweight : float
+    maxweight : float, optional
         Keep streamlines with weight <= this value.
-    weights_in : str
-        Scalar file (.txt or .npy) with the input streamline weights.
-    weights_out : str
-        Scalar file (.txt or .npy) for the output streamline weights.
-    random : float
-        Randomly keep the given percentage of streamlines: 0=discard all, 1=keep all.
-        This filter is applied after all others (default : 1).
+    weights : str, optional
+        Path to the scalar file (.txt, .npy) containing the input streamline weights.
+    out_weights : str, optional
+        Path to the scalar file (.txt, .npy) that will contain the output streamline weights.
+    random : float, deault=1.0
+        Percentage of streamlines to keep (randomly): 0=discard all, 1=keep all;
+        this filter is applied after all others.
     verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose()
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
     force : boolean, default=False
-        Force overwriting of the output files
+        Force overwriting of the output files.
     """
     set_verbose('tractogram', verbose)
+    logger.info('Filtering tractogram')
+    t0 = time()
 
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram),
-        File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
+        File(name='tractogram', type_='input', path=tractogram, ext='.tck'),
+        File(name='out_tractogram', type_='output', path=out_tractogram, ext='.tck')
     ]
-    if weights_in is not None:
-        files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
-        weights_in_ext = os.path.splitext(weights_in)[1]
-    if weights_out is not None:
-        weights_out_ext = os.path.splitext(weights_out)[1]
-        files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+    if weights is not None:
+        files.append(File(name='weights', type_='input', path=weights, ext=['.txt', '.npy']))
+    if out_weights is not None:
+        files.append(File(name='out_weights', type_='output', path=out_weights, ext=['.txt', '.npy']))
     nums = [Num(name='random', value=random, min_=0.0, max_=1.0, include_min=False)]
     messages = []
     if minlength is not None:
@@ -1170,17 +1166,15 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
         messages.append(f'Randomly keeping {random * 100:.0f}% of the streamlines')
     check_params(files=files, nums=nums, force=force)
 
-    logger.info('Filtering tractogram')
-    t0 = time()
     for msg in messages:
         logger.subinfo(msg, indent_char='*', indent_lvl=1)
 
-    if weights_in is not None:
-        if weights_in_ext == '.txt':
-            w = np.loadtxt(weights_in).astype(np.float64)
-        elif weights_in_ext == '.npy':
-            w = np.load(weights_in, allow_pickle=False).astype(np.float64)
-        logger.subinfo('Using streamline weights from text file', indent_char='*', indent_lvl=1)
+    if weights is not None:
+        if weights.endswith('.txt'):
+            w = np.loadtxt(weights).astype(np.float64)
+        else:
+            w = np.load(weights, allow_pickle=False).astype(np.float64)
+        logger.subinfo('Using streamline weights from scalar file', indent_char='*', indent_lvl=1)
     else:
         w = np.array([])
 
@@ -1191,12 +1185,12 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
     #----- iterate over input streamlines -----
     try:
         # open the input file
-        TCK_in = LazyTractogram( input_tractogram, mode='r' )
-        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+        TCK_in = LazyTractogram( tractogram, mode='r' )
+        TCK_out = LazyTractogram( out_tractogram, mode='w', header=TCK_in.header )
         n_streamlines = int( TCK_in.header['count'] )
         # open the outut file
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
-        if weights_in is not None and n_streamlines!=w.size:
+        if weights is not None and n_streamlines!=w.size:
             logger.error(f'Number of weights is different from number of streamlines ({w.size},{n_streamlines})')
 
         with ProgressBar( total=2*n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
@@ -1219,7 +1213,7 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
                         continue
 
                 # filter by weight
-                if weights_in is not None and (
+                if weights is not None and (
                     (minweight is not None and w[i]<minweight) or
                     (maxweight is not None and w[i]>maxweight)
                 ):
@@ -1242,20 +1236,20 @@ def filter( input_tractogram: str, output_tractogram: str, minlength: float=None
                     n_written += 1
                 pbar.update()
 
-            if weights_out is not None and w.size > 0:
-                if weights_out_ext == '.txt':
-                    np.savetxt(weights_out, w[kept == True].astype(np.float32), fmt='%.5e')
-                elif weights_out_ext == '.npy':
-                    np.save(weights_out, w[kept == True].astype(np.float32), allow_pickle=False)
+            if out_weights is not None and w.size > 0:
+                if out_weights.endswith('.txt'):
+                    np.savetxt(out_weights, w[kept == True].astype(np.float32), fmt='%.5e')
+                else:
+                    np.save(out_weights, w[kept == True].astype(np.float32), allow_pickle=False)
 
 
     except Exception as e:
         if TCK_out is not None:
             TCK_out.close()
-        if os.path.isfile( output_tractogram ):
-            os.remove( output_tractogram )
-        if weights_out is not None and os.path.isfile( weights_out ):
-            os.remove( weights_out )
+        if os.path.isfile( out_tractogram ):
+            os.remove( out_tractogram )
+        if out_weights is not None and os.path.isfile( out_weights ):
+            os.remove( out_weights )
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
@@ -1278,7 +1272,7 @@ def split( in_tractogram: str, in_assignments: str, out_folder: str='bundles', p
     in_tractogram : str
         Path to the file (.tck) containing the streamlines to split.
     in_assignments : str
-        Path to the file (.txt or .npy) containing the streamlines' assignments (two numbers/row).
+        Path to the file (.txt, .npy) containing the streamlines' assignments (two numbers/row).
     out_folder : str, default="bundles"
         Output folder for the splitted tractograms.
     prefix : str, default="bundle_"
@@ -1290,7 +1284,7 @@ def split( in_tractogram: str, in_assignments: str, out_folder: str='bundles', p
         If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
         If a list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.
     in_weights : str, optional
-        Path to the file (.txt or .npy) containing one weight for each input streamline (one row/streamline).
+        Path to the file (.txt, .npy) containing one weight for each input streamline (one row/streamline).
         If not None, one individual file will be created for each splitted tractogram, using the same filename prefix.
     max_open : int, optional
         Maximum number of underlying files opened at the same time.
@@ -1303,16 +1297,16 @@ def split( in_tractogram: str, in_assignments: str, out_folder: str='bundles', p
     force : boolean, default=False
         Force overwriting of the output files.
     """
-
     set_verbose('tractogram', verbose)
+    logger.info(f'Splitting tractogram')
+    t0 = time()
 
     files = [
-        File(name='in_tractogram', type_='input', path=in_tractogram),
-        File(name='in_assignments', type_='input', path=in_assignments)
+        File(name='in_tractogram', type_='input', path=in_tractogram, ext='.tck'),
+        File(name='in_assignments', type_='input', path=in_assignments, ext='.tck')
     ]
     if in_weights is not None:
         files.append(File(name='in_weights', type_='input', path=in_weights, ext=['.txt', '.npy']))
-        in_weights_ext = os.path.splitext(in_weights)[1]
     dirs = [Dir(name='out_folder', path=out_folder)]
     check_params(files=files, dirs=dirs, force=force)
 
@@ -1345,9 +1339,9 @@ def split( in_tractogram: str, in_assignments: str, out_folder: str='bundles', p
         regions = []
 
     if in_weights is not None:
-        if in_weights_ext == '.txt':
+        if in_weights.endswith('.txt'):
             w = np.loadtxt(in_weights).astype(np.float64)
-        elif in_weights_ext == '.npy':
+        else:
             w = np.load(in_weights, allow_pickle=False).astype(np.float64)
         w_idx = np.zeros_like(w, dtype=np.int32)
 
@@ -1385,8 +1379,6 @@ def split( in_tractogram: str, in_assignments: str, out_folder: str='bundles', p
             max_open = int(new_limit * 0.9)
             resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, limit_hard))
 
-    logger.info(f'Splitting tractogram')
-    t0 = time()
     try:
         logger.subinfo(f'Number of input streamline weights: {w.size}', indent_char='*', indent_lvl=1)
     except UnboundLocalError:
@@ -1539,7 +1531,7 @@ def split( in_tractogram: str, in_assignments: str, out_folder: str='bundles', p
                     else:
                         pref_key = f'{prefix}{key}'
                     w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ].astype(np.float32)
-                    if in_weights_ext=='.txt':
+                    if in_weights.endswith('.txt'):
                         np.savetxt( os.path.join(out_folder,f'{pref_key}.txt'), w_bundle, fmt='%.5e' )
                     else:
                         np.save( os.path.join(out_folder,f'{pref_key}.npy'), w_bundle, allow_pickle=False )
@@ -1558,6 +1550,7 @@ def split( in_tractogram: str, in_assignments: str, out_folder: str='bundles', p
                 basename = os.path.join(out_folder,pref_key)
                 if os.path.isfile(basename+'.tck'):
                     os.remove(basename+'.tck')
+                in_weights_ext = os.path.splitext(in_weights)[1]
                 if in_weights is not None and os.path.isfile(basename+in_weights_ext):
                     os.remove(basename+in_weights_ext)
 
@@ -1596,21 +1589,23 @@ def join( tractograms: list[str], out_tractogram: str, in_weights: list[str]=Non
     out_tractogram : str
         Path to the file (.tck) that will contain the resulting tractogram.
     in_weights : list of str, optional
-        List of paths to the scalar files (.txt or .npy) that contain the weights of
+        List of paths to the scalar files (.txt, .npy) that contain the weights of
         the input streamline; these files must follow the same order of the
         corresponding tractograms.
     out_weights : str, optional
-        Path to the scalar file (.txt or .npy) for the output streamline weights.
+        Path to the scalar file (.txt, .npy) for the output streamline weights.
     verbose : int, default=3
         What information to print, must be in [0...4] as defined in ui.set_verbose().
     force : boolean, default=False
         Force overwriting of the output files.
     """
     set_verbose('tractogram', verbose)
+    logger.info('Joining tractograms')
+    t0 = time()
 
     if len(tractograms) < 2:
         logger.error(f'Input list must contain at least 2 files')
-    files = [File(name=f'input_tractogram_{i}', type_='input', path=f) for i, f in enumerate(tractograms)]
+    files = [File(name=f'input_tractogram_{i}', type_='input', path=f, ext='.tck') for i, f in enumerate(tractograms)]
     files.append(File(name='out_tractogram', type_='output', path=out_tractogram, ext='.tck'))
     if in_weights is not None:
         if len(tractograms) != len(in_weights):
@@ -1622,8 +1617,6 @@ def join( tractograms: list[str], out_tractogram: str, in_weights: list[str]=Non
     check_params(files=files, force=force)
 
     #----- iterate over input files -----
-    logger.info('Joining tractograms')
-    t0 = time()
     logger.subinfo(f'Output tractogram path: \'{out_tractogram}\'', indent_char='*', indent_lvl=1)
     TCK_in    = None
     TCK_out   = None
@@ -1655,10 +1648,9 @@ def join( tractograms: list[str], out_tractogram: str, in_weights: list[str]=Non
 
                 if in_weights is not None:
                     # load weights file
-                    weights_in_ext = os.path.splitext(in_weights[i])[1]
-                    if weights_in_ext == '.txt':
+                    if in_weights[i].endswith('.txt'):
                         w = np.loadtxt(in_weights[i]).astype(np.float32)
-                    elif weights_in_ext == '.npy':
+                    else:
                         w = np.load(in_weights[i], allow_pickle=False).astype(np.float64)
                     # check if #(weights)==n_streamlines
                     if n_streamlines!=w.size:
@@ -1670,10 +1662,9 @@ def join( tractograms: list[str], out_tractogram: str, in_weights: list[str]=Non
 
             if out_weights is not None and weights_tot.size>0:
                 logger.subinfo(f'Output weights path: \'{out_weights}\'', indent_char='*', indent_lvl=1)
-                out_weights_ext = os.path.splitext(out_weights)[1]
-                if out_weights_ext == '.txt':
+                if out_weights.endswith('.txt'):
                     np.savetxt(out_weights, weights_tot.astype(np.float32), fmt='%.5e')
-                elif out_weights_ext == '.npy':
+                else:
                     np.save(out_weights, weights_tot.astype(np.float32), allow_pickle=False)
                 logger.subinfo(f'Total output weigths: {weights_tot.size}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Total output streamlines: {n_written}', indent_char='*', indent_lvl=1)
@@ -1704,7 +1695,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
     input_tractogram : str
         Path to the file (.tck) containing the streamlines to sort.
     input_atlas : str
-        Path to the file (.nii.gz) containing the gray matter parcellation.
+        Path to the file (.nii, .nii.gz) containing the gray matter parcellation.
     output_tractogram : str
         Path to the file where to store the sorted tractogram. If not specified (default),
         the new file will be created by appending '_sorted' to the input filename.
@@ -1714,7 +1705,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
     weights_in : str
         Text file with the input streamline weights (one row/streamline).
     weights_out : str
-        Scalar file (.txt or .npy) for the output streamline weights.
+        Scalar file (.txt, .npy) for the output streamline weights.
     tmp_folder : str
         Path to the temporary folder used to store the intermediate files.
     keep_tmp_folder : boolean
@@ -1730,8 +1721,8 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
 
     # check input files
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram),
-        File(name='input_atlas', type_='input', path=input_atlas)
+        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+        File(name='input_atlas', type_='input', path=input_atlas, ext=['.nii', '.nii.gz'])
     ]
     nums = [
         Num(name='atlas_dist', value=atlas_dist, min_=0.0)
@@ -1768,7 +1759,7 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
     log_list_asgn = []
     ret_subinfo = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo, log_list=log_list_asgn):
-        assign(input_tractogram, input_atlas, assignments_out=f'{tmp_folder}/fibers_assignment.txt', atlas_dist=atlas_dist, verbose=1, force=force, n_threads=n_threads, log_list=log_list_asgn)
+        assign(input_tractogram, input_atlas, out_assignments=f'{tmp_folder}/fibers_assignment.txt', atlas_dist=atlas_dist, verbose=1, force=force, n_threads=n_threads, log_list=log_list_asgn)
 
     # split the tractogram
     log_list_split = []
@@ -1832,7 +1823,7 @@ def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: in
     weights_in : str
         Text file with the input streamline weights (one row/streamline).
     weights_out : str
-        Scalar file (.txt or .npy) for the output streamline weights, shuffled in the same order of the streamlines.
+        Scalar file (.txt, .npy) for the output streamline weights, shuffled in the same order of the streamlines.
     tmp_folder : str
         Path to the temporary folder used to store the intermediate files.
     keep_tmp_folder : boolean
@@ -1846,7 +1837,7 @@ def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: in
 
     # check input files
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram),
+        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
     ]
     if output_tractogram is None:
         output_tractogram = os.path.splitext(input_tractogram)[0]+'_shuffled.tck'
@@ -2315,8 +2306,8 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         output_tractogram = basename+'_smooth'+extension
 
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram),
-        File(name='output_tractogram', type_='output', path=output_tractogram, ext=['.tck', '.trk'])
+        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+        File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
     ]
     check_params(files=files, force=force)
 
@@ -2398,54 +2389,66 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def recompute_indices(input_indices, dictionary_kept, output_indices=None, verbose=3, force=False):
+#TODO: describe better what this function does, and its parameters
+#TODO: allow indices to be loaded also from .npy files
+def recompute_indices(indices, kept, out_indices=None, verbose=3, force=False):
     """Recompute the indices of the streamlines in a tractogram after filtering.
 
     Parameters
     ----------
-    input_indices : array of integers
-        Indices of the streamlines in the original tractogram.
-    dictionary_kept : dictionary
-        Dictionary of the streamlines kept after filtering.
+    indices : str
+        Path to the file (.txt) containing the indices of the streamlines in the original tractogram.
+    kept : dictionary
+        Path to the file (.dict) containing the dictionary of the streamlines kept after filtering.
+    out_indices : str, optional
+        Path to the file (.txt, .npy) that will contain the recomputed indices.
     verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose()
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
+    force : boolean, default=False
+        Force overwriting of the output files.
 
     Returns
     -------
-    indices_recomputed : array of integers
+    array of int
         Recomputed indices of the streamlines.
     """
     set_verbose('tractogram', verbose)
+    t0 = time()
+    logger.info('Recomputing indices')
 
     files = [
-        File(name='input_indices', type_='input', path=input_indices),
-        File(name='dictionary_kept', type_='input', path=dictionary_kept)
+        File(name='indices', type_='input', path=indices, ext='.txt'),
+        File(name='kept', type_='input', path=kept, ext='.dict')
     ]
-    if output_indices is not None:
-        files.append( File(name='output_indices', type_='output', path=output_indices) )
+    if out_indices is not None:
+        files.append( File(name='out_indices', type_='output', path=out_indices, ext=['.txt', '.npy']) )
     check_params(files=files, force=force)
 
     # open indices file and dictionary
-    d = np.fromfile(dictionary_kept, dtype=np.uint8)
+    d = np.fromfile(kept, dtype=np.uint8)
 
-    idx = np.loadtxt(input_indices).astype(np.uint32)
+    idx = np.loadtxt(indices).astype(np.uint32)
     indices_recomputed = []
 
     # recompute indices
-    logger.info('Recomputing indices')
-    t0 = time()
     with ProgressBar( total=idx.size, disable=verbose < 3, hide_on_exit=True) as pbar:
         for i in range( idx.size ):
-            #count the number of streamlines before the current one
+            # count the number of streamlines before the current one
             n = np.count_nonzero( d[:idx[i]] )
-
             # check if the current streamline is kept
             if d[idx[i]]==1:
                 indices_recomputed.append( n )
             pbar.update()
+
+    if out_indices is not None:
+        if out_indices.endswith('.txt'):
+            np.savetxt(out_indices, indices_recomputed, fmt='%d')
+        else:
+            np.save(out_indices, indices_recomputed, allow_pickle=False)
+
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
-    return indices_recomputed if output_indices is None else np.savetxt(output_indices, indices_recomputed, fmt='%d')
+    return indices_recomputed
 
 
 cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option="No_opt", collapse=False, force=False, verbose=3):
@@ -2460,7 +2463,7 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
     output_file : str
         Path to the file (.txt is needed) where the method saves values
     mask_file : str (default None)
-        Path to the mask file (.nii) to constrain the sampling to a specific region.
+        Path to the mask file (.nii, .nii.gz) to constrain the sampling to a specific region.
     option : str (default None)
         apply some operation on values
     collpase : boolean
@@ -2477,12 +2480,12 @@ cpdef sample(input_tractogram, input_image, output_file, mask_file=None, option=
     set_verbose('tractogram', verbose)
 
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram),
-        File(name='input_image', type_='input', path=input_image),
-        File(name='output_file', type_='output', path=output_file)
+        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+        File(name='input_image', type_='input', path=input_image, ext=['.nii','.nii.gz']),
+        File(name='output_file', type_='output', path=output_file, ext=['.nii','.nii.gz'])
     ]
     if mask_file is not None:
-        files.append(File(name='mask_file', type_='input', path=mask_file))
+        files.append(File(name='mask_file', type_='input', path=mask_file, ext=['.nii','.nii.gz']))
     if option not in ['min', 'max', 'median', 'No_opt', 'mean']:
         logger.error(f'Option {option} not valid, please choose between min, max, median, mean or No_opt')
     check_params(files=files, force=force)
@@ -2609,8 +2612,8 @@ cpdef resample( tractogram: str, out_tractogram: str, n_pts: int, verbose: int=3
     t0 = time()
 
     files = [
-        File(name='tractogram', type_='input', path=tractogram),
-        File(name='out_tractogram', type_='output', path=out_tractogram)
+        File(name='tractogram', type_='input', path=tractogram, ext='.tck'),
+        File(name='out_tractogram', type_='output', path=out_tractogram, ext='.tck')
     ]
     nums = [Num(name='n_pts', value=n_pts, min_=2)]
     check_params(files=files, nums=nums, force=force)
@@ -2683,11 +2686,11 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     set_verbose('tractogram', verbose)
 
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram)
+        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck')
     ]
 
     if output_tractogram is not None:
-        files.append( File(name='output_tractogram', type_='output', path=output_tractogram) )
+        files.append( File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck') )
     nums = [
         Num(name='blur_core_extent', value=blur_core_extent, min_=0.0),
         Num(name='blur_gauss_extent', value=blur_gauss_extent, min_=0.0),
@@ -2813,9 +2816,9 @@ cpdef compute_coherence( tractogram: str, sph_func: str, out_weights: str=None, 
     tractogram : str
         Path to the file (.tck) containing the streamlines to process.
     sph_func : str
-        Path to the file (.nii.gz) containing the spherical function against which each streamline is evaluated.
+        Path to the file (.nii, .nii.gz) containing the spherical function against which each streamline is evaluated.
     out_weights : str
-        Path to the file (.txt or .npy) that will contain the estimated coherence weights.
+        Path to the file (.txt, .npy) that will contain the estimated coherence weights.
     metric : {'min', 'mean', 'max'}, default='min'
         Metric to use as summary once the coherence is computed for all segments of a streamline.
     normalize : boolean, default=False
@@ -2851,8 +2854,8 @@ cpdef compute_coherence( tractogram: str, sph_func: str, out_weights: str=None, 
     set_verbose('tractogram', verbose)
     logger.info('Computing coherence of streamlines')
 
-    files = [File(name='tractogram', type_='input', path=tractogram)]
-    files.append(File(name='sph_func', type_='input', path=sph_func))
+    files = [File(name='tractogram', type_='input', path=tractogram, ext=['.tck'])]
+    files.append(File(name='sph_func', type_='input', path=sph_func, ext=['.nii', '.nii.gz']))
     if out_weights is not None:
         files.append(File(name='out_weights', type_='output', path=out_weights, ext=['.txt', '.npy']))
     check_params(files=files, force=force)
@@ -2974,11 +2977,11 @@ cpdef compute_coherence( tractogram: str, sph_func: str, out_weights: str=None, 
             logger.subinfo(f'Estimated weights:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.std(coherence):.3f}', indent_char='*', indent_lvl=1)
 
         if out_weights is not None:
-            out_weights_ext = os.path.splitext(out_weights)[1]
-            if out_weights_ext == '.txt':
+            if out_weights.endswith('.txt'):
                 np.savetxt(out_weights, coherence, fmt='%.4f')
-            elif out_weights_ext == '.npy':
+            else:
                 np.save(out_weights, coherence, allow_pickle=False)
+
 
     except Exception as e:
         logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
@@ -3000,9 +3003,9 @@ cpdef compute_tdi( tractogram: str, ref_image: str, out_map: str, shift: float=0
     tractogram : str
         Path to the file (.tck) containing the streamlines to process.
     ref_image : str
-        Path to the reference image (.nii.gz) to infer geometry/orientation.
+        Path to the reference image (.nii, .nii.gz) to infer geometry/orientation.
     out_map : str
-        Path to the file (.nii.gz) that will contain the estimated TDI map.
+        Path to the file (.nii, .nii.gz) that will contain the estimated TDI map.
     shift : float, dafault=0.5
         If necessary, apply a shift (in voxel units) to streamline coordinates to
         account for differences between software packages.
@@ -3011,20 +3014,20 @@ cpdef compute_tdi( tractogram: str, ref_image: str, out_map: str, shift: float=0
     force : boolean, default=False
         Force overwriting of the output files.
     """
+    t0 = time()
+    set_verbose('tractogram', verbose)
+    logger.info('Computing TDI')
+
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
     cdef float [:] P
     cdef double [:,::1] affine_inv
     cdef float [:,:,::1] niiTDI_img
 
-    t0 = time()
-    set_verbose('tractogram', verbose)
-    logger.info('Computing TDI')
-
-    files = [File(name='tractogram', type_='input', path=tractogram)]
-    files.append(File(name='ref_image', type_='input', path=ref_image))
+    files = [File(name='tractogram', type_='input', path=tractogram, ext=['.tck'])]
+    files.append(File(name='ref_image', type_='input', path=ref_image, ext=['.nii','.nii.gz']))
     if out_map is not None:
-        files.append(File(name='out_map', type_='output', path=out_map, ext=['.nii.gz']))
+        files.append(File(name='out_map', type_='output', path=out_map, ext=['.nii','.nii.gz']))
     check_params(files=files, force=force)
 
     #----- iterate over input streamlines -----
@@ -3095,7 +3098,7 @@ cpdef compute_tdi( tractogram: str, ref_image: str, out_map: str, shift: float=0
 #         Path to the file where to store the filtered tractogram. If not specified (default),
 #         the new file will be created by appending '_smooth' to the input filename.
 #     mask : str
-#         Path to the mask file (.nii) to constrain the smoothing to a specific region (default : None).
+#         Path to the mask file (.nii, .nii.gz) to constrain the smoothing to a specific region (default : None).
 #     pts_cutoff : float
 #         Percentage of points of the streamline that must be inside the mask to be considered (default : 0.5).
 #     spline_type : str
@@ -3127,8 +3130,8 @@ cpdef compute_tdi( tractogram: str, ref_image: str, out_map: str, shift: float=0
 #         output_tractogram = basename+'_smooth'+extension
 
 #     files = [
-#         File(name='input_tractogram', type_='input', path=input_tractogram),
-#         File(name='output_tractogram', type_='output', path=output_tractogram, ext=['.tck', '.trk'])
+#         File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+#         File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
 #     ]
 #     if mask is not None:
 #         files.append( {'type_': 'input', 'name': 'mask', 'path': mask} )
@@ -3302,8 +3305,8 @@ cpdef compute_tdi( tractogram: str, ref_image: str, out_map: str, shift: float=0
 #         basename, extension = os.path.splitext(input_tractogram)
 #         output_tractogram = basename+'_smooth'+extension
 #     files = [
-#         File(name='input_tractogram', type_='input', path=input_tractogram),
-#         File(name='output_tractogram', type_='output', path=output_tractogram, ext=['.tck', '.trk'])
+#         File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+#         File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
 #     ]
 #     nums = [
 #         Num(name='control_point_ratio', value=control_point_ratio, min_=0.0, max_=1.0, include_min=False),

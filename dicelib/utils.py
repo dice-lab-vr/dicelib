@@ -43,11 +43,11 @@ class Num:
     max_: Optional[Union[int, float]] = None
     include_min: Optional[bool] = True
     include_max: Optional[bool] = True
-    
+
 def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=None, nums: Optional[List[Num]]=None, force: bool=False):
     from dicelib.ui import setup_logger
     logger = setup_logger('utils')
-    
+
     # files
     if files is not None:
         for file in files:
