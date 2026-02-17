@@ -132,8 +132,8 @@ def recompute_indices():
             idx_filename=options.indices,
             kept_filename=options.kept,
             out_idx_filename=options.out_indices,
-            verbose=options.verbose,
-            force=options.force
+            force=options.force,
+            verbose=options.verbose
         )
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')

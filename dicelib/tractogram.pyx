@@ -1675,7 +1675,7 @@ def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, ou
 
     files = [File(name='needle_filename', type_='input', path=needle_filename, ext='.tck'),
              File(name='haystack_filename', type_='input', path=haystack_filename, ext='.tck')]
-    if out_idx:
+    if out_idx_filename:
         files.append(File(name='out_idx_filename', type_='output', path=out_idx_filename, ext=['.txt', '.npy']))
     check_params(files=files, force=force)
 
@@ -2389,16 +2389,15 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 
 
 #TODO: describe better what this function does, and its parameters
-#TODO: allow indices to be loaded also from .npy files
 def recompute_indices(idx_filename, kept_filename, out_idx_filename=None, force=False, verbose=3):
     """Recompute the indices of the streamlines in a tractogram after filtering.
 
     Parameters
     ----------
     idx_filename : str
-        Path to the file (.txt) containing the indices of the streamlines in the original tractogram.
+        Path to the file (.txt, .npy) containing the indices of the streamlines in the original tractogram.
     kept_filename : dictionary
-        Path to the file (.dict) containing the dictionary of the streamlines kept after filtering.
+        Path to the file (.dict) containing the internal dictionary of streamlines kept by COMMIT.
     out_idx_filename : str, optional
         Path to the file (.txt, .npy) that will contain the recomputed indices.
     force : boolean, default=False
@@ -2416,7 +2415,7 @@ def recompute_indices(idx_filename, kept_filename, out_idx_filename=None, force=
     logger.info('Recomputing indices')
 
     files = [
-        File(name='idx_filename', type_='input', path=idx_filename, ext='.txt'),
+        File(name='idx_filename', type_='input', path=idx_filename, ext=['.txt', '.npy']),
         File(name='kept_filename', type_='input', path=kept_filename, ext='.dict')
     ]
     if out_idx_filename is not None:
@@ -2425,7 +2424,11 @@ def recompute_indices(idx_filename, kept_filename, out_idx_filename=None, force=
 
     # open indices file and dictionary
     d = np.fromfile(kept_filename, dtype=np.uint8)
-    idx = np.loadtxt(idx_filename).astype(np.uint32)
+    if idx_filename.endswith('.txt'):
+        idx = np.loadtxt(idx_filename, dtype=np.int32).astype(np.int32)
+    else:
+        idx = np.load(idx_filename, allow_pickle=False).astype(np.int32)
+
     indices_recomputed = []
     with ProgressBar( total=idx.size, disable=verbose < 3, hide_on_exit=True) as pbar:
         for i in range( idx.size ):
