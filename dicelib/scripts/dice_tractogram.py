@@ -118,20 +118,20 @@ def filter():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
-def indices():
+def recompute_indices():
     '''Entry point for the tractogram.recompute_indices function'''
     summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.recompute_indices.__doc__  )
     args = [
-        [['indices'], {'type': str, 'help': desc['indices']}],
-        [['kept'], {'type': str, 'help': desc['kept']}],
-        [['out_indices'], {'type': str, 'help': desc['out_indices']}]
+        [['indices'], {'type': str, 'help': desc['idx_filename']}],
+        [['kept'], {'type': str, 'help': desc['kept_filename']}],
+        [['out_indices'], {'type': str, 'help': desc['out_idx_filename']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
         dicelib.tractogram.recompute_indices(
-            indices=options.indices,
-            kept=options.kept,
-            out_indices=options.out_indices,
+            idx_filename=options.indices,
+            kept_filename=options.kept,
+            out_idx_filename=options.out_indices,
             verbose=options.verbose,
             force=options.force
         )
@@ -208,14 +208,14 @@ def locate():
     args = [
         [['tractogram_needle'], {'type': str, 'help': desc['needle_filename']}],
         [['tractogram_haystack'], {'type': str, 'help': desc['haystack_filename']}],
-        [['out_idx'], {'type': str, 'help': desc['out_idx']}]
+        [['out_idx'], {'type': str, 'help': desc['out_idx_filename']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
         dicelib.tractogram.get_indices_of_streamlines(
             needle_filename=options.tractogram_needle,
             haystack_filename=options.tractogram_haystack,
-            out_idx=options.out_idx,
+            out_idx_filename=options.out_idx,
             force=options.force,
             verbose=options.verbose
         )

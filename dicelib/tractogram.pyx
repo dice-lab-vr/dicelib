@@ -759,78 +759,6 @@ cpdef move_point_to_gm(float[:] point, float vers_x, float vers_y, float vers_z,
     return ok, point
 
 
-def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, out_idx: str=None, force: bool=False, verbose: int=3 ) -> np.ndarray:
-    """Finds the indices of a subset of streamlines from a larger tractogram.
-
-    Parameters
-    ----------
-    needle_filename : str
-        Path to the tractogram (.tck) containing the subset of streamlines to find.
-    haystack_filename : str
-        Path to the tractogram (.tck) containing the full set of streamlines in which to search.
-    out_idx : str, optional
-        Path to the file (.txt, .npy) that will contain the indices of the streamline that are found.
-    force : boolean, default=False
-        Force overwriting of the output files.
-    verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose().
-
-    Returns
-    -------
-    array of integers
-        Indices of the streamlines from the 'needle' tractogram that where found in 'haystack'.
-    """
-    t0 = time()
-    set_verbose('tractogram', verbose)
-    logger.info('Finding indices of streamlines')
-
-    files = [File(name='needle_filename', type_='input', path=needle_filename, ext='.tck'),
-             File(name='haystack_filename', type_='input', path=haystack_filename, ext='.tck')]
-    if out_idx:
-        files.append(File(name='out_idx', type_='output', path=out_idx, ext=['.txt', '.npy']))
-    check_params(files=files, force=force)
-
-    TCK_needle = LazyTractogram( needle_filename, mode='r' )
-    n_needle = int( TCK_needle.header['count'] )
-    logger.subinfo(f'Number of streamlines in needle: {n_needle}', indent_lvl=1, indent_char='*')
-    TCK_haystack = LazyTractogram( haystack_filename, mode='r' )
-    n_haystack = int( TCK_haystack.header['count'] )
-    logger.subinfo(f'Number of streamlines in haystack: {n_haystack}', indent_lvl=1, indent_char='*')
-
-    with ProgressBar(total=n_haystack+n_needle, disable=verbose < 3, hide_on_exit=True) as pbar:
-        # hash streamlines in 'haystack' tractogram
-
-        hash_all = np.empty( n_haystack, dtype=int )
-        for i in range(n_haystack):
-            TCK_haystack.read_streamline()
-            n_pts = TCK_haystack.n_pts
-            hash_all[i] = hash( np.asarray(TCK_haystack.streamline[:n_pts]).tobytes() )
-            pbar.update()
-        TCK_haystack.close()
-
-        hash_subset = np.empty( n_needle, dtype=int )
-        for i in range(n_needle):
-            TCK_needle.read_streamline()
-            n_pts = TCK_needle.n_pts
-            hash_subset[i] = hash( np.asarray(TCK_needle.streamline[:n_pts]).tobytes() )
-            pbar.update()
-        TCK_needle.close()
-
-    indices = np.flatnonzero( np.isin( hash_all, hash_subset, assume_unique=True ) )
-    logger.subinfo(f'Number of streamlines found: {len(indices)}', indent_lvl=1, indent_char='*')
-    # save the indices to file
-    if out_idx:
-        if out_idx.endswith('.txt'):
-            np.savetxt( out_idx, indices, fmt='%d' )
-        else:
-            np.save( out_idx, indices )
-
-    # return indices of the streamlines that were found
-    t1 = time()
-    logger.info( f'[ {format_time(t1 - t0)} ]' )
-    return indices
-
-
 #TODO: check if this is needed
 # def create_color_scalar_file(streamline, num_streamlines):
 #     """Create a scalar file for each streamline in order to color them.
@@ -1720,6 +1648,78 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, weight
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
+def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, out_idx_filename: str=None, force: bool=False, verbose: int=3 ) -> np.ndarray:
+    """Finds the indices of a subset of streamlines from a larger tractogram.
+
+    Parameters
+    ----------
+    needle_filename : str
+        Path to the tractogram (.tck) containing the subset of streamlines to find.
+    haystack_filename : str
+        Path to the tractogram (.tck) containing the full set of streamlines in which to search.
+    out_idx_filename : str, optional
+        Path to the file (.txt, .npy) that will contain the indices of the streamline that are found.
+    force : boolean, default=False
+        Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
+
+    Returns
+    -------
+    array of integers
+        Indices of the streamlines from the 'needle' tractogram that where found in 'haystack'.
+    """
+    t0 = time()
+    set_verbose('tractogram', verbose)
+    logger.info('Finding indices of streamlines')
+
+    files = [File(name='needle_filename', type_='input', path=needle_filename, ext='.tck'),
+             File(name='haystack_filename', type_='input', path=haystack_filename, ext='.tck')]
+    if out_idx:
+        files.append(File(name='out_idx_filename', type_='output', path=out_idx_filename, ext=['.txt', '.npy']))
+    check_params(files=files, force=force)
+
+    TCK_needle = LazyTractogram( needle_filename, mode='r' )
+    n_needle = int( TCK_needle.header['count'] )
+    logger.subinfo(f'Number of streamlines in needle: {n_needle}', indent_lvl=1, indent_char='*')
+    TCK_haystack = LazyTractogram( haystack_filename, mode='r' )
+    n_haystack = int( TCK_haystack.header['count'] )
+    logger.subinfo(f'Number of streamlines in haystack: {n_haystack}', indent_lvl=1, indent_char='*')
+
+    with ProgressBar(total=n_haystack+n_needle, disable=verbose < 3, hide_on_exit=True) as pbar:
+        # hash streamlines in 'haystack' tractogram
+
+        hash_all = np.empty( n_haystack, dtype=int )
+        for i in range(n_haystack):
+            TCK_haystack.read_streamline()
+            n_pts = TCK_haystack.n_pts
+            hash_all[i] = hash( np.asarray(TCK_haystack.streamline[:n_pts]).tobytes() )
+            pbar.update()
+        TCK_haystack.close()
+
+        hash_subset = np.empty( n_needle, dtype=int )
+        for i in range(n_needle):
+            TCK_needle.read_streamline()
+            n_pts = TCK_needle.n_pts
+            hash_subset[i] = hash( np.asarray(TCK_needle.streamline[:n_pts]).tobytes() )
+            pbar.update()
+        TCK_needle.close()
+
+    indices = np.flatnonzero( np.isin( hash_all, hash_subset, assume_unique=True ) )
+    logger.subinfo(f'Number of streamlines found: {len(indices)}', indent_lvl=1, indent_char='*')
+    # save the indices to file
+    if out_idx_filename:
+        if out_idx_filename.endswith('.txt'):
+            np.savetxt( out_idx_filename, indices, fmt='%d' )
+        else:
+            np.save( out_idx_filename, indices )
+
+    # return indices of the streamlines that were found
+    t1 = time()
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
+    return indices
+
+
 def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, atlas_dist: float=2.0, weights_in: str=None, weights_out: str=None, tmp_folder: str=None, keep_tmp_folder: bool=False, n_threads: int=None, verbose: int=3, force: bool=False ):
     """Sort the streamlines in a tractogram bundle-by-bundle in lexigraphical order (i.e., bundle_1-1 --> bundle_1-2 --> ... --> bundle_2-2 --> ...).
 
@@ -2390,46 +2390,43 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
 
 #TODO: describe better what this function does, and its parameters
 #TODO: allow indices to be loaded also from .npy files
-def recompute_indices(indices, kept, out_indices=None, verbose=3, force=False):
+def recompute_indices(idx_filename, kept_filename, out_idx_filename=None, force=False, verbose=3):
     """Recompute the indices of the streamlines in a tractogram after filtering.
 
     Parameters
     ----------
-    indices : str
+    idx_filename : str
         Path to the file (.txt) containing the indices of the streamlines in the original tractogram.
-    kept : dictionary
+    kept_filename : dictionary
         Path to the file (.dict) containing the dictionary of the streamlines kept after filtering.
-    out_indices : str, optional
+    out_idx_filename : str, optional
         Path to the file (.txt, .npy) that will contain the recomputed indices.
-    verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose().
     force : boolean, default=False
         Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
 
     Returns
     -------
     array of int
         Recomputed indices of the streamlines.
     """
-    set_verbose('tractogram', verbose)
     t0 = time()
+    set_verbose('tractogram', verbose)
     logger.info('Recomputing indices')
 
     files = [
-        File(name='indices', type_='input', path=indices, ext='.txt'),
-        File(name='kept', type_='input', path=kept, ext='.dict')
+        File(name='idx_filename', type_='input', path=idx_filename, ext='.txt'),
+        File(name='kept_filename', type_='input', path=kept_filename, ext='.dict')
     ]
-    if out_indices is not None:
-        files.append( File(name='out_indices', type_='output', path=out_indices, ext=['.txt', '.npy']) )
+    if out_idx_filename is not None:
+        files.append( File(name='out_idx_filename', type_='output', path=out_idx_filename, ext=['.txt', '.npy']) )
     check_params(files=files, force=force)
 
     # open indices file and dictionary
-    d = np.fromfile(kept, dtype=np.uint8)
-
-    idx = np.loadtxt(indices).astype(np.uint32)
+    d = np.fromfile(kept_filename, dtype=np.uint8)
+    idx = np.loadtxt(idx_filename).astype(np.uint32)
     indices_recomputed = []
-
-    # recompute indices
     with ProgressBar( total=idx.size, disable=verbose < 3, hide_on_exit=True) as pbar:
         for i in range( idx.size ):
             # count the number of streamlines before the current one
@@ -2439,11 +2436,11 @@ def recompute_indices(indices, kept, out_indices=None, verbose=3, force=False):
                 indices_recomputed.append( n )
             pbar.update()
 
-    if out_indices is not None:
-        if out_indices.endswith('.txt'):
-            np.savetxt(out_indices, indices_recomputed, fmt='%d')
+    if out_idx_filename is not None:
+        if out_idx_filename.endswith('.txt'):
+            np.savetxt(out_idx_filename, indices_recomputed, fmt='%d')
         else:
-            np.save(out_indices, indices_recomputed, allow_pickle=False)
+            np.save(out_idx_filename, indices_recomputed, allow_pickle=False)
 
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
