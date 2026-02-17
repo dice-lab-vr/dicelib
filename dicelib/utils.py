@@ -2,9 +2,7 @@ from dataclasses import dataclass
 from importlib import metadata
 import os
 import pathlib
-from shutil import rmtree
 from typing import List, Literal, Optional, Union
-import time
 
 def get_version() -> str:
     try:
@@ -56,7 +54,7 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
                     file.ext = [file.ext]
                 suffixes = pathlib.Path(file.path).suffixes
                 if len(suffixes) == 0:
-                    logger.error(f'No extension for {file.name} file \'{file.path}\', must be {file.ext}')
+                    logger.error(f'File \'{file.path}\' has no extension; must be in {{{', '.join(file.ext)}}}')
                 elif len(suffixes) > 1:
                     if suffixes[-1] == '.gz':
                         suffixes = suffixes[-2:]
@@ -64,24 +62,23 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
                         suffixes = suffixes[-1]
                 suffix = ''.join(suffixes)
                 if suffix not in file.ext or suffix == '':
-                    exts = ' | '.join(file.ext)
-                    logger.error(f'Invalid extension for {file.name} file \'{file.path}\', must be {exts}')
+                    logger.error(f'File \'{file.path}\' has an invalid extension; must be in {{{', '.join(file.ext)}}}')
             if file.type_ == 'input':
                 if not os.path.isfile(file.path):
-                    logger.error(f'{file.name} file \'{file.path}\' not found')
+                    logger.error(f'File \'{file.path}\' not found')
             elif file.type_ == 'output':
                 if force:
                     if os.path.isfile(file.path):
                         os.remove(file.path)
                 else:
                     if os.path.isfile(file.path):
-                        logger.error(f'{file.name} file \'{file.path}\' already exists, use --force to overwrite')
+                        logger.error(f'Output files already exist, use --force to overwrite')
 
     # dirs
     if dirs is not None:
         for dir in dirs:
             if os.path.isdir(dir.path) and not force:
-                logger.error(f'{dir.name} folder \'{dir.path}\' already exists, use --force to overwrite')
+                logger.error(f'Output folder already exists, use --force to overwrite')
 
     # numeric
     if nums is not None:

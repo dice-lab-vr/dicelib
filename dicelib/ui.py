@@ -85,7 +85,7 @@ Mode = Literal['console', 'file']
 class LoggerFormatter(logging.Formatter):
     def __init__(self, mode: Mode) -> NoReturn:
         # self.levelname_len = 10
-        self.msg_len = 75
+        self.msg_len = 100
         # self.levelname_sep = '-'
         self.message_sep = ' '
         asctime = '{asctime}'
@@ -778,7 +778,9 @@ class ArgumentParser(argparse.ArgumentParser):
             formatter.end_section()
 
         # epilog
-        formatter.add_text(self.epilog)
+        if self.epilog is not None:
+            formatter.start_section('NOTES')
+            formatter.add_text(self.epilog)
 
         # determine help from format above
         return formatter.format_help()

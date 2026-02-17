@@ -17,7 +17,7 @@ dependencies = [
     "pywin32>=306; sys_platform=='win32'",
     "scipy>=1.10.1",
     "dmri-amico>=2.0.1",
-    "numpydoc>=1.10"
+    "numpydoc>=1.7.0"
 ]
 requires-python = ">=3.8"
 authors = [
