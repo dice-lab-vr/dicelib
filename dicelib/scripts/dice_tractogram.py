@@ -1,4 +1,4 @@
-from dicelib.clustering import run_clustering
+import dicelib.clustering
 import dicelib.connectivity
 import dicelib.tractogram
 from dicelib.ui import setup_logger, setup_parser, get_argparse_info_from_docstring
@@ -31,58 +31,49 @@ def assign():
 
 
 def cluster():
-    '''Entry point for the tractogram clustering function'''
+    '''Entry point for the clustering.run_clustering function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.clustering.run_clustering.__doc__ )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['thr'], {'type': float, 'help': 'Distance threshold [in mm] used to cluster the streamlines'}],
-        [['tractogram_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
-        [['--metric', '-m'], {'type': str, 'default': 'mean', 'help':'''\
-                                            Metric used to cluster the streamlines. Options: \'mean\', \'max\'.
-                                            If \'max\', streamlines with ALL the points closer than \'thr\' will be clustered together.
-                                            If \'mean\', streamlines with AVERAGE distance closer than \'thr\' will be clustered together'''}],
-        [['--n_pts', '-n'], {'type': int, 'default': 12, 'help': 'Resample all streamlines to N_PTS points. Clustering requires streamlines to have the same number of points'}],
-        [['--atlas', '-a'], {'type': str, 'help': '''\
-                                            Path to the atlas file used to split the streamlines into bundles and clustering each of them in parallel;
-                                            if not provided, the clustering will be performed sequentially'''}],
-        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'help': '''\
-                                            Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
-                                            Argument is the maximum radius in mm; if no node is found within this radius, the streamline is not taken into account for clustering'''}],
-        [['--weights_in', '-w_in'], {'type': str, 'default': None, 'help': 'Text file containing a scalar value for each streamline used to assign a weight to the final centroid of each cluster'}],
-        [['--weights_out', '-w_out'], {'type': str, 'default': None, 'help': 'Text file for the output streamline weights'}],
-        [['--weights_metric', '-w_m'], {'type': str, 'default': 'sum', 'help': '''\
-                                            Metric used to compute the final weight of each cluster centroid. Options: \'sum\', \'mean\', \'max\', \'median\', \'min\'.
-                                            If \'sum\', the final weight is the sum of all the weights of the streamlines in the cluster.
-                                            If \'mean\', the final weight is the mean of all the weights of the streamlines in the cluster.
-                                            If \'max\', the final weight is the maximum of all the weights of the streamlines in the cluster.
-                                            If \'median\', the final weight is the median of all the weights of the streamlines in the cluster.
-                                            If \'min\', the final weight is the minimum of all the weights of the streamlines in the cluster'''}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'help': 'Path to the temporary folder used to store the intermediate files for parallel clustering'}],
-        [['--save_clust_idx', '-s'], {'action': 'store_true', 'help': 'Save the indices of the cluster to which each input streamline belongs'}],
-        [['--max_open_files'], {'type': int, 'default': None, 'help': 'Maximum number of files opened at the same time used to split the streamlines into bundles for parallel clustering'}],
-        [['--n_threads'], {'type': int, 'help': 'Number of threads to use to perform parallel clustering. If None, all the available threads will be used'}],
-        [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
+        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
+        [['thr'], {'type': float, 'help': desc['thr']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
+        [['--metric', '-m'], {'type': str, 'choices': ['EDavg', 'EDmax'], 'default': 'EDavg', 'help': desc['metric']}],
+        [['--n_pts', '-n'], {'type': int, 'default': 12, 'help': desc['n_pts']}],
+        [['--atlas', '-a'], {'type': str, 'help': desc['atlas']}],
+        [['--atlas_thr', '-d'], {'type': float, 'default': 2.0, 'help': desc['atlas_thr']}],
+        [['--save_clust_idx', '-s'], {'action': 'store_true', 'help': desc['save_clust_idx']}],
+        [['--weights', '-wi'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
+        [['--out_weights', '-wo'], {'type': str, 'default': None, 'help': desc['out_weights_filename']}],
+        [['--weights_stat', '-ws'], {'type': str, 'choices': ['sum','mean','median','min','max'], 'default': 'sum', 'help': desc['weights_stat']}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_cluster', 'help': desc['tmp_folder']}],
+        [['--keep_tmp', '-k'], {'action': 'store_true', 'help': desc['keep_tmp']}],
+        [['--n_threads'], {'type': int, 'help': desc['n_threads']}],
+        [['--max_open_files'], {'type': int, 'default': None, 'help': desc['max_open']}],
+        [['--max_bytes'], {'type': int, 'default': 0, 'help': desc['max_bytes']}]
     ]
-    options = setup_parser(run_clustering.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    run_clustering(
-        tractogram_in=options.tractogram_in,
-        temp_folder=options.tmp_folder,
-        tractogram_out=options.tractogram_out,
-        atlas=options.atlas,
-        conn_thr=options.atlas_dist,
-        clust_thr=options.thr,
-        metric=options.metric,
-        n_pts=options.n_pts,
-        weights_in=options.weights_in,
-        weights_metric=options.weights_metric,
-        weights_out=options.weights_out,
-        n_threads=options.n_threads,
-        force=options.force,
-        verbose=options.verbose,
-        keep_temp_files=options.keep_temp,
-        save_clust_idx=options.save_clust_idx,
-        max_open=options.max_open_files
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.clustering.run_clustering(
+            tractogram_filename=options.tractogram,
+            thr=options.thr,
+            out_tractogram_filename=options.out_tractogram,
+            metric=options.metric,
+            n_pts=options.n_pts,
+            atlas=options.atlas,
+            atlas_thr=options.atlas_thr,
+            save_clust_idx=options.save_clust_idx,
+            weights_filename=options.weights,
+            weights_stat=options.weights_stat,
+            out_weights_filename=options.out_weights,
+            tmp_folder=options.tmp_folder,
+            keep_tmp=options.keep_tmp,
+            n_threads=options.n_threads,
+            max_open=options.max_open_files,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def filter():
@@ -310,7 +301,7 @@ def shuffle():
         [['--seed', '-s'], {'type': int, 'default': None, 'help': desc['seed']}],
         [['--weights', '-wi'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
         [['--out_weights', '-wo'], {'type': str, 'default': None, 'help': desc['out_weights_filename']}],
-        [['--tmp_folder', '-t'], {'type': str, 'default': 'tmp_shuffle', 'help': desc['tmp_folder']}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_shuffle', 'help': desc['tmp_folder']}],
         [['--keep_tmp', '-k'], {'action': 'store_true', 'help': desc['keep_tmp']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
@@ -376,7 +367,7 @@ def sort():
         [['--distance', '-d'], {'type': float, 'default': 2.0, 'help': desc['distance']}],
         [['--weights', '-wi'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
         [['--out_weights','-wo'], {'type': str, 'default': None, 'help': desc['out_weights_filename']}],
-        [['--tmp_folder', '-t'], {'type': str, 'default': 'tmp_sort', 'help': desc['tmp_folder']}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_sort', 'help': desc['tmp_folder']}],
         [['--keep_tmp', '-k'], {'action': 'store_true', 'help': desc['keep_tmp']}],
         [['--n_threads', '-n'], {'type': int, 'default': 3, 'help': desc['n_threads']}]
     ]

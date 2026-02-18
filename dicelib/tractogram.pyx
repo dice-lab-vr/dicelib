@@ -2462,7 +2462,8 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
     mask_filename : str, optional
         Path to the mask (.nii, .nii.gz) to constrain the sampling to a specific region.
     stat : {'mean', 'median', 'min', 'max'}, optional
-        Compute a summary statistic on the sampled values.
+        Compute a summary statistic on the sampled values; if not specified,
+        all values will be saved.
     collapse : boolean, default=False
         Collapse points that fall in the same voxel.
     force : boolean, default=False

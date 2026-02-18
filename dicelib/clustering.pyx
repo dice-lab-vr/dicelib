@@ -3,7 +3,7 @@
 """Functions to perform clustering of tractograms"""
 
 from dicelib.connectivity import _assign as assign
-from dicelib.tractogram import info, split as split_bundles
+from dicelib.tractogram import info, split
 from dicelib.streamline import length as streamline_length
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
@@ -62,7 +62,7 @@ cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] res
     resampled_fib[0][2] = fib_in[0][2]
     while sum_step < lengths[nb_pts_in-1]:
         if sum_step == lengths[i]:
-            resampled_fib[j][0] = fib_in[i][0] 
+            resampled_fib[j][0] = fib_in[i][0]
             resampled_fib[j][1] = fib_in[i][1]
             resampled_fib[j][2] = fib_in[i][2]
             j += 1
@@ -116,7 +116,7 @@ cdef (int, int) compute_dist_mean(float[:,::1] fib_in, float[:,:,::1] target, fl
             d1_x = (target[i][j][0] - fib_in[num_pt-j-1][0])**2
             d1_y = (target[i][j][1] - fib_in[num_pt-j-1][1])**2
             d1_z = (target[i][j][2] - fib_in[num_pt-j-1][2])**2
-            
+
             meandist_pt_i += sqrt(d1_x + d1_y + d1_z)
         if meandist_pt_d < meandist_pt_i:
             meandist_pt = meandist_pt_d/num_pt
@@ -124,7 +124,7 @@ cdef (int, int) compute_dist_mean(float[:,::1] fib_in, float[:,:,::1] target, fl
         else:
             meandist_pt = meandist_pt_i/num_pt
             flipped_temp = 1
-        
+
         if meandist_pt < meandist_fib:
             meandist_fib = meandist_pt
             flipped = flipped_temp
@@ -165,7 +165,7 @@ cdef (int, int) compute_dist_max(float[:,::1] fib_in, float[:,:,::1] target, flo
             d1_x = (target[i][j][0] - fib_in[num_pt-j-1][0])**2
             d1_y = (target[i][j][1] - fib_in[num_pt-j-1][1])**2
             d1_z = (target[i][j][2] - fib_in[num_pt-j-1][2])**2
-            
+
             maxdist_pt_i = sqrt(d1_x + d1_y + d1_z)
 
             if maxdist_pt_d < maxdist_pt_i and maxdist_pt_d > maxdist_pt:
@@ -174,7 +174,7 @@ cdef (int, int) compute_dist_max(float[:,::1] fib_in, float[:,:,::1] target, flo
             elif maxdist_pt_d > maxdist_pt_i and maxdist_pt_i > maxdist_pt:
                 maxdist_pt = maxdist_pt_i
                 flipped_temp = 1
-        
+
         if maxdist_pt < maxdist_fib:
             maxdist_fib = maxdist_pt
             flipped = flipped_temp
@@ -230,7 +230,7 @@ cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_id
     return distances
 
 
-cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts: int=12,
+cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts: int=12,
               verbose: int=3):
     """ Cluster streamlines in a tractogram based on a given metric (mean or max distance to the centroids)
 
@@ -252,7 +252,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
 
     if np.isscalar( threshold ) :
         threshold = threshold
-    
+
     cdef LazyTractogram TCK_in = LazyTractogram( filename_in, mode='r', max_points=1000 )
     set_verbose('clustering', verbose)
 
@@ -261,7 +261,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     if n_streamlines == 0: return
 
     cdef int nb_pts = n_pts
-    cdef bool metric_mean = metric == 'mean'
+    cdef bool metric_mean = metric == 'EDavg'
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
     cdef float[:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
@@ -300,7 +300,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
     set_centroids[0] = s0
     cdef int [:] clust_idx = np.zeros(n_streamlines, dtype=np.int32)
     t1 = time.time()
- 
+
     with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
         for i in xrange(1, n_streamlines, 1):
             TCK_in._read_streamline()
@@ -344,7 +344,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
                 new_c += 1
             set_centroids[t] = new_centroid
             pbar.update()
-    
+
     if TCK_in is not None:
         TCK_in.close()
     return clust_idx, set_centroids[:new_c]
@@ -353,7 +353,7 @@ cpdef cluster(filename_in: str, metric: str="mean", threshold: float=4.0, n_pts:
 cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=3):
     """
     Compute the distance between a fiber and a set of centroids
-    
+
     Parameters
     ----------
     tractogram_in : str
@@ -391,7 +391,7 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
     cdef float* lengths = <float*>malloc(2000*sizeof(float))
     cdef size_t p = 0
 
-    
+
     with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
         for i_f in xrange(n_streamlines):
             TCK_in._read_streamline()
@@ -417,13 +417,13 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
                 d2_x = (fib_in[j][0] - target[c_i][num_pt-j-1][0])**2
                 d2_y = (fib_in[j][1] - target[c_i][num_pt-j-1][1])**2
                 d2_z = (fib_in[j][2] - target[c_i][num_pt-j-1][2])**2
-                
+
                 maxdist_pt_i += sqrt(d2_x + d2_y + d2_z)
             if maxdist_pt_d < maxdist_pt_i:
                 maxdist_pt = maxdist_pt_d/num_pt
             else:
                 maxdist_pt = maxdist_pt_i/num_pt
-            
+
             if maxdist_pt < fib_centr_dist[c_i]:
                 fib_centr_dist[c_i] = maxdist_pt
                 centroids[c_i, :TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
@@ -436,7 +436,7 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
     return centroids
 
 
-cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, n_pts: int=10, metric: str="mean"):
+cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, n_pts: int=10, metric: str="EDavg"):
     """ Cluster streamlines in a tractogram based on average euclidean distance.
 
     Parameters
@@ -481,7 +481,7 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
 
 
     in_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), 1000, 3), dtype=np.float32)
-    
+
     cdef float[:,:,:,::1] in_streamlines_view = in_streamlines
     cdef int [:,::1] len_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
     cdef float[:,:,:,::1] resampled_streamlines = np.zeros((len(filenames), int(np.max(n_streamlines)), n_pts, 3), dtype=np.float32)
@@ -502,7 +502,7 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
         TCK_in.close()
     free(vers)
     free(lengths)
-    
+
     cdef int nb_pts = n_pts
     idx_cl_return = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.intc)
     cdef int[:,::1] idx_closest_return = idx_cl_return
@@ -531,8 +531,8 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
     cdef float d1_z = 0
     cdef int [:,::1] clust_idx = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.int32)
     cdef int [:] bundle_n_streamlines = np.zeros(len(filenames), dtype=np.int32)
-    cdef bool metric_mean = metric == 'mean'
-    
+    cdef bool metric_mean = metric == 'EDavg'
+
     with nogil:
         for i in range(in_streamlines_view.shape[0]):
             bundle_n_streamlines[i] = n_streamlines[i]
@@ -578,7 +578,6 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
 
 
     return clst_streamlines, centr_len, new_c, idx_cl_return, clust_idx, bundle_n_streamlines, idx_cl
-    
 
 
 cdef void closest_streamline_s( float[:,::1] streamline_in, int n_pts, int c_i, float[:,::1] target, float[:,::1] fib_in,
@@ -616,8 +615,8 @@ cdef void closest_streamline_s( float[:,::1] streamline_in, int n_pts, int c_i, 
         maxdist_pt = maxdist_pt_d/nb_pts
     else:
         maxdist_pt = maxdist_pt_i/nb_pts
-    
-    if maxdist_pt < fib_centr_dist[c_i]: 
+
+    if maxdist_pt < fib_centr_dist[c_i]:
         fib_centr_dist[c_i] = maxdist_pt
         copy_s(streamline_in, closest_streamlines[c_i], n_pts)
         centr_len[c_i] = n_pts
@@ -632,112 +631,147 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
         fib_out[i][2] = fib_in[i][2]
 
 
-
-def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=None, atlas: str=None, conn_thr: float=2.0,
-                    clust_thr: float=2.0, metric: str="mean", n_pts: int=12, weights_in: str=None, weights_metric: str="sum",
-                    weights_out: str=None, n_threads: int=None, force: bool=False, max_open: int=None, verbose: int=3,
-                    keep_temp_files: bool=False, save_clust_idx: bool=False, max_bytes: int=0, log_list=None):
-    """Cluster streamlines in a tractogram based on a given metric. Possible metrics are "mean" and "max" (default: "mean").
+def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filename: str, metric: str="EDavg", n_pts: int=12,
+                    atlas: str=None, atlas_thr: float=2.0, save_clust_idx: bool=False,
+                    weights_filename: str=None, out_weights_filename: str=None, weights_stat: str="sum",
+                    tmp_folder: str='tmp_cluster', keep_tmp: bool=False,
+                    n_threads: int=None, max_open: int=None, max_bytes: int=0, force: bool=False, verbose: int=3, log_list=None):
+    """Cluster streamlines in a tractogram based on a given distance metric.
 
     Parameters
     ----------
-    tractogram_in : str
-        Path to the input tractogram file.
-    temp_folder : str
-        Path to the temporary folder used to store the intermediate files.
+    tractogram_filename : str
+        Path to the tractogram (.tck) containing the streamlines to process.
+    thr : float
+        Threshold to use when computing distances between the streamlines.
+    out_tractogram_filename : str
+        Path to the tractogram (.tck) that will contain the clustered streamlines.
+    metric : {'EDavg', 'EDmax'}, default='EDavg'
+        Metric to use for computing distances between streamlines:
+        - 'EDavg' = average pointwise Euclidean Distance (i.e., streamlines with
+          average Euclidean distance smaller than 'thr' will be clustered together);
+        - 'EDmax' = max pointwise Euclidean Distance (i.e., streamlines with
+          max Euclidean distance smaller than 'thr' will be clustered together).
+    n_pts : int, default=12
+        Number of points to resample the streamlines before clustering.
+        NB: this clustering algorithm requires all streamlines to have the same number of points.
     atlas : str, optional
-        Path to the atlas file used to split the streamlines into bundles for parallel clustering.
-    conn_thr : float, optional
-        Distance threshold used for hierarchical clustering (default: 2.0).
-    clust_thr : float, optional
-        Distance threshold used for the final clustering (default: 2.0).
-    metric : str, optional
-        Metric to use for the clustering. Either "mean" or "max" (default: "mean").
-    n_pts : int, optional
-        Number of points to resample the streamlines to (default: 10).
-    weights_in : str, optional
-        Path to the weights containing a scalar value for each streamline.
-    weights_metric : str, optional
-        Metric used to assign a weight to each resulting centroid. Either "min", "max", "median", "mean" or "sum" (default: "sum").
-    weights_out : str, optional
-        Path to the output weights file.
+        Path to the image (.nii, .nii.gz) containing the atlas used to split the streamlines
+        into bundles and cluster each of them in parallel; if not specified, the clustering
+        will be performed sequentially on the whole tractogram (may be slow).
+    atlas_thr : float, default=2.0
+        Distance [in voxels] to consider in the radial search when computing the assignments
+        to be used fo splitting in bundles using the atlas. If no label is found within this radius,
+        the corresponding streamline is not taken into account for clustering.
+    save_clust_idx : bool, default=False
+        Save the indices of the cluster to which each input streamline belongs.
+    weights_filename : str, optional
+        Path to the scalar file (.txt, .npy) containing one weight for each input streamline.
+    out_weights_filename : str, optional
+        Path to the scalar file (.txt, .npy) that will contain the weights of the centroids.
+    weights_stat : {'sum', 'mean', 'median', 'min', 'max'}, default='sum'
+        Summary statistic to use for computing the weight of a centroid from the streamlines
+        that were assigned to it.
+    tmp_folder : str, default='tmp_cluster'
+        Path to the temporary folder used to store the intermediate files.
+    keep_tmp : boolean, default=False
+        Keep the temporary folder.
     n_threads : int, optional
-        Number of threads to use for the clustering.
-    force : bool, optional
-        Whether to overwrite existing files.
-    verbose : bool, optional
-        Whether to print out additional information during the clustering.
-    keep_temp_files : bool, optional
-        Whether to keep temporary files.
-    save_clust_idx : bool, optional
-        Whether to save the cluster indices for all input streamlines.
+        Number of threads to use in parallel operations; if not specified,
+        all available threads will be used.
+    max_open : int, optional
+        Maximum number of files opened at the same time that can be used when
+        splitting the input streamlines into bundles for parallel clustering.
+    max_bytes : int, default=0
+        !!! MISSING DOCUMENTATION !!!
+    force : boolean, default=False
+        Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
-
+    t0 = time.time()
     set_verbose('clustering', verbose)
+    logger.info(f'Clustering')
 
     files = [
-        File(name='tractogram_in', type_='input', path=tractogram_in, ext=['.tck']),
-        File(name='tractogram_out', type_='output', path=tractogram_out, ext=['.tck'])
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck']),
+        File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext=['.tck'])
     ]
     if atlas is not None:
         files.append(File(name='atlas', type_='input', path=atlas, ext=['.nii', '.nii.gz']))
-    temp_folder = temp_folder if temp_folder is not None else os.path.join(os.getcwd(), 'tmp')
+    tmp_folder = tmp_folder if tmp_folder is not None else os.path.join(os.getcwd(), 'tmp')
     dirs = [
-        Dir(name='tmp_folder', path=temp_folder)
+        Dir(name='tmp_folder', path=tmp_folder)
     ]
-    if weights_in is not None:
-        files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
-    if weights_out is not None:
-        files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+    if weights_filename is not None:
+        files.append(File(name='weights_filename', type_='input', path=weights_filename, ext=['.txt', '.npy']))
+    if out_weights_filename is not None:
+        files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
     nums = [
-        Num(name='clust_thr', value=clust_thr, min_=0.0, include_min=False),
-        Num(name='atlas_dist', value=conn_thr, min_=0.0, include_min=True),
+        Num(name='thr', value=thr, min_=0.0, include_min=False),
+        Num(name='atlas_thr', value=atlas_thr, min_=0.0, include_min=True),
         Num(name='n_pts', value=n_pts, min_=2)
     ]
     if n_threads is not None:
         nums.append(Num(name='n_threads', value=n_threads, min_=1))
 
-    if weights_metric not in ['min', 'max', 'median', 'sum', 'mean']:
-        logger.error(f'Option {weights_metric} not valid, please choose between min, max, median, mean or sum')
+    if weights_stat not in ['min', 'max', 'median', 'sum', 'mean']:
+        logger.error(f'Option {weights_stat} not valid, please choose between min, max, median, mean or sum')
     check_params(files=files, dirs=dirs, nums=nums, force=force)
-    
+
     tmp_dir_is_created = False
-    if not os.path.exists(temp_folder):
-        os.makedirs(temp_folder)
+    if not os.path.exists(tmp_folder):
+        os.makedirs(tmp_folder)
         tmp_dir_is_created = True
-    
+
     # other checks
-    if metric not in ['mean', 'max']:
-        logger.error(f'Invalid metric, must be \'mean\' or \'max\'')
+    if metric not in ['EDavg', 'EDmax']:
+        logger.error(f'Invalid metric, must be \'EDavg\' or \'EDmax\'')
 
     def compute_chunks(lst, n):
         """Yield successive n-sized chunks from lst."""
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
 
-    if weights_in:
-        w = np.loadtxt(weights_in)
+    if weights_filename:
+        if weights_filename.endswith('.txt'):
+            w = np.loadtxt(weights_filename).astype(np.float64)
+        else:
+            w = np.load(weights_filename, allow_pickle=False).astype(np.float64)
 
     if n_threads:
         MAX_THREAD = n_threads
     else:
         MAX_THREAD = os.cpu_count()
 
-    TCK_in = LazyTractogram(tractogram_in, mode='r')
+    TCK_in = LazyTractogram(tractogram_filename, mode='r')
     num_streamlines = int(TCK_in.header["count"])
+
+    logger.subinfo(f'Number of streamlines: {num_streamlines}', indent_lvl=1, indent_char='*')
+    logger.subinfo(f'Clustering metric: "{metric}"', indent_lvl=1, indent_char='*')
+    logger.subinfo(f'Clustering threshold: {thr}', indent_lvl=1, indent_char='*')
+    logger.subinfo(f'Points per streamline: {n_pts}', indent_lvl=1, indent_char='*')
+    if weights_filename is not None:
+        logger.debug( f'Streamline weights filename: "{weights_filename}"' )
+        logger.subinfo(f'Statistic to summarize centroid weights: "{weights_stat}"', indent_lvl=1, indent_char='*')
+        if out_weights_filename is not None:
+            logger.debug( f'Streamline weights filename: "{weights_filename}"' )
+        else:
+            logger.warning( f'Streamline weights passed as input, but not as output' )
+    elif out_weights_filename is not None:
+        logger.warning( f'Streamline weights passed as output, but not as intput' )
 
     if atlas:
         chunk_size = int(num_streamlines/MAX_THREAD)
         chunk_groups = [e for e in compute_chunks( np.arange(num_streamlines),chunk_size)]
 
         # check if save_assignments is None
-        save_assignments = os.path.join(temp_folder, f'{os.path.basename(tractogram_in)[:-4]}_assignments.txt')
+        save_assignments = os.path.join(tmp_folder, f'{os.path.basename(tractogram_filename)[:-4]}_assignments.txt')
         temp_idx_arr = np.arange(num_streamlines)
-        temp_idx = os.path.join(temp_folder, 'streamline_idx.npy')
+        temp_idx = os.path.join(tmp_folder, 'streamline_idx.npy')
         np.save( temp_idx, temp_idx_arr )
 
         chunks_asgn = []
-        t0 = time.time()
 
         pbar_array = np.zeros(MAX_THREAD, dtype=np.int32)
 
@@ -754,14 +788,14 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                 future = [
                     executor.submit(
                         assign,
-                        tractogram_in,
+                        tractogram_filename,
                         pbar_array,
                         i,
                         start_chunk=int(chunk_groups[i][0]),
                         end_chunk=int(chunk_groups[i][len(chunk_groups[i])-1]+1),
                         gm_map_data=atlas_data,
                         gm_map_img=atlas_img,
-                        threshold=conn_thr ) for i in range(len(chunk_groups))]
+                        threshold=atlas_thr ) for i in range(len(chunk_groups))]
                 chunks_asgn = [f.result() for f in future]
                 chunks_asgn = [c for f in chunks_asgn for c in f]
 
@@ -782,15 +816,14 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         else:
             np.save( save_assignments, chunks_asgn, allow_pickle=False )
 
-        t0 = time.time()
-        output_bundles_folder = os.path.join(temp_folder, 'bundles')
+        output_bundles_folder = os.path.join(tmp_folder, 'bundles')
         logger.info('Splitting the bundles into separate files')
         with ProgressBar(disable=verbose<3, hide_on_exit=True):
-            split_bundles(
-                input_tractogram=tractogram_in,
-                input_assignments=save_assignments,
-                output_folder=output_bundles_folder,
-                weights_in=temp_idx,
+            split(
+                tractogram_filename=tractogram_filename,
+                assignments_filename=save_assignments,
+                out_folder=output_bundles_folder,
+                weights_filename=temp_idx,
                 max_open=max_open,
                 force=force,
                 verbose=1)
@@ -822,14 +855,10 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
         mem = psutil.virtual_memory()
         mem_avail = mem.available
 
-        logger.info(f'Clustering')
-        logger.subinfo(f'Number of input streamlines: {num_streamlines}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Clustering hreshold: {clust_thr}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Number of points: {n_pts}', indent_lvl=1, indent_char='*')
         logger.subinfo(f'Computing workload for parallel clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
         chunk_list = []
         try:
-            TCK_out = LazyTractogram(tractogram_out, mode='w', header=TCK_in.header)
+            TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
             with ProgressBar(subinfo=True, disable=verbose < 3):
                 while True:
                     if max_bytes>0:
@@ -857,7 +886,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                             if bundle[2] > max_bundle_size:
                                 max_bundle_size = bundle[2]
                             future_size = new_chunk_size * max_bundle_size * 4 * base_size
-                            
+
                             if future_size < MAX_BYTES:
                                 new_chunk.append(bundle[0])
                                 new_chunk_num_streamlines.append(bundle[2])
@@ -869,7 +898,7 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                         if len(new_chunk_num_streamlines) == 0:
                             MAX_THREAD -= 1
                             break
-                        
+
                         chunk_list.append([new_chunk, max(new_chunk_num_streamlines)])
                         for k in to_delete:
                             bundles.pop(k)
@@ -880,14 +909,14 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                         break
 
 
-            tot_centroids = 0 
+            tot_centroids = 0
             idx_centroid_per_streamline = np.full(num_streamlines, np.nan)
             logger.subinfo(f'Parallel bundles clustering', indent_lvl=1, indent_char='*', with_progress=verbose>2)
             with ProgressBar(total=len(chunk_list), disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
                 future = [executor.submit(cluster_chunk,
                                         chunk,
                                         num_fibs,
-                                        clust_thr,
+                                        thr,
                                         n_pts=n_pts,
                                         metric=metric) for chunk, num_fibs in chunk_list]
                 for i, f in enumerate(as_completed(future)):
@@ -907,36 +936,36 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                         idx_centroid_per_streamline[streamline_indices] = np.array(streamlines_cluster) + tot_centroids
                         tot_centroids += np.array(streamlines_cluster).max() + 1
                         # compute weights
-                        if weights_in is not None:
-                            if weights_metric == 'sum':
+                        if weights_filename is not None:
+                            if weights_stat == 'sum':
                                 clusters_v = np.unique(streamlines_cluster)
                                 for c in clusters_v:
                                     fib_indices = np.where(streamlines_cluster == c)[0]
                                     tmp_i = [streamline_indices[ii] for ii in fib_indices]
                                     tmp_w = w[tmp_i]
                                     w_out.append(np.sum(tmp_w))
-                            elif weights_metric == 'mean':
+                            elif weights_stat == 'mean':
                                 clusters_v = np.unique(streamlines_cluster)
                                 for c in clusters_v:
                                     fib_indices = np.where(streamlines_cluster == c)[0]
                                     tmp_i = [streamline_indices[ii] for ii in fib_indices]
                                     tmp_w = w[tmp_i]
                                     w_out.append(np.mean(tmp_w))
-                            elif weights_metric == 'min':
+                            elif weights_stat == 'min':
                                 clusters_v = np.unique(streamlines_cluster)
                                 for c in clusters_v:
                                     fib_indices = np.where(streamlines_cluster == c)[0]
                                     tmp_i = [streamline_indices[ii] for ii in fib_indices]
                                     tmp_w = w[tmp_i]
                                     w_out.append(np.min(tmp_w))
-                            elif weights_metric == 'max':
+                            elif weights_stat == 'max':
                                 clusters_v = np.unique(streamlines_cluster)
                                 for c in clusters_v:
                                     fib_indices = np.where(streamlines_cluster == c)[0]
                                     tmp_i = [streamline_indices[ii] for ii in fib_indices]
                                     tmp_w = w[tmp_i]
                                     w_out.append(np.max(tmp_w))
-                            elif weights_metric == 'median':
+                            elif weights_stat == 'median':
                                 clusters_v = np.unique(streamlines_cluster)
                                 for c in clusters_v:
                                     fib_indices = np.where(streamlines_cluster == c)[0]
@@ -947,61 +976,51 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
                     pbar.update()
                 TCK_out.close( write_eof=True, count= TCK_out_size)
 
-            if weights_out is not None:
-                print('Saving weights')
+            if out_weights_filename is not None:
                 w_out = np.array(w_out)
-                if weights_out.endswith('.txt'):
-                    np.savetxt(weights_out, w_out)
+                if out_weights_filename.endswith('.txt'):
+                    np.savetxt(out_weights_filename, w_out)
                 else:
-                    np.save(weights_out, w_out, allow_pickle=False)
+                    np.save(out_weights_filename, w_out, allow_pickle=False)
 
             ret_clust_idx = idx_centroid_per_streamline
-            t1 = time.time()
-            logger.subinfo(f'Number of computed centroids: {TCK_out_size}', indent_lvl=1, indent_char='*')
-            logger.info( f'[ {format_time(t1 - t0)} ]' )
+
         except Exception as e:
             logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
-            if os.path.isfile(tractogram_out):
-                os.remove(tractogram_out)
+            if os.path.isfile(out_tractogram_filename):
+                os.remove(out_tractogram_filename)
 
         os.remove(temp_idx)
-        if not keep_temp_files:
+        if not keep_tmp:
             shutil.rmtree(output_bundles_folder)
             os.remove(save_assignments)
-            # remove temp_folder if different from current
+            # remove tmp_folder if different from current
             if tmp_dir_is_created:
-                shutil.rmtree(temp_folder)
+                shutil.rmtree(tmp_folder)
 
-    
+
     else:
-        logger.info(f'Clustering')
-        logger.subinfo(f'Number of input streamlines: {num_streamlines}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Clustering threshold: {clust_thr}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Number of points: {n_pts}', indent_lvl=1, indent_char='*')
-        t0 = time.time()
-
         ref_indices = []
         streamlines_cluster = []
-
         hash_superset = np.empty(num_streamlines, dtype=np.int64)
-
         for i in range(num_streamlines):
             TCK_in._read_streamline()
             hash_superset[i] = hash(np.array(TCK_in.streamline[:TCK_in.n_pts]).tobytes())
         TCK_in.close()
 
-        clust_idx, set_centroids = cluster(tractogram_in,
-                                            metric=metric,
-                                            threshold=clust_thr,
-                                            n_pts=n_pts,
-                                            verbose=verbose
-                                            )
+        clust_idx, set_centroids = cluster(
+            tractogram_filename,
+            metric=metric,
+            threshold=thr,
+            n_pts=n_pts,
+            verbose=verbose
+        )
 
         ret_clust_idx = np.asarray(clust_idx)
         centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
-        new_c = closest_streamline(tractogram_in, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
-        
-        TCK_out = LazyTractogram(tractogram_out, mode='w', header=TCK_in.header)
+        new_c = closest_streamline(tractogram_filename, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
+
+        TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
         TCK_out_size = 0
 
         for i, n_c in enumerate(new_c):
@@ -1011,53 +1030,54 @@ def run_clustering(tractogram_in: str, tractogram_out: str, temp_folder: str=Non
             TCK_out_size += 1
         TCK_out.close( write_eof=True, count= TCK_out_size)
 
-        t1 = time.time()
-        logger.subinfo(f"Number of computed centroids: {TCK_out_size}", indent_char='*', indent_lvl=1)
-        logger.info( f'[ {format_time(t1 - t0)} ]' )
-        
-        if not keep_temp_files:
-            # remove temp_folder if different from current
+        if not keep_tmp:
+            # remove tmp_folder if different from current
             if tmp_dir_is_created:
-                shutil.rmtree(temp_folder)  
+                shutil.rmtree(tmp_folder)
 
-        if weights_in is not None:
-            w = np.loadtxt(weights_in)
-            if weights_metric == 'sum':
+        if weights_filename is not None:
+            #w = np.loadtxt(weights_filename)
+            if weights_stat == 'sum':
                 cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
                 for i in range(len(ref_indices)):
                     fib_indices = np.where(ret_clust_idx == i)[0]
                     cluster_fibs[i] = np.sum(w[fib_indices])
-            elif weights_metric == 'mean':
+            elif weights_stat == 'mean':
                 cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
                 for i in range(len(ref_indices)):
                     fib_indices = np.where(ret_clust_idx == i)[0]
                     cluster_fibs[i] = np.mean(w[fib_indices])
-            elif weights_metric == 'min':
+            elif weights_stat == 'min':
                 cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
                 for i in range(len(ref_indices)):
                     fib_indices = np.where(ret_clust_idx == i)[0]
                     cluster_fibs[i] = np.min(w[fib_indices])
-            elif weights_metric == 'max':
+            elif weights_stat == 'max':
                 cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
                 for i in range(len(ref_indices)):
                     fib_indices = np.where(ret_clust_idx == i)[0]
                     cluster_fibs[i] = np.max(w[fib_indices])
-            elif weights_metric == 'median':
+            elif weights_stat == 'median':
                 cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
                 for i in range(len(ref_indices)):
                     fib_indices = np.where(ret_clust_idx == i)[0]
                     cluster_fibs[i] = np.median(w[fib_indices])
 
-            if weights_out.endswith('.txt'):
-                np.savetxt(weights_out, cluster_fibs)
-            else:
-                np.save(weights_out, cluster_fibs, allow_pickle=False)
+            if out_weights_filename is not None:
+                if out_weights_filename.endswith('.txt'):
+                    np.savetxt(out_weights_filename, cluster_fibs)
+                else:
+                    np.save(out_weights_filename, cluster_fibs, allow_pickle=False)
 
     if TCK_in is not None:
         TCK_in.close()
 
     if save_clust_idx:
-        np.savetxt(f'{tractogram_out[:len(tractogram_out)-4]}_clust_idx.txt', ret_clust_idx, fmt='%d')
+        np.savetxt(f'{out_tractogram_filename[:len(out_tractogram_filename)-4]}_clust_idx.txt', ret_clust_idx, fmt='%d')
+
+    t1 = time.time()
+    logger.subinfo(f"Number of output centroids: {TCK_out_size}", indent_char='*', indent_lvl=1)
+    logger.info( f'[ {format_time(t1 - t0)} ]' )
 
     return ref_indices, ret_clust_idx
 
@@ -1131,4 +1151,3 @@ cpdef project_values_on_centroid(filename_tractogram: str, float[:,:] streamline
 
     TCK_in.close()
     return np.asarray(final_values)
-        
