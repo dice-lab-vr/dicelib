@@ -1,4 +1,5 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
+cimport cython
 import warnings
 warnings.filterwarnings('ignore', module='dipy')
 
@@ -31,6 +32,7 @@ cdef float[3] NAN3 = {NAN, NAN, NAN}
 logger = setup_logger('tractogram')
 
 
+@cython.final
 cdef class LazyTractogram:
     """Class to 'lazyly' read/write streamlines from tractogram one by one.
 
@@ -113,8 +115,8 @@ cdef class LazyTractogram:
 
         self.is_open = True
 
-    #TODO: avoid having two identical functions (see https://stackoverflow.com/questions/37854359/using-nogil-with-cpdef-class-method-in-cython)
-    cdef int _read_streamline( self ) nogil:
+
+    cpdef int read_streamline( self ) nogil:
         """Read next streamline from the current position in the file.
 
         For efficiency reasons, multiple streamlines are simultaneously loaded from disk using a buffer.
@@ -158,52 +160,8 @@ cdef class LazyTractogram:
 
         return self.n_pts
 
-    cpdef int read_streamline( self ):
-        """Read next streamline from the current position in the file.
 
-        For efficiency reasons, multiple streamlines are simultaneously loaded from disk using a buffer.
-        The current streamline is stored in the fixed-size numpy array 'self.streamline' and its actual
-        length, i.e., number of points/coordinates, is stored in 'self.n_pts'.
-
-        Returns
-        -------
-        output : int
-            Number of points/coordinates read from disk.
-        """
-        cdef float* ptr = &self.streamline[0,0]
-        cdef int    n_read
-        if self.is_open==False:
-            raise RuntimeError( 'File is not open' )
-        if self.mode!='r':
-            raise RuntimeError( 'File is not open for reading' )
-
-        self.n_pts = 0
-        while True:
-            if self.n_pts>self.max_points:
-                raise RuntimeError( f'Problem reading data, streamline seems too long (>{self.max_points} points)' )
-            if self.buffer_ptr==self.buffer_end: # reached end of buffer, need to reload
-                n_read = fread( self.buffer, 4, 3*1000000, self.fp )
-                self.buffer_ptr = self.buffer
-                self.buffer_end = self.buffer_ptr + n_read
-                if n_read < 3:
-                    return 0
-
-            # copy coordinate from 'buffer' to 'streamline'
-            ptr[0] = self.buffer_ptr[0]
-            ptr[1] = self.buffer_ptr[1]
-            ptr[2] = self.buffer_ptr[2]
-            self.buffer_ptr += 3
-            if isnan(ptr[0]) and isnan(ptr[1]) and isnan(ptr[2]):
-                break
-            if isinf(ptr[0]) and isinf(ptr[1]) and isinf(ptr[2]):
-                break
-            self.n_pts += 1
-            ptr += 3
-
-        return self.n_pts
-
-    #TODO: avoid having two identical functions (see https://stackoverflow.com/questions/37854359/using-nogil-with-cpdef-class-method-in-cython)
-    cdef void _write_streamline( self, float [:,:] streamline, int n=-1 ) nogil:
+    cpdef void write_streamline( self, float [:,:] streamline, int n=-1 ) nogil:
         """Write a streamline at the current position in the file.
 
         Parameters
@@ -214,36 +172,7 @@ cdef class LazyTractogram:
             Writes first n points of the streamline. If n<0 (default), writes all points.
             NB: be careful because, for efficiency, a streamline is represented as a fixed-size array
         """
-        if streamline.shape[0]>1 or streamline.shape[1]!=3:
-            raise RuntimeError( '"streamline" must be a Nx3 array' )
-        if n<0:
-            n = streamline.shape[0]
-        if n==0:
-            return
-
-        if self.is_open==False:
-            raise RuntimeError( 'File is not open' )
-        if self.mode=='r':
-            raise RuntimeError( 'File is not open for writing/appending' )
-
-        # write streamline data
-        if fwrite( &streamline[0,0], 4, 3*n, self.fp )!=3*n:
-            raise IOError( 'Problems writing streamline data to file' )
-        # write end-of-streamline signature
-        fwrite( NAN3, 4, 3, self.fp )
-
-    cpdef write_streamline( self, float [:,:] streamline, int n=-1 ):
-        """Write a streamline at the current position in the file.
-
-        Parameters
-        ----------
-        streamline : Nx3 numpy array
-            The streamline data
-        n : int
-            Writes first n points of the streamline. If n<0 (default), writes all points.
-            NB: be careful because, for efficiency, a streamline is represented as a fixed-size array
-        """
-        if  streamline.ndim!=2 or streamline.shape[1]!=3:
+        if streamline.shape[1]!=3:
             raise RuntimeError( '"streamline" must be a Nx3 array' )
         if n<0:
             n = streamline.shape[0]

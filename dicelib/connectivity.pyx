@@ -1,5 +1,4 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False
-
 from concurrent.futures import ThreadPoolExecutor
 
 from libc.math cimport round as cround, sqrt
@@ -361,10 +360,10 @@ cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start
     if thr < 0.5 :
         with nogil:
             while i < start_chunk:
-                TCK_in._read_streamline()
+                TCK_in.read_streamline()
                 i += 1
             for i in xrange( n_streamlines ):
-                TCK_in._read_streamline()
+                TCK_in.read_streamline()
                 end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
                 matrix = apply_affine(end_pts, M, abc, end_pts_trans)
                 assignments_view[i] = streamline_assignment_endpoints( start_vox, end_vox, roi_ret, matrix, gm_map)
@@ -373,10 +372,10 @@ cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start
     else:
         with nogil:
             while i < start_chunk:
-                TCK_in._read_streamline()
+                TCK_in.read_streamline()
                 i += 1
             for i in xrange( n_streamlines ):
-                TCK_in._read_streamline()
+                TCK_in.read_streamline()
                 end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
                 matrix = apply_affine(end_pts, M, abc, end_pts_trans)
                 assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret,

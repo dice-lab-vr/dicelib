@@ -267,7 +267,7 @@ cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts
     cdef float[:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
     cdef float* vers = <float*>malloc(3*sizeof(float))
     cdef float* lengths = <float*>malloc(1000*sizeof(float))
-    TCK_in._read_streamline()
+    TCK_in.read_streamline()
     cdef size_t pp = 0
 
     if TCK_in.n_pts == nb_pts: # no need to resample
@@ -303,7 +303,7 @@ cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts
 
     with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
         for i in xrange(1, n_streamlines, 1):
-            TCK_in._read_streamline()
+            TCK_in.read_streamline()
             if TCK_in.n_pts == nb_pts: # no need to resample
                 for pp in xrange(nb_pts): # copy streamline
                     streamline_in[pp][0] = TCK_in.streamline[pp][0]
@@ -394,7 +394,7 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
 
     with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
         for i_f in xrange(n_streamlines):
-            TCK_in._read_streamline()
+            TCK_in.read_streamline()
             c_i = clust_idx[i_f]
             if TCK_in.n_pts == num_pt: # no need to resample
                 for p in xrange(num_pt): # copy streamline
@@ -469,7 +469,7 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
         idx_cl[i, :idx.shape[0]] = idx
         n_streamlines[i] = int(TCK_in.header['count'])
         header_params[i] = int(TCK_in.header['file'][2:])
-        TCK_in._read_streamline()
+        TCK_in.read_streamline()
         if TCK_in.n_pts == n_pts: # no need to resample
             for pp in xrange(n_pts): # copy streamline
                 set_centroids[i, 0, pp, 0] = TCK_in.streamline[pp][0]
@@ -489,7 +489,7 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
     for i, filename in enumerate(filenames):
         TCK_in = LazyTractogram( filename, mode='r', max_points=1000 )
         for st in range(n_streamlines[i]):
-            TCK_in._read_streamline()
+            TCK_in.read_streamline()
             in_streamlines[i][st][:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts]
             len_streamlines[i][st] = TCK_in.n_pts
             if TCK_in.n_pts == n_pts: # no need to resample
@@ -1004,7 +1004,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
         streamlines_cluster = []
         hash_superset = np.empty(num_streamlines, dtype=np.int64)
         for i in range(num_streamlines):
-            TCK_in._read_streamline()
+            TCK_in.read_streamline()
             hash_superset[i] = hash(np.array(TCK_in.streamline[:TCK_in.n_pts]).tobytes())
         TCK_in.close()
 
