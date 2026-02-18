@@ -471,50 +471,6 @@ def compute_tdi():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
-def tsf_create():
-    '''Entry point for the tractogram.tsf_create function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.tsf_create.__doc__ )
-    args = [
-        [['tractogram'], {'type': str, 'help': desc['tractogram']}],
-        [['scalars'], {'type': str, 'help': desc['scalars']}],
-        [['out_tsf'], {'type': str, 'help': desc['out_tsf']}],
-        [['--check_orientation', '-check'], {'action': 'store_true', 'default': False, 'help': desc['check_orientation']}],
-        [['--out_tractogram'], {'type': str, 'default': None, 'help': desc['out_tractogram']}]
-    ]
-    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
-    try:
-        dicelib.tractogram.tsf_create(
-            tractogram=options.tractogram,
-            scalars=options.scalars,
-            out_tsf=options.out_tsf,
-            check_orientation=options.check_orientation,
-            out_tractogram=options.out_tractogram,
-            verbose=options.verbose,
-            force=options.force
-        )
-    except Exception as e:
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-
-def tsf_join():
-    '''Entry point for the tractogram.tsf_join function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.tsf_join.__doc__ )
-    args = [
-        [['tsf_in'], {'type': str, 'nargs': '+', 'help': 'Input tsf files'}],
-        [['tsf_out'], {'type': str, 'help': 'Output tsf file'}]
-    ]
-    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
-    try:
-        dicelib.tractogram.tsf_join(
-            options.tsf_in,
-            options.tsf_out,
-            options.verbose,
-            options.force
-        )
-    except Exception as e:
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-
 # def compress():
 #     # parse the input parameters
 #     args = [

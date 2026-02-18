@@ -1,17 +1,23 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
-
-from dicelib.tractogram import LazyTractogram
-
-import os
-import time
-
 from libc.math cimport isinf, isnan, NAN
-from libc.stdio cimport fclose, fgets, FILE, fopen, fread, fseek, fwrite, SEEK_END, SEEK_SET
-from libc.stdlib cimport free, malloc
-from libc.string cimport strchr, strlen, strncmp 
+from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
+from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
 
+from dicelib.tractogram cimport LazyTractogram
+from dicelib.streamline import is_flipped
+from dicelib.ui import ProgressBar, set_verbose, setup_logger
+from dicelib.utils import check_params, Dir, File, Num, format_time
+
+import os
+import numpy as np
+from time import time\
+
 cdef float[1] NAN1 = {NAN}
+cdef float[3] NAN3 = {NAN, NAN, NAN}
+
+logger = setup_logger('tsf')
+
 
 cdef class Tsf:
     """Class to read/write tsf files for visualization.
@@ -23,26 +29,25 @@ cdef class Tsf:
 
     TODO: complete this description.
     """
-    cdef readonly   str                             filename
-    cdef readonly   str                             suffix
-    cdef readonly   dict                            header
-    cdef readonly   str                             mode
-    cdef readonly   bint                            is_open
-    cdef readonly   unsigned int                    n_pts
-    cdef            FILE*                           fp
+    # cdef readonly   str                             filename
+    # cdef readonly   str                             suffix
+    # cdef readonly   dict                            header
+    # cdef readonly   str                             mode
+    # cdef readonly   bint                            is_open
+    # cdef readonly   unsigned int                    n_pts
+    # cdef            FILE*                           fp
 
     def __init__( self, char *filename, char* mode, header=None ):
         """Initialize the class.
 
         Parameters
         ----------
-        filename : string
+        filename : str
             Name of the tsf file.
-        mode : string
+        mode : str
             Opens the file for reading ('r'), writing ('w') or appending ('a') scalar values.
         header : dictionary
-            A dictionary of 'key: value' pairs that define the items in the header;
-
+            A dictionary of 'key: value' pairs that define the items in the header.
         """
         self.is_open = False
         self.filename = filename
@@ -55,7 +60,7 @@ cdef class Tsf:
         self.mode = mode
 
         if mode=='r':
-            # TODO
+            # TODO: implement this functionality
             pass
         # open the file
         self.fp = fopen( self.filename, ('r+' if self.mode=='a' else self.mode)+'b' )
@@ -75,6 +80,7 @@ cdef class Tsf:
             fseek( self.fp, 0, SEEK_END )
 
         self.is_open = True
+
 
     cpdef _read_header( self ):
         """Read the header from file.
@@ -140,6 +146,7 @@ cdef class Tsf:
             raise RuntimeError( 'Problem parsing the header; field "file" has multiple values' )
         fseek(self.fp, int( self.header['file'][2:] ), SEEK_SET)
 
+
     cpdef _write_header( self, header ):
         """Write the header to file.
         After writing the header, the file pointer is located at the end of it, i.e., beginning of
@@ -180,7 +187,7 @@ cdef class Tsf:
                 offset += line.size()
 
         if "timestamp" not in header:
-            line = f'timestamp: {time.strftime("%Y-%m-%d %H:%M:%S")}\n'
+            line = f'timestamp: {time()}\n'
             fwrite( line.c_str(), 1, line.size(), self.fp )
             offset += line.size()
 
@@ -197,7 +204,8 @@ cdef class Tsf:
         # move file pointer to beginning of binary data
         fseek( self.fp, offset, SEEK_SET )
 
-    cpdef write_scalar( self, scalars, pts):
+
+    cpdef write_scalar( self, scalars, pts ):
         """Write scalars at the current position in the file.
 
         Parameters
@@ -224,6 +232,36 @@ cdef class Tsf:
             sum_len += pts_arr[i]
             # write end-of-scalars signature
             fwrite( NAN1, 4, 1, self.fp )
+
+
+    cpdef read_scalar( self ):
+        """Read scalars from tsf file.
+        """
+        cdef float scalar
+        cdef int n_read
+        scalar_list = []
+        n_pts_arr = []
+
+        if self.is_open==False:
+            raise RuntimeError( 'File is not open' )
+        if self.mode!='r':
+            raise RuntimeError( 'File is not open for reading' )
+
+        n_pts = 0
+        while True:
+            n_read = fread( &scalar, 4, 1, self.fp )
+            if n_read < 1:
+                break
+            if isnan(scalar):
+                n_pts_arr.append(n_pts)
+                n_pts = 0
+                continue
+            if isinf(scalar):
+                break
+            scalar_list.append(scalar)
+            n_pts += 1
+
+        return np.array(scalar_list, dtype=np.float32), np.array(n_pts_arr, dtype=np.int32)
 
 
     cpdef close( self, bint write_eof=True, int count=-1 ):
@@ -254,6 +292,7 @@ cdef class Tsf:
                     self.header.clear()
                     self._read_header()
                 self.header['count'] = '%0*d' % (len(self.header['count']), count) # NB: use same number of characters
+                # self.header['total_count'] = str(count)
                 self._write_header( self.header )
 
         self.is_open = False
@@ -264,3 +303,164 @@ cdef class Tsf:
     def __dealloc__( self ):
         if self.is_open:
             fclose( self.fp )
+
+
+def _color_by_scalar_file(TCK_in, values, num_streamlines):
+    """Color streamlines based on sections.
+
+    Parameters
+    ----------
+    TCK_in: array
+        Input LazyTractogram object.
+    values: list
+        List of scalars used to color the streamlines.
+
+    Returns
+    -------
+    array
+        Array mapping scalar values to each vertex of each streamline.
+    array
+        Array containing the number of points of each input streamline.
+    """
+    scalar_list = []
+    n_pts_list = []
+    for i in range(num_streamlines):
+        TCK_in.read_streamline()
+        n_pts_list.append(TCK_in.n_pts)
+        streamline_points = np.arange(TCK_in.n_pts)
+        resample = np.linspace(0, TCK_in.n_pts, len(values), endpoint=True, dtype=np.int32)
+        streamline_points = np.interp(streamline_points, resample, values)
+        scalar_list.extend(streamline_points)
+    return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
+
+
+#TODO: improve/fix documentation
+cpdef create( tractogram: str, scalars: str, out_tsf: str, check_orientation: bool=False, out_tractogram: str=None, verbose: int=3, force: bool=False ):
+    """Create a tsf file for each streamline in order to color them for visualization.
+
+    Parameters
+    ----------
+    tractogram : str
+        Path to the file (.tck) containing the streamlines to process.
+    scalars : str
+        Path to the file (.txt, .npy) containing the scalars at each streamline's coordinate to be used
+        for coloring the streamlines along their trajectories.
+    out_tsf : str
+        Path to the output tsf file (.???).
+    check_orientation : bool, default=False
+        If True, create a new tractogram with the streamlines oriented in the same direction.
+    out_tractogram : string, optional
+        !!! MISSING DOCUMENTATION !!!
+    """
+    set_verbose('tractogram', verbose)
+
+    if check_orientation:
+        if out_tractogram is None:
+            raise ValueError("Please specify an output tractogram")
+
+    files = [File(name='tractogram', type_='input', path=tractogram, ext='.tck'),
+            File(name='scalars', type_='input', path=scalars, ext=['.txt', '.npy']),
+            File(name='out_tsf', type_='output', path=out_tsf, ext='.tsf')]
+    if out_tractogram:
+        files.append( File(name='out_tractogram', type_='output', path=out_tractogram, ext='.tck') )
+
+    if check_orientation:
+        check_params(files=files, force=force)
+    elif scalars:
+        files.append(File(name='scalars', type_='input', path=scalars, ext=['.txt', '.npy']))
+        check_params(files=files, force=force)
+    else:
+        raise ValueError("Please specify a color option")
+
+    cdef float[:,::1] ref_streamline = np.empty((2000,3), dtype=np.float32)
+    cdef float[:,::1] streamline_out = np.empty((2000,3), dtype=np.float32)
+    if check_orientation:
+        TCK_in = LazyTractogram(tractogram, mode='r')
+        num_streamlines = int(TCK_in.header['count'])
+        TCK_out = LazyTractogram(out_tractogram, mode='w', header=TCK_in.header)
+        TCK_in.read_streamline()
+        ref_streamline[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
+        ref_n_pts = TCK_in.n_pts
+        with ProgressBar( total=num_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
+            for i in range(int(num_streamlines)-1):
+                TCK_in.read_streamline()
+                flip = is_flipped(TCK_in.streamline[:TCK_in.n_pts], ref_streamline[:ref_n_pts])
+                if flip:
+                    streamline_out[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts][::-1]
+                else:
+                    streamline_out[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts]
+                TCK_out.write_streamline(streamline_out, TCK_in.n_pts)
+                pbar.update()
+        TCK_out.close()
+        TCK_in.close()
+        TCK_in = LazyTractogram(out_tractogram, mode='r')
+        num_streamlines = TCK_in.header['count']
+    else:
+        TCK_in = LazyTractogram(tractogram, mode='r')
+        num_streamlines = TCK_in.header['count']
+
+    if scalars.endswith('.txt'):
+        values = np.loadtxt(scalars)
+    else:
+        values = np.load(scalars)
+    scalar_arr, n_pts_list = _color_by_scalar_file(TCK_in, values, int(num_streamlines))
+
+    tsf = Tsf(out_tsf, 'w', header=TCK_in.header)
+    tsf.write_scalar(scalar_arr, n_pts_list)
+
+
+def join( input_tsf: List[str], output_tsf: str, verbose: int=3, force: bool=False ):
+    """Join multiple tsf files into a single tsf file.
+
+    Parameters
+    ----------
+    input_tsf: list
+        List of paths to the input tsf files.
+    output_tsf: str
+        Path to the output tsf file.
+    """
+    set_verbose('tractogram', verbose)
+
+    files = [File(name='output_tsf', type_='output', path=output_tsf, ext='.tsf')]
+    for i, tsf in enumerate(input_tsf):
+        files.append(File(name=f'input_tsf_{i}', type_='input', path=tsf, ext='.tsf'))
+    check_params(files=files, force=force)
+
+    header = Tsf(input_tsf[0], 'r').header
+    Tsf_out = Tsf(output_tsf, 'w', header=header)
+
+    final_pts = 0
+    for tsf in input_tsf:
+        Tsf_in = Tsf(tsf, 'r')
+        scalar_list, n_pts_list = Tsf_in.read_scalar()
+        final_pts += int(Tsf_in.header['count'])
+        Tsf_out.write_scalar(scalar_list, n_pts_list)
+        Tsf_in.close()
+    # update the count in the header ensuring the same number of characters
+    Tsf_out.close(write_eof=True, count=final_pts)
+
+
+#TODO: check if this is needed
+# def create_color_scalar_file(streamline, num_streamlines):
+#     """Create a scalar file for each streamline in order to color them.
+#
+#     Parameters
+#     ----------
+#     streamlines: list
+#         List of streamlines.
+#
+#     Returns
+#     -------
+#     str
+#         Path to scalar file.
+#     """
+#     scalar_list = list()
+#     n_pts_list = list()
+#     for i in range(num_streamlines):
+#         # pt_list = list()
+#         streamline.read_streamline()
+#         n_pts_list.append(streamline.n_pts)
+#         for j in range(streamline.n_pts):
+#             scalar_list.extend([float(j)])
+#         # scalar_list.append(pt_list)
+#     return np.array(scalar_list, dtype=np.float32), np.array(n_pts_list, dtype=np.int32)
