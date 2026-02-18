@@ -13,6 +13,7 @@ from dicelib.streamline import apply_smoothing, length as streamline_length, rdp
 from dicelib.streamline cimport apply_affine_1pt
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
+from dicelib.connectivity import assign
 
 import amico.lut
 import ast, random as rnd
@@ -1720,61 +1721,63 @@ def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, ou
     return indices
 
 
-def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, atlas_dist: float=2.0, weights_in: str=None, weights_out: str=None, tmp_folder: str=None, keep_tmp_folder: bool=False, n_threads: int=None, verbose: int=3, force: bool=False ):
+def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename: str=None, distance: float=2.0, weights_filename: str=None, out_weights_filename: str=None, tmp_folder: str='tmp_sort', keep_tmp: bool=False, n_threads: int=None, force: bool=False, verbose: int=3 ):
     """Sort the streamlines in a tractogram bundle-by-bundle in lexigraphical order (i.e., bundle_1-1 --> bundle_1-2 --> ... --> bundle_2-2 --> ...).
 
     Parameters
     ----------
-    input_tractogram : str
-        Path to the file (.tck) containing the streamlines to sort.
-    input_atlas : str
-        Path to the file (.nii, .nii.gz) containing the gray matter parcellation.
-    output_tractogram : str
-        Path to the file where to store the sorted tractogram. If not specified (default),
-        the new file will be created by appending '_sorted' to the input filename.
-    atlas_dist : float
-        atlas_dist : float
-        Distance in voxels to consider in the radial search when computing the assignments.
-    weights_in : str
-        Text file with the input streamline weights (one row/streamline).
-    weights_out : str
-        Scalar file (.txt, .npy) for the output streamline weights.
-    tmp_folder : str
+    tractogram_filename : str
+        Path to the tractogram (.tck) containing the streamlines to sort.
+    atlas_filename : str
+        Path to the image (.nii, .nii.gz) containing the labels of the atlas.
+    out_tractogram_filename : str, optional
+        Path to the tractogram (.tck) that will contain the sorted streamlines. If not specified,
+        the output file will be created by appending '_sorted' to the input filename.
+    distance : float, default=2.0
+        Distance [in voxels] to consider in the radial search when computing the assignments.
+    weights_filename : str, optional
+        Path to the scalar file (.txt, .npy) containing one weight for each input streamline.
+    out_weights_filename : str, optional
+        Path to the scalar file (.txt, .npy) that will contain the weights of the sorted streamlines.
+    tmp_folder : str, default='tmp_sort'
         Path to the temporary folder used to store the intermediate files.
-    keep_tmp_folder : boolean
-        Keep the temporary folder (default : False).
-    verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    keep_tmp : boolean, default=False
+        Keep the temporary folder.
+    n_threads : int, optional
+        How many threads to use in parallel for the computations;
+        if not specfied, all available threads will be used.
     force : boolean, default=False
-        Force overwriting of the output files
+        Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
-    from dicelib.connectivity import assign #build_connectome
-
+    t0 = time()
+    logger.info('Sorting streamlines in tractogram')
     set_verbose('tractogram', verbose)
 
     # check input files
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
-        File(name='input_atlas', type_='input', path=input_atlas, ext=['.nii', '.nii.gz'])
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
+        File(name='atlas_filename', type_='input', path=atlas_filename, ext=['.nii', '.nii.gz'])
     ]
     nums = [
-        Num(name='atlas_dist', value=atlas_dist, min_=0.0)
+        Num(name='distance', value=distance, min_=0.0)
     ]
 
-    if weights_in is not None:
-        files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
-        weights_in_ext = os.path.splitext(weights_in)[1]
-        if weights_out is not None:
-            weights_out_ext = os.path.splitext(weights_out)[1]
-            files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+    if weights_filename is not None:
+        files.append(File(name='weights_filename', type_='input', path=weights_filename, ext=['.txt', '.npy']))
+        weights_in_ext = os.path.splitext(weights_filename)[1]
+        if out_weights_filename is not None:
+            weights_out_ext = os.path.splitext(out_weights_filename)[1]
+            files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
         else:
-            weights_out = os.path.splitext(weights_in)[0]+f'_sorted{weights_in_ext}'
+            out_weights_filename = os.path.splitext(weights_filename)[0]+f'_sorted{weights_in_ext}'
             weights_out_ext = weights_in_ext
-            files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+            files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
 
-    if output_tractogram is None:
-        output_tractogram = os.path.splitext(input_tractogram)[0]+'_sorted.tck'
-    files.append(File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'))
+    if out_tractogram_filename is None:
+        out_tractogram_filename = os.path.splitext(tractogram_filename)[0]+'_sorted.tck'
+    files.append(File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck'))
 
     tmp_folder = tmp_folder if tmp_folder is not None else os.path.join(os.getcwd(), 'tmp_sort')
     dirs = [Dir(name='tmp_folder', path=tmp_folder)]
@@ -1785,23 +1788,20 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
         os.makedirs(tmp_folder)
         tmp_dir_is_created = True
 
-    logger.info('Sorting tractogram')
-    t0 = time()
-
     # compute assignments
     log_list_asgn = []
     ret_subinfo = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo, log_list=log_list_asgn):
-        assign(input_tractogram, input_atlas, out_assignments=f'{tmp_folder}/fibers_assignment.txt', atlas_dist=atlas_dist, verbose=1, force=force, n_threads=n_threads, log_list=log_list_asgn)
+        assign(tractogram_filename, atlas_filename, out_assignments_filename=f'{tmp_folder}/fibers_assignment.txt', distance=distance, verbose=1, force=force, n_threads=n_threads, log_list=log_list_asgn)
 
     # split the tractogram
     log_list_split = []
     ret_subinfo_split = logger.subinfo('Splitting tractogram', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_split, log_list=log_list_split):
-        if weights_in is not None:
-            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', weights_in=weights_in, verbose=1, force=force, log_list=log_list_split)
+        if weights_filename is not None:
+            split(tractogram_filename, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', weights_filename=weights_filename, verbose=1, force=force, log_list=log_list_split)
         else:
-            split(input_tractogram, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', verbose=1, force=force, log_list=log_list_split)
+            split(tractogram_filename, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', verbose=1, force=force, log_list=log_list_split)
     set_verbose('tractogram', verbose)
 
     # join the tractograms
@@ -1817,19 +1817,19 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
                 path_bundle = f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}.tck'
                 if os.path.isfile(path_bundle):
                     list_all.append(path_bundle)
-                    if weights_in is not None:
+                    if weights_filename is not None:
                         path_weights = f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}{weights_in_ext}'
                         list_all_weights.append(path_weights)
-        if weights_in is not None:
-            join(list_all, output_tractogram, weights_list=list_all_weights, weights_out=weights_out, verbose=1, log_list=log_list_join)
+        if weights_filename is not None:
+            join(list_all, out_tractogram_filename, weights_filenames=list_all_weights, out_weights_filename=out_weights_filename, verbose=1, log_list=log_list_join)
         else:
-            join(list_all, output_tractogram, verbose=1, log_list=log_list_join)
+            join(list_all, out_tractogram_filename, verbose=1, log_list=log_list_join)
     set_verbose('tractogram', verbose)
     if os.path.isfile(f'{tmp_folder}/bundles/unassigned.tck'):
         logger.warning('Some streamlines of the input tractogram are \'non-connecting\'')
 
     # remove temporary folder/files
-    if not keep_tmp_folder:
+    if not keep_tmp:
         shutil.rmtree(f'{tmp_folder}/bundles')
         os.remove(f'{tmp_folder}/fibers_assignment.txt')
         # remove tmp_folder if different from current
@@ -1840,59 +1840,61 @@ def sort(input_tractogram: str, input_atlas: str, output_tractogram: str=None, a
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: int=100, seed: int=None, weights_in: str=None, weights_out: str=None, tmp_folder: str=None, keep_tmp_folder: bool=False, verbose: int=3, force: bool=False ):
+def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_groups: int=100, seed: int=None, weights_filename: str=None, out_weights_filename: str=None, tmp_folder: str='tmp_shuffle', keep_tmp: bool=False, force: bool=False , verbose: int=3):
     """Shuffle the streamlines in a tractogram.
 
     Parameters
     ----------
-    input_tractogram : str
+    tractogram_filename : str
         Path to the file (.tck) containing the streamlines to shuffle.
-    output_tractogram : str
-        Path to the file where to store the shuffled tractogram. If not specified (default), the new file will be created by appending '_shuffled' to the input filename.
-    n_tmp_groups : int
-        Number of temporary groups to split the streamlines. Each group will contain approximately the same number of streamlines, chosen randomly. The final shuffled tractogram will be created by concatenating the shuffled groups. This parameter must be greater than 1 (default : 100).
-    seed : int
-        Seed for the random shuffling (default : None).
-    weights_in : str
-        Text file with the input streamline weights (one row/streamline).
-    weights_out : str
-        Scalar file (.txt, .npy) for the output streamline weights, shuffled in the same order of the streamlines.
-    tmp_folder : str
+    out_tractogram_filename : str
+        Path to the file (.tck) that will contain the shuffled tractogram.
+        If not specified, the new file will be created by appending '_shuffled' to the input filename.
+    n_tmp_groups : int, default=100
+        Number of temporary sub-tractograms to split the streamlines. Each file will contain
+        approximately the same number of streamlines, chosen randomly. The final shuffled
+        tractogram will be created by concatenating the shuffled groups.
+    seed : int, optional
+        Uses a specific seed for the random number generator.
+    weights_filename : str, optional
+        Path to the scalar file (.txt, .npy) containing one weight for each input streamline.
+    out_weights_filename : str, optional
+        Path to the scalar file (.txt, .npy) that will contain the shuffled streamline weights.
+    tmp_folder : str, default='tmp_shuffle'
         Path to the temporary folder used to store the intermediate files.
-    keep_tmp_folder : boolean
-        Keep the temporary folder (default : False).
-    verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose()
+    keep_tmp : boolean, default=False
+        Keep the temporary folder.
     force : boolean, default=False
-        Force overwriting of the output files
+        Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
+    t0 = time()
+    logger.info('Shuffling streamlines in tractogram')
     set_verbose('tractogram', verbose)
 
     # check input files
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
     ]
-    if output_tractogram is None:
-        output_tractogram = os.path.splitext(input_tractogram)[0]+'_shuffled.tck'
-    files.append(File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck'))
-
+    if out_tractogram_filename is None:
+        out_tractogram_filename = os.path.splitext(tractogram_filename)[0]+'_shuffled.tck'
+    files.append(File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck'))
     nums = [
         Num(name='n_tmp_groups', value=n_tmp_groups, min_=2)
     ]
     if seed is not None:
         nums.append(Num(name='seed', value=seed, min_=0))
-
-    if weights_in is not None:
-        files.append(File(name='weights_in', type_='input', path=weights_in, ext=['.txt', '.npy']))
-        weights_in_ext = os.path.splitext(weights_in)[1]
-        if weights_out is not None:
-            weights_out_ext = os.path.splitext(weights_out)[1]
-            files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
+    if weights_filename is not None:
+        files.append(File(name='weights_filename', type_='input', path=weights_filename, ext=['.txt', '.npy']))
+        weights_in_ext = os.path.splitext(weights_filename)[1]
+        if out_weights_filename is not None:
+            weights_out_ext = os.path.splitext(out_weights_filename)[1]
+            files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
         else:
-            weights_out = os.path.splitext(weights_in)[0]+f'_shuffled{weights_in_ext}'
+            out_weights_filename = os.path.splitext(weights_filename)[0]+f'_shuffled{weights_in_ext}'
             weights_out_ext = weights_in_ext
-            files.append(File(name='weights_out', type_='output', path=weights_out, ext=['.txt', '.npy']))
-
+            files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
     tmp_folder = tmp_folder if tmp_folder is not None else os.path.join(os.getcwd(), 'tmp_shuffle')
     dirs = [Dir(name='tmp_folder', path=tmp_folder)]
     check_params(files=files, dirs=dirs, nums=nums, force=force)
@@ -1902,18 +1904,15 @@ def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: in
         os.makedirs(tmp_folder)
         tmp_dir_is_created = True
 
-    logger.info('Shuffling tractogram')
-    t0 = time()
-
     # create "fake" assignments to split the tractogram
-    TCK_in = LazyTractogram( input_tractogram, mode='r' )
+    TCK_in = LazyTractogram( tractogram_filename, mode='r' )
     n_streamlines = int( TCK_in.header['count'] )
     TCK_in.close()
+    logger.subinfo(f'Number of input streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
+    logger.debug(f'Number of temporary files: {n_tmp_groups}')
     if n_streamlines < n_tmp_groups:
-        logger.error(f'Number of temporary groups ({n_tmp_groups}) must be less than the number of streamlines ({n_streamlines})')
-    logger.subinfo(f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*', indent_lvl=1)
-    logger.subinfo(f'Number of temporary groups: {n_tmp_groups}', indent_char='*', indent_lvl=1)
-    logger.debug(f'Temporary folder: {tmp_folder}')
+        logger.error(f'Number of temporary groups ({n_tmp_groups}) must be less than the number of streamlines')
+    logger.debug(f'Temporary folder: "{tmp_folder}"')
     if seed is not None:
         np.random.seed(seed)
     a = np.repeat(np.arange(1, n_tmp_groups+1), 2, axis=0)
@@ -1927,17 +1926,17 @@ def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: in
 
     # split the tractogram
     log_list_split = []
-    ret_subinfo_split = logger.subinfo('Splitting tractogram', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+    ret_subinfo_split = logger.subinfo('Splitting into sub-tractograms', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_split, log_list=log_list_split):
-        if weights_in is not None:
-            split(input_tractogram, f'{tmp_folder}/fake_assignment.txt', f'{tmp_folder}/bundles', weights_in=weights_in, verbose=1, force=force, log_list=log_list_split)
+        if weights_filename is not None:
+            split(tractogram_filename, f'{tmp_folder}/fake_assignment.txt', f'{tmp_folder}/bundles', weights_filename=weights_filename, force=force, verbose=1, log_list=log_list_split)
         else:
-            split(input_tractogram, f'{tmp_folder}/fake_assignment.txt', f'{tmp_folder}/bundles', verbose=1, force=force, log_list=log_list_split)
+            split(tractogram_filename, f'{tmp_folder}/fake_assignment.txt', f'{tmp_folder}/bundles', force=force, verbose=1, log_list=log_list_split)
     set_verbose('tractogram', verbose)
 
     # join the bundles
     log_list_join = []
-    ret_subinfo_join = logger.subinfo('Joining bundles', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+    ret_subinfo_join = logger.subinfo('Joining sub-tractograms', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_join, log_list=log_list_join):
         list_all = []
         list_all_weights = []
@@ -1945,18 +1944,18 @@ def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: in
             path_bundle = f'{tmp_folder}/bundles/bundle_{i}-{i}.tck'
             if os.path.isfile(path_bundle):
                 list_all.append(path_bundle)
-                if weights_in is not None:
+                if weights_filename is not None:
                     path_weights = f'{tmp_folder}/bundles/bundle_{i}-{i}{weights_in_ext}'
                     list_all_weights.append(path_weights)
-        if weights_in is not None:
-            join(list_all, output_tractogram, weights_list=list_all_weights, weights_out=weights_out, verbose=1, log_list=log_list_join)
+        if weights_filename is not None:
+            join(list_all, out_tractogram_filename, weights_filenames=list_all_weights, out_weights_filename=out_weights_filename, verbose=1, log_list=log_list_join)
         else:
-            join(list_all, output_tractogram, verbose=1, log_list=log_list_join)
+            join(list_all, out_tractogram_filename, verbose=1, log_list=log_list_join)
     set_verbose('tractogram', verbose)
-    logger.subinfo(f'Output tractogram: \'{output_tractogram}\'', indent_char='*', indent_lvl=1)
+    logger.debug(f'Output tractogram: "{out_tractogram_filename}"')
 
     # remove temporary folder/files
-    if not keep_tmp_folder:
+    if not keep_tmp:
         shutil.rmtree(f'{tmp_folder}/bundles')
         os.remove(f'{tmp_folder}/fake_assignment.txt')
         # remove tmp_folder if different from current
@@ -1967,56 +1966,56 @@ def shuffle(input_tractogram: str, output_tractogram: str=None, n_tmp_groups: in
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_tractogram: str=None, step: float=0.2, max_dist: float=2, save_connecting_tck: bool=False, verbose: int=3, force: bool=False ):
-    """Sanitize stramlines in order to end in the gray matter.
+def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_tractogram_filename: str, step: float=0.2, max_dist: float=2.0, save_connecting_tck: bool=False, force: bool=False , verbose: int=3):
+    """Modify the stramlines to ensure they end inside the gray matter.
 
     Parameters
     ----------
-    input_tractogram : str
-        Path to the file (.tck) containing the streamlines to process.
-    gray_matter : str
-        Path to the gray matter.
-    white_matter : str
-        Path to the white matter.
-    output_tractogram : str
-        Path to the file where to store the filtered tractogram. If not specified (default),
-        the new file will be created by appending '_sanitized' to the input filename.
-    step : float = 0.2
+    tractogram_filename : str
+        Path to the tractogram (.tck) containing the streamlines to process.
+    gm_filename : str
+        Path to the image (.nii, .nii.gz) containing the gray-matter labels.
+    wm_filename : str
+        Path to the image (.niim .nii,.gz) containing the white-matter mask.
+    out_tractogram_filename : str
+        Path to the tractogram .tck() that will contain the sanitized streamlines.
+    step : float, default=0.2
         Length of each step done when trying to reach the gray matter [in mm].
-    max_dist : float = 2
+    max_dist : float, default=2
         Maximum distance tested when trying to reach the gray matter [in mm]. Suggestion: use double (largest) voxel size.
-    save_connecting_tck : boolean
-        Save in output also the tractogram containing only the real connecting streamlines (default : False).
+    save_connecting_tck : boolean, default=False
+        Save in output also the tractogram containing only the real connecting streamlines.
         If True, the file will be created by appending '_only_connecting' to the input filename.
-    verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose()
     force : boolean, default=False
-        Force overwriting of the output files
+        Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
      """
-
+    t0 = time()
     set_verbose('tractogram', verbose)
+    logger.info('Sanitizing streamlines')
 
-    if output_tractogram is None :
-        basename, extension = os.path.splitext(input_tractogram)
-        output_tractogram = basename+'_sanitized'+extension
+    if out_tractogram_filename is None :
+        basename, extension = os.path.splitext(tractogram_filename)
+        out_tractogram_filename = basename+'_sanitized'+extension
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
-        File(name='gray_matter', type_='input', path=gray_matter, ext=['.nii', '.nii.gz']),
-        File(name='white_matter', type_='input', path=white_matter, ext=['.nii', '.nii.gz']),
-        File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
+        File(name='gm_filename', type_='input', path=gm_filename, ext=['.nii', '.nii.gz']),
+        File(name='wm_filename', type_='input', path=wm_filename, ext=['.nii', '.nii.gz']),
+        File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck')
     ]
     if save_connecting_tck == True :
-        basename, extension = os.path.splitext(output_tractogram)
+        basename, extension = os.path.splitext(out_tractogram_filename)
         conn_tractogram = basename+'_only_connecting'+extension
         files.append(File(name='conn_tractogram', type_='output', path=conn_tractogram, ext='.tck'))
     check_params(files=files, force=force)
 
-    wm_nii = nib.load(white_matter)
+    wm_nii = nib.load(wm_filename)
     cdef int[:,:,::1] wm = np.ascontiguousarray(wm_nii.get_fdata(), dtype=np.int32)
     wm_header = wm_nii.header
     cdef double [:,::1] affine  = wm_nii.affine
     cdef double [:,::1] affine_inv = np.linalg.inv(affine) #inverse of affine
-    gm_nii = nib.load(gray_matter)
+    gm_nii = nib.load(gm_filename)
     cdef int[:,:,::1] gm = np.ascontiguousarray(gm_nii.get_fdata(), dtype=np.int32)
     gm_header = gm_nii.header
 
@@ -2026,8 +2025,6 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     if wm_header['pixdim'][1] != gm_header['pixdim'][1] or wm_header['pixdim'][2] != gm_header['pixdim'][2] or wm_header['pixdim'][3] != gm_header['pixdim'][3]:
         logger.error('Images have different pixel size')
 
-    """Modify the streamline in order to reach the GM.
-    """
     cdef size_t i, n = 0
     cdef int n_tot   = 0
     cdef int n_in    = 0
@@ -2056,20 +2053,16 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
 
     try:
         # open the input file
-        TCK_in = LazyTractogram( input_tractogram, mode='r' )
+        TCK_in = LazyTractogram( tractogram_filename, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
-
+        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
         if n_streamlines == 0:
             logger.error('No streamlines found')
 
         # open the output file
-        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+        TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
         if save_connecting_tck==True:
             TCK_con = LazyTractogram( conn_tractogram, mode='w', header=TCK_in.header )
-
-        logger.info('Tractogram sanitize')
-        t0 = time()
-        logger.subinfo(f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*', indent_lvl=1)
 
         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
             for i in range( n_streamlines ):
@@ -2192,8 +2185,8 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     except Exception as e:
         if TCK_out is not None:
             TCK_out.close()
-        if os.path.isfile( output_tractogram ):
-            os.remove( output_tractogram )
+        if os.path.isfile( out_tractogram_filename ):
+            os.remove( out_tractogram_filename )
         if TCK_con is not None:
             TCK_con.close()
         if save_connecting_tck == True :
@@ -2208,8 +2201,7 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
             TCK_con.close( write_eof=True, count=n_in )
         t1 = time()
 
-
-    logger.subinfo(f'Sanitized tractogram path: \'{output_tractogram}\'', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'Sanitized tractogram path: \'{out_tractogram_filename}\'', indent_char='*', indent_lvl=1)
     if save_connecting_tck:
         logger.subinfo(f'Connecting streamlines path: \'{conn_tractogram}\'', indent_char='*', indent_lvl=1)
     logger.subinfo(f'Tot. streamlines: {n_tot}', indent_char='*', indent_lvl=1)
@@ -2219,47 +2211,62 @@ def sanitize(input_tractogram: str, gray_matter: str, white_matter: str, output_
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='centripetal', epsilon=None, n_ctrl_pts=None, n_pts_eval=None, seg_len_eval=None, do_resample=False, segment_len=None, streamline_pts=None, verbose=3, force=False ):
-    """Smooth each streamline in the input tractogram using Catmull-Rom splines.
+def spline_smoothing( tractogram_filename, out_tractogram_filename, spline_type='centripetal', epsilon=None, n_ctrl_pts=None, n_pts_eval=None, segment_len_eval=None, resample=False, segment_len=None, streamline_pts=None, force=False, verbose=3 ):
+    """Smooth the streamlines in a tractogram using Catmull-Rom splines.
+
+    The control points of the spline that will approximate a streamline are
+    selected using the Ramer-Douglas-Peucker algorithm [1]. Then, these points
+    are used to construct a Catmull-Rom spline to approximate its trajectory.
+
+    References:
+    [1] https://wikipedia.org/wiki/Ramer–Douglas–Peucker_algorithm
+    [2] http://algorithmist.net/docs/catmullrom.pdf
 
     Parameters
     ----------
-    input_tractogram : str
-        Path to the file (.tck) containing the streamlines to process.
-    output_tractogram : str
-        Path to the file where to store the filtered tractogram. If not specified (default),
-        the new file will be created by appending '_smooth' to the input filename.
-    spline_type : str
-        Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default: 'centripetal').
-    epsilon : float
-        Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default: None).
-    n_ctrl_pts : int
-        Number of control points of the spline used by Ramer-Douglas-Peucker algorithm. NOTE: either 'epsilon' or 'n_ctrl_pts' must be set (default: None).
+    tractogram_filename : str
+        Path to the tractogram (.tck) containing the streamlines to process.
+    out_tractogram_filename : str
+        Path to the tractogram (.tck) that will contain the smoothed streamlines.
+    spline_type : {'centripetal', 'chordal', 'uniform'}, default='centripetal'
+        Type of the splines to use.
+    epsilon : float, default=0.3
+        Distance threshold used by Ramer-Douglas-Peucker algorithm to select the control points of the splines.
+    n_ctrl_pts : int, optional
+        Use a fixed number of points to select the control points with Ramer-Douglas-Peucker algorithm.
+        NB: use either 'epsilon' or 'n_ctrl_pts', not both.
     n_pts_eval : int
-        Number of points in which the spline is evaluated. If None, the number of points is computed using 'seg_len_eval' (default: None).
-    seg_len_eval : float
-        Segment length used to compute the number of points in which the spline is evaluated; computed as the length of the reduced streamline divided by 'seg_len_eval'. If None and "n_pts_eval" is None, "segment_len_eval" is set to 0.5 (default: None).
-    do_resample : boolean
-        If True, the final streamlines are resampled to have a constant segment length (see 'segment_len' and 'streamline_pts' parameters). If False, the point of the final streamlines are more dense where the curvature is high (default: False).
-    segment_len : float
-        Sampling resolution of the final streamline after interpolation. NOTE: if 'do_resample' is True, either 'segment_len' or 'streamline_pts' must be set (default: None).
-    streamline_pts : int
-        Number of points in each of the final streamlines. NOTE: if 'do_resample' is True, either 'streamline_pts' or 'segment_len' must be set (default: None).
-    verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose()
+        Number of points in which the spline is evaluated. If not specified, the number of points
+        is computed using the 'segment_len_eval' parameter.
+    segment_len_eval : float, optional
+        Segment length used to compute the number of points in which the spline is evaluated;
+        this value is computed as the length of the reduced streamline divided by 'segment_len_eval'.
+        If not specified, and 'n_pts_eval' is not specified as well, this parameter is set to 0.5.
+    resample : boolean, default=False
+        Resample the output streamlines to have a constant segment length along the path (see
+        'segment_len' and 'streamline_pts' parameters). NB: if False, the output streamlines
+        will have more where the curvature is high.
+    segment_len : float, optional
+        Sampling resolution of the output streamline after interpolation.
+    streamline_pts : int, optional
+        Number of points of the output streamline after interpolation.
+        NB: use either 'segment_len' or 'streamline_pts'.
     force : boolean, default=False
-        Force overwriting of the output files
+        Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
-
+    t0 = time()
     set_verbose('tractogram', verbose)
+    logger.info('Smoothing streamlines with splines')
 
     if n_pts_eval is not None:
         if n_pts_eval < 2:
             logger.error('\'n_pts_eval\' parameter must be greater than 1')
-        if seg_len_eval is not None:
-            logger.warning('\'seg_len_eval\' parameter will be ignored because \'n_pts_eval\' is set')
+        if segment_len_eval is not None:
+            logger.warning('\'segment_len_eval\' parameter will be ignored because \'n_pts_eval\' is set')
 
-    if do_resample:
+    if resample:
         if segment_len is not None and streamline_pts is not None:
             logger.error('Either \'streamline_pts\' or \'segment_len\' must be set, not both.')
         if segment_len is None and streamline_pts is None:
@@ -2272,21 +2279,20 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
                     logger.error('\'streamline_pts\' parameter must be greater than 1')
             if streamline_pts is None:
                 streamline_pts = 0
-        if seg_len_eval is None:
-            seg_len_eval = 0.5
-
+        if segment_len_eval is None:
+            segment_len_eval = 0.5
     else:
         if segment_len is not None and segment_len != 0:
-            logger.warning('\'segment_len\' parameter will be ignored because \'do_resample\' is set to False')
+            logger.warning('\'segment_len\' parameter will be ignored because \'resample\' is set to False')
             segment_len = 0
         if streamline_pts is not None and streamline_pts != 0:
-            logger.warning('\'streamline_pts\' parameter will be ignored because \'do_resample\' is set to False')
+            logger.warning('\'streamline_pts\' parameter will be ignored because \'resample\' is set to False')
             streamline_pts = 0
-        if seg_len_eval is None:
-            seg_len_eval = 0.5
+        if segment_len_eval is None:
+            segment_len_eval = 0.5
 
     if epsilon is not None and n_ctrl_pts is not None:
-        logger.error('Either \'epsilon\' or \'n_ctrl_pts\' must be set, not both.')
+        logger.error('Either \'epsilon\' or \'n_ctrl_pts\' must be set, not both')
     if epsilon is None and n_ctrl_pts is None:
         epsilon = 0.3
         n_ctrl_pts = 0
@@ -2297,16 +2303,11 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
     if n_ctrl_pts is None:
         n_ctrl_pts = 0
     elif type(n_ctrl_pts) is not int:
-        logger.error(f'\'n_ctrl_pts\'must be an integer data type.')
-
-
-    if output_tractogram is None :
-        basename, extension = os.path.splitext(input_tractogram)
-        output_tractogram = basename+'_smooth'+extension
+        logger.error(f'\'n_ctrl_pts\'must be an integer data type')
 
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
-        File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
+        File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck')
     ]
     check_params(files=files, force=force)
 
@@ -2318,19 +2319,16 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         alpha = 0.0
     else:
         logger.error('\'spline_type\' parameter must be \'centripetal\', \'uniform\' or \'chordal\'')
+    logger.subinfo(f'Spline type: {spline_type}', indent_lvl=1, indent_char='*')
 
     try:
-        TCK_in = LazyTractogram( input_tractogram, mode='r' )
+        TCK_in = LazyTractogram( tractogram_filename, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
+        logger.debug(f'Input tractogram: "{tractogram_filename}"')
+        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='*')
+        TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
 
-        TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
-
-        logger.info('Smoothing tractogram')
-        t0 = time()
-        logger.subinfo(f'Input tractogram: {input_tractogram}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=2, indent_char='-')
-
-        mb = os.path.getsize( input_tractogram )/1.0E6
+        mb = os.path.getsize( tractogram_filename )/1.0E6
         if mb >= 1E3:
             logger.debug(f'Size: {mb/1.0E3:.2f} GB')
         else:
@@ -2339,21 +2337,20 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
         if n_ctrl_pts != 0:
             logger.subinfo(f'Number of control points: {n_ctrl_pts}', indent_lvl=1, indent_char='*')
         if epsilon != 0:
-            logger.subinfo(f'Epsilon for the control points reduction: {epsilon:.2f}', indent_lvl=1, indent_char='*')
+            logger.subinfo(f'Number of control points: variable, computed using epsilon={epsilon:.2f}', indent_lvl=1, indent_char='*')
 
-        logger.subinfo(f'Output tractogram: {output_tractogram}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Spline type: {spline_type}', indent_lvl=2, indent_char='-')
-        if do_resample:
+        if resample:
             if segment_len != 0:
-                logger.subinfo(f'Resampling in equidistant points with segment length equal to {segment_len:.2f}', indent_lvl=2, indent_char='-')
+                logger.subinfo(f'Resampling in equidistant points with segment length={segment_len:.2f}', indent_lvl=1, indent_char='*')
             if streamline_pts != 0:
-                logger.subinfo(f'Resampling in {streamline_pts} equidistant points ', indent_lvl=2, indent_char='-')
+                logger.subinfo(f'Resampling in {streamline_pts} equidistant points', indent_lvl=1, indent_char='*')
         else:
             if n_pts_eval is not None:
-                logger.subinfo(f'Evaluating the spline in {n_pts_eval} points (not equidistant)', indent_lvl=2, indent_char='-')
+                logger.subinfo(f'Evaluating the spline in {n_pts_eval} points (not equidistant)', indent_lvl=1, indent_char='*')
             else:
-                logger.subinfo(f'Evaluating the spline in a different number of points (not equidistant), depending on the streamline length', indent_lvl=2, indent_char='-')
+                logger.subinfo(f'Evaluating the spline in a different number of points (not equidistant), depending on the streamline length', indent_lvl=1, indent_char='*')
 
+        logger.debug(f'Output tractogram: "{out_tractogram_filename}"')
 
         # process each streamline
         n_written = 0
@@ -2362,30 +2359,29 @@ def spline_smoothing_v2( input_tractogram, output_tractogram=None, spline_type='
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
                     break # no more data, stop reading
-                smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, n_pts_final=streamline_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha, n_pts_red=n_ctrl_pts, n_pts_eval=n_pts_eval, seg_len_eval=seg_len_eval, do_resample=do_resample)
+                smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, n_pts_final=streamline_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha, n_pts_red=n_ctrl_pts, n_pts_eval=n_pts_eval, seg_len_eval=segment_len_eval, do_resample=resample)
                 TCK_out.write_streamline( smoothed_streamline, n )
                 n_written += 1
                 pbar.update()
 
-        logger.subinfo(f'Number of smoothed streamlines: {n_written}', indent_lvl=2, indent_char='-')
+        logger.debug(f'Number of smoothed streamlines: {n_written}')
 
     except Exception as e:
         TCK_out.close()
-        if os.path.exists( output_tractogram ):
-            os.remove( output_tractogram )
+        if os.path.exists( out_tractogram_filename ):
+            os.remove( out_tractogram_filename )
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
         TCK_in.close()
         TCK_out.close( write_eof=True, count=n_written )
-
-    mb = os.path.getsize( output_tractogram )/1.0E6
-    if mb >= 1E3:
-        logger.debug(f'{mb/1.0E3:.2f} GB')
-    else:
-        logger.debug(f'{mb:.2f} MB')
-    t1 = time()
-    logger.info( f'[ {format_time(t1 - t0)} ]' )
+        mb = os.path.getsize( out_tractogram_filename )/1.0E6
+        if mb >= 1E3:
+            logger.debug(f'{mb/1.0E3:.2f} GB')
+        else:
+            logger.debug(f'{mb:.2f} MB')
+        t1 = time()
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 #TODO: describe better what this function does, and its parameters
@@ -2450,7 +2446,7 @@ def recompute_indices(idx_filename, kept_filename, out_idx_filename=None, force=
     return indices_recomputed
 
 
-cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_filename=None, option="no_opt", collapse=False, force=False, verbose=3):
+cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_filename=None, stat=None, collapse=False, force=False, verbose=3):
     """Sample underlying values of a tractogram along its points from the corresponding image.
 
     This method does not use interpolation during sampling.
@@ -2465,8 +2461,8 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
         Path to the file (.txt) that will contain the sampled values.
     mask_filename : str, optional
         Path to the mask (.nii, .nii.gz) to constrain the sampling to a specific region.
-    option : str, default=no_opt
-        Apply additional processing on samples values.
+    stat : {'mean', 'median', 'min', 'max'}, optional
+        Compute a summary statistic on the sampled values.
     collapse : boolean, default=False
         Collapse points that fall in the same voxel.
     force : boolean, default=False
@@ -2485,8 +2481,8 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
     ]
     if mask_filename is not None:
         files.append(File(name='mask_filename', type_='input', path=mask_filename, ext=['.nii','.nii.gz']))
-    if option not in ['no_opt', 'min', 'max', 'median', 'mean']:
-        logger.error(f'Option {option} not valid, please choose between min, max, median, mean or no_opt')
+    if stat is not None and stat not in ['mean', 'median', 'min', 'max']:
+        logger.error(f'Option {stat} not valid, please choose one of [min, max, median, mean]')
     check_params(files=files, force=force)
 
     #open the image
@@ -2522,7 +2518,7 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
         logger.subinfo('Image resolution: {}'.format(pixdim), indent_char='*', indent_lvl=1)
         logger.subinfo('Applying vox transformation and sampling values', indent_char='*', indent_lvl=1)
         with open(out_scalars_filename,'w') as file:
-            file.write("# dicelib.tractogram.sample option={} {} {} {}**\n".format(option,tractogram_filename,image_filename,out_scalars_filename))
+            file.write("# dicelib.tractogram.sample stat={} {} {} {}**\n".format(stat,tractogram_filename,image_filename,out_scalars_filename))
             with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
                 for i in range(n_streamlines):
                     tot_vox = 0
@@ -2551,22 +2547,22 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
                             npoints = tot_vox
                         value[ii] = img_view[vox_coords[0], vox_coords[1], vox_coords[2]]
 
-                    if option == 'no_opt':
+                    if stat is None:
                         np.savetxt(file, value[:npoints], fmt='%.3f', newline=' ')
                         file.write("\n")
-                    elif option == 'mean':
+                    elif stat == 'mean':
                         value[ii+2] = np.nanmean(value[:ii+1])
                         file.write(f'{value[ii+2]:.3f}')
                         file.write("\n")
-                    elif option == 'median':
+                    elif stat == 'median':
                         value[ii+3] = np.nanmedian(value[:ii+1])
                         file.write(f'{value[ii+3]:.3f}')
                         file.write("\n")
-                    elif option == 'min':
+                    elif stat == 'min':
                         value[ii+4] = np.min(value[:ii+1])
                         file.write(f'{value[ii+4]:.3f}')
                         file.write("\n")
-                    elif option == 'max':
+                    elif stat == 'max':
                         value[ii+5] = np.max(value[:ii+1])
                         file.write(f'{value[ii+5]:.3f}')
                         file.write("\n")
@@ -2797,7 +2793,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, metric: str='min', normalize: bool=False, trim: float=0.05, shift: float=0.5, force: bool=False, verbose: int=3 ):
+cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', normalize: bool=False, trim: float=0.05, shift: float=0.5, force: bool=False, verbose: int=3 ):
     """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
 
     The file containing the spherical functions should follow the MrTrix3 conventions
@@ -2812,8 +2808,8 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         Path to the file (.nii, .nii.gz) containing the spherical function against which each streamline is evaluated.
     out_weights_filename : str
         Path to the file (.txt, .npy) that will contain the estimated coherence weights.
-    metric : {'min', 'mean', 'max'}, default='min'
-        Metric to use as summary once the coherence is computed for all segments of a streamline.
+    stat : {'min', 'mean', 'max'}, default='min'
+        Summary statistic to use once the coherence is computed for all segments of a streamline.
     normalize : boolean, default=False
         Normalize spherical function in each voxel to its maximum value.
     trim : float, default=0.05
@@ -2855,8 +2851,8 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
 
     if trim<0 or trim>=0.5:
         logger.error('"trim" must be in [0..0.5)')
-    if metric not in ['min','mean','max']:
-        logger.error('"metric" must be one of [min, mean, max])')
+    if stat not in ['min','mean','max']:
+        logger.error('"stat" must be one of [min, mean, max])')
 
     #----- iterate over input streamlines -----
     TCK_in = None
@@ -2894,7 +2890,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         SHbasis = np.asarray(tmp,dtype=np.float32)
         del dirs, theta, phi, tmp
 
-        logger.subinfo(f'Summary metric: {metric}', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Summary statistic: {stat}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Trimmed {trim*100:.1f}% of points at each extremity', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
@@ -2960,11 +2956,11 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         p1[2] = p2[2]
                         n += 1
 
-                    if metric=='min':
+                    if stat=='min':
                         coherence[i] = np.nanmin( w[:n] )
-                    elif metric=='mean':
+                    elif stat=='mean':
                         coherence[i] = np.nanmean( w[:n] )
-                    elif metric=='max':
+                    elif stat=='max':
                         coherence[i] = np.nanmax( w[:n] )
                     pbar.update()
             logger.subinfo(f'Estimated weights:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.std(coherence):.3f}', indent_char='*', indent_lvl=1)
@@ -2984,6 +2980,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             TCK_in.close()
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
+
     return coherence
 
 
@@ -3077,6 +3074,7 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
+#TODO: check with Matteo if still needed
 # cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, shift: float=0.5, verbose=3, force=False ):
 #     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
 #     More info at http://algorithmist.net/docs/catmullrom.pdf.
@@ -3267,92 +3265,3 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
 #     t1 = time()
 #     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
-
-
-# cpdef spline_smoothing( input_tractogram, output_tractogram=None, control_point_ratio=0.25, segment_len=1.0, verbose=3, force=False ):
-#     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
-#     More info at http://algorithmist.net/docs/catmullrom.pdf.
-
-#     Parameters
-#     ----------
-#     input_tractogram : str
-#         Path to the file (.tck) containing the streamlines to process.
-#     output_tractogram : str
-#         Path to the file where to store the filtered tractogram. If not specified (default),
-#         the new file will be created by appending '_smooth' to the input filename.
-#     control_point_ratio : float
-#         Percent of control points to use in the interpolating spline (default : 0.25).
-#     segment_len : float
-#         Sampling resolution of the final streamline after interpolation (default : 1.0).
-#     verbose : int, default=3
-#         What information to print, must be in [0...4] as defined in ui.set_verbose()
-#     force : boolean, default=False
-#         Force overwriting of the output files
-#     """
-
-#     set_verbose('tractogram', verbose)
-
-#     if output_tractogram is None :
-#         basename, extension = os.path.splitext(input_tractogram)
-#         output_tractogram = basename+'_smooth'+extension
-#     files = [
-#         File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
-#         File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
-#     ]
-#     nums = [
-#         Num(name='control_point_ratio', value=control_point_ratio, min_=0.0, max_=1.0, include_min=False),
-#         Num(name='segment_len', value=segment_len, min_=0.0, max_=None, include_min=False)
-#     ]
-#     check_params(files=files, nums=nums, force=force)
-
-#     try:
-#         TCK_in = LazyTractogram( input_tractogram, mode='r' )
-#         n_streamlines = int( TCK_in.header['count'] )
-
-#         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
-
-#         logger.info('Smoothing tractogram')
-#         t0 = time()
-#         logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
-#         logger.subinfo(f'{input_tractogram}', indent_lvl=2, indent_char='-')
-#         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='-')
-
-#         mb = os.path.getsize( input_tractogram )/1.0E6
-#         if mb >= 1E3:
-#             logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
-#         else:
-#             logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-
-#         logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
-#         logger.subinfo(f'{output_tractogram}', indent_lvl=2, indent_char='-')
-#         logger.subinfo(f'Control points: {control_point_ratio*100.0:.1f}%', indent_lvl=1, indent_char='-')
-#         logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
-
-#         # process each streamline
-#         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
-#             for i in range( n_streamlines ):
-
-#                 TCK_in.read_streamline()
-#                 if TCK_in.n_pts==0:
-#                     break # no more data, stop reading
-#                 smoothed_streamline, n = smooth( TCK_in.streamline, TCK_in.n_pts, control_point_ratio, segment_len )
-#                 TCK_out.write_streamline( smoothed_streamline, n )
-#                 pbar.update()
-
-#     except Exception as e:
-#         TCK_out.close()
-#         if os.path.exists( output_tractogram ):
-#             os.remove( output_tractogram )
-#         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-#     finally:
-#         TCK_in.close()
-#         TCK_out.close()
-
-#     mb = os.path.getsize( output_tractogram )/1.0E6
-#     if mb >= 1E3:
-#         logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
-#     else:
-#         logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-#     t1 = time()
-#     logger.info( f'[ {format_time(t1 - t0)} ]' )

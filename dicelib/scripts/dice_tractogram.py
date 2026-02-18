@@ -9,22 +9,22 @@ def assign():
     '''Entry point for the connectivity.assign function'''
     summary, desc, notes = get_argparse_info_from_docstring( dicelib.connectivity.assign.__doc__  )
     args = [
-        [['tractogram'], {'type': str, 'help': desc['tractogram']}],
-        [['atlas'], {'type': str, 'help': desc['atlas']}],
-        [['out_assignments'], {'type': str, 'help': desc['out_assignments']}],
-        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'help': desc['atlas_dist']}],
-        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': desc['n_threads']}]
+        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
+        [['atlas'], {'type': str, 'help': desc['atlas_filename']}],
+        [['out_assignments'], {'type': str, 'help': desc['out_assignments_filename']}],
+        [['--distance', '-d'], {'type': float, 'default': 2.0, 'help': desc['distance']}],
+        [['--n_threads', '-n'], {'type': int, 'default': 3, 'help': desc['n_threads']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
         dicelib.connectivity.assign(
-            tractogram=options.tractogram,
-            atlas=options.atlas,
-            out_assignments=options.out_assignments,
-            atlas_dist=options.atlas_dist,
+            tractogram_filename=options.tractogram,
+            atlas_filename=options.atlas,
+            out_assignments_filename=options.out_assignments,
+            distance=options.distance,
             n_threads=options.n_threads,
-            verbose=options.verbose,
-            force=options.force
+            force=options.force,
+            verbose=options.verbose
         )
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
@@ -36,30 +36,30 @@ def cluster():
         [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
         [['thr'], {'type': float, 'help': 'Distance threshold [in mm] used to cluster the streamlines'}],
         [['tractogram_out'], {'type': str, 'default': None, 'help': 'Output clustered tractogram'}],
-        [['--metric', '-m'], {'type': str, 'default': 'mean', 'metavar': 'METRIC', 'help':'''\
+        [['--metric', '-m'], {'type': str, 'default': 'mean', 'help':'''\
                                             Metric used to cluster the streamlines. Options: \'mean\', \'max\'.
                                             If \'max\', streamlines with ALL the points closer than \'thr\' will be clustered together.
                                             If \'mean\', streamlines with AVERAGE distance closer than \'thr\' will be clustered together'''}],
-        [['--n_pts', '-n'], {'type': int, 'default': 12, 'metavar': 'N_PTS', 'help': 'Resample all streamlines to N_PTS points. Clustering requires streamlines to have the same number of points'}],
-        [['--atlas', '-a'], {'type': str, 'metavar': 'ATLAS_FILE', 'help': '''\
+        [['--n_pts', '-n'], {'type': int, 'default': 12, 'help': 'Resample all streamlines to N_PTS points. Clustering requires streamlines to have the same number of points'}],
+        [['--atlas', '-a'], {'type': str, 'help': '''\
                                             Path to the atlas file used to split the streamlines into bundles and clustering each of them in parallel;
                                             if not provided, the clustering will be performed sequentially'''}],
-        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': '''\
+        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'help': '''\
                                             Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
                                             Argument is the maximum radius in mm; if no node is found within this radius, the streamline is not taken into account for clustering'''}],
         [['--weights_in', '-w_in'], {'type': str, 'default': None, 'help': 'Text file containing a scalar value for each streamline used to assign a weight to the final centroid of each cluster'}],
         [['--weights_out', '-w_out'], {'type': str, 'default': None, 'help': 'Text file for the output streamline weights'}],
-        [['--weights_metric', '-w_m'], {'type': str, 'default': 'sum', 'metavar': 'WEIGHTS_METRIC', 'help': '''\
+        [['--weights_metric', '-w_m'], {'type': str, 'default': 'sum', 'help': '''\
                                             Metric used to compute the final weight of each cluster centroid. Options: \'sum\', \'mean\', \'max\', \'median\', \'min\'.
                                             If \'sum\', the final weight is the sum of all the weights of the streamlines in the cluster.
                                             If \'mean\', the final weight is the mean of all the weights of the streamlines in the cluster.
                                             If \'max\', the final weight is the maximum of all the weights of the streamlines in the cluster.
                                             If \'median\', the final weight is the median of all the weights of the streamlines in the cluster.
                                             If \'min\', the final weight is the minimum of all the weights of the streamlines in the cluster'''}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files for parallel clustering'}],
+        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp', 'help': 'Path to the temporary folder used to store the intermediate files for parallel clustering'}],
         [['--save_clust_idx', '-s'], {'action': 'store_true', 'help': 'Save the indices of the cluster to which each input streamline belongs'}],
-        [['--max_open_files'], {'type': int, 'default': None, 'metavar': 'MAX_OPEN_FILES', 'help': 'Maximum number of files opened at the same time used to split the streamlines into bundles for parallel clustering'}],
-        [['--n_threads'], {'type': int, 'metavar': 'N_THREADS', 'help': 'Number of threads to use to perform parallel clustering. If None, all the available threads will be used'}],
+        [['--max_open_files'], {'type': int, 'default': None, 'help': 'Maximum number of files opened at the same time used to split the streamlines into bundles for parallel clustering'}],
+        [['--n_threads'], {'type': int, 'help': 'Number of threads to use to perform parallel clustering. If None, all the available threads will be used'}],
         [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary files'}]
     ]
     options = setup_parser(run_clustering.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
@@ -208,14 +208,14 @@ def locate():
     args = [
         [['tractogram_needle'], {'type': str, 'help': desc['needle_filename']}],
         [['tractogram_haystack'], {'type': str, 'help': desc['haystack_filename']}],
-        [['out_idx'], {'type': str, 'help': desc['out_idx_filename']}]
+        [['out_indices'], {'type': str, 'help': desc['out_idx_filename']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
         dicelib.tractogram.get_indices_of_streamlines(
             needle_filename=options.tractogram_needle,
             haystack_filename=options.tractogram_haystack,
-            out_idx_filename=options.out_idx,
+            out_idx_filename=options.out_indices,
             force=options.force,
             verbose=options.verbose
         )
@@ -252,7 +252,7 @@ def sample():
         [['image'], {'type': str, 'help': desc['image_filename']}],
         [['out_scalars'], {'type': str, 'help': desc['out_scalars_filename']}],
         [['--mask', '-m'], {'type': str, 'default': None, 'help': desc['mask_filename']}],
-        [['--option', '-o'], {'type': str, 'nargs': '?', 'default': 'no_opt', 'choices': ['no_opt', 'mean', 'median', 'min', 'max'], 'help': desc['option']}],
+        [['--stat', '-s'], {'type': str, 'nargs': '?', 'default': None, 'choices': ['mean', 'median', 'min', 'max'], 'help': desc['stat']}],
         [['--collapse', '-c'], {'action': 'store_true', 'default': False, 'help': desc['collapse']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
@@ -262,7 +262,7 @@ def sample():
             image_filename=options.image,
             out_scalars_filename=options.out_scalars,
             mask_filename=options.mask,
-            option=options.option,
+            stat=options.stat,
             collapse=options.collapse,
             force=options.force,
             verbose=options.verbose
@@ -272,139 +272,131 @@ def sample():
 
 
 def sanitize():
-    '''Entry point for the tractogram sanitization function'''
+    '''Entry point for the tractogram.sanitize function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.sanitize.__doc__ )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['gray_matter'], {'type': str, 'help': 'Path to the gray matter'}],
-        [['white_matter'], {'type': str, 'help': 'Path to the white matter'}],
-        [['--tractogram_out', '-out'], {'type': str, 'help': 'Output tractogram (if None: "_sanitized" appended to the input filename)'}],
-        [['--step', '-s'], {'type': float, 'default': 0.2, 'help': 'Step size [in mm] used to extend or shorten the streamlines'}],
-        [['--max_dist', '-d'], {'type': float, 'default': 2, 'help': 'Maximum distance [in mm] used when extending or shortening the streamlines'}],
-        [['--save_connecting_tck', '-conn'], {'action': 'store_true', 'default': False, 'help': 'Save also tractogram with only the actual connecting streamlines (if True: "_only_connecting" appended to the output filename)'}]
+        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
+        [['gm_image'], {'type': str, 'help': desc['gm_filename']}],
+        [['wm_image'], {'type': str, 'help': desc['wm_filename']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
+        [['--step', '-s'], {'type': float, 'default': 0.2, 'help': desc['step']}],
+        [['--max_dist', '-d'], {'type': float, 'default': 2, 'help': desc['max_dist']}],
+        [['--save_connecting', '-c'], {'action': 'store_true', 'default': False, 'help': desc['save_connecting_tck']}]
     ]
-    options = setup_parser(dicelib.tractogram.sanitize.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.sanitize(
-        options.tractogram_in,
-        options.gray_matter,
-        options.white_matter,
-        options.tractogram_out,
-        options.step,
-        options.max_dist,
-        options.save_connecting_tck,
-        options.verbose,
-        options.force
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.sanitize(
+            tractogram_filename=options.tractogram,
+            gm_filename=options.gm_image,
+            wm_filename=options.wm_image,
+            out_tractogram_filename=options.out_tractogram,
+            step=options.step,
+            max_dist=options.max_dist,
+            save_connecting_tck=options.save_connecting,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def shuffle():
-    '''Entry point for the tractogram shuffling function'''
+    '''Entry point for the tractogram.shuffle function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.shuffle.__doc__ )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--n_tmp_groups', '-g'], {'type': int, 'default': 100, 'help': 'Number of temporary groups used to shuffle the streamlines'}],
-        [['--seed', '-s'], {'type': int, 'default': None, 'help': 'Seed used for the random shuffling'}],
-        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': 'Input streamline weights (.txt or .npy)'}],
-        [['--weights_out', '-o'], {'type': str, 'default': None, 'help': 'Output streamline weights (.txt or .npy)'}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_shuffle', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
-        [['--keep_tmp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}]
+        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
+        [['--n_tmp_groups', '-g'], {'type': int, 'default': 100, 'help': desc['n_tmp_groups']}],
+        [['--seed', '-s'], {'type': int, 'default': None, 'help': desc['seed']}],
+        [['--weights', '-wi'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
+        [['--out_weights', '-wo'], {'type': str, 'default': None, 'help': desc['out_weights_filename']}],
+        [['--tmp_folder', '-t'], {'type': str, 'default': 'tmp_shuffle', 'help': desc['tmp_folder']}],
+        [['--keep_tmp', '-k'], {'action': 'store_true', 'help': desc['keep_tmp']}]
     ]
-    options = setup_parser(dicelib.tractogram.shuffle.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.shuffle(
-        options.tractogram_in,
-        options.tractogram_out,
-        options.n_tmp_groups,
-        options.seed,
-        options.weights_in,
-        options.weights_out,
-        options.tmp_folder,
-        options.keep_tmp,
-        options.verbose,
-        options.force
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.shuffle(
+            tractogram_filename=options.tractogram,
+            out_tractogram_filename=options.out_tractogram,
+            n_tmp_groups=options.n_tmp_groups,
+            seed=options.seed,
+            weights_filename=options.weights,
+            out_weights_filename=options.out_weights,
+            tmp_folder=options.tmp_folder,
+            keep_tmp=options.keep_tmp,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def smooth():
-    '''Entry point for the tractogram smoothing function'''
+    '''Entry point for the tractogram.spline_smoothing function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.spline_smoothing.__doc__ )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': 'Type of spline to use for the smoothing'}],
-        [['--epsilon', '-e'], {'type': float, 'default': None, 'help': '''\
-                               Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline.
-                               NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.
-                                     If None and "n_ctrl_pts" is None, "epsilon" is set to 0.3.'''}],
-        [['--n_ctrl_pts', '-n'], {'type': int, 'default': None, 'help': '''\
-                                  Number of control points used to interpolate the streamlines.
-                                  NOTE: either "epsilon" or "n_ctrl_pts" must be set, by default "epsilon" is used.'''}],
-        [['--do_resample', '-r'], {'action': 'store_true', 'default': False, 'help': '''\
-                                   If True, the final streamlines are resampled to have a constant segment length (see "segment_len" and "streamline_pts" parameters).
-                                   If False, the point of the final streamlines are more dense where the curvature is high.'''}],
-        [['--segment_len', '-l'], {'type': float, 'default': None, 'help': '''\
-                                   Sampling resolution of the final streamline after interpolation.
-                                   NOTE: if 'do_resample' is True, either "segment_len" or "streamline_pts" must be set, by default "segment_len" is used.
-                                   If None and "streamline_pts" is None, "segment_len" is set to 0.5.'''}],
-        [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': '''\
-                                      Number of points in each of the final streamlines.
-                                      NOTE: if 'do_resample' is True, either "streamline_pts" or "segment_len" must be set, by default "segment_len" is used.'''}],
-        [['--n_pts_eval', '-n_ev'], {'type': int, 'default': None, 'help': '''\
-                                     Number of points in which the spline is evaluated.
-                                     If None, the number of points is computed using "segment_len_eval"'''}],
-        [['--segment_len_eval', '-l_ev'], {'type': float, 'default': None, 'help': '''\
-                                           Segment length used to compute the number of points in which the spline is evaluated; computed as the length of the reduced streamline divided by "segment_len_eval".
-                                           If None and "n_pts_eval" is None, "segment_len_eval" is set to 0.5'''}]
+        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
+        [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': desc['spline_type']}],
+        [['--epsilon', '-e'], {'type': float, 'default': None, 'help': desc['epsilon']}],
+        [['--n_ctrl_pts', '-n'], {'type': int, 'default': None, 'help': desc['n_ctrl_pts']}],
+        [['--n_pts_eval', '-ne'], {'type': int, 'default': None, 'help': desc['n_pts_eval']}],
+        [['--segment_len_eval', '-le'], {'type': float, 'default': None, 'help': desc['segment_len_eval']}],
+        [['--resample', '-r'], {'action': 'store_true', 'default': False, 'help': desc['resample']}],
+        [['--segment_len', '-l'], {'type': float, 'default': None, 'help': desc['segment_len']}],
+        [['--streamline_pts', '-p'], {'type': int, 'default': None, 'help': desc['streamline_pts']}]
     ]
-    options = setup_parser(dicelib.tractogram.spline_smoothing_v2.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.spline_smoothing_v2(
-        options.tractogram_in,
-        options.tractogram_out,
-        options.type,
-        options.epsilon,
-        options.n_ctrl_pts,
-        options.n_pts_eval,
-        options.segment_len_eval,
-        options.do_resample,
-        options.segment_len,
-        options.streamline_pts,
-        options.verbose,
-        options.force
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.spline_smoothing(
+            tractogram_filename=options.tractogram,
+            out_tractogram_filename=options.out_tractogram,
+            spline_type=options.type,
+            epsilon=options.epsilon,
+            n_ctrl_pts=options.n_ctrl_pts,
+            n_pts_eval=options.n_pts_eval,
+            segment_len_eval=options.segment_len_eval,
+            resample=options.resample,
+            segment_len=options.segment_len,
+            streamline_pts=options.streamline_pts,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def sort():
-    '''Entry point for the tractogram sorting function'''
+    '''Entry point for the tractogram.sort function'''
+    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.sort.__doc__ )
     args = [
-        [['tractogram_in'], {'type': str, 'help': 'Input tractogram'}],
-        [['atlas'], {'type': str, 'help': 'Path to the atlas file used to sort the streamlines'}],
-        [['tractogram_out'], {'type': str, 'help': 'Output tractogram'}],
-        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'metavar': 'ATLAS_DIST', 'help': '''\
-                                  Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
-                                  Argument is the maximum radius in mm'''}],
-        [['--weights_in'], {'type': str, 'help': 'Text file with the input streamline weights (.txt or .npy)'}],
-        [['--weights_out'], {'type': str, 'help': 'Text file for the output streamline weights (.txt or .npy)'}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_sort', 'metavar': 'TMP_FOLDER', 'help': 'Path to the temporary folder used to store the intermediate files'}],
-        [['--keep_temp', '-k'], {'action': 'store_true', 'help': 'Keep temporary folder'}],
-        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
-                                 Number of threads to use.
-                                 If None, all the available threads will be used'''}]
+        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
+        [['atlas'], {'type': str, 'help': desc['atlas_filename']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
+        [['--distance', '-d'], {'type': float, 'default': 2.0, 'help': desc['distance']}],
+        [['--weights', '-wi'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
+        [['--out_weights','-wo'], {'type': str, 'default': None, 'help': desc['out_weights_filename']}],
+        [['--tmp_folder', '-t'], {'type': str, 'default': 'tmp_sort', 'help': desc['tmp_folder']}],
+        [['--keep_tmp', '-k'], {'action': 'store_true', 'help': desc['keep_tmp']}],
+        [['--n_threads', '-n'], {'type': int, 'default': 3, 'help': desc['n_threads']}]
     ]
-    options = setup_parser(dicelib.tractogram.sort.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    dicelib.tractogram.sort(
-        options.tractogram_in,
-        options.atlas,
-        options.tractogram_out,
-        options.atlas_dist,
-        options.weights_in,
-        options.weights_out,
-        options.tmp_folder,
-        options.keep_temp,
-        options.n_threads,
-        options.verbose,
-        options.force
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        dicelib.tractogram.sort(
+            tractogram_filename=options.tractogram,
+            atlas_filename=options.atlas,
+            out_tractogram_filename=options.out_tractogram,
+            distance=options.distance,
+            weights_filename=options.weights,
+            out_weights_filename=options.out_weights,
+            tmp_folder=options.tmp_folder,
+            keep_tmp=options.keep_tmp,
+            n_threads=options.n_threads,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
 def split():
@@ -416,7 +408,7 @@ def split():
         [['--out_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': desc['out_folder']}],
         [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': desc['prefix']}],
         [['--regions', '-r'], {'type': str, 'default': None, 'help': desc['regions']}],
-        [['--weights', '-w'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
+        [['--weights', '-wi'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
         [['--max_open', '-m'], {'type': int, 'default': None, 'help': desc['max_open']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
@@ -443,7 +435,7 @@ def compute_coherence():
         [['tractogram'], {'help': desc['tractogram_filename']}],
         [['sph_func'], {'help': desc['sph_func_filename']}],
         [['out_weights'], {'help': desc['out_weights_filename']}],
-        [['--metric', '-m'], {'choices': ['min','mean','max'], 'default': 'min', 'help': desc['metric']}],
+        [['--stat', '-m'], {'choices': ['min','mean','max'], 'default': 'min', 'help': desc['stat']}],
         [['--normalize', '-n'], {'action': 'store_true', 'help': desc['normalize']}],
         [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}],
         [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
@@ -454,7 +446,7 @@ def compute_coherence():
             tractogram_filename=options.tractogram,
             sph_func_filename=options.sph_func,
             out_weights_filename=options.out_weights,
-            metric=options.metric,
+            stat=options.stat,
             normalize=options.normalize,
             trim=options.trim,
             shift=options.shift,

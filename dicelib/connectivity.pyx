@@ -226,47 +226,53 @@ cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, fl
     return roi_ret
 
 
-cpdef assign(tractogram: str, atlas: str, out_assignments: str, atlas_dist: float=2.0, n_threads: int=None, verbose: int=3, force: bool=False, log_list=None) :
+cpdef assign(tractogram_filename: str, atlas_filename: str, out_assignments_filename: str, distance: float=2.0, n_threads: int=None, force: bool=False, verbose: int=3, log_list=None) :
     """Compute the assignments of the streamlines based on an atlas (i.e. label file).
 
     A radial search from each streamline endpoint is performed to locate the nearest node
-    and assign the streamline to the corresponding pair of labels; the parameter `atlas_dist`
+    and assign the streamline to the corresponding pair of labels; the parameter `distance`
     controls the maximum radius in mm of the search.
 
     Parameters
     ----------
-    tractogram : str
+    tractogram_filename : str
         Path to the file (.tck) containing the streamlines to process.
-    atlas : str
-        Path to the file (.nii) containing the atlas/labels.
-    out_assignments : str
+    atlas_filename : str
+        Path to the file (.nii, .nii.gz) containing the labels of the atlas.
+    out_assignments_filename : str
         Path to the file (.txt, .npy) where to store the resulting assignments.
-    atlas_dist : int, default=2.0
+    distance : float, default=2.0
         Distance [in voxels] to consider in the radial search when computing the assignments.
     n_threads : int, deault=None
         How many threads to use in parallel for the computations;
         if not specfied, all available threads will be used.
+    force : boolean, default=False
+        Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
-    set_verbose('connectivity', verbose)
     t0 = time()
+    set_verbose('connectivity', verbose)
+    logger.info(f'Computing assignments')
 
     files = [
-        File(name='tractogram', type_='input', path=tractogram, ext=['.tck']),
-        File(name='atlas', type_='input', path=atlas, ext=['.nii', '.nii.gz']),
-        File(name='out_assignments', type_='output', path=out_assignments, ext=['.txt', '.npy'])
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck']),
+        File(name='atlas_filename', type_='input', path=atlas_filename, ext=['.nii', '.nii.gz']),
+        File(name='out_assignments_filename', type_='output', path=out_assignments_filename, ext=['.txt', '.npy'])
     ]
     nums = [
-        Num(name='atlas_dist', value=atlas_dist, min_=0.0, include_min=True)
+        Num(name='distance', value=distance, min_=0.0, include_min=True)
     ]
     if n_threads is not None:
         nums.append(Num(name='n_threads', value=n_threads, min_=1))
     check_params(files=files, nums=nums, force=force)
 
-    num_streamlines = int(LazyTractogram(tractogram, mode='r').header["count"])
-    logger.info(f'Computing assignments for {num_streamlines} streamlines')
+    num_streamlines = int(LazyTractogram(tractogram_filename, mode='r').header["count"])
+    logger.subinfo(f'Number of input streamlines: {num_streamlines}', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'Distance threshold: {distance} voxels', indent_char='*', indent_lvl=1)
 
     # Load of the gm map
-    gm_map_img = nib.load(atlas)
+    gm_map_img = nib.load(atlas_filename)
     gm_map_data = gm_map_img.get_fdata()
     gm_map_dtype = gm_map_img.header.get_data_dtype()
     if gm_map_dtype.char not in ['b',' h', 'i', 'l', 'B', 'H', 'I', 'L']:
@@ -290,25 +296,25 @@ cpdef assign(tractogram: str, atlas: str, out_assignments: str, atlas_dist: floa
             future = [
                 executor.submit(
                     _assign,
-                    tractogram,
+                    tractogram_filename,
                     pbar_array,
                     i,
                     start_chunk=int(chunk_groups[i][0]),
                     end_chunk=int(chunk_groups[i][len(chunk_groups[i]) - 1] + 1),
                     gm_map_data=gm_map_data,
                     gm_map_img=gm_map_img,
-                    threshold=atlas_dist) for i in range(len(chunk_groups))
+                    threshold=distance) for i in range(len(chunk_groups))
             ]
             chunks_asgn = [f.result() for f in future]
             chunks_asgn = [c for f in chunks_asgn for c in f]
 
-    out_assignments_ext = os.path.splitext(out_assignments)[1]
+    out_assignments_ext = os.path.splitext(out_assignments_filename)[1]
     if out_assignments_ext == '.txt':
-        with open(out_assignments, "w") as text_file:
+        with open(out_assignments_filename, "w") as text_file:
             for reg in chunks_asgn:
                 print('%d %d' % (int(reg[0]), int(reg[1])), file=text_file)
     else:
-        np.save(out_assignments, chunks_asgn, allow_pickle=False)
+        np.save(out_assignments_filename, chunks_asgn, allow_pickle=False)
 
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
