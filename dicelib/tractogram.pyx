@@ -24,7 +24,7 @@ import numpy as np
 from time import time
 
 from dipy.reconst.shm import real_sh_tournier
-#TODO: remove DIPY depenendecy (currently, required for only 1 function)
+#TODO: remove DIPY dependency (currently, required for only 1 function)
 
 cdef float[1] NAN1 = {NAN}
 cdef float[3] NAN3 = {NAN, NAN, NAN}
@@ -67,11 +67,11 @@ cdef class LazyTractogram:
             Name of the file containing the tractogram to open.
         mode : str
             Opens the tractogram for reading ('r'), writing ('w') or appending ('a') streamlines.
-        header : dictionary
+        header : dictionary, optional
             A dictionary of 'key: value' pairs that define the items in the header; this parameter is only required
-            when writing streamlines to disk (default : None).
-        max_points : unsigned int
-            The maximum number of points/coordinates allowed for a streamline (default : 3000).
+            when writing streamlines to disk.
+        max_points : unsigned int, default=3000
+            The maximum number of points/coordinates allowed for a streamline.
         """
         self.is_open = False
         self.filename = filename
@@ -268,7 +268,8 @@ cdef class LazyTractogram:
                 self.header[key].append(value)
             nLines += 1
 
-        # check if the 'count' field is present TODO: fix this, allow working even without it
+        # check if the 'count' field is present
+        # TODO: fix this, allow working even without it
         if 'count' not in self.header:
             raise RuntimeError( 'Problem parsing the header; field "count" not found' )
         if type(self.header['count'])==list:
