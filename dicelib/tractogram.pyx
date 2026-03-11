@@ -15,6 +15,7 @@ from dicelib.streamline cimport apply_affine_1pt
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 from dicelib.connectivity import assign
+from dicelib.tsf cimport TrackScalarFile
 
 import amico.lut
 import ast, random as rnd
@@ -1935,7 +1936,7 @@ def recompute_indices(idx_filename, kept_filename, out_idx_filename=None, force=
     return indices_recomputed
 
 
-cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_filename=None, stat='all', shift: float=0.5, collapse=False, force=False, verbose=3):
+cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_filename=None, stat='all', shift: float=0.5, force=False, verbose=3):
     """Sample underlying values of a tractogram along its points from the corresponding image.
 
     This method does not use interpolation during sampling.
@@ -1947,17 +1948,15 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
     image_filename : str
         Path to the image (.nii, .nii.gz) to be sampled.
     out_scalars_filename : str
-        Path to the file (.txt) that will contain the sampled values.
+        Path to the file (.tsf, .txt) that will contain the sampled values.
     mask_filename : str, optional
         Path to the mask (.nii, .nii.gz) to constrain the sampling to a specific region.
     stat : {'all', 'mean', 'median', 'min', 'max'}, default='all'
-        Compute a summary statistic on the sampled values; if not specified,
-        all values will be saved.
+        Compute a summary statistic on the sampled values;
+        if not specified, all values will be saved.
     shift : float, default=0.5
         If necessary, apply a shift (in voxel units) to streamline coordinates to
         account for differences between software packages.
-    collapse : boolean, default=False
-        Collapse points that fall in the same voxel.
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -1969,108 +1968,99 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
 
     files = [
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
-        File(name='image_filename', type_='input', path=image_filename, ext=['.nii','.nii.gz']),
-        File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt']) #TODO: should be TSF?
+        File(name='image_filename', type_='input', path=image_filename, ext=['.nii','.nii.gz'])
     ]
+    if stat=='all':
+        files.append( File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.tsf']) )
+    else:
+        files.append( File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt']) )
     if mask_filename is not None:
         files.append(File(name='mask_filename', type_='input', path=mask_filename, ext=['.nii','.nii.gz']))
-    if stat is not None and stat not in ['mean', 'median', 'min', 'max']:
-        logger.error(f'Option {stat} not valid, please choose one of [min, max, median, mean]')
+    if stat not in ['all', 'mean', 'median', 'min', 'max']:
+        logger.error('"stat" must be one of [all, mean, median, min, max])')
     check_params(files=files, force=force)
 
-    #open the image
-    Img = nib.load(image_filename)
-    img_data = Img.get_fdata()
-    img_data = np.array(img_data, dtype=np.float32)
+    # open the scalar image
+    niiMAP = nib.load(image_filename)
+    niiMAP_img = np.array(niiMAP.get_fdata(), dtype=np.float32)
 
+    # open the mask (if any)
     if mask_filename != None:
-        #open the mask
-        mask = nib.load(mask_filename)
-        mask_data = mask.get_fdata()
+        niiMASK_img = np.array(nib.load(mask_filename).get_fdata()>0, dtype=np.uint8)
     else:
-        mask_data = np.ones(img_data.shape, dtype=np.float32)
+        niiMASK_img = np.ones(niiMAP_img.shape, dtype=np.float32)
 
-    cdef float [:,:,::1] img_view = np.ascontiguousarray(img_data).astype(np.float32)
-    cdef float [:,:,::1] mask_view = np.ascontiguousarray(mask_data).astype(np.float32)
-    cdef double [:,::1] affine_inv  = np.linalg.inv(Img.affine) #inverse of affine
-    cdef float [:] moved_pt         = np.zeros(3, dtype=np.float32)
-    cdef size_t ii                  = 0
-    cdef size_t jj                  = 0
-    cdef int [::1] vox_coords       = np.zeros(3, dtype=np.int32)
-    cdef float [::1] value          = np.zeros(2000, dtype=np.float32)
-    cdef int [:,::1] voxel_checked
-    cdef int tot_vox                = 0
-
-    TCK_in  = None
+    cdef float [:,:,::1]            img_view   = np.ascontiguousarray(niiMAP_img).astype(np.float32)
+    cdef unsigned char [:,:,::1]    mask_view  = np.ascontiguousarray(niiMASK_img).astype(np.uint8)
+    cdef double [:,::1]             affine_inv = np.linalg.inv(niiMAP.affine)
+    cdef float [:]                  P          = np.zeros(3, dtype=np.float32)
+    cdef float [:]                  values     = np.zeros(3000, dtype=np.float32)
+    cdef size_t i, j
+    cdef int vx, vy, vz
+    TCK_in = None
+    TSF_out = None
     try:
-        #open the input file
+        # open the input file
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
-        pixdim = Img.header['pixdim'] [1:4]
-        logger.subinfo('Image resolution: {}'.format(pixdim), indent_char='*', indent_lvl=1)
+        pixdim = niiMAP.header['pixdim'] [1:4]
+        logger.subinfo(f'Image resolution: {pixdim[0]}x{pixdim[1]}x{pixdim[2]} mm', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Summary statistic: {stat}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
-        logger.subinfo('Sampling values', indent_char='*', indent_lvl=1)
-        with open(out_scalars_filename,'w') as file:
+
+        # open output file
+        if stat == 'all':
+            TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=TCK_in.header )
+            #TODO: add description in the header
+        else:
+            file = open(out_scalars_filename,'w')
             file.write("# dicelib.tractogram.sample stat={} {} {} {}**\n".format(stat,tractogram_filename,image_filename,out_scalars_filename))
-            with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
-                for i in range(n_streamlines):
-                    tot_vox = 0
-                    TCK_in.read_streamline()
-                    npoints = TCK_in.n_pts
-                    voxel_checked = np.zeros((npoints,3), dtype=np.int32)
-                    value = np.zeros(2000, dtype=np.float32)
-                    for ii in range(npoints):
-                        #TODO: check if this is correct
-                        apply_affine_1pt( TCK_in.streamline[ii], affine_inv, moved_pt, shift )
-                        vox_coords[0] = int(moved_pt[0])
-                        vox_coords[1] = int(moved_pt[1])
-                        vox_coords[2] = int(moved_pt[2])
-                        if mask_view[vox_coords[0], vox_coords[1], vox_coords[2]] == 0:
-                            value[ii] = np.nan
-                        if collapse:
-                            # check if the voxel has already been visited
-                            for jj in range(ii):
-                                if voxel_checked[jj,0] == vox_coords[0] and voxel_checked[jj,1] == vox_coords[1] and voxel_checked[jj,2] == vox_coords[2]:
-                                    break
-                            if jj < ii-1:
-                                continue
-                            else:
-                                tot_vox += 1
-                                voxel_checked[tot_vox] = vox_coords
-                            npoints = tot_vox
-                        value[ii] = img_view[vox_coords[0], vox_coords[1], vox_coords[2]]
 
-                    if stat == 'mean':
-                        value[ii+2] = np.nanmean(value[:ii+1])
-                        file.write(f'{value[ii+2]:.3f}')
-                        file.write("\n")
-                    elif stat == 'median':
-                        value[ii+3] = np.nanmedian(value[:ii+1])
-                        file.write(f'{value[ii+3]:.3f}')
-                        file.write("\n")
-                    elif stat == 'min':
-                        value[ii+4] = np.min(value[:ii+1])
-                        file.write(f'{value[ii+4]:.3f}')
-                        file.write("\n")
-                    elif stat == 'max':
-                        value[ii+5] = np.max(value[:ii+1])
-                        file.write(f'{value[ii+5]:.3f}')
-                        file.write("\n")
-                    else:
-                        np.savetxt(file, value[:npoints], fmt='%.3f', newline=' ')
-                        file.write("\n")
+        with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
+            for i in range(n_streamlines):
+                TCK_in.read_streamline()
+                # value = np.zeros(2000, dtype=np.float32)
+                for j in range(TCK_in.n_pts):
+                    apply_affine_1pt( TCK_in.streamline[j], affine_inv, P, shift )
+                    vx = int(floor(P[0]))
+                    vy = int(floor(P[1]))
+                    vz = int(floor(P[2]))
+                    if mask_view[vx, vy, vz] == 0:
+                        values[j] = np.nan
+                    values[j] = img_view[vx, vy, vz]
 
-                    pbar.update()
+                # save sampled values of this streamline to file
+                if stat == 'mean':
+                    file.write(f'{np.nanmean(values[:TCK_in.n_pts]):.3f}\n')
+                    # file.write("\n")
+                elif stat == 'median':
+                    file.write(f'{np.nanmedian(values[:TCK_in.n_pts]):.3f}\n')
+                    # file.write("\n")
+                elif stat == 'min':
+                    file.write(f'{np.nanmin(values[:TCK_in.n_pts]):.3f}\n')
+                    # file.write("\n")
+                elif stat == 'max':
+                    file.write(f'{np.nanmax(values[:TCK_in.n_pts]):.3f}\n')
+                    # file.write("\n")
+                else:
+                    TSF_out.write_scalars( values, TCK_in.n_pts )
+                    # np.savetxt(file, values[:TCK_in.n_pts], fmt='%.3f', newline=' ')
+                    # file.write("\n")
+
+                pbar.update()
 
     except Exception as e:
-        if TCK_in is not None:
-            TCK_in.close()
-            logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
     finally:
         if TCK_in is not None:
             TCK_in.close()
-        file.close()
+        if stat=='all':
+            if TSF_out is not None:
+                TSF_out.close()
+        else:
+            file.close()
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 

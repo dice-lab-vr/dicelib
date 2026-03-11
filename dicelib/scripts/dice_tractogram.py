@@ -244,8 +244,7 @@ def sample():
         [['out_scalars'], {'type': str, 'help': desc['out_scalars_filename']}],
         [['--mask', '-m'], {'type': str, 'default': None, 'help': desc['mask_filename']}],
         [['--stat'], {'type': str, 'nargs': '?', 'default': 'all', 'choices': ['all', 'mean', 'median', 'min', 'max'], 'help': desc['stat']}],
-        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}],
-        [['--collapse', '-c'], {'action': 'store_true', 'default': False, 'help': desc['collapse']}]
+        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
@@ -255,7 +254,7 @@ def sample():
             out_scalars_filename=options.out_scalars,
             mask_filename=options.mask,
             stat=options.stat,
-            collapse=options.collapse,
+            shift=options.shift,
             force=options.force,
             verbose=options.verbose
         )
