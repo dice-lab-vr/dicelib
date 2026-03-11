@@ -243,7 +243,8 @@ def sample():
         [['image'], {'type': str, 'help': desc['image_filename']}],
         [['out_scalars'], {'type': str, 'help': desc['out_scalars_filename']}],
         [['--mask', '-m'], {'type': str, 'default': None, 'help': desc['mask_filename']}],
-        [['--stat', '-s'], {'type': str, 'nargs': '?', 'default': None, 'choices': ['mean', 'median', 'min', 'max'], 'help': desc['stat']}],
+        [['--stat'], {'type': str, 'nargs': '?', 'default': 'all', 'choices': ['all', 'mean', 'median', 'min', 'max'], 'help': desc['stat']}],
+        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}],
         [['--collapse', '-c'], {'action': 'store_true', 'default': False, 'help': desc['collapse']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
@@ -426,7 +427,7 @@ def compute_coherence():
         [['tractogram'], {'help': desc['tractogram_filename']}],
         [['sph_func'], {'help': desc['sph_func_filename']}],
         [['out_weights'], {'help': desc['out_weights_filename']}],
-        [['--stat', '-m'], {'choices': ['min','mean','max'], 'default': 'min', 'help': desc['stat']}],
+        [['--stat'], {'choices': ['min','mean','max'], 'default': 'min', 'help': desc['stat']}],
         [['--normalize', '-n'], {'action': 'store_true', 'help': desc['normalize']}],
         [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}],
         [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]

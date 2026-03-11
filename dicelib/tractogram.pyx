@@ -1934,7 +1934,7 @@ def recompute_indices(idx_filename, kept_filename, out_idx_filename=None, force=
     return indices_recomputed
 
 
-cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_filename=None, stat=None, collapse=False, force=False, verbose=3):
+cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_filename=None, stat='all', shift: float=0.5, collapse=False, force=False, verbose=3):
     """Sample underlying values of a tractogram along its points from the corresponding image.
 
     This method does not use interpolation during sampling.
@@ -1949,9 +1949,12 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
         Path to the file (.txt) that will contain the sampled values.
     mask_filename : str, optional
         Path to the mask (.nii, .nii.gz) to constrain the sampling to a specific region.
-    stat : {'mean', 'median', 'min', 'max'}, optional
+    stat : {'all', 'mean', 'median', 'min', 'max'}, default='all'
         Compute a summary statistic on the sampled values; if not specified,
         all values will be saved.
+    shift : float, default=0.5
+        If necessary, apply a shift (in voxel units) to streamline coordinates to
+        account for differences between software packages.
     collapse : boolean, default=False
         Collapse points that fall in the same voxel.
     force : boolean, default=False
@@ -2005,7 +2008,8 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
         pixdim = Img.header['pixdim'] [1:4]
         logger.subinfo('Image resolution: {}'.format(pixdim), indent_char='*', indent_lvl=1)
-        logger.subinfo('Applying vox transformation and sampling values', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
+        logger.subinfo('Sampling values', indent_char='*', indent_lvl=1)
         with open(out_scalars_filename,'w') as file:
             file.write("# dicelib.tractogram.sample stat={} {} {} {}**\n".format(stat,tractogram_filename,image_filename,out_scalars_filename))
             with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
@@ -2017,7 +2021,7 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
                     value = np.zeros(2000, dtype=np.float32)
                     for ii in range(npoints):
                         #TODO: check if this is correct
-                        apply_affine_1pt( TCK_in.streamline[ii], affine_inv, moved_pt )
+                        apply_affine_1pt( TCK_in.streamline[ii], affine_inv, moved_pt, shift )
                         vox_coords[0] = int(moved_pt[0])
                         vox_coords[1] = int(moved_pt[1])
                         vox_coords[2] = int(moved_pt[2])
@@ -2036,10 +2040,7 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
                             npoints = tot_vox
                         value[ii] = img_view[vox_coords[0], vox_coords[1], vox_coords[2]]
 
-                    if stat is None:
-                        np.savetxt(file, value[:npoints], fmt='%.3f', newline=' ')
-                        file.write("\n")
-                    elif stat == 'mean':
+                    if stat == 'mean':
                         value[ii+2] = np.nanmean(value[:ii+1])
                         file.write(f'{value[ii+2]:.3f}')
                         file.write("\n")
@@ -2054,6 +2055,9 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
                     elif stat == 'max':
                         value[ii+5] = np.max(value[:ii+1])
                         file.write(f'{value[ii+5]:.3f}')
+                        file.write("\n")
+                    else:
+                        np.savetxt(file, value[:npoints], fmt='%.3f', newline=' ')
                         file.write("\n")
 
                     pbar.update()
