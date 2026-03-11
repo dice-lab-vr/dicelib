@@ -553,10 +553,10 @@ def info( tractogram_filename: str, max_field_length: int=None, compute_lengths:
     finally:
         if TCK_in is not None:
             TCK_in.close()
-
-    if TCK_in.header['count']:
-        return TCK_in.header['count']
-    return 0
+        if TCK_in.header['count']:
+            return TCK_in.header['count']
+        else:
+            return 0
 
 
 def filter( tractogram_filename: str, out_tractogram_filename: str, weights_filename: str=None, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, out_weights_filename: str=None, random: float=1.0, force: bool=False, verbose: int=3 ):
@@ -700,8 +700,6 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
 
 
     except Exception as e:
-        if TCK_out is not None:
-            TCK_out.close()
         if os.path.isfile( out_tractogram_filename ):
             os.remove( out_tractogram_filename )
         if out_weights_filename is not None and os.path.isfile( out_weights_filename ):
@@ -714,10 +712,8 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
             TCK_in.close()
         if TCK_out is not None:
             TCK_out.close(write_eof=True, count=n_written )
-
-
-    t1 = time()
-    logger.info( f'[ {format_time(t1 - t0)} ]' )
+        t1 = time()
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 def split( tractogram_filename: str, assignments_filename: str, out_folder: str='bundles', prefix: str='bundle_', regions: str=None, weights_filename: str=None, max_open: int=None, force: bool=False, verbose: int=3, log_list=None ):
@@ -1005,7 +1001,6 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
                 in_weights_ext = os.path.splitext(weights_filename)[1]
                 if weights_filename is not None and os.path.isfile(basename+in_weights_ext):
                     os.remove(basename+in_weights_ext)
-
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
@@ -1122,8 +1117,6 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, weight
         logger.subinfo(f'Total output streamlines: {n_written}', indent_char='*', indent_lvl=1)
 
     except Exception as e:
-        if TCK_out is not None:
-            TCK_out.close()
         if os.path.isfile( out_tractogram_filename ):
             os.remove( out_tractogram_filename )
         if out_weights_filename is not None and os.path.isfile( out_weights_filename ):
@@ -1135,8 +1128,8 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, weight
             TCK_in.close()
         if TCK_out is not None:
             TCK_out.close( write_eof=True, count=n_written )
-    t1 = time()
-    logger.info( f'[ {format_time(t1 - t0)} ]' )
+        t1 = time()
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, out_idx_filename: str=None, force: bool=False, verbose: int=3 ) -> np.ndarray:
@@ -1673,12 +1666,8 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                 pbar.update()
 
     except Exception as e:
-        if TCK_out is not None:
-            TCK_out.close()
         if os.path.isfile( out_tractogram_filename ):
             os.remove( out_tractogram_filename )
-        if TCK_con is not None:
-            TCK_con.close()
         if save_connecting_tck == True :
             if os.path.isfile( conn_tractogram ):
                 os.remove( conn_tractogram )
@@ -1689,16 +1678,15 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
             TCK_out.close( write_eof=True, count=n_tot )
         if TCK_con is not None:
             TCK_con.close( write_eof=True, count=n_in )
+        logger.subinfo(f'Sanitized tractogram path: \'{out_tractogram_filename}\'', indent_char='*', indent_lvl=1)
+        if save_connecting_tck:
+            logger.subinfo(f'Connecting streamlines path: \'{conn_tractogram}\'', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Tot. streamlines: {n_tot}', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Connecting (both ends in GM): {n_in}', indent_lvl=2, indent_char='-')
+        logger.subinfo(f'Half connecting (one ends in GM): {n_half}', indent_lvl=2, indent_char='-')
+        logger.subinfo(f'Non-connecting (both ends outside GM): {n_out}', indent_lvl=2, indent_char='-')
         t1 = time()
-
-    logger.subinfo(f'Sanitized tractogram path: \'{out_tractogram_filename}\'', indent_char='*', indent_lvl=1)
-    if save_connecting_tck:
-        logger.subinfo(f'Connecting streamlines path: \'{conn_tractogram}\'', indent_char='*', indent_lvl=1)
-    logger.subinfo(f'Tot. streamlines: {n_tot}', indent_char='*', indent_lvl=1)
-    logger.subinfo(f'Connecting (both ends in GM): {n_in}', indent_lvl=2, indent_char='-')
-    logger.subinfo(f'Half connecting (one ends in GM): {n_half}', indent_lvl=2, indent_char='-')
-    logger.subinfo(f'Non-connecting (both ends outside GM): {n_out}', indent_lvl=2, indent_char='-')
-    logger.info( f'[ {format_time(t1 - t0)} ]' )
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
 def spline_smoothing( tractogram_filename, out_tractogram_filename, spline_type='centripetal', epsilon=None, n_ctrl_pts=None, n_pts_eval=None, segment_len_eval=None, resample=False, segment_len=None, streamline_pts=None, force=False, verbose=3 ):
@@ -1857,14 +1845,15 @@ def spline_smoothing( tractogram_filename, out_tractogram_filename, spline_type=
         logger.debug(f'Number of smoothed streamlines: {n_written}')
 
     except Exception as e:
-        TCK_out.close()
         if os.path.exists( out_tractogram_filename ):
             os.remove( out_tractogram_filename )
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
-        TCK_in.close()
-        TCK_out.close( write_eof=True, count=n_written )
+        if TCK_in is not None:
+            TCK_in.close()
+        if TCK_out is not None:
+            TCK_out.close( write_eof=True, count=n_written )
         mb = os.path.getsize( out_tractogram_filename )/1.0E6
         if mb >= 1E3:
             logger.debug(f'{mb/1.0E3:.2f} GB')
@@ -2464,8 +2453,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             TCK_in.close()
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
-
-    return coherence
+        return coherence
 
 
 cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_filename: str, shift: float=0.5, force: bool=False, verbose: int=3 ):
@@ -2731,7 +2719,6 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
 #                 pbar.update()
 
 #     except Exception as e:
-#         TCK_out.close()
 #         if os.path.exists( output_tractogram ):
 #             os.remove( output_tractogram )
 #         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
