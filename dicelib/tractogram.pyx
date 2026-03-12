@@ -234,17 +234,15 @@ cdef class LazyTractogram:
         After the reading, the file pointer is located at the end of it, i.e., beginning of
         the binary data part of the file, ready to read streamlines.
         """
-        cdef size_t        max_size_line = 5000000*sizeof(char) # 5MB
-        cdef char*         line = <char*> malloc(max_size_line)
+        cdef char[5000000] line # a field can be max 5MB long
         cdef int           nLines = 0
 
         if len(self.header) > 0:
             raise RuntimeError( 'Header already read' )
 
-        fseek( self.fp, 0, SEEK_SET )
-
         # check if it's a valid TCK file
-        if fgets(line, max_size_line, self.fp) == NULL:
+        fseek( self.fp, 0, SEEK_SET )
+        if fgets(line, sizeof(line), self.fp) == NULL:
             raise IOError( 'Problems reading header from file FIRST LINE' )
         if line.strip() != 'mrtrix tracks':
             raise IOError( f'"{self.filename}" is not a valid TCK file' )
@@ -253,7 +251,7 @@ cdef class LazyTractogram:
         while True:
             if nLines>=1000:
                 raise RuntimeError( 'Problem parsing the header; too many header lines' )
-            if fgets(line, max_size_line, self.fp) == NULL:
+            if fgets(line, sizeof(line), self.fp) == NULL:
                 raise IOError( 'Problems reading header from file' )
             if line.strip() == 'END':
                 break
@@ -1955,6 +1953,9 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
     set_verbose('tractogram', verbose)
     logger.info(f'Sampling scalar values along streamlines')
 
+    if stat not in ['all', 'mean', 'median', 'min', 'max']:
+        logger.error('"stat" must be one of [all, mean, median, min, max])')
+
     files = [
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
         File(name='image_filename', type_='input', path=image_filename, ext=['.nii','.nii.gz'])
@@ -1965,8 +1966,6 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
         files.append( File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt']) )
     if mask_filename is not None:
         files.append(File(name='mask_filename', type_='input', path=mask_filename, ext=['.nii','.nii.gz']))
-    if stat not in ['all', 'mean', 'median', 'min', 'max']:
-        logger.error('"stat" must be one of [all, mean, median, min, max])')
     check_params(files=files, force=force)
 
     # open the scalar image
@@ -1999,12 +1998,20 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
         logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
 
         # open output file
+        cmd = f"dicelib.tractogram.sample {tractogram_filename} {image_filename} {out_scalars_filename}"
+        if mask_filename is not None:
+            cmd += f" --mask {mask_filename}"
+        cmd += f" --stat={stat} --shift {shift}"
         if stat == 'all':
-            TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=TCK_in.header )
-            #TODO: add description in the header
+            tmp_hdr = TCK_in.header.copy()
+            if 'command_history' not in tmp_hdr.keys():
+                tmp_hdr['command_history'] = []
+            tmp_hdr['command_history'].append( cmd )
+            TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=tmp_hdr )
+            del tmp_hdr
         else:
             file = open(out_scalars_filename,'w')
-            file.write("# dicelib.tractogram.sample stat={} {} {} {}**\n".format(stat,tractogram_filename,image_filename,out_scalars_filename))
+            file.write( '# '+cmd+'\n' )
 
         with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
             for i in range(n_streamlines):
@@ -2022,20 +2029,14 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
                 # save sampled values of this streamline to file
                 if stat == 'mean':
                     file.write(f'{np.nanmean(values[:TCK_in.n_pts]):.3f}\n')
-                    # file.write("\n")
                 elif stat == 'median':
                     file.write(f'{np.nanmedian(values[:TCK_in.n_pts]):.3f}\n')
-                    # file.write("\n")
                 elif stat == 'min':
                     file.write(f'{np.nanmin(values[:TCK_in.n_pts]):.3f}\n')
-                    # file.write("\n")
                 elif stat == 'max':
                     file.write(f'{np.nanmax(values[:TCK_in.n_pts]):.3f}\n')
-                    # file.write("\n")
                 else:
                     TSF_out.write_scalars( values, TCK_in.n_pts )
-                    # np.savetxt(file, values[:TCK_in.n_pts], fmt='%.3f', newline=' ')
-                    # file.write("\n")
 
                 pbar.update()
 

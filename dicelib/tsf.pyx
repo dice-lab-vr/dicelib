@@ -47,7 +47,7 @@ cdef class TrackScalarFile:
         Parameters
         ----------
         filename : str
-            Name of the tsf file.
+            Name of the TSF file.
         mode : str
             Opens the file for reading ('r'), writing ('w') or appending ('a') scalar values.
         header : dictionary, optional
@@ -69,11 +69,9 @@ cdef class TrackScalarFile:
             if max_points<=0:
                 raise ValueError( '"max_points" should be positive' )
             self.max_points = max_points
-            self.scalars = np.empty( (max_points, 3), dtype=np.float32 )
-            # self.buffer = <float*> malloc( 3*1000000*sizeof(float) )
+            self.scalars = np.empty( (max_points,), dtype=np.float32 )
         else:
             self.scalars = None
-            # self.buffer = NULL
         self.n_pts = 0
 
         # open the file
@@ -205,20 +203,17 @@ cdef class TrackScalarFile:
         the binary data part of the file, ready to read scalars.
         """
         cdef char[5000000] line # a field can be max 5MB long
-        cdef char*         ptr
         cdef int           nLines = 0
 
         if len(self.header) > 0:
             raise RuntimeError( 'Header already read' )
 
+        # check if it's a valid TSF file
         fseek( self.fp, 0, SEEK_SET )
-
-        # check if it's a valid tsf file
         if fgets( line, sizeof(line), self.fp )==NULL:
             raise IOError( 'Problems reading header from file FIRST LINE' )
-        # line[strlen(line)-1] = 0
-        if strncmp( line, 'mrtrix track scalars', 20)!=0:
-            raise IOError( f'"{self.filename}" is not a valid tsf file' )
+        if line.strip() != 'mrtrix tracks scalars':
+            raise IOError( f'"{self.filename}" is not a valid TSF file' )
 
         # parse one line at a time
         while True:
@@ -227,19 +222,18 @@ cdef class TrackScalarFile:
             if fgets( line, sizeof(line), self.fp )==NULL:
                 raise IOError( 'Problems reading header from file' )
             line[strlen(line)-1] = 0
-            if strncmp(line,'END',3)==0:
+            if line.strip() == 'END':
                 break
-            ptr = strchr(line, ord(':'))
-            if ptr==NULL:
-                raise RuntimeError( 'Problem parsing the header; format not valid' )
-            key = str(line[:(ptr-line)])
-            val = ptr+2
+            try:
+                key, value = line.strip().split(': ')
+            except ValueError:
+                raise ValueError('Problem parsing the header; format not valid')
             if key not in self.header:
-                self.header[key] = val
+                self.header[key] = value
             else:
                 if type(self.header[key])!=list:
                     self.header[key] = [ self.header[key] ]
-                self.header[key].append( val )
+                self.header[key].append(value)
             nLines += 1
 
         # check if the 'count' field is present TODO: fix this, allow working even without it
@@ -275,7 +269,7 @@ cdef class TrackScalarFile:
             A dictionary of 'key: value' pairs that define the items in the header.
         """
         cdef string line
-        cdef int offset = 25 # accounts for 'mrtrix tracks\n' and 'END\n'
+        cdef int offset = 25 # accounts for 'mrtrix track scalars\n' and 'END\n'
 
         if header is None or type(header)!=dict:
             raise RuntimeError( 'Provided header is empty or invalid' )
