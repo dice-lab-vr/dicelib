@@ -1,13 +1,11 @@
-import dicelib.clustering
-import dicelib.connectivity
-import dicelib.tractogram
 from dicelib.ui import setup_logger, setup_parser, get_argparse_info_from_docstring
 logger = setup_logger('dice_tractogram')
 
 
 def assign():
     '''Entry point for the connectivity.assign function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.connectivity.assign.__doc__  )
+    from dicelib.connectivity import assign
+    summary, desc, notes = get_argparse_info_from_docstring( assign.__doc__  )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['atlas'], {'type': str, 'help': desc['atlas_filename']}],
@@ -17,7 +15,7 @@ def assign():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.connectivity.assign(
+        assign(
             tractogram_filename=options.tractogram,
             atlas_filename=options.atlas,
             out_assignments_filename=options.out_assignments,
@@ -32,7 +30,8 @@ def assign():
 
 def cluster():
     '''Entry point for the clustering.run_clustering function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.clustering.run_clustering.__doc__ )
+    from dicelib.clustering import run_clustering
+    summary, desc, notes = get_argparse_info_from_docstring( run_clustering.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['thr'], {'type': float, 'help': desc['thr']}],
@@ -53,7 +52,7 @@ def cluster():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.clustering.run_clustering(
+        run_clustering(
             tractogram_filename=options.tractogram,
             thr=options.thr,
             out_tractogram_filename=options.out_tractogram,
@@ -78,7 +77,8 @@ def cluster():
 
 def filter():
     '''Entry point for the tractogram.filter function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.filter.__doc__  )
+    from dicelib.tractogram import filter
+    summary, desc, notes = get_argparse_info_from_docstring( filter.__doc__  )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
@@ -92,7 +92,7 @@ def filter():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.filter(
+        filter(
             tractogram_filename=options.tractogram,
             out_tractogram_filename=options.out_tractogram,
             weights_filename=options.weights,
@@ -111,7 +111,8 @@ def filter():
 
 def recompute_indices():
     '''Entry point for the tractogram.recompute_indices function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.recompute_indices.__doc__  )
+    from dicelib.tractogram import recompute_indices
+    summary, desc, notes = get_argparse_info_from_docstring( recompute_indices.__doc__  )
     args = [
         [['indices'], {'type': str, 'help': desc['idx_filename']}],
         [['kept'], {'type': str, 'help': desc['kept_filename']}],
@@ -119,7 +120,7 @@ def recompute_indices():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.recompute_indices(
+        recompute_indices(
             idx_filename=options.indices,
             kept_filename=options.kept,
             out_idx_filename=options.out_indices,
@@ -132,7 +133,8 @@ def recompute_indices():
 
 def info():
     '''Entry point for the tractogram.info function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.info.__doc__  )
+    from dicelib.tractogram import info
+    summary, desc, notes = get_argparse_info_from_docstring( info.__doc__  )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['--max_field_length', '-m'], {'type': int, 'help': desc['max_field_length']}],
@@ -141,7 +143,7 @@ def info():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=False, add_verbose=True)
     try:
-        dicelib.tractogram.info(
+        info(
             tractogram_filename=options.tractogram,
             max_field_length=options.max_field_length,
             compute_lengths=options.lengths,
@@ -153,7 +155,8 @@ def info():
 
 def join():
     '''Entry point for the tractogram.join function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.join.__doc__  )
+    from dicelib.tractogram import join
+    summary, desc, notes = get_argparse_info_from_docstring( join.__doc__  )
     args = [
         [['tractograms'], {'type': str, 'nargs': '+', 'help': desc['tractograms_filenames']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
@@ -162,7 +165,7 @@ def join():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.join(
+        join(
             tractograms_filenames=options.tractograms,
             out_tractogram_filename=options.out_tractogram,
             weights_filenames=options.weights,
@@ -174,16 +177,17 @@ def join():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
-def compute_lengths():
+def lengths():
     '''Entry point for the tractogram.compute_lengths function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.compute_lengths.__doc__ )
+    from dicelib.tractogram import compute_lengths
+    summary, desc, notes = get_argparse_info_from_docstring( compute_lengths.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['out_scalars'], {'type': str, 'help': desc['out_scalars_filename']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.compute_lengths(
+        compute_lengths(
             tractogram_filename=options.tractogram,
             out_scalars_filename=options.out_scalars,
             force=options.force,
@@ -195,7 +199,8 @@ def compute_lengths():
 
 def locate():
     '''Entry point for the tractogram.get_indices_of_streamlines function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.get_indices_of_streamlines.__doc__ )
+    from dicelib.tractogram import get_indices_of_streamlines
+    summary, desc, notes = get_argparse_info_from_docstring( get_indices_of_streamlines.__doc__ )
     args = [
         [['tractogram_needle'], {'type': str, 'help': desc['needle_filename']}],
         [['tractogram_haystack'], {'type': str, 'help': desc['haystack_filename']}],
@@ -203,7 +208,7 @@ def locate():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.get_indices_of_streamlines(
+        get_indices_of_streamlines(
             needle_filename=options.tractogram_needle,
             haystack_filename=options.tractogram_haystack,
             out_idx_filename=options.out_indices,
@@ -216,7 +221,8 @@ def locate():
 
 def resample():
     '''Entry point for the tractogram.resample function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.resample.__doc__ )
+    from dicelib.tractogram import resample
+    summary, desc, notes = get_argparse_info_from_docstring( resample.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['n_pts'], {'type': int, 'help': desc['n_pts']}],
@@ -224,7 +230,7 @@ def resample():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.resample(
+        resample(
             tractogram_filename=options.tractogram,
             out_tractogram_filename=options.out_tractogram,
             n_pts=options.n_pts,
@@ -237,7 +243,8 @@ def resample():
 
 def sample():
     '''Entry point for the tractogram.sample function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.sample.__doc__ )
+    from dicelib.tractogram import sample
+    summary, desc, notes = get_argparse_info_from_docstring( sample.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['image'], {'type': str, 'help': desc['image_filename']}],
@@ -248,7 +255,7 @@ def sample():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.sample(
+        sample(
             tractogram_filename=options.tractogram,
             image_filename=options.image,
             out_scalars_filename=options.out_scalars,
@@ -264,7 +271,8 @@ def sample():
 
 def sanitize():
     '''Entry point for the tractogram.sanitize function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.sanitize.__doc__ )
+    from dicelib.tractogram import sanitize
+    summary, desc, notes = get_argparse_info_from_docstring( sanitize.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['gm_image'], {'type': str, 'help': desc['gm_filename']}],
@@ -276,7 +284,7 @@ def sanitize():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.sanitize(
+        sanitize(
             tractogram_filename=options.tractogram,
             gm_filename=options.gm_image,
             wm_filename=options.wm_image,
@@ -293,7 +301,8 @@ def sanitize():
 
 def shuffle():
     '''Entry point for the tractogram.shuffle function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.shuffle.__doc__ )
+    from dicelib.tractogram import shuffle
+    summary, desc, notes = get_argparse_info_from_docstring( shuffle.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
@@ -306,7 +315,7 @@ def shuffle():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.shuffle(
+        shuffle(
             tractogram_filename=options.tractogram,
             out_tractogram_filename=options.out_tractogram,
             n_tmp_groups=options.n_tmp_groups,
@@ -324,7 +333,8 @@ def shuffle():
 
 def smooth():
     '''Entry point for the tractogram.spline_smoothing function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.spline_smoothing.__doc__ )
+    from dicelib.tractogram import spline_smoothing
+    summary, desc, notes = get_argparse_info_from_docstring( spline_smoothing.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
@@ -339,7 +349,7 @@ def smooth():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.spline_smoothing(
+        spline_smoothing(
             tractogram_filename=options.tractogram,
             out_tractogram_filename=options.out_tractogram,
             spline_type=options.type,
@@ -359,7 +369,8 @@ def smooth():
 
 def sort():
     '''Entry point for the tractogram.sort function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.sort.__doc__ )
+    from dicelib.tractogram import sort
+    summary, desc, notes = get_argparse_info_from_docstring( sort.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['atlas'], {'type': str, 'help': desc['atlas_filename']}],
@@ -373,7 +384,7 @@ def sort():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.sort(
+        sort(
             tractogram_filename=options.tractogram,
             atlas_filename=options.atlas,
             out_tractogram_filename=options.out_tractogram,
@@ -392,7 +403,8 @@ def sort():
 
 def split():
     '''Entry point for the tractogram.split function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.split.__doc__  )
+    from dicelib.tractogram import split
+    summary, desc, notes = get_argparse_info_from_docstring( split.__doc__  )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['assignments'], {'type': str, 'help': desc['assignments_filename']}],
@@ -404,7 +416,7 @@ def split():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.split(
+        split(
             tractogram_filename=options.tractogram,
             assignments_filename=options.assignments,
             out_folder=options.out_folder,
@@ -419,9 +431,10 @@ def split():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
-def compute_coherence():
+def coherence():
     '''Entry point for the tractogram.compute_coherence function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.compute_coherence.__doc__ )
+    from dicelib.tractogram import compute_coherence
+    summary, desc, notes = get_argparse_info_from_docstring( compute_coherence.__doc__ )
     args = [
         [['tractogram'], {'help': desc['tractogram_filename']}],
         [['sph_func'], {'help': desc['sph_func_filename']}],
@@ -433,7 +446,7 @@ def compute_coherence():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.compute_coherence(
+        compute_coherence(
             tractogram_filename=options.tractogram,
             sph_func_filename=options.sph_func,
             out_weights_filename=options.out_weights,
@@ -448,9 +461,10 @@ def compute_coherence():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
-def compute_tdi():
+def tdi():
     '''Entry point for the tractogram.compute_tdi function'''
-    summary, desc, notes = get_argparse_info_from_docstring( dicelib.tractogram.compute_tdi.__doc__  )
+    from dicelib.tractogram import compute_tdi
+    summary, desc, notes = get_argparse_info_from_docstring( compute_tdi.__doc__  )
     args = [
         [['tractogram'], {'help': desc['tractogram_filename']}],
         [['ref_image'], {'help': desc['ref_image_filename']}],
@@ -459,7 +473,7 @@ def compute_tdi():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        dicelib.tractogram.compute_tdi(
+        compute_tdi(
             tractogram_filename=options.tractogram,
             ref_image_filename=options.ref_image,
             out_map_filename=options.out_map,
