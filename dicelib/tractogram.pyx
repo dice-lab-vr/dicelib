@@ -126,7 +126,7 @@ cdef class LazyTractogram:
 
         Returns
         -------
-        output : int
+        int
             Number of points/coordinates read from disk.
         """
         cdef float* ptr = &self.streamline[0,0]
@@ -557,7 +557,7 @@ def info( tractogram_filename: str, max_field_length: int=None, compute_lengths:
             return 0
 
 
-def filter( tractogram_filename: str, out_tractogram_filename: str, weights_filename: str=None, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, out_weights_filename: str=None, random: float=1.0, force: bool=False, verbose: int=3 ):
+def filter( tractogram_filename: str, out_tractogram_filename: str, weights_filename: str=None, minlength: float=None, maxlength: float=None, minweight: float=None, maxweight: float=None, out_weights_filename: str=None, random: float=1.0, scalars_filename: str=None, out_scalars_filename: str=None, force: bool=False, verbose: int=3 ):
     """Filter out the streamlines in a tractogram according to some criteria.
 
     Parameters
@@ -581,6 +581,12 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
     random : float, deault=1.0
         Percentage of streamlines to keep (randomly): 0=discard all, 1=keep all;
         this filter is applied after all others.
+    scalars_filename : str, optional
+        Path to the file (.tsf) containing one scalar per streamline's coordinate
+        that will be filtered according to the chosen filtering criteria.
+    out_scalars_filename : str, optional
+        Path to the file (.tsf) that will contain one scalar per streamline's coordinate
+        of only those streamlines that were not filtered.
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -590,6 +596,11 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
     set_verbose('tractogram', verbose)
     logger.info('Filtering tractogram')
 
+    # check for inconsistency in scalar file perameters
+    if (scalars_filename is None) != (out_scalars_filename is None):
+        logger.error( 'Input and output TSF files must be either both present or both absent' )
+
+    # check parameters
     files = [
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
         File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck')
@@ -598,6 +609,10 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
         files.append(File(name='weights_filename', type_='input', path=weights_filename, ext=['.txt', '.npy']))
     if out_weights_filename is not None:
         files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
+    if scalars_filename is not None:
+        files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.tsf']))
+    if out_scalars_filename is not None:
+        files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.tsf']))
     nums = [Num(name='random', value=random, min_=0.0, max_=1.0, include_min=False)]
     messages = []
     if minlength is not None:
@@ -623,30 +638,35 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
     for msg in messages:
         logger.subinfo(msg, indent_char='*', indent_lvl=1)
 
-    if weights_filename is not None:
-        if weights_filename.endswith('.txt'):
-            w = np.loadtxt(weights_filename).astype(np.float64)
-        else:
-            w = np.load(weights_filename, allow_pickle=False).astype(np.float64)
-        logger.subinfo('Using streamline weights from scalar file', indent_char='*', indent_lvl=1)
-    else:
-        w = np.array([])
-
     n_written = 0
     TCK_in  = None
     TCK_out = None
-
-    #----- iterate over input streamlines -----
+    TSF_in  = None
+    TSF_out = None
     try:
-        # open the input file
+        # open the input tractogram
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
-        TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
         n_streamlines = int( TCK_in.header['count'] )
-        # open the outut file
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
-        if weights_filename is not None and n_streamlines!=w.size:
-            logger.error(f'Number of weights is different from number of streamlines ({w.size},{n_streamlines})')
+        # create the output tractogram
+        TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
+        # load the weights to be used as filtering criterion
+        if weights_filename is not None:
+            logger.subinfo('Filtering based on streamline weights', indent_char='*', indent_lvl=1)
+            if weights_filename.endswith('.txt'):
+                w = np.loadtxt(weights_filename).astype(np.float64)
+            else:
+                w = np.load(weights_filename, allow_pickle=False).astype(np.float64)
+            if n_streamlines!=w.size:
+                logger.error(f'Number of weights ({w.size}) is different from number of streamlines')
+        else:
+            w = np.array([])
+        # load the (eventual) track scalars
+        if scalars_filename is not None:
+            TSF_in  = TrackScalarFile( scalars_filename, mode='r' )
+            TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=TSF_in.header )
 
+        #----- iterate over input streamlines -----
         with ProgressBar( total=2*n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
             # check if #(weights_filename)==n_streamlines
             kept = np.ones( n_streamlines, dtype=bool )
@@ -676,21 +696,22 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
 
                 pbar.update()
 
-            TCK_in._seek_origin(int(TCK_in.header['file'][2:]))
-
             if random < 1:
                 idx_true = np.where(kept == True)[0]
                 discard_choice = np.random.choice( idx_true, int(idx_true.size * (1-random)), replace=False )
                 kept[discard_choice] = False
 
+            TCK_in._seek_origin(int(TCK_in.header['file'][2:])) # move position back to data
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
+                TSF_in.read_scalars()
                 if kept[i]:
                     TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
+                    TSF_out.write_scalars( TSF_in.scalars, TSF_in.n_pts )
                     n_written += 1
                 pbar.update()
 
-            if out_weights_filename is not None and w.size > 0:
+            if (out_weights_filename is not None) and (w.size > 0):
                 if out_weights_filename.endswith('.txt'):
                     np.savetxt(out_weights_filename, w[kept == True].astype(np.float32), fmt='%.5e')
                 else:
@@ -700,8 +721,10 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
     except Exception as e:
         if os.path.isfile( out_tractogram_filename ):
             os.remove( out_tractogram_filename )
-        if out_weights_filename is not None and os.path.isfile( out_weights_filename ):
+        if (out_weights_filename is not None) and os.path.isfile( out_weights_filename ):
             os.remove( out_weights_filename )
+        if (out_scalars_filename is not None) and os.path.isfile( out_scalars_filename ):
+            os.remove( out_scalars_filename )
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
@@ -710,6 +733,10 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
             TCK_in.close()
         if TCK_out is not None:
             TCK_out.close(write_eof=True, count=n_written )
+        if TSF_in is not None:
+            TSF_in.close()
+        if TSF_out is not None:
+            TSF_out.close(write_eof=True, count=n_written )
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 

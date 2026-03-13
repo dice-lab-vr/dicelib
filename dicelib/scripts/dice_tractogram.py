@@ -88,6 +88,8 @@ def filter():
         [['--minweight', '-minw'], {'type': float, 'help': desc['minweight']}],
         [['--maxweight', '-maxw'], {'type': float, 'help': desc['maxweight']}],
         [['--out_weights', '-wo'], {'type': str, 'help': desc['out_weights_filename']}],
+        [['--scalars', '-si'], {'type': str, 'help': desc['scalars_filename']}],
+        [['--out_scalars', '-so'], {'type': str, 'help': desc['out_scalars_filename']}],
         [['--random', '-r'], {'type': float, 'default': 1.0, 'help': desc['random']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
@@ -102,6 +104,8 @@ def filter():
             maxweight=options.maxweight,
             out_weights_filename=options.out_weights,
             random=options.random,
+            scalars_filename=options.scalars,
+            out_scalars_filename=options.out_scalars,
             force=options.force,
             verbose=options.verbose
         )

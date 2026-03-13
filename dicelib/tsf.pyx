@@ -99,11 +99,10 @@ cdef class TrackScalarFile:
 
         Returns
         -------
-        output : int
-            Number of points/coordinates read from disk.
+        int
+            Number of scalars read from disk.
         """
-        cdef float scalar
-        cdef int n_read
+        cdef float* ptr = &self.scalars[0]
         if self.is_open==False:
             raise RuntimeError( 'File is not open' )
         if self.mode!='r':
@@ -114,14 +113,12 @@ cdef class TrackScalarFile:
             if self.n_pts>self.max_points:
                 raise RuntimeError( f'Problem reading data, scalars seem too many (>{self.max_points} points)' )
 
-            n_read = fread( &self.scalars[0], 4, 1, self.fp )
-            if n_read < 1:
+            if fread( ptr, 4, 1, self.fp ) < 1:
                 return 0
-            if isnan(self.scalars[0]):
-                break
-            if isinf(self.scalars[0]):
+            if isnan(ptr[0]) or isinf(ptr[0]):
                 break
             self.n_pts += 1
+            ptr += 1
 
         return self.n_pts
 
@@ -212,7 +209,7 @@ cdef class TrackScalarFile:
         fseek( self.fp, 0, SEEK_SET )
         if fgets( line, sizeof(line), self.fp )==NULL:
             raise IOError( 'Problems reading header from file FIRST LINE' )
-        if line.strip() != 'mrtrix tracks scalars':
+        if line.strip() != 'mrtrix track scalars':
             raise IOError( f'"{self.filename}" is not a valid TSF file' )
 
         # parse one line at a time
