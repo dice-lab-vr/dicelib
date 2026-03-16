@@ -2308,9 +2308,10 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     sph_func_filename : str
         Path to the file (.nii, .nii.gz) containing the spherical function against which each streamline is evaluated.
     out_weights_filename : str
-        Path to the file (.txt, .npy) that will contain the estimated coherence weights.
-    stat : {'min', 'mean', 'max'}, default='min'
+        Path to the file (.txt, .npy, .tsf) that will contain the estimated coherence weights.
+    stat : {'min', 'mean', 'max', 'all'}, default='min'
         Summary statistic to use once the coherence is computed for all segments of a streamline.
+        If 'all' is specified, the coherence of each segment will be saved in a .tsf file; otherwise, the summary statistic will be saved in a .txt or .npy file. When a .tsf file is produced, each point of a streamline is assigned a weight corresponding to the average coherence of the segments centered on that point. For the first and last points, the weight is computed using only the following or preceding segment, respectively.
     normalize : boolean, default=False
         Normalize spherical function in each voxel to its maximum value.
     trim : float, default=0.05
@@ -2328,7 +2329,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     array of float
         The estimate coherence weights for all input streamlines.
     """
-    cdef float [::1] w = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
+    cdef float [::1] w = np.full(10000, -1, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
     cdef float [:] dir = np.zeros(3, dtype=np.float32)
@@ -2337,8 +2338,9 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     cdef int vx, vy, vz
     cdef float [:,::1] SHbasis
     cdef short [:] htable
-    cdef float [:] P, coherence, sf_voxel
+    cdef float [:] P, coherence, sf_voxel, coherence_tsf
     cdef double [:,::1] affine_inv
+    cdef TrackScalarFile TSF_out
 
     t0 = time()
     set_verbose('tractogram', verbose)
@@ -2347,13 +2349,16 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     files = [File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck'])]
     files.append(File(name='sph_func_filename', type_='input', path=sph_func_filename, ext=['.nii', '.nii.gz']))
     if out_weights_filename is not None:
-        files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
+        if stat == 'all':
+            files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.tsf']))
+        else:
+            files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
     check_params(files=files, force=force)
 
     if trim<0 or trim>=0.5:
         logger.error('"trim" must be in [0..0.5)')
-    if stat not in ['min','mean','max']:
-        logger.error('"stat" must be one of [min, mean, max])')
+    if stat not in ['min','mean','max','all']:
+        logger.error('"stat" must be one of [min, mean, max, all]')
 
     #----- iterate over input streamlines -----
     TCK_in = None
@@ -2361,6 +2366,8 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         # open tractogram
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
+        if stat == 'all':
+            TSF_out = TrackScalarFile( out_weights_filename, mode='w', header=TCK_in.header )
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
         if n_streamlines <= 0:
             logger.error('The tractogram is empty')
@@ -2393,7 +2400,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
 
         logger.subinfo(f'Summary statistic: {stat}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Trimmed {trim*100:.1f}% of points at each extremity', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Trimmed {trim*100:.1f}% of segments at each extremity', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
 
         # process every streamline
@@ -2405,7 +2412,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                     if TCK_in.n_pts==0:
                         break # no more data, stop reading
 
-                    trim_offset = int( floor(TCK_in.n_pts*trim) ) # skip 'trim' percent of points
+                    trim_offset = int( floor((TCK_in.n_pts-1)*trim) ) # skip 'trim' percent of segments
                     if TCK_in.n_pts - trim_offset*2 <=0 :
                         logger.warning( f'"trim" too high, streamline {i} is empty; coherence set to 0' )
                         coherence[i] = 0
@@ -2414,7 +2421,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                     P = TCK_in.streamline[trim_offset]
                     apply_affine_1pt(P, affine_inv, p1, shift)
                     n = 0
-                    for j in range(trim_offset+1,TCK_in.n_pts-trim_offset):
+                    for j in range(trim_offset+1,TCK_in.n_pts-trim_offset+1):
                         P = TCK_in.streamline[j]
                         apply_affine_1pt(P, affine_inv, p2, shift)
                         vx = int( floor(0.5*(p2[0]+p1[0])) )
@@ -2463,11 +2470,28 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         coherence[i] = np.nanmean( w[:n] )
                     elif stat=='max':
                         coherence[i] = np.nanmax( w[:n] )
+                    elif stat=='all':
+                        coherence_tsf = np.full(TCK_in.n_pts, -1, dtype=np.float32)
+                        for x in range(n):
+                            if x == 0:
+                                coherence_tsf[x+trim_offset] = w[x]
+                            elif x == n-1:
+                                coherence_tsf[x+trim_offset] = w[x]
+                            else:
+                                coherence_tsf[x+trim_offset] = (w[x-1]+w[x])/2
+                        # print([i for i in coherence_tsf])
+                        # print(f' \n \n ')
+                        TSF_out.write_scalars( coherence_tsf, TCK_in.n_pts )
+
                     pbar.update()
-            logger.subinfo(f'Estimated weights:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.std(coherence):.3f}', indent_char='*', indent_lvl=1)
+            if stat != 'all':
+                logger.subinfo(f'Estimated weights:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.std(coherence):.3f}', indent_char='*', indent_lvl=1)
 
         if out_weights_filename is not None:
-            if out_weights_filename.endswith('.txt'):
+            if stat == 'all':
+                if TSF_out is not None:
+                    TSF_out.close()
+            elif out_weights_filename.endswith('.txt'):
                 np.savetxt(out_weights_filename, coherence, fmt='%.4f')
             else:
                 np.save(out_weights_filename, coherence, allow_pickle=False)

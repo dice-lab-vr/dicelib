@@ -54,7 +54,8 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
                     file.ext = [file.ext]
                 suffixes = pathlib.Path(file.path).suffixes
                 if len(suffixes) == 0:
-                    logger.error(f'File \'{file.path}\' has no extension; must be in {{{', '.join(file.ext)}}}')
+                    exts = ', '.join(file.ext)
+                    logger.error(f'File \'{file.path}\' has no extension; must be in {{{exts}}}')
                 elif len(suffixes) > 1:
                     if suffixes[-1] == '.gz':
                         suffixes = suffixes[-2:]
@@ -62,7 +63,8 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
                         suffixes = suffixes[-1]
                 suffix = ''.join(suffixes)
                 if suffix not in file.ext or suffix == '':
-                    logger.error(f'File \'{file.path}\' has an invalid extension; must be in {{{', '.join(file.ext)}}}')
+                    exts = ', '.join(file.ext)
+                    logger.error(f'File \'{file.path}\' has an invalid extension; must be in {{{exts}}}')
             if file.type_ == 'input':
                 if not os.path.isfile(file.path):
                     logger.error(f'File \'{file.path}\' not found')

@@ -443,7 +443,7 @@ def coherence():
         [['tractogram'], {'help': desc['tractogram_filename']}],
         [['sph_func'], {'help': desc['sph_func_filename']}],
         [['out_weights'], {'help': desc['out_weights_filename']}],
-        [['--stat'], {'choices': ['min','mean','max'], 'default': 'min', 'help': desc['stat']}],
+        [['--stat'], {'choices': ['min','mean','max', 'all'], 'default': 'min', 'help': desc['stat']}],
         [['--normalize', '-n'], {'action': 'store_true', 'help': desc['normalize']}],
         [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}],
         [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
