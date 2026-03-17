@@ -2315,7 +2315,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     normalize : boolean, default=False
         Normalize spherical function in each voxel to its maximum value.
     trim : float, default=0.05
-        Percentage of points to skip at each extremity.
+        Percentage of segments to skip at each extremity.
     shift : float, default=0.5
         If necessary, apply a shift (in voxel units) to streamline coordinates to
         account for differences between software packages.
