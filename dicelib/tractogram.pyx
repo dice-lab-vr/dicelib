@@ -2329,14 +2329,14 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     array of float
         The estimate coherence weights for all input streamlines.
     """
-    cdef float [::1] w = np.full(10000, -1, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
+    cdef float [::1] w = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
     cdef float [:] dir = np.zeros(3, dtype=np.float32)
     cdef float [:,:,:,::1] niiSF_img
     cdef float [:,::1] SHbasis
     cdef short [:] htable
-    cdef float [:] sf_voxel = np.zeros(500, dtype=np.float32)
+    cdef float [::1] sf_voxel = np.zeros(500, dtype=np.float32)
     cdef float [:] coherence, coherence_tsf
     cdef double [:,::1] affine_inv
     cdef LazyTractogram TCK_in = None
@@ -2348,7 +2348,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
 
     t0 = time()
     set_verbose('tractogram', verbose)
-    logger.info('Computing coherence of streamlines')
+    logger.info('Computing coherence')
 
     files = [File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck'])]
     files.append(File(name='sph_func_filename', type_='input', path=sph_func_filename, ext=['.nii', '.nii.gz']))
@@ -2395,16 +2395,16 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         theta = np.zeros( dirs.shape[0] )
         phi = np.zeros( dirs.shape[0] )
         for i in range(theta.size):
-            phi[i] = atan2( dirs[i,1], dirs[i,0] )#/M_PI*180.0
+            phi[i] = atan2(dirs[i,1], dirs[i,0])#/M_PI*180.0
             theta[i] = atan2( sqrt(dirs[i,0]*dirs[i,0]+dirs[i,1]*dirs[i,1]), dirs[i,2] )#/M_PI*180.0
-        tmp, _, _ = real_sh_tournier( lmax, theta, phi )
-        SHbasis = np.asarray(tmp,dtype=np.float32)
+        tmp, _, _ = real_sh_tournier(lmax, theta, phi)
+        SHbasis = np.asarray(tmp, dtype=np.float32)
         del dirs, theta, phi, tmp
 
-        logger.subinfo(f'Summary statistic: {stat}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Trimmed {trim*100:.1f}% of segments at each extremity', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Trimmed {trim*100:.1f}% of segments at each extremity', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Summary statistic along streamlines: "{stat}"', indent_char='*', indent_lvl=1)
 
         # process every streamline
         coherence = np.zeros( n_streamlines, dtype=np.float32 )
@@ -2448,7 +2448,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         vy = int( floor(0.5*(p2[1]+p1[1])) )
                         vz = int( floor(0.5*(p2[2]+p1[2])) )
                         if normalize == False:
-                            # computes SHbasis[o,:] @ niiSF_img[vx,vy,vz,:]
+                            # compute SHbasis[o,:] @ niiSF_img[vx,vy,vz,:]
                             ptr1 = &SHbasis[o,0]
                             ptr2 = &niiSF_img[vx,vy,vz,0]
                             val = 0
@@ -2456,16 +2456,16 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                                 val += ptr1[k]*ptr2[k]
                             w[n] = val
                         else:
+                            # normalize by the max value in the voxel
                             sf_voxel = np.dot(SHbasis, niiSF_img[vx,vy,vz,:])
-                            m = np.max( sf_voxel )
-                            if m > 0:
-                                w[n] = sf_voxel[o] / m # normalization by the max value in the voxel
+                            val = np.max( sf_voxel )
+                            if val > 0:
+                                w[n] = sf_voxel[o] / val
                             else:
                                 w[n] = 0
                         # crop to zero negative values
                         if w[n] < 0:
                             w[n] = 0
-
                         p1[0] = p2[0]
                         p1[1] = p2[1]
                         p1[2] = p2[2]
@@ -2489,8 +2489,9 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         TSF_out.write_scalars( coherence_tsf, TCK_in.n_pts )
 
                     pbar.update()
+
             if stat != 'all':
-                logger.subinfo(f'Estimated weights:  min={np.min(coherence):.3f}  max={np.max(coherence):.3f}  mean={np.mean(coherence):.3f}  std={np.std(coherence):.3f}', indent_char='*', indent_lvl=1)
+                logger.subinfo(f'Estimated coherence:  {np.mean(coherence):.3f} ± {np.std(coherence):.3f} [min={np.min(coherence):.3f}, max={np.max(coherence):.3f}]', indent_char='*', indent_lvl=1)
 
         if out_weights_filename is not None:
             if stat == 'all':
