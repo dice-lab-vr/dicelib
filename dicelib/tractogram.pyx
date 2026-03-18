@@ -2333,14 +2333,18 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
     cdef float [:] dir = np.zeros(3, dtype=np.float32)
-    cdef float m
-    cdef int ox, oy, o, trim_offset, n
-    cdef int vx, vy, vz
+    cdef float [:,:,:,::1] niiSF_img
     cdef float [:,::1] SHbasis
     cdef short [:] htable
-    cdef float [:] P, coherence, sf_voxel, coherence_tsf
+    cdef float [:] sf_voxel = np.zeros(500, dtype=np.float32)
+    cdef float [:] coherence, coherence_tsf
     cdef double [:,::1] affine_inv
-    cdef TrackScalarFile TSF_out
+    cdef LazyTractogram TCK_in = None
+    cdef TrackScalarFile TSF_out = None
+    cdef int ox, oy, o, trim_offset, n
+    cdef int vx, vy, vz, i, j, k
+    cdef float val
+    cdef float *ptr1, *ptr2
 
     t0 = time()
     set_verbose('tractogram', verbose)
@@ -2361,7 +2365,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         logger.error('"stat" must be one of [min, mean, max, all]')
 
     #----- iterate over input streamlines -----
-    TCK_in = None
     try:
         # open tractogram
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
@@ -2418,25 +2421,20 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         coherence[i] = 0
                         continue
 
-                    P = TCK_in.streamline[trim_offset]
-                    apply_affine_1pt(P, affine_inv, p1, shift)
+                    apply_affine_1pt(TCK_in.streamline[trim_offset], affine_inv, p1, shift)
                     n = 0
                     for j in range(trim_offset+1,TCK_in.n_pts-trim_offset+1):
-                        P = TCK_in.streamline[j]
-                        apply_affine_1pt(P, affine_inv, p2, shift)
-                        vx = int( floor(0.5*(p2[0]+p1[0])) )
-                        vy = int( floor(0.5*(p2[1]+p1[1])) )
-                        vz = int( floor(0.5*(p2[2]+p1[2])) )
-
-                        # check if dir[1] is negative and flip (because hash tables cover half sphere)
+                        # get direction of current segment
+                        apply_affine_1pt(TCK_in.streamline[j], affine_inv, p2, shift)
                         dir[1] = p2[1]-p1[1]
-                        if dir[1] >= 0:
-                            dir[0] = p2[0]-p1[0]
-                            dir[2] = p2[2]-p1[2]
-                        else:
+                        if dir[1] < 0:
+                            # flip direction as hash tables cover half sphere
                             dir[1] = -dir[1]
                             dir[0] = p1[0]-p2[0]
                             dir[2] = p1[2]-p2[2]
+                        else:
+                            dir[0] = p2[0]-p1[0]
+                            dir[2] = p2[2]-p1[2]
 
                         # get the closest direction from the 500 internally used by COMMIT/AMICO
                         ox = int( round(atan2( sqrt(dir[0]*dir[0]+dir[1]*dir[1]), dir[2] )/M_PI*180.0) )
@@ -2445,11 +2443,20 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         if o<0 or o>=500:
                             logger.error( f'This should not happen: o={o}, ox={ox}, oy={oy}' )
 
-                        # check alignment of local orientation to spherical function in current voxel
+                        # check alignment of current segment to spherical function in current voxel
+                        vx = int( floor(0.5*(p2[0]+p1[0])) )
+                        vy = int( floor(0.5*(p2[1]+p1[1])) )
+                        vz = int( floor(0.5*(p2[2]+p1[2])) )
                         if normalize == False:
-                            w[n] = SHbasis[o,:] @ niiSF_img[vx,vy,vz,:]
+                            # computes SHbasis[o,:] @ niiSF_img[vx,vy,vz,:]
+                            ptr1 = &SHbasis[o,0]
+                            ptr2 = &niiSF_img[vx,vy,vz,0]
+                            val = 0
+                            for k in range(n_sh_coeff):
+                                val += ptr1[k]*ptr2[k]
+                            w[n] = val
                         else:
-                            sf_voxel = SHbasis @ niiSF_img[vx,vy,vz,:]
+                            sf_voxel = np.dot(SHbasis, niiSF_img[vx,vy,vz,:])
                             m = np.max( sf_voxel )
                             if m > 0:
                                 w[n] = sf_voxel[o] / m # normalization by the max value in the voxel
@@ -2465,22 +2472,20 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         n += 1
 
                     if stat=='min':
-                        coherence[i] = np.nanmin( w[:n] )
+                        coherence[i] = np.min(w[:n])
                     elif stat=='mean':
-                        coherence[i] = np.nanmean( w[:n] )
+                        coherence[i] = np.mean( w[:n] )
                     elif stat=='max':
-                        coherence[i] = np.nanmax( w[:n] )
+                        coherence[i] = np.max( w[:n] )
                     elif stat=='all':
                         coherence_tsf = np.full(TCK_in.n_pts, -1, dtype=np.float32)
-                        for x in range(n):
-                            if x == 0:
-                                coherence_tsf[x+trim_offset] = w[x]
-                            elif x == n-1:
-                                coherence_tsf[x+trim_offset] = w[x]
+                        for j in range(n):
+                            if j == 0:
+                                coherence_tsf[j+trim_offset] = w[j]
+                            elif j == n-1:
+                                coherence_tsf[j+trim_offset] = w[j]
                             else:
-                                coherence_tsf[x+trim_offset] = (w[x-1]+w[x])/2
-                        # print([i for i in coherence_tsf])
-                        # print(f' \n \n ')
+                                coherence_tsf[j+trim_offset] = (w[j-1]+w[j])/2
                         TSF_out.write_scalars( coherence_tsf, TCK_in.n_pts )
 
                     pbar.update()
@@ -2536,6 +2541,7 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
     cdef float [:] P
     cdef double [:,::1] affine_inv
     cdef float [:,:,::1] niiTDI_img
+    cdef int vx, vy, vz
 
     files = [File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck'])]
     files.append(File(name='ref_image_filename', type_='input', path=ref_image_filename, ext=['.nii','.nii.gz']))
