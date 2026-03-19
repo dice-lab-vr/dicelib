@@ -661,16 +661,14 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
                 logger.error(f'Number of weights ({w.size}) is different from number of streamlines')
         else:
             w = np.array([])
-        # load the (eventual) track scalars
+        # load the track scalars (if any)
         if scalars_filename is not None:
             TSF_in  = TrackScalarFile( scalars_filename, mode='r' )
             TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=TSF_in.header )
 
         #----- iterate over input streamlines -----
         with ProgressBar( total=2*n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
-            # check if #(weights_filename)==n_streamlines
             kept = np.ones( n_streamlines, dtype=bool )
-
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if TCK_in.n_pts==0:
@@ -687,13 +685,10 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
                         continue
 
                 # filter by weight
-                if weights_filename is not None and (
-                    (minweight is not None and w[i]<minweight) or
-                    (maxweight is not None and w[i]>maxweight)
-                ):
-                    kept[i] = False
-                    continue
-
+                if weights_filename is not None:
+                    if (minweight is not None and w[i]<minweight) or (maxweight is not None and w[i]>maxweight):
+                        kept[i] = False
+                        continue
                 pbar.update()
 
             if random < 1:
@@ -704,10 +699,12 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
             TCK_in._seek_origin(int(TCK_in.header['file'][2:])) # move position back to data
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
-                TSF_in.read_scalars()
+                if scalars_filename is not None:
+                    TSF_in.read_scalars()
                 if kept[i]:
                     TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
-                    TSF_out.write_scalars( TSF_in.scalars, TSF_in.n_pts )
+                    if scalars_filename is not None:
+                        TSF_out.write_scalars( TSF_in.scalars, TSF_in.n_pts )
                     n_written += 1
                 pbar.update()
 
@@ -716,7 +713,6 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
                     np.savetxt(out_weights_filename, w[kept == True].astype(np.float32), fmt='%.5e')
                 else:
                     np.save(out_weights_filename, w[kept == True].astype(np.float32), allow_pickle=False)
-
 
     except Exception as e:
         if os.path.isfile( out_tractogram_filename ):
