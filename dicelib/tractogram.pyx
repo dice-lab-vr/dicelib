@@ -17,15 +17,11 @@ from dicelib.utils import check_params, Dir, File, Num, format_time
 from dicelib.connectivity import assign
 from dicelib.tsf cimport TrackScalarFile
 
-import amico.lut
 import ast, random as rnd
 import os, sys, shutil
 import nibabel as nib
 import numpy as np
 from time import time
-
-from dipy.reconst.shm import real_sh_tournier
-#TODO: remove DIPY dependency (currently, required for only 1 function)
 
 cdef float[1] NAN1 = {NAN}
 cdef float[3] NAN3 = {NAN, NAN, NAN}
@@ -2325,6 +2321,9 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     array of float
         The estimate coherence weights for all input streamlines.
     """
+    import amico.lut
+    from dipy.reconst.shm import real_sh_tournier
+    #TODO: remove DIPY dependency (currently, required for only 1 function)
     cdef float [::1] w = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
     cdef float [:] p1 = np.zeros(3, dtype=np.float32)
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
