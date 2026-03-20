@@ -2,21 +2,18 @@
 cimport cython
 import warnings
 warnings.filterwarnings('ignore', module='dipy')
-
 from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round, floor
 from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
-
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, create_streamline_replicas
 from dicelib.streamline cimport apply_affine_1pt
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 from dicelib.connectivity import assign
 from dicelib.tsf cimport TrackScalarFile
-
 import ast, random as rnd
 import os, sys, shutil
 import nibabel as nib
@@ -2222,7 +2219,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
         tmp = np.arange(0,blur_core_extent+blur_gauss_extent+1e-6,blur_spacing)
         tmp = np.concatenate( (tmp,-tmp[1:][::-1]) )
         x, y = np.meshgrid( tmp, tmp )
-        r = np.sqrt( x*x + y*y )
+        r = sqrt( x*x + y*y )
         idx = (r <= blur_core_extent+blur_gauss_extent)
         blurRho = r[idx]
         blurAngle = np.arctan2(y,x)[idx]
@@ -2232,7 +2229,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
         if blur_gauss_extent == 0 :
             blurWeights[:] = 1.0
         else:
-            blur_sigma = blur_gauss_extent / np.sqrt( -2.0 * np.log( blur_gauss_min ) )
+            blur_sigma = blur_gauss_extent / sqrt( -2.0 * np.log( blur_gauss_min ) )
             for i in xrange(nReplicas):
                 if blurRho[i] <= blur_core_extent :
                     blurWeights[i] = 1.0
@@ -2375,7 +2372,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         niiSF_img = np.ascontiguousarray(niiSF.get_fdata(), dtype=np.float32)
         logger.subinfo(f'Spherical functions: {niiSF.shape[0]}x{niiSF.shape[1]}x{niiSF.shape[2]}x{niiSF.shape[3]}', indent_char='*', indent_lvl=1)
         n_sh_coeff = niiSF_img.shape[3]
-        lmax = (-3.0 + np.sqrt(1+8*n_sh_coeff)) / 2
+        lmax = (-3.0 + sqrt(1+8*n_sh_coeff)) / 2
         if not lmax.is_integer() :
             logger.error( f'The number of coefficients ({n_sh_coeff}) is not compatible with any SH basis' )
         lmax = int(lmax)

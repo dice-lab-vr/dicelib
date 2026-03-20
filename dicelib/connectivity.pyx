@@ -1,19 +1,12 @@
-# cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False
+# cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 from concurrent.futures import ThreadPoolExecutor
-
 from libc.math cimport round as cround, sqrt
 from libcpp cimport bool
-
 import nibabel as nib
-
 import numpy as np
-
 import os
-
 from scipy.linalg import inv
-
 from time import time
-
 from dicelib.streamline import create_replicas
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, File, Num, format_time
@@ -525,7 +518,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     tmp = np.arange(0,core_extent+gauss_extent+1e-6,spacing)
     tmp = np.concatenate( (tmp,-tmp[1:][::-1]) )
     x, y = np.meshgrid( tmp, tmp )
-    r = np.sqrt( x*x + y*y )
+    r = sqrt( x*x + y*y )
     idx = (r <= core_extent+gauss_extent)
     blurRho = r[idx]
     blurAngle = np.arctan2(y,x)[idx]
@@ -535,7 +528,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     if gauss_extent == 0 :
         blurWeights[:] = 1.0
     else:
-        blur_sigma = gauss_extent / np.sqrt( -2.0 * np.log( blur_gauss_min ) )
+        blur_sigma = gauss_extent / sqrt( -2.0 * np.log( blur_gauss_min ) )
         for i_r in xrange(nReplicas):
             if blurRho[i_r] <= core_extent :
                 blurWeights[i_r] = 1.0
