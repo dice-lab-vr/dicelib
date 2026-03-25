@@ -102,6 +102,8 @@ cdef class LazyTractogram:
             self._read_header()
         elif self.mode=='w':
             # file is open for writing => need to write a header to disk
+            if header is None:
+                header = {'datatype': 'Float32LE', 'timestamp': str(time()), 'count': '0'}
             self._write_header( header )
         else:
             # file is open for appending => move pointer to end
@@ -2219,7 +2221,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
         tmp = np.arange(0,blur_core_extent+blur_gauss_extent+1e-6,blur_spacing)
         tmp = np.concatenate( (tmp,-tmp[1:][::-1]) )
         x, y = np.meshgrid( tmp, tmp )
-        r = sqrt( x*x + y*y )
+        r = np.sqrt( x*x + y*y )
         idx = (r <= blur_core_extent+blur_gauss_extent)
         blurRho = r[idx]
         blurAngle = np.arctan2(y,x)[idx]
@@ -2229,7 +2231,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
         if blur_gauss_extent == 0 :
             blurWeights[:] = 1.0
         else:
-            blur_sigma = blur_gauss_extent / sqrt( -2.0 * np.log( blur_gauss_min ) )
+            blur_sigma = blur_gauss_extent / np.sqrt( -2.0 * np.log( blur_gauss_min ) )
             for i in xrange(nReplicas):
                 if blurRho[i] <= blur_core_extent :
                     blurWeights[i] = 1.0
