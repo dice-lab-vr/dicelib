@@ -2328,17 +2328,19 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     import amico.lut
     from dipy.reconst.shm import real_sh_tournier
     #TODO: remove DIPY dependency (currently, required for only 1 function)
-    cdef float [::1] w = np.zeros(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
-    cdef float [:] p1 = np.zeros(3, dtype=np.float32)
-    cdef float [:] p2 = np.zeros(3, dtype=np.float32)
-    cdef float [:] dir = np.zeros(3, dtype=np.float32)
+    cdef float [::1] w = np.empty(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
+    cdef float [:] p1 = np.empty(3, dtype=np.float32)
+    cdef float [:] p2 = np.empty(3, dtype=np.float32)
+    cdef float [:] dir = np.empty(3, dtype=np.float32)
+    cdef short [:] htable
     cdef float [:,:,:,::1] niiSF_img
     cdef float [:,:,:,::1] niiPEAKS_img
-    cdef float [:,::1] sh_basis, dirs_angles
-    cdef short [:] htable
-    cdef float [::1] sf_voxel = np.zeros(500, dtype=np.float32)
-    cdef float [:] coherence, dirs_angles_voxel
-    cdef float [:] coherence_tsf = np.zeros(10000, dtype=np.float32)
+    cdef float [:,::1] sh_basis
+    cdef float [:,::1] dirs_angles = np.zeros((500,500), dtype=np.float32)
+    cdef float [:] dirs_angles_voxel
+    cdef float [::1] sf_voxel = np.empty(500, dtype=np.float32)
+    cdef float [:] coherence
+    cdef float [:] coherence_tsf = np.empty(10000, dtype=np.float32)
     cdef int [:] peaks_idx
     cdef double [:,::1] affine_inv
     cdef LazyTractogram TCK_in = None
@@ -2422,12 +2424,11 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             n_peaks = niiPEAKS.shape[3]/3
             dirs_angles_voxel = np.zeros(n_peaks, dtype=np.float32)
             logger.debug( 'Computing angles between 500 directions' )
-            dirs_angles = np.zeros((500,500), dtype=np.float32)
             for i in range(500):
                 for j in range(i+1,500):
                     dirs_angles[i,j] = acos(dirs[i,0]*dirs[j,0]+dirs[i,1]*dirs[j,1]+dirs[i,2]*dirs[j,2])
                     dirs_angles[j,i] = dirs_angles[i,j]
-            peaks_idx = np.zeros(n_peaks, np.int32)
+            peaks_idx = np.zeros(n_peaks, dtype=np.int32)
         del dirs
 
         logger.subinfo(f'Summary statistic along streamlines: "{stat}"', indent_char='*', indent_lvl=1)
@@ -2454,9 +2455,10 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                     for j in range(trim_offset+1,TCK_in.n_pts-trim_offset):
                         # get direction of current segment
                         apply_affine_1pt(TCK_in.streamline[j], affine_inv, p2, shift)
+
+                        # compute polar angles (NB: hash tables cover half sphere)
                         dir[1] = p2[1]-p1[1]
                         if dir[1] < 0:
-                            # flip direction as hash tables cover half sphere
                             dir[1] = -dir[1]
                             dir[0] = p1[0]-p2[0]
                             dir[2] = p1[2]-p2[2]
@@ -2489,9 +2491,17 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                                 if isnan(ptr2[0]):# or (ptr2[0]==0 and ptr2[1]==0 and ptr2[2]==0):
                                     break
                                 peaks_found += 1
-                                ox = int( round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), ptr2[2] )/M_PI*180.0) )
-                                oy = int( round(atan2( ptr2[1], ptr2[0] )/M_PI*180.0) )
+
+                                # compute polar angles (NB: hash tables cover half sphere)
+                                if ptr2[1] > 0:
+                                    ox = int( round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), ptr2[2] )/M_PI*180.0) )
+                                    oy = int( round(atan2( ptr2[1], ptr2[0] )/M_PI*180.0) )
+                                else:
+                                    ox = int( round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), -ptr2[2] )/M_PI*180.0) )
+                                    oy = int( round(atan2( -ptr2[1], -ptr2[0] )/M_PI*180.0) )
                                 o2 = htable[ox*181+oy]
+                                if o<0 or o>=500 or o2<0 or o2>=500:
+                                    logger.error( f'This should not happen: o={o} o2={o2}' )
                                 dirs_angles_voxel[k] = dirs_angles[o,o2] # angle between segment and k-th lobe
                                 peaks_idx[k] = o2
                                 ptr2 += 3
@@ -2502,14 +2512,19 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                                 sf_val2 = 0
                                 for k in range(n_sh_coeff):
                                     sf_val2 += ptr1[k]*ptr2[k]
-                                if sf_val2 > 0.0:
+                                if sf_val2 < 0.0:
+                                    sf_val2 = 0.0
+                                if sf_val2 > sf_val1:
                                     sf_val1 /= sf_val2
+                                else:
+                                    sf_val1 = 1.0 # crop top 1
                         w[n] = sf_val1 if sf_val1>0 else 0
+                        n += 1
 
+                        # process next coordinate along streamline
                         p1[0] = p2[0]
                         p1[1] = p2[1]
                         p1[2] = p2[2]
-                        n += 1
 
                     if stat=='min':
                         coherence[i] = np.min(w[:n])
