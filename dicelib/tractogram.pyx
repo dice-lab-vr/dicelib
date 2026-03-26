@@ -577,10 +577,11 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
         Percentage of streamlines to keep (randomly): 0=discard all, 1=keep all;
         this filter is applied after all others.
     scalars_filename : str, optional
-        Path to the file (.tsf) containing one scalar per streamline's coordinate
-        that will be filtered according to the chosen filtering criteria.
+        Path to the file containing one scalar per streamline (.txt, .npy) 
+        or one scalar per streamline's coordinate (.tsf).
+        This file will be filtered according to the chosen filtering criteria.
     out_scalars_filename : str, optional
-        Path to the file (.tsf) that will contain one scalar per streamline's coordinate
+        Path to the file (.txt, .npy, .tsf) that will contain scalar information
         of only those streamlines that were not filtered.
     force : boolean, default=False
         Force overwriting of the output files.
@@ -593,7 +594,7 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
 
     # check for inconsistency in scalar file perameters
     if (scalars_filename is None) != (out_scalars_filename is None):
-        logger.error( 'Input and output TSF files must be either both present or both absent' )
+        logger.error( 'Input and output scalar files must be either both present or both absent' )
 
     # check parameters
     files = [
@@ -605,9 +606,11 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
     if out_weights_filename is not None:
         files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
     if scalars_filename is not None:
-        files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.tsf']))
+        files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.txt', '.npy', '.tsf']))
     if out_scalars_filename is not None:
-        files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.tsf']))
+        files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy', '.tsf']))
+    if scalars_filename[-4:] != out_scalars_filename[-4:]:
+        logger.error( 'Input and output scalar files must have the same format' )
     nums = [Num(name='random', value=random, min_=0.0, max_=1.0, include_min=False)]
     messages = []
     if minlength is not None:
@@ -656,10 +659,11 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
                 logger.error(f'Number of weights ({w.size}) is different from number of streamlines')
         else:
             w = np.array([])
-        # load the track scalars (if any)
+        # load the additional scalars (if any)
         if scalars_filename is not None:
-            TSF_in  = TrackScalarFile( scalars_filename, mode='r' )
-            TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=TSF_in.header )
+            if scalars_filename.endswith('.tsf'):
+                TSF_in  = TrackScalarFile( scalars_filename, mode='r' )
+                TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=TSF_in.header )
 
         #----- iterate over input streamlines -----
         with ProgressBar( total=2*n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
@@ -695,11 +699,13 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
             for i in range( n_streamlines ):
                 TCK_in.read_streamline()
                 if scalars_filename is not None:
-                    TSF_in.read_scalars()
+                    if scalars_filename.endswith('.tsf'):
+                        TSF_in.read_scalars()
                 if kept[i]:
                     TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
                     if scalars_filename is not None:
-                        TSF_out.write_scalars( TSF_in.scalars, TSF_in.n_pts )
+                        if scalars_filename.endswith('.tsf'):
+                            TSF_out.write_scalars( TSF_in.scalars, TSF_in.n_pts )
                     n_written += 1
                 pbar.update()
 
@@ -708,6 +714,14 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
                     np.savetxt(out_weights_filename, w[kept == True].astype(np.float32), fmt='%.5e')
                 else:
                     np.save(out_weights_filename, w[kept == True].astype(np.float32), allow_pickle=False)
+
+            if scalars_filename is not None:
+                if scalars_filename.endswith('.txt'):
+                    scalars_in = np.loadtxt(scalars_filename)
+                    np.savetxt(out_scalars_filename, scalars_in[kept == True], fmt='%.5e')
+                elif scalars_filename.endswith('.npy'):
+                    scalars_in = np.load(scalars_filename, allow_pickle=False)
+                    np.save(out_scalars_filename, scalars_in[kept == True], allow_pickle=False)
 
     except Exception as e:
         if os.path.isfile( out_tractogram_filename ):
@@ -727,7 +741,8 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
         if TSF_in is not None:
             TSF_in.close()
         if TSF_out is not None:
-            TSF_out.close(write_eof=True, count=n_written )
+            if scalars_filename.endswith('.tsf'):
+                TSF_out.close(write_eof=True, count=n_written )
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
