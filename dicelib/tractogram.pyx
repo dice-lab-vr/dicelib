@@ -2,7 +2,7 @@
 cimport cython
 import warnings
 warnings.filterwarnings('ignore', module='dipy')
-from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round, floor
+from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round, floor, acos
 from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
@@ -2285,7 +2285,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', normalize: bool=False, trim: float=0.05, shift: float=0.5, force: bool=False, verbose: int=3 ):
+cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', lobes_filename: str=None, trim: float=0.05, shift: float=0.5, force: bool=False, verbose: int=3 ):
     """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
 
     The file containing the spherical functions should follow the MrTrix3 conventions
@@ -2302,9 +2302,14 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         Path to the file (.txt, .npy, .tsf) that will contain the estimated coherence weights.
     stat : {'min', 'mean', 'max', 'all'}, default='min'
         Summary statistic to use once the coherence is computed for all segments of a streamline.
-        If 'all' is specified, the coherence of each segment will be saved in a .tsf file; otherwise, the summary statistic will be saved in a .txt or .npy file. When a .tsf file is produced, each point of a streamline is assigned a weight corresponding to the average coherence of the segments centered on that point. For the first and last points, the weight is computed using only the following or preceding segment, respectively.
-    normalize : boolean, default=False
-        Normalize spherical function in each voxel to its maximum value.
+        If 'all' is specified, the coherence of each segment will be saved in a .tsf file;
+        otherwise, the summary statistic will be saved in a .txt or .npy file.
+        When a .tsf file is produced, each point of a streamline is assigned a weight corresponding
+        to the average coherence of the segments centered on that point. For the first and last points,
+        the weight is computed using only the following or preceding segment, respectively.
+    lobes_filename : string, optional
+        Path to the file (.nii, .nii.gz) containing the peaks that identify the lobes of the spherical functions, which
+        will be used to normalize the local coherence by the value of the corresponding lobe.
     trim : float, default=0.05
         Percentage of segments to skip at each extremity.
     shift : float, default=0.5
@@ -2328,16 +2333,19 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     cdef float [:] p2 = np.zeros(3, dtype=np.float32)
     cdef float [:] dir = np.zeros(3, dtype=np.float32)
     cdef float [:,:,:,::1] niiSF_img
-    cdef float [:,::1] SHbasis
+    cdef float [:,:,:,::1] niiPEAKS_img
+    cdef float [:,::1] sh_basis, dirs_angles
     cdef short [:] htable
     cdef float [::1] sf_voxel = np.zeros(500, dtype=np.float32)
-    cdef float [:] coherence, coherence_tsf
+    cdef float [:] coherence, dirs_angles_voxel
+    cdef float [:] coherence_tsf = np.zeros(10000, dtype=np.float32)
+    cdef int [:] peaks_idx
     cdef double [:,::1] affine_inv
     cdef LazyTractogram TCK_in = None
     cdef TrackScalarFile TSF_out = None
-    cdef int ox, oy, o, trim_offset, n
-    cdef int vx, vy, vz, i, j, k
-    cdef float val
+    cdef int ox, oy, o, o2, trim_offset, n
+    cdef int vx, vy, vz, i, j, k, n_peaks=0, peaks_found
+    cdef float sf_val1, sf_val2
     cdef float *ptr1, *ptr2
 
     t0 = time()
@@ -2351,6 +2359,8 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.tsf']))
         else:
             files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
+    if lobes_filename is not None:
+        files.append(File(name='lobes_filename', type_='input', path=lobes_filename, ext=['.nii', '.nii.gz']))
     check_params(files=files, force=force)
 
     if trim<0 or trim>=0.5:
@@ -2358,7 +2368,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     if stat not in ['min','mean','max','all']:
         logger.error('"stat" must be one of [min, mean, max, all]')
 
-    #----- iterate over input streamlines -----
     try:
         # open tractogram
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
@@ -2368,39 +2377,62 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
         if n_streamlines <= 0:
             logger.error('The tractogram is empty')
+        logger.subinfo(f'Shifting coordinates by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Trimming {trim*100:.1f}% of segments at each extremity', indent_char='*', indent_lvl=1)
 
         # open spherical functions
         niiSF = nib.load( sph_func_filename )
         niiSF_img = np.ascontiguousarray(niiSF.get_fdata(), dtype=np.float32)
-        logger.subinfo(f'Spherical functions: {niiSF.shape[0]}x{niiSF.shape[1]}x{niiSF.shape[2]}x{niiSF.shape[3]}', indent_char='*', indent_lvl=1)
         n_sh_coeff = niiSF_img.shape[3]
         lmax = (-3.0 + sqrt(1+8*n_sh_coeff)) / 2
         if not lmax.is_integer() :
             logger.error( f'The number of coefficients ({n_sh_coeff}) is not compatible with any SH basis' )
         lmax = int(lmax)
         affine_inv  = np.linalg.inv(niiSF.affine)
+        logger.subinfo(f'Spherical functions order: {lmax:.0f}', indent_char='*', indent_lvl=1)
 
         # construct the SH basis to sample the spherical function
-        # (using the 500 directions/hash table used internally by COMMIT)
+        # (using the 500 directions/hash table used internally by COMMIT/AMICO)
+        logger.debug( 'Computing SH basis' )
         dirs  = amico.lut.load_directions( 500 )
         logger.debug( f'directions: {dirs.shape[0]}x{dirs.shape[1]}'  )
         htable = amico.lut.load_precomputed_hash_table( 500 )
         logger.debug( f'hash table: {htable.shape[0]}x1 [min={np.min(htable)}, max={np.max(htable)}]'  )
-        theta = np.zeros( dirs.shape[0] )
-        phi = np.zeros( dirs.shape[0] )
+        theta = np.zeros(dirs.shape[0])
+        phi = np.zeros(dirs.shape[0])
         for i in range(theta.size):
-            phi[i] = atan2(dirs[i,1], dirs[i,0])#/M_PI*180.0
-            theta[i] = atan2( sqrt(dirs[i,0]*dirs[i,0]+dirs[i,1]*dirs[i,1]), dirs[i,2] )#/M_PI*180.0
+            phi[i] = atan2(dirs[i,1], dirs[i,0])
+            theta[i] = atan2(sqrt(dirs[i,0]*dirs[i,0]+dirs[i,1]*dirs[i,1]), dirs[i,2])
+            dirs[i,:] /= np.linalg.norm(dirs[i,:]) # normalize for later computation
         tmp, _, _ = real_sh_tournier(lmax, theta, phi)
-        SHbasis = np.asarray(tmp, dtype=np.float32)
-        del dirs, theta, phi, tmp
+        sh_basis = np.asarray(tmp, dtype=np.float32)
+        del theta, phi, tmp
 
-        logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Trimmed {trim*100:.1f}% of segments at each extremity', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Normalization: {normalize}', indent_char='*', indent_lvl=1)
+        # open lobes for normalization
+        niiPEAKS = None
+        if lobes_filename is not None:
+            logger.subinfo('Normalizing by lobes', indent_char='*', indent_lvl=1)
+            niiPEAKS = nib.load( lobes_filename )
+            niiPEAKS_img = np.ascontiguousarray(niiPEAKS.get_fdata(), dtype=np.float32)
+            logger.debug(f'Peaks of the lobes: {niiPEAKS.shape[0]}x{niiPEAKS.shape[1]}x{niiPEAKS.shape[2]}x{niiPEAKS.shape[3]}')
+            if niiPEAKS.shape[:3] != niiSF.shape[:3]:
+                logger.error( f'The shape of the PEAKS dataset is not compatible with the SPHERICAL FUNCTIONS' )
+            if niiPEAKS.shape[3] % 3:
+                logger.error( 'PEAKS dataset must have 3*k volumes' )
+            n_peaks = niiPEAKS.shape[3]/3
+            dirs_angles_voxel = np.zeros(n_peaks, dtype=np.float32)
+            logger.debug( 'Computing angles between 500 directions' )
+            dirs_angles = np.zeros((500,500), dtype=np.float32)
+            for i in range(500):
+                for j in range(i+1,500):
+                    dirs_angles[i,j] = acos(dirs[i,0]*dirs[j,0]+dirs[i,1]*dirs[j,1]+dirs[i,2]*dirs[j,2])
+                    dirs_angles[j,i] = dirs_angles[i,j]
+            peaks_idx = np.zeros(n_peaks, np.int32)
+        del dirs
+
         logger.subinfo(f'Summary statistic along streamlines: "{stat}"', indent_char='*', indent_lvl=1)
 
-        # process every streamline
+        #----- process every streamline -----
         coherence = np.zeros( n_streamlines, dtype=np.float32 )
         if n_streamlines>0:
             with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
@@ -2408,8 +2440,10 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                     TCK_in.read_streamline()
                     if TCK_in.n_pts==0:
                         break # no more data, stop reading
+                    if TCK_in.n_pts>10000:
+                        logger.error( 'The streamline {i} contains too many points ({TCK_in.n_pts})' )
 
-                    trim_offset = int( floor((TCK_in.n_pts-1)*trim) ) # skip 'trim' percent of segments
+                    trim_offset = int( round((TCK_in.n_pts-1)*trim) ) # skip 'trim' percent of segments
                     if TCK_in.n_pts - trim_offset*2 <=0 :
                         logger.warning( f'"trim" too high, streamline {i} is empty; coherence set to 0' )
                         coherence[i] = 0
@@ -2417,7 +2451,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
 
                     apply_affine_1pt(TCK_in.streamline[trim_offset], affine_inv, p1, shift)
                     n = 0
-                    for j in range(trim_offset+1,TCK_in.n_pts-trim_offset+1):
+                    for j in range(trim_offset+1,TCK_in.n_pts-trim_offset):
                         # get direction of current segment
                         apply_affine_1pt(TCK_in.streamline[j], affine_inv, p2, shift)
                         dir[1] = p2[1]-p1[1]
@@ -2430,36 +2464,48 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                             dir[0] = p2[0]-p1[0]
                             dir[2] = p2[2]-p1[2]
 
-                        # get the closest direction from the 500 internally used by COMMIT/AMICO
+                        # round to the closest direction among the canonical 500 internally used by AMICO/COMMIT
                         ox = int( round(atan2( sqrt(dir[0]*dir[0]+dir[1]*dir[1]), dir[2] )/M_PI*180.0) )
                         oy = int( round(atan2( dir[1], dir[0] )/M_PI*180.0) )
-                        o = htable[ox*181 + oy]
-                        if o<0 or o>=500:
-                            logger.error( f'This should not happen: o={o}, ox={ox}, oy={oy}' )
+                        o = htable[ox*181+oy]
 
-                        # check alignment of current segment to spherical function in current voxel
+                        # evaluate the SF along this direction (i.e. sh_basis[o,:] @ niiSF_img[vx,vy,vz,:])
                         vx = int( floor(0.5*(p2[0]+p1[0])) )
                         vy = int( floor(0.5*(p2[1]+p1[1])) )
                         vz = int( floor(0.5*(p2[2]+p1[2])) )
-                        if normalize == False:
-                            # compute SHbasis[o,:] @ niiSF_img[vx,vy,vz,:]
-                            ptr1 = &SHbasis[o,0]
-                            ptr2 = &niiSF_img[vx,vy,vz,0]
-                            val = 0
-                            for k in range(n_sh_coeff):
-                                val += ptr1[k]*ptr2[k]
-                            w[n] = val
-                        else:
-                            # normalize by the max value in the voxel
-                            sf_voxel = np.dot(SHbasis, niiSF_img[vx,vy,vz,:])
-                            val = np.max( sf_voxel )
-                            if val > 0:
-                                w[n] = sf_voxel[o] / val
-                            else:
-                                w[n] = 0
-                        # crop to zero negative values
-                        if w[n] < 0:
-                            w[n] = 0
+                        ptr1 = &niiSF_img[vx,vy,vz,0]
+                        ptr2 = &sh_basis[o,0]
+                        sf_val1 = 0
+                        for k in range(n_sh_coeff):
+                            sf_val1 += ptr1[k]*ptr2[k]
+                        if sf_val1 < 0.0:
+                            sf_val1 = 0.0
+
+                        # normalize by corresponding lobe
+                        if n_peaks > 0:
+                            ptr2 = &niiPEAKS_img[vx,vy,vz,0]
+                            peaks_found = 0
+                            for k in range(n_peaks):
+                                if isnan(ptr2[0]):# or (ptr2[0]==0 and ptr2[1]==0 and ptr2[2]==0):
+                                    break
+                                peaks_found += 1
+                                ox = int( round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), ptr2[2] )/M_PI*180.0) )
+                                oy = int( round(atan2( ptr2[1], ptr2[0] )/M_PI*180.0) )
+                                o2 = htable[ox*181+oy]
+                                dirs_angles_voxel[k] = dirs_angles[o,o2] # angle between segment and k-th lobe
+                                peaks_idx[k] = o2
+                                ptr2 += 3
+
+                            if peaks_found>0:
+                                k = peaks_idx[ np.argmin(dirs_angles_voxel[:peaks_found]) ]
+                                ptr2 = &sh_basis[k,0]
+                                sf_val2 = 0
+                                for k in range(n_sh_coeff):
+                                    sf_val2 += ptr1[k]*ptr2[k]
+                                if sf_val2 > 0.0:
+                                    sf_val1 /= sf_val2
+                        w[n] = sf_val1 if sf_val1>0 else 0
+
                         p1[0] = p2[0]
                         p1[1] = p2[1]
                         p1[2] = p2[2]
@@ -2468,18 +2514,16 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                     if stat=='min':
                         coherence[i] = np.min(w[:n])
                     elif stat=='mean':
-                        coherence[i] = np.mean( w[:n] )
+                        coherence[i] = np.mean(w[:n])
                     elif stat=='max':
-                        coherence[i] = np.max( w[:n] )
+                        coherence[i] = np.max(w[:n])
                     elif stat=='all':
-                        coherence_tsf = np.full(TCK_in.n_pts, -1, dtype=np.float32)
-                        for j in range(n):
-                            if j == 0:
-                                coherence_tsf[j+trim_offset] = w[j]
-                            elif j == n-1:
-                                coherence_tsf[j+trim_offset] = w[j]
-                            else:
-                                coherence_tsf[j+trim_offset] = (w[j-1]+w[j])/2
+                        coherence_tsf[:trim_offset] = -1
+                        coherence_tsf[trim_offset] = w[0]
+                        for j in range(n-1):
+                            coherence_tsf[trim_offset+j+1] = (w[j]+w[j+1])/2.0
+                        coherence_tsf[TCK_in.n_pts-trim_offset-1] = w[n-1]
+                        coherence_tsf[TCK_in.n_pts-trim_offset:] = -1
                         TSF_out.write_scalars( coherence_tsf, TCK_in.n_pts )
 
                     pbar.update()
