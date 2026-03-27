@@ -577,7 +577,7 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
         Percentage of streamlines to keep (randomly): 0=discard all, 1=keep all;
         this filter is applied after all others.
     scalars_filename : str, optional
-        Path to the file containing one scalar per streamline (.txt, .npy) 
+        Path to the file containing one scalar per streamline (.txt, .npy)
         or one scalar per streamline's coordinate (.tsf).
         This file will be filtered according to the chosen filtering criteria.
     out_scalars_filename : str, optional
@@ -747,7 +747,7 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def split( tractogram_filename: str, assignments_filename: str, out_folder: str='bundles', prefix: str='bundle_', regions: str=None, weights_filename: str=None, max_open: int=None, force: bool=False, verbose: int=3, log_list=None ):
+def split( tractogram_filename: str, assignments_filename: str, out_folder: str='bundles', prefix: str='bundle_', regions: str=None, scalars_filename: str=None, max_open: int=None, force: bool=False, verbose: int=3, log_list=None ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -766,10 +766,10 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         If a single region is provided, all bundles connecting this region with any other will be extracted.
         If a pair of regions is provided using the format "[r1, r2]", only this specific bundle will be extracted.
         If a list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.
-    weights_filename : str, optional
-        Path to the file (.txt, .npy) containing one weight for each input streamline (one row/streamline).
+    scalars_filename : str, optional
+        Path to the file (.txt, .npy) containing one scalar for each input streamline (one row/streamline).
         One individual file will be created for each splitted tractogram, using a common prefix.
-        If not specified, the streamlines' weights will not be splitted.
+        If not specified, the streamlines' scalars will not be splitted.
     max_open : int, optional
         Maximum number of concurrent files that can be opened.
         If not specified, the value is automatically set to:
@@ -789,8 +789,8 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
         File(name='assignments_filename', type_='input', path=assignments_filename, ext=['.txt', '.npy'])
     ]
-    if weights_filename is not None:
-        files.append(File(name='weights_filename', type_='input', path=weights_filename, ext=['.txt', '.npy']))
+    if scalars_filename is not None:
+        files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.txt', '.npy']))
     dirs = [Dir(name='out_folder', path=out_folder)]
     check_params(files=files, dirs=dirs, force=force)
 
@@ -822,11 +822,11 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
     else:
         labels = []
 
-    if weights_filename is not None:
-        if weights_filename.endswith('.txt'):
-            w = np.loadtxt(weights_filename).astype(np.float64)
+    if scalars_filename is not None:
+        if scalars_filename.endswith('.txt'):
+            w = np.loadtxt(scalars_filename).astype(np.float64)
         else:
-            w = np.load(weights_filename, allow_pickle=False).astype(np.float64)
+            w = np.load(scalars_filename, allow_pickle=False).astype(np.float64)
         w_idx = np.zeros_like(w, dtype=np.int32)
 
     if sys.platform.startswith('win32'):
@@ -868,8 +868,8 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
     TCK_in          = None
     TCK_outs        = {}
     TCK_outs_size   = {}
-    if weights_filename is not None:
-        WEIGHTS_out_idx = {}
+    if scalars_filename is not None:
+        SCALARS_out_idx = {}
     n_written         = 0
     unassigned_count  = 0
     try:
@@ -878,8 +878,8 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         n_streamlines = int( TCK_in.header['count'] )
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Output tractograms written to: \'{out_folder}\'', indent_char='*', indent_lvl=1)
-        if weights_filename is not None:
-            logger.subinfo(f'Number of weights: {w.size}', indent_char='*', indent_lvl=1)
+        if scalars_filename is not None:
+            logger.subinfo(f'Number of scalars: {w.size}', indent_char='*', indent_lvl=1)
 
         # open the assignments
         if assignments_filename.endswith('.txt'):
@@ -894,9 +894,9 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         # check if #(assignments)==n_streamlines
         if n_streamlines!=assignments.shape[0]:
             logger.error(f'Number of assignments ({assignments.shape[0]}) differs from number of streamlines ({n_streamlines})')
-        # check if #(weights)==n_streamlines
-        if weights_filename is not None and n_streamlines!=w.size:
-            logger.error(f'Number of weights ({w.size}) differs from number of streamlines ({n_streamlines})')
+        # check if #(scalars)==n_streamlines
+        if scalars_filename is not None and n_streamlines!=w.size:
+            logger.error(f'Number of scalars ({w.size}) differs from number of streamlines ({n_streamlines})')
 
         # create empty tractograms for unique assignments
         if len(labels)==0:
@@ -926,8 +926,8 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
             pref_key = f'{prefix}{key}'
             tmp = LazyTractogram( os.path.join(out_folder,f'{pref_key}.tck'), mode='w', header=TCK_in.header )
             tmp.close( write_eof=False, count=0 )
-            if weights_filename is not None:
-                WEIGHTS_out_idx[key] = i+1
+            if scalars_filename is not None:
+                SCALARS_out_idx[key] = i+1
 
         # add key for non-connecting streamlines
         if unassigned_count and len(labels)==0:
@@ -936,8 +936,8 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
             TCK_outs_size[key] = 0
             tmp = LazyTractogram( os.path.join(out_folder,f'{key}.tck'), mode='w', header=TCK_in.header )
             tmp.close( write_eof=False, count=0 )
-            if weights_filename is not None:
-                WEIGHTS_out_idx[key] = 0
+            if scalars_filename is not None:
+                SCALARS_out_idx[key] = 0
 
         logger.debug(f'Created {len(TCK_outs)} empty files for output tractograms')
 
@@ -995,22 +995,22 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
                 TCK_outs_size[key] += 1
                 n_written += 1
 
-                # store the index of the corresponding weight
-                if weights_filename is not None:
-                    w_idx[i] = WEIGHTS_out_idx[key]
+                # store the index of the corresponding scalar
+                if scalars_filename is not None:
+                    w_idx[i] = SCALARS_out_idx[key]
                 pbar.update()
 
-        # create individual weight files for each splitted tractogram
-        if weights_filename is not None:
-            logger.subinfo(f'Saving one weights file per bundle', indent_char='*', indent_lvl=1)
+        # create individual scalar files for each splitted tractogram
+        if scalars_filename is not None:
+            logger.subinfo(f'Saving one scalar file per bundle', indent_char='*', indent_lvl=1)
             with ProgressBar(disable=verbose < 3, hide_on_exit=True) as pbar:
-                for key in WEIGHTS_out_idx.keys():
+                for key in SCALARS_out_idx.keys():
                     if key == 'unassigned':
                         pref_key = 'unassigned'
                     else:
                         pref_key = f'{prefix}{key}'
-                    w_bundle = w[ w_idx==WEIGHTS_out_idx[key] ].astype(np.float32)
-                    if weights_filename.endswith('.txt'):
+                    w_bundle = w[ w_idx==SCALARS_out_idx[key] ].astype(np.float32)
+                    if scalars_filename.endswith('.txt'):
                         np.savetxt( os.path.join(out_folder,f'{pref_key}.txt'), w_bundle, fmt='%.5e' )
                     else:
                         np.save( os.path.join(out_folder,f'{pref_key}.npy'), w_bundle, allow_pickle=False )
@@ -1029,9 +1029,9 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
                 basename = os.path.join(out_folder,pref_key)
                 if os.path.isfile(basename+'.tck'):
                     os.remove(basename+'.tck')
-                in_weights_ext = os.path.splitext(weights_filename)[1]
-                if weights_filename is not None and os.path.isfile(basename+in_weights_ext):
-                    os.remove(basename+in_weights_ext)
+                in_scalars_ext = os.path.splitext(scalars_filename)[1]
+                if scalars_filename is not None and os.path.isfile(basename+in_scalars_ext):
+                    os.remove(basename+in_scalars_ext)
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:

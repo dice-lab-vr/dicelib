@@ -415,7 +415,7 @@ def split():
         [['--out_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': desc['out_folder']}],
         [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': desc['prefix']}],
         [['--regions', '-r'], {'type': str, 'default': None, 'help': desc['regions']}],
-        [['--weights', '-wi'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
+        [['--scalars', '-si'], {'type': str, 'default': None, 'help': desc['scalars_filename']}],
         [['--max_open', '-m'], {'type': int, 'default': None, 'help': desc['max_open']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
@@ -426,7 +426,7 @@ def split():
             out_folder=options.out_folder,
             prefix=options.prefix,
             regions=options.regions,
-            weights_filename=options.weights,
+            scalars_filename=options.scalars,
             max_open=options.max_open,
             force=options.force,
             verbose=options.verbose
