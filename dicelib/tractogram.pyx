@@ -822,13 +822,6 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
     else:
         labels = []
 
-    if scalars_filename is not None:
-        if scalars_filename.endswith('.txt'):
-            w = np.loadtxt(scalars_filename).astype(np.float64)
-        else:
-            w = np.load(scalars_filename, allow_pickle=False).astype(np.float64)
-        w_idx = np.zeros_like(w, dtype=np.int32)
-
     if sys.platform.startswith('win32'):
         import win32file
         limit = win32file._getmaxstdio()
@@ -877,9 +870,7 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Output tractograms written to: \'{out_folder}\'', indent_char='*', indent_lvl=1)
-        if scalars_filename is not None:
-            logger.subinfo(f'Number of scalars: {w.size}', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Output folder: "{out_folder}"', indent_char='*', indent_lvl=1)
 
         # open the assignments
         if assignments_filename.endswith('.txt'):
@@ -890,6 +881,16 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
             print( (assignments.ndim, assignments.shape))
             logger.error('Unable to open assignments file')
         logger.subinfo(f'Number of assignments: {assignments.shape[0]}', indent_char='*', indent_lvl=1)
+
+        # open scalar file
+        if scalars_filename is not None:
+            if scalars_filename.endswith('.txt'):
+                w = np.loadtxt(scalars_filename).astype(np.float64)
+            else:
+                w = np.load(scalars_filename, allow_pickle=False).astype(np.float64)
+            w_idx = np.zeros_like(w, dtype=np.int32)
+        if scalars_filename is not None:
+            logger.subinfo(f'Number of scalars: {w.size}', indent_char='*', indent_lvl=1)
 
         # check if #(assignments)==n_streamlines
         if n_streamlines!=assignments.shape[0]:
@@ -1017,10 +1018,10 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
 
         if len(labels)==0:
             if unassigned_count:
-                logger.subinfo(f'Number of connecting: {n_written-TCK_outs_size["unassigned"]}', indent_char='*', indent_lvl=1)
-                logger.subinfo(f'Number of non-connecting: {TCK_outs_size["unassigned"]}', indent_char='*', indent_lvl=1)
+                logger.subinfo(f'Connecting streamlines: {n_written-TCK_outs_size["unassigned"]}', indent_char='*', indent_lvl=1)
+                logger.subinfo(f'Non-connecting streamlines: {TCK_outs_size["unassigned"]}', indent_char='*', indent_lvl=1)
             else:
-                logger.subinfo(f'Number of connecting: {n_written}', indent_char='*', indent_lvl=1)
+                logger.subinfo(f'Connecting streamlines: {n_written}', indent_char='*', indent_lvl=1)
 
     except Exception as e:
         if os.path.isdir(out_folder):
