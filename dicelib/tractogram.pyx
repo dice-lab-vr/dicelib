@@ -2361,6 +2361,8 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         will be used to normalize the local coherence by the value of the corresponding lobe.
     trim : float, default=0.05
         Percentage of segments to skip at each extremity.
+        Note: if 'stat' is set to 'all', only the segments that are not trimmed will be saved in the output file and the
+        points that are extremities of the trimmed segments will be assigned a weight of -1 by default.
     shift : float, default=0.5
         If necessary, apply a shift (in voxel units) to streamline coordinates to
         account for differences between software packages.
