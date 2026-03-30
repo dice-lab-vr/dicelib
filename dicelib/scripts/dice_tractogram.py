@@ -164,16 +164,16 @@ def join():
     args = [
         [['tractograms'], {'type': str, 'nargs': '+', 'help': desc['tractograms_filenames']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
-        [['--weights', '-wi'], {'type': str, 'nargs': '*', 'default': None, 'help': desc['weights_filenames']}],
-        [['--out_weights', '-wo'], {'type': str, 'default': None, 'help': desc['out_weights_filename']}]
+        [['--scalars', '-si'], {'type': str, 'nargs': '*', 'default': None, 'help': desc['scalars_filenames']}],
+        [['--out_scalars', '-so'], {'type': str, 'default': None, 'help': desc['out_scalars_filename']}],
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
         join(
             tractograms_filenames=options.tractograms,
             out_tractogram_filename=options.out_tractogram,
-            weights_filenames=options.weights,
-            out_weights_filename=options.out_weights,
+            scalars_filenames=options.scalars,
+            out_scalars_filename=options.out_scalars,
             force=options.force,
             verbose=options.verbose
         )

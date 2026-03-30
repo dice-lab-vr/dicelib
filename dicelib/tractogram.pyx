@@ -1058,7 +1058,7 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def join( tractograms_filenames: list[str], out_tractogram_filename: str, weights_filenames: list[str]=None, out_weights_filename: str=None, force: bool=False, verbose: int=3, log_list=None ):
+def join( tractograms_filenames: list[str], out_tractogram_filename: str, scalars_filenames: list[str]=None, out_scalars_filename: str=None, force: bool=False, verbose: int=3, log_list=None ):
     """Join multiple tractograms into a single file.
 
     Parameters
@@ -1067,12 +1067,12 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, weight
         List of filenames (.tck) of the tractograms to be joined.
     out_tractogram_filename : str
         Path to the file (.tck) that will contain the resulting tractogram.
-    weights_filenames : list of str, optional
-        List of paths to the scalar files (.txt, .npy) that contain the weights of
-        the input streamline; these files must follow the same order of the
-        corresponding tractograms.
-    out_weights_filename : str, optional
-        Path to the scalar file (.txt, .npy) for the output streamline weights.
+    scalars_filenames : list of str, optional
+        List of paths to the files that contain one scalar for each input streamline 
+        (.txt, .npy) or one scalar for each point of each input streamline (.tsf). 
+        These files must follow the same order of the corresponding tractograms.
+    out_scalars_filename : str, optional
+        Path to the file (.txt, .npy, .tsf) for the output streamline scalars.
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -1086,13 +1086,13 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, weight
         logger.error(f'Input list must contain at least 2 files')
     files = [File(name=f'input_tractogram_{i}', type_='input', path=f, ext='.tck') for i, f in enumerate(tractograms_filenames)]
     files.append(File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck'))
-    if weights_filenames is not None:
-        if len(tractograms_filenames) != len(weights_filenames):
-            logger.error(f'Number of weights files is different from number of input tractograms')
-        for i, w in enumerate(weights_filenames):
-            files.append(File(name=f'weights_in_{i}', type_='input', path=w, ext=['.txt', '.npy']))
-    if out_weights_filename is not None:
-        files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
+    if scalars_filenames is not None:
+        if len(tractograms_filenames) != len(scalars_filenames):
+            logger.error(f'Number of scalar files is different from number of input tractograms')
+        for i, w in enumerate(scalars_filenames):
+            files.append(File(name=f'scalars_in_{i}', type_='input', path=w, ext=['.txt', '.npy', '.tsf']))
+    if out_scalars_filename is not None:
+        files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy', '.tsf']))
     check_params(files=files, force=force)
 
     #----- iterate over input files -----
@@ -1100,12 +1100,21 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, weight
     TCK_in    = None
     TCK_out   = None
     n_written = 0
-    weights_tot = np.array([], dtype=np.float32)
     try:
         # open the output file
         TCK_in = LazyTractogram( tractograms_filenames[0], mode='r' )
         TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
         TCK_in.close()
+
+        if scalars_filenames is not None:
+            if out_scalars_filenames[0].endswith('.tsf'):
+                TSF_in = TrackScalarFile( scalars_filenames[0], mode='r' )
+                TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=TSF_in.header )
+                n_written_tsf = 0
+                TSF_in.close()
+            else:
+                all_scalars = np.array([], dtype=np.float32)
+
 
         with ProgressBar( total=len(tractograms_filenames), disable=verbose < 3, hide_on_exit=True) as pbar:
             for i,input_tractogram in enumerate(tractograms_filenames):
@@ -1125,34 +1134,56 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, weight
                         n_written += 1
                 TCK_in.close()
 
-                if weights_filenames is not None:
+                if scalars_filenames is not None:
+                    # check extension of scalar file
+                    if scalars_filenames[i][-4:] != out_scalars_filename[-4:]:
+                        logger.error( 'Input and output scalar files must have the same format' )
                     # load weights file
-                    if weights_filenames[i].endswith('.txt'):
-                        w = np.loadtxt(weights_filenames[i]).astype(np.float32)
+                    if scalars_filenames[i].endswith('.tsf'):
+                        TSF_in = TrackScalarFile( scalars_filenames[i], mode='r' )
+                        n_str_tsf = int( TCK_in.header['count'] )
+                        # check if n_str_tsf=n_streamlines
+                        if n_streamlines!=n_str_tsf:
+                            logger.error(f'Number of entries in scalar file ({n_str_tsf}) is different from number of streamlines ({n_streamlines}) in file {input_tractogram}')
+                        # write scalars
+                        for s in range( n_str_tsf ):
+                            TSF_in.read_scalars()
+                            if TSF_in.n_pts==0:
+                                break # no more data, stop reading
+                            TSF_out.write_scalars( TSF_in.scalars, TSF_in.n_pts )
+                            n_written_tsf += 1
+                        TSF_in.close()
                     else:
-                        w = np.load(weights_filenames[i], allow_pickle=False).astype(np.float64)
-                    # check if #(weights_filenames)==n_streamlines
-                    if n_streamlines!=w.size:
-                        logger.error(f'# of weights {w.size} is different from # of streamlines ({n_streamlines}) in file {input_tractogram}')
-                    # append weights
-                    weights_tot = np.append(weights_tot, w)
+                        if scalars_filenames[i].endswith('.txt'):
+                            w = np.loadtxt(scalars_filenames[i]).astype(np.float32)
+                        else: # npy
+                            w = np.load(scalars_filenames[i], allow_pickle=False).astype(np.float64)
+                        # check if n_scalars==n_streamlines
+                        if n_streamlines!=w.size:
+                            logger.error(f'Number of scalars ({w.size}) is different from number of streamlines ({n_streamlines}) in file {input_tractogram}')
+                        # append scalars
+                        all_scalars = np.append(all_scalars, w)
 
                 pbar.update()
 
-            if out_weights_filename is not None and weights_tot.size>0:
-                logger.subinfo(f'Output weights path: \'{out_weights_filename}\'', indent_char='*', indent_lvl=1)
-                if out_weights_filename.endswith('.txt'):
-                    np.savetxt(out_weights_filename, weights_tot.astype(np.float32), fmt='%.5e')
-                else:
-                    np.save(out_weights_filename, weights_tot.astype(np.float32), allow_pickle=False)
-                logger.subinfo(f'Total output weigths: {weights_tot.size}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Total output streamlines: {n_written}', indent_char='*', indent_lvl=1)
+        if out_scalars_filename is not None:
+            logger.subinfo(f'Output scalars path: \'{out_scalars_filename}\'', indent_char='*', indent_lvl=1)
+            if scalars_filenames[0].endswith('.tsf'):
+                TSF_out.close( write_eof=True, count=n_written_tsf )
+                logger.subinfo(f'Total output scalars: {n_written_tsf}', indent_char='*', indent_lvl=1)
+            else:
+                if out_scalars_filename.endswith('.txt'):
+                    np.savetxt(out_scalars_filename, all_scalars.astype(np.float32), fmt='%.5e')
+                else: # .npy
+                    np.save(out_scalars_filename, all_scalars.astype(np.float32), allow_pickle=False)
+                logger.subinfo(f'Total output scalars: {all_scalars.size}', indent_char='*', indent_lvl=1)
 
     except Exception as e:
         if os.path.isfile( out_tractogram_filename ):
             os.remove( out_tractogram_filename )
-        if out_weights_filename is not None and os.path.isfile( out_weights_filename ):
-            os.remove( out_weights_filename )
+        if out_scalars_filename is not None and os.path.isfile( out_scalars_filename ):
+            os.remove( out_scalars_filename )
         logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:
@@ -1336,7 +1367,7 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
                         path_weights = f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}{weights_in_ext}'
                         list_all_weights.append(path_weights)
         if weights_filename is not None:
-            join(list_all, out_tractogram_filename, weights_filenames=list_all_weights, out_weights_filename=out_weights_filename, verbose=1, log_list=log_list_join)
+            join(list_all, out_tractogram_filename, scalars_filenames=list_all_weights, out_scalars_filename=out_weights_filename, verbose=1, log_list=log_list_join)
         else:
             join(list_all, out_tractogram_filename, verbose=1, log_list=log_list_join)
     set_verbose('tractogram', verbose)
@@ -1463,7 +1494,7 @@ def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_g
                     path_weights = f'{tmp_folder}/bundles/bundle_{i}-{i}{weights_in_ext}'
                     list_all_weights.append(path_weights)
         if weights_filename is not None:
-            join(list_all, out_tractogram_filename, weights_filenames=list_all_weights, out_weights_filename=out_weights_filename, verbose=1, log_list=log_list_join)
+            join(list_all, out_tractogram_filename, scalars_filenames=list_all_weights, out_scalars_filename=out_weights_filename, verbose=1, log_list=log_list_join)
         else:
             join(list_all, out_tractogram_filename, verbose=1, log_list=log_list_join)
     set_verbose('tractogram', verbose)
