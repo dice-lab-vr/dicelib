@@ -5,6 +5,7 @@
 ### ✨Added
 - Added function to compute streamline coherence with underlying FOD  (`dice_tractogram_coherence` script)
 - Added function to compute TDI maps  (`dice_tractogram_tdi` script)
+- Added support for handling additional TSF files when joining and filtering tractograms
 
 ### 🛠️Changed
 - Minor modifications towards an alignment in the way voxel coordinates are computed
