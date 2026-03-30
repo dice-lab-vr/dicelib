@@ -609,8 +609,6 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
         files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.txt', '.npy', '.tsf']))
     if out_scalars_filename is not None:
         files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy', '.tsf']))
-    if scalars_filename[-4:] != out_scalars_filename[-4:]:
-        logger.error( 'Input and output scalar files must have the same format' )
     nums = [Num(name='random', value=random, min_=0.0, max_=1.0, include_min=False)]
     messages = []
     if minlength is not None:
@@ -632,6 +630,8 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
     if random != 1:
         messages.append(f'Randomly keeping {random * 100:.0f}% of the streamlines')
     check_params(files=files, nums=nums, force=force)
+    if scalars_filename[-4:] != out_scalars_filename[-4:]:
+        logger.error( 'Input and output scalar files must have the same format' )
 
     for msg in messages:
         logger.subinfo(msg, indent_char='*', indent_lvl=1)
@@ -1094,6 +1094,8 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, scalar
     if out_scalars_filename is not None:
         files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy', '.tsf']))
     check_params(files=files, force=force)
+    if (scalars_filenames is None) != (out_scalars_filename is None):
+        logger.error( 'Input and output scalar files must be either both present or both absent' )
 
     #----- iterate over input files -----
     logger.subinfo(f'Output tractogram: \'{out_tractogram_filename}\'', indent_char='*', indent_lvl=1)
@@ -1106,8 +1108,8 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, scalar
         TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
         TCK_in.close()
 
-        if scalars_filenames is not None:
-            if out_scalars_filenames[0].endswith('.tsf'):
+        if out_scalars_filename is not None:
+            if out_scalars_filename.endswith('.tsf'):
                 TSF_in = TrackScalarFile( scalars_filenames[0], mode='r' )
                 TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=TSF_in.header )
                 n_written_tsf = 0
@@ -1138,7 +1140,7 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, scalar
                     # check extension of scalar file
                     if scalars_filenames[i][-4:] != out_scalars_filename[-4:]:
                         logger.error( 'Input and output scalar files must have the same format' )
-                    # load weights file
+                    # load scalars file
                     if scalars_filenames[i].endswith('.tsf'):
                         TSF_in = TrackScalarFile( scalars_filenames[i], mode='r' )
                         n_str_tsf = int( TCK_in.header['count'] )
@@ -1267,7 +1269,7 @@ def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, ou
     return indices
 
 
-def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename: str=None, distance: float=2.0, weights_filename: str=None, out_weights_filename: str=None, tmp_folder: str='tmp_sort', keep_tmp: bool=False, n_threads: int=None, force: bool=False, verbose: int=3 ):
+def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename: str=None, distance: float=2.0, scalars_filename: str=None, out_scalars_filename: str=None, tmp_folder: str='tmp_sort', keep_tmp: bool=False, n_threads: int=None, force: bool=False, verbose: int=3 ):
     """Sort the streamlines in a tractogram bundle-by-bundle in lexigraphical order (i.e., bundle_1-1 --> bundle_1-2 --> ... --> bundle_2-2 --> ...).
 
     Parameters
@@ -1281,10 +1283,10 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
         the output file will be created by appending '_sorted' to the input filename.
     distance : float, default=2.0
         Distance [in voxels] to consider in the radial search when computing the assignments.
-    weights_filename : str, optional
-        Path to the scalar file (.txt, .npy) containing one weight for each input streamline.
-    out_weights_filename : str, optional
-        Path to the scalar file (.txt, .npy) that will contain the weights of the sorted streamlines.
+    scalars_filename : str, optional
+        Path to the file (.txt, .npy) containing one scalar for each input streamline.
+    out_scalars_filename : str, optional
+        Path to the file (.txt, .npy) that will contain the scalars of the sorted streamlines.
     tmp_folder : str, default='tmp_sort'
         Path to the temporary folder used to store the intermediate files.
     keep_tmp : boolean, default=False
@@ -1310,16 +1312,16 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
         Num(name='distance', value=distance, min_=0.0)
     ]
 
-    if weights_filename is not None:
-        files.append(File(name='weights_filename', type_='input', path=weights_filename, ext=['.txt', '.npy']))
-        weights_in_ext = os.path.splitext(weights_filename)[1]
-        if out_weights_filename is not None:
-            weights_out_ext = os.path.splitext(out_weights_filename)[1]
-            files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
+    if scalars_filename is not None:
+        files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.txt', '.npy']))
+        scalars_in_ext = os.path.splitext(scalars_filename)[1]
+        if out_scalars_filename is not None:
+            scalars_out_ext = os.path.splitext(out_scalars_filename)[1]
+            files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy']))
         else:
-            out_weights_filename = os.path.splitext(weights_filename)[0]+f'_sorted{weights_in_ext}'
-            weights_out_ext = weights_in_ext
-            files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
+            out_scalars_filename = os.path.splitext(scalars_filename)[0]+f'_sorted{scalars_in_ext}'
+            scalars_out_ext = scalars_in_ext
+            files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy']))
 
     if out_tractogram_filename is None:
         out_tractogram_filename = os.path.splitext(tractogram_filename)[0]+'_sorted.tck'
@@ -1344,8 +1346,8 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
     log_list_split = []
     ret_subinfo_split = logger.subinfo('Splitting tractogram', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_split, log_list=log_list_split):
-        if weights_filename is not None:
-            split(tractogram_filename, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', weights_filename=weights_filename, verbose=1, force=force, log_list=log_list_split)
+        if scalars_filename is not None:
+            split(tractogram_filename, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', scalars_filename=scalars_filename, verbose=1, force=force, log_list=log_list_split)
         else:
             split(tractogram_filename, f'{tmp_folder}/fibers_assignment.txt', f'{tmp_folder}/bundles', verbose=1, force=force, log_list=log_list_split)
     set_verbose('tractogram', verbose)
@@ -1357,17 +1359,17 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
     ret_subinfo_join = logger.subinfo('Joining bundles in the specific order', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_join, log_list=log_list_join):
         list_all = []
-        list_all_weights = []
+        list_all_scalars = []
         for i in range(max_rois):
             for j in range(i, max_rois):
                 path_bundle = f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}.tck'
                 if os.path.isfile(path_bundle):
                     list_all.append(path_bundle)
-                    if weights_filename is not None:
-                        path_weights = f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}{weights_in_ext}'
-                        list_all_weights.append(path_weights)
-        if weights_filename is not None:
-            join(list_all, out_tractogram_filename, scalars_filenames=list_all_weights, out_scalars_filename=out_weights_filename, verbose=1, log_list=log_list_join)
+                    if scalars_filename is not None:
+                        path_scalars = f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}{scalars_in_ext}'
+                        list_all_scalars.append(path_scalars)
+        if scalars_filename is not None:
+            join(list_all, out_tractogram_filename, scalars_filenames=list_all_scalars, out_scalars_filename=out_scalars_filename, verbose=1, log_list=log_list_join)
         else:
             join(list_all, out_tractogram_filename, verbose=1, log_list=log_list_join)
     set_verbose('tractogram', verbose)
@@ -1386,7 +1388,7 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_groups: int=100, seed: int=None, weights_filename: str=None, out_weights_filename: str=None, tmp_folder: str='tmp_shuffle', keep_tmp: bool=False, force: bool=False , verbose: int=3):
+def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_groups: int=100, seed: int=None, scalars_filename: str=None, out_scalars_filename: str=None, tmp_folder: str='tmp_shuffle', keep_tmp: bool=False, force: bool=False , verbose: int=3):
     """Shuffle the streamlines in a tractogram.
 
     Parameters
@@ -1402,10 +1404,10 @@ def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_g
         tractogram will be created by concatenating the shuffled groups.
     seed : int, optional
         Uses a specific seed for the random number generator.
-    weights_filename : str, optional
-        Path to the scalar file (.txt, .npy) containing one weight for each input streamline.
-    out_weights_filename : str, optional
-        Path to the scalar file (.txt, .npy) that will contain the shuffled streamline weights.
+    scalars_filename : str, optional
+        Path to the file (.txt, .npy) containing one scalar for each input streamline.
+    out_scalars_filename : str, optional
+        Path to the file (.txt, .npy) that will contain the shuffled streamline scalars.
     tmp_folder : str, default='tmp_shuffle'
         Path to the temporary folder used to store the intermediate files.
     keep_tmp : boolean, default=False
@@ -1431,16 +1433,16 @@ def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_g
     ]
     if seed is not None:
         nums.append(Num(name='seed', value=seed, min_=0))
-    if weights_filename is not None:
-        files.append(File(name='weights_filename', type_='input', path=weights_filename, ext=['.txt', '.npy']))
-        weights_in_ext = os.path.splitext(weights_filename)[1]
-        if out_weights_filename is not None:
-            weights_out_ext = os.path.splitext(out_weights_filename)[1]
-            files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
+    if scalars_filename is not None:
+        files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.txt', '.npy']))
+        scalars_in_ext = os.path.splitext(scalars_filename)[1]
+        if out_scalars_filename is not None:
+            scalars_out_ext = os.path.splitext(out_scalars_filename)[1]
+            files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy']))
         else:
-            out_weights_filename = os.path.splitext(weights_filename)[0]+f'_shuffled{weights_in_ext}'
-            weights_out_ext = weights_in_ext
-            files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
+            out_scalars_filename = os.path.splitext(scalars_filename)[0]+f'_shuffled{scalars_in_ext}'
+            scalars_out_ext = scalars_in_ext
+            files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy']))
     tmp_folder = tmp_folder if tmp_folder is not None else os.path.join(os.getcwd(), 'tmp_shuffle')
     dirs = [Dir(name='tmp_folder', path=tmp_folder)]
     check_params(files=files, dirs=dirs, nums=nums, force=force)
@@ -1474,8 +1476,8 @@ def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_g
     log_list_split = []
     ret_subinfo_split = logger.subinfo('Splitting into sub-tractograms', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_split, log_list=log_list_split):
-        if weights_filename is not None:
-            split(tractogram_filename, f'{tmp_folder}/fake_assignment.txt', f'{tmp_folder}/bundles', weights_filename=weights_filename, force=force, verbose=1, log_list=log_list_split)
+        if scalars_filename is not None:
+            split(tractogram_filename, f'{tmp_folder}/fake_assignment.txt', f'{tmp_folder}/bundles', scalars_filename=scalars_filename, force=force, verbose=1, log_list=log_list_split)
         else:
             split(tractogram_filename, f'{tmp_folder}/fake_assignment.txt', f'{tmp_folder}/bundles', force=force, verbose=1, log_list=log_list_split)
     set_verbose('tractogram', verbose)
@@ -1485,16 +1487,16 @@ def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_g
     ret_subinfo_join = logger.subinfo('Joining sub-tractograms', indent_lvl=1, indent_char='*', with_progress=verbose>2)
     with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo_join, log_list=log_list_join):
         list_all = []
-        list_all_weights = []
+        list_all_scalars = []
         for i in range(1, n_tmp_groups+1):
             path_bundle = f'{tmp_folder}/bundles/bundle_{i}-{i}.tck'
             if os.path.isfile(path_bundle):
                 list_all.append(path_bundle)
-                if weights_filename is not None:
-                    path_weights = f'{tmp_folder}/bundles/bundle_{i}-{i}{weights_in_ext}'
-                    list_all_weights.append(path_weights)
-        if weights_filename is not None:
-            join(list_all, out_tractogram_filename, scalars_filenames=list_all_weights, out_scalars_filename=out_weights_filename, verbose=1, log_list=log_list_join)
+                if scalars_filename is not None:
+                    path_scalars = f'{tmp_folder}/bundles/bundle_{i}-{i}{scalars_in_ext}'
+                    list_all_scalars.append(path_scalars)
+        if scalars_filename is not None:
+            join(list_all, out_tractogram_filename, scalars_filenames=list_all_scalars, out_scalars_filename=out_scalars_filename, verbose=1, log_list=log_list_join)
         else:
             join(list_all, out_tractogram_filename, verbose=1, log_list=log_list_join)
     set_verbose('tractogram', verbose)
