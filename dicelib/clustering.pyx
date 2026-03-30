@@ -633,7 +633,7 @@ cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept 
 
 def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filename: str, metric: str="EDavg", n_pts: int=12,
                     atlas: str=None, atlas_thr: float=2.0, save_clust_idx: bool=False,
-                    weights_filename: str=None, out_weights_filename: str=None, weights_stat: str="sum",
+                    scalars_filename: str=None, out_scalars_filename: str=None, scalars_stat: str="sum",
                     tmp_folder: str='tmp_cluster', keep_tmp: bool=False,
                     n_threads: int=None, max_open: int=None, max_bytes: int=0, force: bool=False, verbose: int=3, log_list=None):
     """Cluster streamlines in a tractogram based on a given distance metric.
@@ -665,12 +665,12 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
         the corresponding streamline is not taken into account for clustering.
     save_clust_idx : bool, default=False
         Save the indices of the cluster to which each input streamline belongs.
-    weights_filename : str, optional
-        Path to the scalar file (.txt, .npy) containing one weight for each input streamline.
-    out_weights_filename : str, optional
-        Path to the scalar file (.txt, .npy) that will contain the weights of the centroids.
-    weights_stat : {'sum', 'mean', 'median', 'min', 'max'}, default='sum'
-        Summary statistic to use for computing the weight of a centroid from the streamlines
+    scalars_filename : str, optional
+        Path to the file (.txt, .npy) containing one scalar for each input streamline.
+    out_scalars_filename : str, optional
+        Path to the file (.txt, .npy) that will contain the scalars of the centroids.
+    scalars_stat : {'sum', 'mean', 'median', 'min', 'max'}, default='sum'
+        Summary statistic to use for computing the scalar of a centroid from the streamlines
         that were assigned to it.
     tmp_folder : str, default='tmp_cluster'
         Path to the temporary folder used to store the intermediate files.
@@ -703,10 +703,10 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
     dirs = [
         Dir(name='tmp_folder', path=tmp_folder)
     ]
-    if weights_filename is not None:
-        files.append(File(name='weights_filename', type_='input', path=weights_filename, ext=['.txt', '.npy']))
-    if out_weights_filename is not None:
-        files.append(File(name='out_weights_filename', type_='output', path=out_weights_filename, ext=['.txt', '.npy']))
+    if scalars_filename is not None:
+        files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.txt', '.npy']))
+    if out_scalars_filename is not None:
+        files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy']))
     nums = [
         Num(name='thr', value=thr, min_=0.0, include_min=False),
         Num(name='atlas_thr', value=atlas_thr, min_=0.0, include_min=True),
@@ -715,8 +715,8 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
     if n_threads is not None:
         nums.append(Num(name='n_threads', value=n_threads, min_=1))
 
-    if weights_stat not in ['min', 'max', 'median', 'sum', 'mean']:
-        logger.error(f'Option {weights_stat} not valid, please choose between min, max, median, mean or sum')
+    if scalars_stat not in ['min', 'max', 'median', 'sum', 'mean']:
+        logger.error(f'Option {scalars_stat} not valid, please choose between min, max, median, mean or sum')
     check_params(files=files, dirs=dirs, nums=nums, force=force)
 
     tmp_dir_is_created = False
@@ -733,11 +733,11 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
 
-    if weights_filename:
-        if weights_filename.endswith('.txt'):
-            w = np.loadtxt(weights_filename).astype(np.float64)
+    if scalars_filename:
+        if scalars_filename.endswith('.txt'):
+            w = np.loadtxt(scalars_filename).astype(np.float64)
         else:
-            w = np.load(weights_filename, allow_pickle=False).astype(np.float64)
+            w = np.load(scalars_filename, allow_pickle=False).astype(np.float64)
 
     if n_threads:
         MAX_THREAD = n_threads
@@ -751,15 +751,15 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
     logger.subinfo(f'Clustering metric: "{metric}"', indent_lvl=1, indent_char='*')
     logger.subinfo(f'Clustering threshold: {thr}', indent_lvl=1, indent_char='*')
     logger.subinfo(f'Points per streamline: {n_pts}', indent_lvl=1, indent_char='*')
-    if weights_filename is not None:
-        logger.debug( f'Streamline weights filename: "{weights_filename}"' )
-        logger.subinfo(f'Statistic to summarize centroid weights: "{weights_stat}"', indent_lvl=1, indent_char='*')
-        if out_weights_filename is not None:
-            logger.debug( f'Streamline weights filename: "{weights_filename}"' )
+    if scalars_filename is not None:
+        logger.debug( f'Streamline scalars filename: "{scalars_filename}"' )
+        logger.subinfo(f'Statistic to summarize centroid scalars: "{scalars_stat}"', indent_lvl=1, indent_char='*')
+        if out_scalars_filename is not None:
+            logger.debug( f'Streamline scalars filename: "{scalars_filename}"' )
         else:
-            logger.warning( f'Streamline weights passed as input, but not as output' )
-    elif out_weights_filename is not None:
-        logger.warning( f'Streamline weights passed as output, but not as intput' )
+            logger.warning( f'Streamline scalars passed as input, but not as output' )
+    elif out_scalars_filename is not None:
+        logger.warning( f'Streamline scalars passed as output, but not as intput' )
 
     if atlas:
         chunk_size = int(num_streamlines/MAX_THREAD)
@@ -823,7 +823,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
                 tractogram_filename=tractogram_filename,
                 assignments_filename=save_assignments,
                 out_folder=output_bundles_folder,
-                weights_filename=temp_idx,
+                scalars_filename=temp_idx,
                 max_open=max_open,
                 force=force,
                 verbose=1)
@@ -936,36 +936,36 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
                         idx_centroid_per_streamline[streamline_indices] = np.array(streamlines_cluster) + tot_centroids
                         tot_centroids += np.array(streamlines_cluster).max() + 1
                         # compute weights
-                        if weights_filename is not None:
-                            if weights_stat == 'sum':
+                        if scalars_filename is not None:
+                            if scalars_stat == 'sum':
                                 clusters_v = np.unique(streamlines_cluster)
                                 for c in clusters_v:
                                     fib_indices = np.where(streamlines_cluster == c)[0]
                                     tmp_i = [streamline_indices[ii] for ii in fib_indices]
                                     tmp_w = w[tmp_i]
                                     w_out.append(np.sum(tmp_w))
-                            elif weights_stat == 'mean':
+                            elif scalars_stat == 'mean':
                                 clusters_v = np.unique(streamlines_cluster)
                                 for c in clusters_v:
                                     fib_indices = np.where(streamlines_cluster == c)[0]
                                     tmp_i = [streamline_indices[ii] for ii in fib_indices]
                                     tmp_w = w[tmp_i]
                                     w_out.append(np.mean(tmp_w))
-                            elif weights_stat == 'min':
+                            elif scalars_stat == 'min':
                                 clusters_v = np.unique(streamlines_cluster)
                                 for c in clusters_v:
                                     fib_indices = np.where(streamlines_cluster == c)[0]
                                     tmp_i = [streamline_indices[ii] for ii in fib_indices]
                                     tmp_w = w[tmp_i]
                                     w_out.append(np.min(tmp_w))
-                            elif weights_stat == 'max':
+                            elif scalars_stat == 'max':
                                 clusters_v = np.unique(streamlines_cluster)
                                 for c in clusters_v:
                                     fib_indices = np.where(streamlines_cluster == c)[0]
                                     tmp_i = [streamline_indices[ii] for ii in fib_indices]
                                     tmp_w = w[tmp_i]
                                     w_out.append(np.max(tmp_w))
-                            elif weights_stat == 'median':
+                            elif scalars_stat == 'median':
                                 clusters_v = np.unique(streamlines_cluster)
                                 for c in clusters_v:
                                     fib_indices = np.where(streamlines_cluster == c)[0]
@@ -976,12 +976,12 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
                     pbar.update()
                 TCK_out.close( write_eof=True, count= TCK_out_size)
 
-            if out_weights_filename is not None:
+            if out_scalars_filename is not None:
                 w_out = np.array(w_out)
-                if out_weights_filename.endswith('.txt'):
-                    np.savetxt(out_weights_filename, w_out)
+                if out_scalars_filename.endswith('.txt'):
+                    np.savetxt(out_scalars_filename, w_out)
                 else:
-                    np.save(out_weights_filename, w_out, allow_pickle=False)
+                    np.save(out_scalars_filename, w_out, allow_pickle=False)
 
             ret_clust_idx = idx_centroid_per_streamline
 
@@ -1035,39 +1035,39 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
             if tmp_dir_is_created:
                 shutil.rmtree(tmp_folder)
 
-        if weights_filename is not None:
-            #w = np.loadtxt(weights_filename)
-            if weights_stat == 'sum':
+        if scalars_filename is not None:
+            #w = np.loadtxt(scalars_filename)
+            if scalars_stat == 'sum':
                 cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
                 for i in range(len(ref_indices)):
                     fib_indices = np.where(ret_clust_idx == i)[0]
                     cluster_fibs[i] = np.sum(w[fib_indices])
-            elif weights_stat == 'mean':
+            elif scalars_stat == 'mean':
                 cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
                 for i in range(len(ref_indices)):
                     fib_indices = np.where(ret_clust_idx == i)[0]
                     cluster_fibs[i] = np.mean(w[fib_indices])
-            elif weights_stat == 'min':
+            elif scalars_stat == 'min':
                 cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
                 for i in range(len(ref_indices)):
                     fib_indices = np.where(ret_clust_idx == i)[0]
                     cluster_fibs[i] = np.min(w[fib_indices])
-            elif weights_stat == 'max':
+            elif scalars_stat == 'max':
                 cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
                 for i in range(len(ref_indices)):
                     fib_indices = np.where(ret_clust_idx == i)[0]
                     cluster_fibs[i] = np.max(w[fib_indices])
-            elif weights_stat == 'median':
+            elif scalars_stat == 'median':
                 cluster_fibs = np.zeros(len(ref_indices), dtype=np.float32)
                 for i in range(len(ref_indices)):
                     fib_indices = np.where(ret_clust_idx == i)[0]
                     cluster_fibs[i] = np.median(w[fib_indices])
 
-            if out_weights_filename is not None:
-                if out_weights_filename.endswith('.txt'):
-                    np.savetxt(out_weights_filename, cluster_fibs)
+            if out_scalars_filename is not None:
+                if out_scalars_filename.endswith('.txt'):
+                    np.savetxt(out_scalars_filename, cluster_fibs)
                 else:
-                    np.save(out_weights_filename, cluster_fibs, allow_pickle=False)
+                    np.save(out_scalars_filename, cluster_fibs, allow_pickle=False)
 
     if TCK_in is not None:
         TCK_in.close()
