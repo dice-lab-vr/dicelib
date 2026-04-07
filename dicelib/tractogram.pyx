@@ -1036,8 +1036,8 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
-        logger.debug('Closing files', indent_char='*', indent_lvl=1, with_progress=verbose>2)
-        with ProgressBar(total=len(TCK_outs), disable=verbose < 3, hide_on_exit=True, subinfo=True) as pbar:
+        logger.debug('Closing files')
+        with ProgressBar(total=len(TCK_outs), disable=verbose < 3, hide_on_exit=True, subinfo=False) as pbar:
             if TCK_in is not None:
                 TCK_in.close()
             for key in TCK_outs.keys():
@@ -2175,7 +2175,7 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
             TCK_out.write_streamline( s0, n_pts )
             pbar.update()
     TCK_in.close()
-    TCK_out.close()
+    TCK_out.close(write_eof=True, count=n_streamlines)
 
     mb = os.path.getsize( out_tractogram_filename )/1.0E6
     if mb >= 1E3:
