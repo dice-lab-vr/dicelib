@@ -41,9 +41,9 @@ def cluster():
         [['--atlas', '-a'], {'type': str, 'help': desc['atlas']}],
         [['--atlas_thr', '-d'], {'type': float, 'default': 2.0, 'help': desc['atlas_thr']}],
         [['--save_clust_idx', '-s'], {'action': 'store_true', 'help': desc['save_clust_idx']}],
-        [['--weights', '-wi'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
-        [['--out_weights', '-wo'], {'type': str, 'default': None, 'help': desc['out_weights_filename']}],
-        [['--weights_stat', '-ws'], {'type': str, 'choices': ['sum','mean','median','min','max'], 'default': 'sum', 'help': desc['weights_stat']}],
+        [['--scalars', '-wi'], {'type': str, 'default': None, 'help': desc['scalars_filename']}],
+        [['--out_scalars', '-wo'], {'type': str, 'default': None, 'help': desc['out_scalars_filename']}],
+        [['--scalars_stat', '-ws'], {'type': str, 'choices': ['sum','mean','median','min','max'], 'default': 'sum', 'help': desc['scalars_stat']}],
         [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_cluster', 'help': desc['tmp_folder']}],
         [['--keep_tmp', '-k'], {'action': 'store_true', 'help': desc['keep_tmp']}],
         [['--n_threads'], {'type': int, 'help': desc['n_threads']}],
@@ -61,9 +61,9 @@ def cluster():
             atlas=options.atlas,
             atlas_thr=options.atlas_thr,
             save_clust_idx=options.save_clust_idx,
-            weights_filename=options.weights,
-            weights_stat=options.weights_stat,
-            out_weights_filename=options.out_weights,
+            scalars_filename=options.scalars,
+            scalars_stat=options.scalars_stat,
+            out_scalars_filename=options.out_scalars,
             tmp_folder=options.tmp_folder,
             keep_tmp=options.keep_tmp,
             n_threads=options.n_threads,
@@ -164,16 +164,16 @@ def join():
     args = [
         [['tractograms'], {'type': str, 'nargs': '+', 'help': desc['tractograms_filenames']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
-        [['--weights', '-wi'], {'type': str, 'nargs': '*', 'default': None, 'help': desc['weights_filenames']}],
-        [['--out_weights', '-wo'], {'type': str, 'default': None, 'help': desc['out_weights_filename']}]
+        [['--scalars', '-si'], {'type': str, 'nargs': '*', 'default': None, 'help': desc['scalars_filenames']}],
+        [['--out_scalars', '-so'], {'type': str, 'default': None, 'help': desc['out_scalars_filename']}],
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
         join(
             tractograms_filenames=options.tractograms,
             out_tractogram_filename=options.out_tractogram,
-            weights_filenames=options.weights,
-            out_weights_filename=options.out_weights,
+            scalars_filenames=options.scalars,
+            out_scalars_filename=options.out_scalars,
             force=options.force,
             verbose=options.verbose
         )
@@ -312,8 +312,8 @@ def shuffle():
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
         [['--n_tmp_groups', '-g'], {'type': int, 'default': 100, 'help': desc['n_tmp_groups']}],
         [['--seed', '-s'], {'type': int, 'default': None, 'help': desc['seed']}],
-        [['--weights', '-wi'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
-        [['--out_weights', '-wo'], {'type': str, 'default': None, 'help': desc['out_weights_filename']}],
+        [['--scalars', '-si'], {'type': str, 'default': None, 'help': desc['scalars_filename']}],
+        [['--out_scalars', '-so'], {'type': str, 'default': None, 'help': desc['out_scalars_filename']}],
         [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_shuffle', 'help': desc['tmp_folder']}],
         [['--keep_tmp', '-k'], {'action': 'store_true', 'help': desc['keep_tmp']}]
     ]
@@ -324,8 +324,8 @@ def shuffle():
             out_tractogram_filename=options.out_tractogram,
             n_tmp_groups=options.n_tmp_groups,
             seed=options.seed,
-            weights_filename=options.weights,
-            out_weights_filename=options.out_weights,
+            scalars_filename=options.scalars,
+            out_scalars_filename=options.out_scalars,
             tmp_folder=options.tmp_folder,
             keep_tmp=options.keep_tmp,
             force=options.force,
@@ -380,8 +380,8 @@ def sort():
         [['atlas'], {'type': str, 'help': desc['atlas_filename']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
         [['--distance', '-d'], {'type': float, 'default': 2.0, 'help': desc['distance']}],
-        [['--weights', '-wi'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
-        [['--out_weights','-wo'], {'type': str, 'default': None, 'help': desc['out_weights_filename']}],
+        [['--scalars', '-si'], {'type': str, 'default': None, 'help': desc['scalars_filename']}],
+        [['--out_scalars','-so'], {'type': str, 'default': None, 'help': desc['out_scalars_filename']}],
         [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_sort', 'help': desc['tmp_folder']}],
         [['--keep_tmp', '-k'], {'action': 'store_true', 'help': desc['keep_tmp']}],
         [['--n_threads', '-n'], {'type': int, 'default': 3, 'help': desc['n_threads']}]
@@ -393,8 +393,8 @@ def sort():
             atlas_filename=options.atlas,
             out_tractogram_filename=options.out_tractogram,
             distance=options.distance,
-            weights_filename=options.weights,
-            out_weights_filename=options.out_weights,
+            scalars_filename=options.scalars,
+            out_scalars_filename=options.out_scalars,
             tmp_folder=options.tmp_folder,
             keep_tmp=options.keep_tmp,
             n_threads=options.n_threads,

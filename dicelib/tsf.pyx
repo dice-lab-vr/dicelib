@@ -436,7 +436,7 @@ cdef class TrackScalarFile:
 #                     streamline_out[:TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts]
 #                 TCK_out.write_streamline(streamline_out, TCK_in.n_pts)
 #                 pbar.update()
-#         TCK_out.close()
+#         TCK_out.close() # TODO: check if write_eof and count are needed here
 #         TCK_in.close()
 #         TCK_in = LazyTractogram(out_tractogram_filename, mode='r')
 #         num_streamlines = TCK_in.header['count']
