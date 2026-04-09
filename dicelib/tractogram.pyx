@@ -747,7 +747,7 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def split( tractogram_filename: str, assignments_filename: str, out_folder: str='bundles', prefix: str='bundle_', regions: str=None, scalars_filename: str=None, max_open: int=None, force: bool=False, verbose: int=3, log_list=None ):
+def split( tractogram_filename: str, assignments_filename: str, out_folder: str='bundles', prefix: str=None, regions: str=None, scalars_filename: str=None, max_open: int=None, force: bool=False, verbose: int=3, log_list=None ):
     """Split the streamlines in a tractogram according to an assignment file.
 
     Parameters
@@ -758,7 +758,7 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         Path to the file (.txt, .npy) containing the streamlines' assignments (two numbers/row).
     out_folder : str, default="bundles"
         Output folder for the splitted tractograms.
-    prefix : str, default="bundle_"
+    prefix : str, optional
         Text to be prepended to the filenames of the output tractograms.
     regions : list of integers, optional
         Only streamlines connecting the provided region(s) will be extracted.
@@ -793,6 +793,9 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.txt', '.npy']))
     dirs = [Dir(name='out_folder', path=out_folder)]
     check_params(files=files, dirs=dirs, force=force)
+
+    if prefix is None:
+        prefix = ''
 
     if not os.path.exists(out_folder):
         os.makedirs(out_folder)
@@ -1068,8 +1071,8 @@ def join( tractograms_filenames: list[str], out_tractogram_filename: str, scalar
     out_tractogram_filename : str
         Path to the file (.tck) that will contain the resulting tractogram.
     scalars_filenames : list of str, optional
-        List of paths to the files that contain one scalar for each input streamline 
-        (.txt, .npy) or one scalar for each point of each input streamline (.tsf). 
+        List of paths to the files that contain one scalar for each input streamline
+        (.txt, .npy) or one scalar for each point of each input streamline (.tsf).
         These files must follow the same order of the corresponding tractograms.
     out_scalars_filename : str, optional
         Path to the file (.txt, .npy, .tsf) for the output streamline scalars.

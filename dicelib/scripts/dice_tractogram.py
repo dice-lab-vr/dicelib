@@ -412,8 +412,8 @@ def split():
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['assignments'], {'type': str, 'help': desc['assignments_filename']}],
-        [['--out_folder', '-out'], {'type': str, 'nargs': '?', 'default': 'bundles', 'help': desc['out_folder']}],
-        [['--prefix', '-p'], {'type': str, 'default': 'bundle_', 'help': desc['prefix']}],
+        [['--out_folder', '-out'], {'type': str, 'default': 'bundles', 'help': desc['out_folder']}],
+        [['--prefix', '-p'], {'type': str, 'default': None, 'help': desc['prefix']}],
         [['--regions', '-r'], {'type': str, 'default': None, 'help': desc['regions']}],
         [['--scalars', '-si'], {'type': str, 'default': None, 'help': desc['scalars_filename']}],
         [['--max_open', '-m'], {'type': int, 'default': None, 'help': desc['max_open']}]
