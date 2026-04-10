@@ -336,9 +336,9 @@ def shuffle():
 
 
 def smooth_splines():
-    '''Entry point for the tractogram.spline_smoothing function'''
-    from dicelib.tractogram import spline_smoothing
-    summary, desc, notes = get_argparse_info_from_docstring( spline_smoothing.__doc__ )
+    '''Entry point for the tractogram.smooth_splines function'''
+    from dicelib.tractogram import smooth_splines
+    summary, desc, notes = get_argparse_info_from_docstring( smooth_splines.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
@@ -353,7 +353,7 @@ def smooth_splines():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        spline_smoothing(
+        smooth_splines(
             tractogram_filename=options.tractogram,
             out_tractogram_filename=options.out_tractogram,
             spline_type=options.type,
@@ -364,6 +364,32 @@ def smooth_splines():
             resample=options.resample,
             segment_len=options.segment_len,
             streamline_pts=options.streamline_pts,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+
+def smooth_sg():
+    '''Entry point for the tractogram.smooth_savitzky_golay function'''
+    from dicelib.tractogram import smooth_savitzky_golay
+    summary, desc, notes = get_argparse_info_from_docstring( smooth_savitzky_golay.__doc__ )
+    args = [
+        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
+        [['--window', '-w'], {'type': int, 'default': 11, 'help': desc['window']}],
+        [['--order', '-o'], {'type': int, 'default': 3, 'help': desc['polyorder']}],
+        [['--preserve', '-p'], {'action': 'store_true', 'help': desc['preserve_endpoints']}]
+    ]
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        smooth_savitzky_golay(
+            tractogram_filename=options.tractogram,
+            out_tractogram_filename=options.out_tractogram,
+            window=options.window,
+            polyorder=options.order,
+            preserve_endpoints=options.preserve,
             force=options.force,
             verbose=options.verbose
         )

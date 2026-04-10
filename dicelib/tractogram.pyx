@@ -14,6 +14,7 @@ from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 from dicelib.connectivity import assign
 from dicelib.tsf cimport TrackScalarFile
+from scipy.signal import savgol_filter
 import ast, random as rnd
 import os, sys, shutil
 import nibabel as nib
@@ -1757,11 +1758,11 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def spline_smoothing( tractogram_filename, out_tractogram_filename, spline_type='centripetal', epsilon=None, n_ctrl_pts=None, n_pts_eval=None, segment_len_eval=None, resample=False, segment_len=None, streamline_pts=None, force=False, verbose=3 ):
-    """Smooth the streamlines in a tractogram using Catmull-Rom splines.
+def smooth_splines( tractogram_filename, out_tractogram_filename, spline_type='centripetal', epsilon=None, n_ctrl_pts=None, n_pts_eval=None, segment_len_eval=None, resample=False, segment_len=None, streamline_pts=None, force=False, verbose=3 ):
+    """Smooth the streamlines in a tractogram using Catmull-Rom splines [1].
 
     The control points of the spline that will approximate a streamline are
-    selected using the Ramer-Douglas-Peucker algorithm [1]. Then, these points
+    selected using the Ramer-Douglas-Peucker algorithm [2]. Then, these points
     are used to construct a Catmull-Rom spline to approximate its trajectory.
 
     References:
@@ -1927,6 +1928,80 @@ def spline_smoothing( tractogram_filename, out_tractogram_filename, spline_type=
             logger.debug(f'{mb/1.0E3:.2f} GB')
         else:
             logger.debug(f'{mb:.2f} MB')
+        t1 = time()
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
+
+
+def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=11, polyorder=3, preserve_endpoints=True, force=False, verbose=3 ):
+    """Smooth the streamlines in a tractogram using the Savitzky–Golay filter [1].
+
+    References:
+    [1] https://en.wikipedia.org/wiki/Savitzky–Golay_filter
+
+    Parameters
+    ----------
+    tractogram_filename : str
+        Path to the tractogram (.tck) containing the streamlines to process.
+    out_tractogram_filename : str
+        Path to the tractogram (.tck) that will contain the smoothed streamlines.
+    window : int, default=11
+        The length of the filter window.
+    polyorder : int, default=3
+        The order of the polynomial used to fit the streamline coordinates.
+    preserve_endpoints : bool, default=True
+        If True, endpoints are preserved, i.e. not affected by the smoothing.
+    force : boolean, default=False
+        Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
+    """
+    t0 = time()
+    set_verbose('tractogram', verbose)
+    logger.info('Smoothing streamlines with the Savitzky–Golay filter')
+
+    files = [
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
+        File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck')
+    ]
+    check_params(files=files, force=force)
+
+    try:
+        logger.debug(f'Input tractogram: "{tractogram_filename}"')
+        logger.debug(f'Output tractogram: "{out_tractogram_filename}"')
+        TCK_in = LazyTractogram( tractogram_filename, mode='r' )
+        n_streamlines = int( TCK_in.header['count'] )
+        logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='*')
+        TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
+        logger.subinfo(f'Window width: {window}', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Polynomial order: {polyorder}', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Preserve endpoints: {preserve_endpoints}', indent_lvl=1, indent_char='*')
+
+        # process each streamline
+        with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True ) as pbar:
+            for i in range( n_streamlines ):
+                TCK_in.read_streamline()
+                smoothed_streamline = savgol_filter(
+                    TCK_in.streamline[:TCK_in.n_pts], axis=0,
+                    window_length=window, polyorder=polyorder,
+                    deriv=0, mode='nearest'
+                )
+                if preserve_endpoints:
+                    # replace first and last points
+                    smoothed_streamline[0,:] = TCK_in.streamline[0,:]
+                    smoothed_streamline[TCK_in.n_pts-1,:] = TCK_in.streamline[TCK_in.n_pts-1,:]
+                TCK_out.write_streamline( smoothed_streamline, TCK_in.n_pts )
+                pbar.update()
+
+    except Exception as e:
+        if os.path.exists( out_tractogram_filename ):
+            os.remove( out_tractogram_filename )
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+    finally:
+        if TCK_in is not None:
+            TCK_in.close()
+        if TCK_out is not None:
+            TCK_out.close()
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
