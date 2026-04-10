@@ -335,7 +335,7 @@ def shuffle():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
-def smooth():
+def smooth_splines():
     '''Entry point for the tractogram.spline_smoothing function'''
     from dicelib.tractogram import spline_smoothing
     summary, desc, notes = get_argparse_info_from_docstring( spline_smoothing.__doc__ )
