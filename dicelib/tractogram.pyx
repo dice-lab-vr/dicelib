@@ -1274,7 +1274,7 @@ def get_indices_of_streamlines( needle_filename: str, haystack_filename: str, ou
 
 
 def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename: str=None, distance: float=2.0, scalars_filename: str=None, out_scalars_filename: str=None, tmp_folder: str='tmp_sort', keep_tmp: bool=False, n_threads: int=None, force: bool=False, verbose: int=3 ):
-    """Sort the streamlines in a tractogram bundle-by-bundle in lexigraphical order (i.e., bundle_1-1 --> bundle_1-2 --> ... --> bundle_2-2 --> ...).
+    """Sort the streamlines in a tractogram bundle-by-bundle in lexigraphical order (i.e., 1-1 --> 1-2 --> ... --> 2-2 --> ...).
 
     Parameters
     ----------
@@ -1366,11 +1366,11 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
         list_all_scalars = []
         for i in range(max_rois):
             for j in range(i, max_rois):
-                path_bundle = f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}.tck'
+                path_bundle = f'{tmp_folder}/bundles/{i+1}-{j+1}.tck'
                 if os.path.isfile(path_bundle):
                     list_all.append(path_bundle)
                     if scalars_filename is not None:
-                        path_scalars = f'{tmp_folder}/bundles/bundle_{i+1}-{j+1}{scalars_in_ext}'
+                        path_scalars = f'{tmp_folder}/bundles/{i+1}-{j+1}{scalars_in_ext}'
                         list_all_scalars.append(path_scalars)
         if scalars_filename is not None:
             join(list_all, out_tractogram_filename, scalars_filenames=list_all_scalars, out_scalars_filename=out_scalars_filename, verbose=1, log_list=log_list_join)
@@ -1493,11 +1493,11 @@ def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_g
         list_all = []
         list_all_scalars = []
         for i in range(1, n_tmp_groups+1):
-            path_bundle = f'{tmp_folder}/bundles/bundle_{i}-{i}.tck'
+            path_bundle = f'{tmp_folder}/bundles/{i}-{i}.tck'
             if os.path.isfile(path_bundle):
                 list_all.append(path_bundle)
                 if scalars_filename is not None:
-                    path_scalars = f'{tmp_folder}/bundles/bundle_{i}-{i}{scalars_in_ext}'
+                    path_scalars = f'{tmp_folder}/bundles/{i}-{i}{scalars_in_ext}'
                     list_all_scalars.append(path_scalars)
         if scalars_filename is not None:
             join(list_all, out_tractogram_filename, scalars_filenames=list_all_scalars, out_scalars_filename=out_scalars_filename, verbose=1, log_list=log_list_join)
@@ -1987,7 +1987,7 @@ def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=
                     window_length=window, polyorder=polyorder,
                     deriv=0, mode='nearest'
                 )
-                if alter_endpoints:
+                if alter_endpoints==False:
                     # replace first and last points
                     smoothed_streamline[0,:] = TCK_in.streamline[0,:]
                     smoothed_streamline[TCK_in.n_pts-1,:] = TCK_in.streamline[TCK_in.n_pts-1,:]
