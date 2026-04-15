@@ -1766,8 +1766,8 @@ def smooth_splines( tractogram_filename, out_tractogram_filename, spline_type='c
     are used to construct a Catmull-Rom spline to approximate its trajectory.
 
     References:
-    [1] https://wikipedia.org/wiki/Ramer–Douglas–Peucker_algorithm
-    [2] http://algorithmist.net/docs/catmullrom.pdf
+    [1] https://wikipedia.org/wiki/Catmull–Rom_spline
+    [2] https://wikipedia.org/wiki/Ramer–Douglas–Peucker_algorithm
 
     Parameters
     ----------
