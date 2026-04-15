@@ -1932,7 +1932,7 @@ def smooth_splines( tractogram_filename, out_tractogram_filename, spline_type='c
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=11, polyorder=3, preserve_endpoints=True, force=False, verbose=3 ):
+def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=11, polyorder=3, alter_endpoints=False, force=False, verbose=3 ):
     """Smooth the streamlines in a tractogram using the Savitzky–Golay filter [1].
 
     References:
@@ -1948,8 +1948,10 @@ def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=
         The length of the filter window.
     polyorder : int, default=3
         The order of the polynomial used to fit the streamline coordinates.
-    preserve_endpoints : bool, default=True
-        If True, endpoints are preserved, i.e. not affected by the smoothing.
+    alter_endpoints : bool, default=False
+        Smoothing alters also the endpoints; by default, endpoints are included
+        in the filtering window but, after the smoothing, they are restored to
+        their original value prior to the filtering to preserve connectivity.
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -1974,7 +1976,7 @@ def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=
         TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
         logger.subinfo(f'Window width: {window}', indent_lvl=1, indent_char='*')
         logger.subinfo(f'Polynomial order: {polyorder}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Preserve endpoints: {preserve_endpoints}', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Alter endpoints: {alter_endpoints}', indent_lvl=1, indent_char='*')
 
         # process each streamline
         with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True ) as pbar:
@@ -1985,7 +1987,7 @@ def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=
                     window_length=window, polyorder=polyorder,
                     deriv=0, mode='nearest'
                 )
-                if preserve_endpoints:
+                if alter_endpoints:
                     # replace first and last points
                     smoothed_streamline[0,:] = TCK_in.streamline[0,:]
                     smoothed_streamline[TCK_in.n_pts-1,:] = TCK_in.streamline[TCK_in.n_pts-1,:]
