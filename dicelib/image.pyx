@@ -312,7 +312,7 @@ def tdi_ends(input_tractogram: str, input_ref: str, output_image: str, blur_core
 
 
 
-def segment_gm_polar( image_filename: str, output_filename: str, region_amount: int=85, seed: int=None, verbose: int=3, force: bool=False ):
+def segment_gm_polar( image_filename: str, output_filename: str, region_amount: int=85, threshold: float=0.0, seed: int=None, verbose: int=3, force: bool=False ):
     """Segment an image into equally spaced homogeneous regions.
 
     Parameters
@@ -323,6 +323,9 @@ def segment_gm_polar( image_filename: str, output_filename: str, region_amount: 
         Path to the file (.nii.gz) where to store the resulting image.
     region_amount : int
         Number of regions created.
+    threshold : float
+        Intensity threshold in [0, 1] used to binarize the input image;
+        only voxels with value strictly greater than this threshold are selected.
     seed : int, optional
         Seed used to make the random rotation reproducible (default : None).
     verbose : int
@@ -338,7 +341,10 @@ def segment_gm_polar( image_filename: str, output_filename: str, region_amount: 
         File(name='image_filename', type_='input', path=image_filename, ext=['.nii', '.nii.gz']),
         File(name='output_filename', type_='output', path=output_filename, ext=['.nii', '.nii.gz'])
     ]
-    nums = [Num(name='region_amount', value=region_amount, min_=1, max_=1000)]
+    nums = [
+        Num(name='region_amount', value=region_amount, min_=1, max_=1000),
+        Num(name='threshold', value=threshold, min_=0.0, max_=1.0)
+    ]
     if seed is not None:
         nums.append(Num(name='seed', value=seed, min_=0))
     check_params(files=files, nums=nums, force=force)
@@ -346,6 +352,7 @@ def segment_gm_polar( image_filename: str, output_filename: str, region_amount: 
     logger.subinfo( f'Input image: "{image_filename}"', indent_char='*')
     logger.subinfo( f'Output image: "{output_filename}"', indent_char='*')
     logger.subinfo( f'Number of regions: {region_amount}', indent_char='*')
+    logger.subinfo( f'Threshold: {threshold}', indent_char='*')
     if seed is None:
         logger.subinfo( 'Random orientation: enabled', indent_char='*')
     else:
@@ -358,12 +365,22 @@ def segment_gm_polar( image_filename: str, output_filename: str, region_amount: 
         if image_data.ndim != 3:
             logger.error('Input image is not 3D')
 
-        # compute the center of mass of non-zero voxels
-        mask = image_data != 0
+        image_max = np.max(image_data)
+        if image_max > 255.0:
+            logger.error('Input image intensity range is invalid: found values greater than 255')
+        elif image_max > 1.0:
+            logger.subinfo( 'Detected intensity range: [0, 255]', indent_char='*')
+            image_data = image_data / 255.0
+            logger.subinfo( 'Input image scaled to [0, 1]', indent_char='*')
+        else:
+            logger.subinfo( 'Detected intensity range: [0, 1]', indent_char='*')
+
+        # compute the center of mass of thresholded voxels
+        mask = image_data > threshold
         z_idx, y_idx, x_idx = np.where( mask )
         if x_idx.size == 0:
-            logger.error('Input image does not contain non-zero voxels')
-        logger.subinfo( f'Non-zero voxels: {x_idx.size}', indent_char='*')
+            logger.error('Input image does not contain voxels above threshold')
+        logger.subinfo( f'Voxels above threshold: {x_idx.size}', indent_char='*')
 
         x_center = int( np.mean(x_idx) )
         y_center = int( np.mean(y_idx) )
@@ -384,10 +401,10 @@ def segment_gm_polar( image_filename: str, output_filename: str, region_amount: 
         indices = np.arange( region_amount, dtype=float )
         golden_angle = np.pi * (3.0 - np.sqrt(5.0))
         fib_y = 1.0 - 2.0 * (indices + 0.5) / region_amount
-        parallel_radius = np.sqrt(1.0 - fib_y * fib_y) # radius of the latitude parallel
+        radius = np.sqrt(1.0 - fib_y * fib_y) # radius of the latitude parallel
         theta = indices * golden_angle # longitude
-        fib_x = parallel_radius * np.cos(theta)
-        fib_z = parallel_radius * np.sin(theta)
+        fib_x = radius * np.cos(theta)
+        fib_z = radius * np.sin(theta)
         fib_points = np.column_stack((fib_x, fib_y, fib_z))
 
         # randomize the orientation of the regions

@@ -71,6 +71,7 @@ def image_segment_gm_polar():
         [["image_filename"], {"help": "Input image"}],
         [["output_filename"], {"help": "Output image"}],
         [["--region_amount", "-r"], {"type": int, "default": 85, "help": "Number of regions created"}],
+        [["--threshold", "-t"], {"type": float, "default": 0.0, "help": "Threshold in [0, 1] used to binarize the input image"}],
         [["--seed", "-s"], {"type": int, "default": None, "help": "Seed used to make the random rotation reproducible"}]
     ]
     options = setup_parser(segment_gm_polar.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
@@ -80,6 +81,7 @@ def image_segment_gm_polar():
         image_filename=options.image_filename,
         output_filename=options.output_filename,
         region_amount=options.region_amount,
+        threshold=options.threshold,
         seed=options.seed,
         verbose=options.verbose,
         force=options.force
