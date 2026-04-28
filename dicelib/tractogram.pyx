@@ -883,7 +883,6 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         else:
             assignments = np.load(assignments_filename, allow_pickle=False).astype(np.int32)
         if assignments.ndim!=2 or assignments.shape[1]!=2:
-            print( (assignments.ndim, assignments.shape))
             logger.error('Unable to open assignments file')
         logger.subinfo(f'Number of assignments: {assignments.shape[0]}', indent_char='*', indent_lvl=1)
 
