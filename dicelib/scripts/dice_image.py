@@ -1,4 +1,4 @@
-from dicelib.image import extract, tdi_ends
+from dicelib.image import extract, tdi_ends, segment_gm_polar
 from dicelib.ui import setup_parser
 
 def image_extract():
@@ -60,4 +60,25 @@ def image_tdi_ends():
         options.fiber_shift, 
         options.verbose,
         options.force
+    )
+
+def image_segment_gm_polar():
+    '''
+    Entry point for the image GM polar segmentation function.
+    '''
+    # parse the input parameters
+    args = [
+        [["image_filename"], {"help": "Input image"}],
+        [["output_filename"], {"help": "Output image"}],
+        [["--region_amount", "-r"], {"type": int, "default": 85, "help": "Number of regions created"}]
+    ]
+    options = setup_parser(segment_gm_polar.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
+
+    # call actual function
+    segment_gm_polar(
+        image_filename=options.image_filename,
+        output_filename=options.output_filename,
+        region_amount=options.region_amount,
+        verbose=options.verbose,
+        force=options.force
     )

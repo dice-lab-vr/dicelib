@@ -309,3 +309,102 @@ def tdi_ends(input_tractogram: str, input_ref: str, output_image: str, blur_core
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
+
+
+
+def segment_gm_polar(image_filename: str, output_filename: str, region_amount: int = 85, blur_gauss_extent: float=0.0, blur_spacing: float=0.25, blur_gauss_min: float=0.1, fiber_shift=0, verbose: int=3, force: bool=False):
+    """Segment an image in equally spaced homogeneous regions.
+
+    Parameters
+    ----------
+    image_filename : str
+        Path to the file (.nii.gz) containing the image to segment.
+    output_filename : str
+        Path to the file (.nii.gz) where to store the resulting image.
+    region_amount : int
+        Number of regions created.
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+    force : boolean
+        Force overwriting of the output (default : False).
+    """
+
+    t0 = time()
+    set_verbose('image', verbose)
+    logger.info(f'Segmenting image')
+    
+
+    files = [
+        File(name='image_filename', type_='input', path=image_filename),
+        File(name='output_filename', type_='input', path=output_filename)
+    ]
+    nums = [
+        Num(name='region_amount', value=region_amount, min_=1, max_=1000)
+    ]
+    check_params(files=files, nums=nums, force=force)
+
+    # load image
+    img_nii = nib.load(image_filename)
+    img = img_nii.get_fdata()
+
+    #----  compute center of mass  ----
+    z, y, x = np.where(data != 0)
+    x_center = int(np.mean(x))
+    y_center = int(np.mean(y))
+    z_center = int(np.mean(z))
+
+    #----  center coordinates relative to CoM  ----
+    dx = x - x_center
+    dy = y - y_center
+    dz = z - z_center
+
+    #----  compute unit vectors  ----
+    r = np.sqrt(dx**2 + dy**2 + dz**2)
+    r[r == 0] = 1e-6
+    directions = np.column_stack((dx / r, dy / r, dz / r))
+
+    #----  compute reference points using Fibonacci sphere algoritm  ----
+    indices = np.arange(n_points, dtype=float)
+    golden_angle = np.pi * (3.0 - np.sqrt(5.0))
+    fib_y = 1.0 - 2.0 * (indices + 0.5) / n_points
+    radius = np.sqrt(1.0 - y * y) #radius of parallel of latitude y
+    theta = indices * golden_angle #longitude
+    fib_x = radius * np.cos(theta)
+    fib_z = radius * np.sin(theta)
+    fib_points = np.column_stack((fib_x, fib_y, fib_z))
+
+    #----  randomize the orientation of regions  ----
+    random = np.random
+    alpha = random.uniform(0.0, 2.0 * np.pi)
+    beta  = random.uniform(0.0, 2.0 * np.pi)
+    gamma = random.uniform(0.0, 2.0 * np.pi)
+    cos_a, sin_a = np.cos(alpha), np.sin(alpha)
+    cos_b, sin_b = np.cos(beta), np.sin(beta)
+    cos_g, sin_g = np.cos(gamma), np.sin(gamma)
+    Rx = np.array([
+        [1.0, 0.0, 0.0],
+        [0.0, cos_a, -sin_a],
+        [0.0, sin_a,  cos_a]
+    ])
+    Ry = np.array([
+        [ cos_b, 0.0, sin_b],
+        [0.0, 1.0, 0.0],
+        [-sin_b, 0.0, cos_b]
+    ])
+    Rz = np.array([
+        [cos_g, -sin_g, 0.0],
+        [sin_g,  cos_g, 0.0],
+        [0.0, 0.0, 1.0]
+    ])
+    R = Rz @ Ry @ Rx
+    fib_points_rand = fib_points @ R.T
+
+    #----  assign every voxel to the nearest fib_point  ----
+    similarity = directions @ fib_points_rand.T
+    labels_idx = np.argmax(similarity, axis=1) + 1
+    label = np.zeros_like(data, dtype=np.uint16)
+    label[z, y, x] = labels_idx
+
+    #----  save output image  ----
+    nifti_out = nib.Nifti1Image(label, img.affine)
+    nib.save(nifti_out, str(output_path))
