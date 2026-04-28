@@ -610,6 +610,7 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
         files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.txt', '.npy', '.tsf']))
     if out_scalars_filename is not None:
         files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy', '.tsf']))
+
     nums = [Num(name='random', value=random, min_=0.0, max_=1.0, include_min=False)]
     messages = []
     if minlength is not None:
@@ -628,10 +629,10 @@ def filter( tractogram_filename: str, out_tractogram_filename: str, weights_file
         logger.error('\'minlength\' must be <= \'maxlength\'')
     if minweight is not None and maxweight is not None and minweight > maxweight:
         logger.error('\'minweight\' must be <= \'maxweight\'')
-    if random != 1:
+    if random != 1.0:
         messages.append(f'Randomly keeping {random * 100:.0f}% of the streamlines')
     check_params(files=files, nums=nums, force=force)
-    if scalars_filename[-4:] != out_scalars_filename[-4:]:
+    if scalars_filename is not None and (scalars_filename[-4:] != out_scalars_filename[-4:]):
         logger.error( 'Input and output scalar files must have the same format' )
 
     for msg in messages:
