@@ -312,8 +312,8 @@ def tdi_ends(input_tractogram: str, input_ref: str, output_image: str, blur_core
 
 
 
-def segment_gm_polar(image_filename: str, output_filename: str, region_amount: int = 85, blur_gauss_extent: float=0.0, blur_spacing: float=0.25, blur_gauss_min: float=0.1, fiber_shift=0, verbose: int=3, force: bool=False):
-    """Segment an image in equally spaced homogeneous regions.
+def segment_gm_polar( image_filename: str, output_filename: str, region_amount: int=85, seed: int=None, verbose: int=3, force: bool=False ):
+    """Segment an image into equally spaced homogeneous regions.
 
     Parameters
     ----------
@@ -323,88 +323,116 @@ def segment_gm_polar(image_filename: str, output_filename: str, region_amount: i
         Path to the file (.nii.gz) where to store the resulting image.
     region_amount : int
         Number of regions created.
+    seed : int, optional
+        Seed used to make the random rotation reproducible (default : None).
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
     force : boolean
         Force overwriting of the output (default : False).
     """
-
     t0 = time()
     set_verbose('image', verbose)
-    logger.info(f'Segmenting image')
-    
+    logger.info( 'Segmenting image in polar regions' )
 
     files = [
-        File(name='image_filename', type_='input', path=image_filename),
-        File(name='output_filename', type_='input', path=output_filename)
+        File(name='image_filename', type_='input', path=image_filename, ext=['.nii', '.nii.gz']),
+        File(name='output_filename', type_='output', path=output_filename, ext=['.nii', '.nii.gz'])
     ]
-    nums = [
-        Num(name='region_amount', value=region_amount, min_=1, max_=1000)
-    ]
+    nums = [Num(name='region_amount', value=region_amount, min_=1, max_=1000)]
+    if seed is not None:
+        nums.append(Num(name='seed', value=seed, min_=0))
     check_params(files=files, nums=nums, force=force)
 
-    # load image
-    img_nii = nib.load(image_filename)
-    img = img_nii.get_fdata()
+    logger.subinfo( f'Input image: "{image_filename}"', indent_char='*')
+    logger.subinfo( f'Output image: "{output_filename}"', indent_char='*')
+    logger.subinfo( f'Number of regions: {region_amount}', indent_char='*')
+    if seed is None:
+        logger.subinfo( 'Random orientation: enabled', indent_char='*')
+    else:
+        logger.subinfo( f'Random orientation seed: {seed}', indent_char='*')
 
-    #----  compute center of mass  ----
-    z, y, x = np.where(data != 0)
-    x_center = int(np.mean(x))
-    y_center = int(np.mean(y))
-    z_center = int(np.mean(z))
+    try:
+        # load input image
+        image_nii = nib.load( image_filename )
+        image_data = image_nii.get_fdata()
+        if image_data.ndim != 3:
+            logger.error('Input image is not 3D')
 
-    #----  center coordinates relative to CoM  ----
-    dx = x - x_center
-    dy = y - y_center
-    dz = z - z_center
+        # compute the center of mass of non-zero voxels
+        mask = image_data != 0
+        z_idx, y_idx, x_idx = np.where( mask )
+        if x_idx.size == 0:
+            logger.error('Input image does not contain non-zero voxels')
+        logger.subinfo( f'Non-zero voxels: {x_idx.size}', indent_char='*')
 
-    #----  compute unit vectors  ----
-    r = np.sqrt(dx**2 + dy**2 + dz**2)
-    r[r == 0] = 1e-6
-    directions = np.column_stack((dx / r, dy / r, dz / r))
+        x_center = int( np.mean(x_idx) )
+        y_center = int( np.mean(y_idx) )
+        z_center = int( np.mean(z_idx) )
+        logger.subinfo( f'Center of mass: ({x_center}, {y_center}, {z_center})', indent_char='*')
 
-    #----  compute reference points using Fibonacci sphere algoritm  ----
-    indices = np.arange(n_points, dtype=float)
-    golden_angle = np.pi * (3.0 - np.sqrt(5.0))
-    fib_y = 1.0 - 2.0 * (indices + 0.5) / n_points
-    radius = np.sqrt(1.0 - y * y) #radius of parallel of latitude y
-    theta = indices * golden_angle #longitude
-    fib_x = radius * np.cos(theta)
-    fib_z = radius * np.sin(theta)
-    fib_points = np.column_stack((fib_x, fib_y, fib_z))
+        # express coordinates relative to the center of mass
+        dx = x_idx - x_center
+        dy = y_idx - y_center
+        dz = z_idx - z_center
 
-    #----  randomize the orientation of regions  ----
-    random = np.random
-    alpha = random.uniform(0.0, 2.0 * np.pi)
-    beta  = random.uniform(0.0, 2.0 * np.pi)
-    gamma = random.uniform(0.0, 2.0 * np.pi)
-    cos_a, sin_a = np.cos(alpha), np.sin(alpha)
-    cos_b, sin_b = np.cos(beta), np.sin(beta)
-    cos_g, sin_g = np.cos(gamma), np.sin(gamma)
-    Rx = np.array([
-        [1.0, 0.0, 0.0],
-        [0.0, cos_a, -sin_a],
-        [0.0, sin_a,  cos_a]
-    ])
-    Ry = np.array([
-        [ cos_b, 0.0, sin_b],
-        [0.0, 1.0, 0.0],
-        [-sin_b, 0.0, cos_b]
-    ])
-    Rz = np.array([
-        [cos_g, -sin_g, 0.0],
-        [sin_g,  cos_g, 0.0],
-        [0.0, 0.0, 1.0]
-    ])
-    R = Rz @ Ry @ Rx
-    fib_points_rand = fib_points @ R.T
+        # compute unit direction vectors
+        radius = np.sqrt( dx**2 + dy**2 + dz**2 )
+        radius[radius == 0] = 1e-6
+        directions = np.column_stack( (dx / radius, dy / radius, dz / radius) )
 
-    #----  assign every voxel to the nearest fib_point  ----
-    similarity = directions @ fib_points_rand.T
-    labels_idx = np.argmax(similarity, axis=1) + 1
-    label = np.zeros_like(data, dtype=np.uint16)
-    label[z, y, x] = labels_idx
+        # compute reference points using the Fibonacci sphere algorithm
+        indices = np.arange( region_amount, dtype=float )
+        golden_angle = np.pi * (3.0 - np.sqrt(5.0))
+        fib_y = 1.0 - 2.0 * (indices + 0.5) / region_amount
+        parallel_radius = np.sqrt(1.0 - fib_y * fib_y) # radius of the latitude parallel
+        theta = indices * golden_angle # longitude
+        fib_x = parallel_radius * np.cos(theta)
+        fib_z = parallel_radius * np.sin(theta)
+        fib_points = np.column_stack((fib_x, fib_y, fib_z))
 
-    #----  save output image  ----
-    nifti_out = nib.Nifti1Image(label, img.affine)
-    nib.save(nifti_out, str(output_path))
+        # randomize the orientation of the regions
+        rng = np.random.default_rng(seed)
+        alpha = rng.uniform(0.0, 2.0 * np.pi)
+        beta  = rng.uniform(0.0, 2.0 * np.pi)
+        gamma = rng.uniform(0.0, 2.0 * np.pi)
+        cos_a, sin_a = np.cos(alpha), np.sin(alpha)
+        cos_b, sin_b = np.cos(beta), np.sin(beta)
+        cos_g, sin_g = np.cos(gamma), np.sin(gamma)
+        rotation_x = np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, cos_a, -sin_a],
+            [0.0, sin_a,  cos_a]
+        ])
+        rotation_y = np.array([
+            [ cos_b, 0.0, sin_b],
+            [0.0, 1.0, 0.0],
+            [-sin_b, 0.0, cos_b]
+        ])
+        rotation_z = np.array([
+            [cos_g, -sin_g, 0.0],
+            [sin_g,  cos_g, 0.0],
+            [0.0, 0.0, 1.0]
+        ])
+        rotation_matrix = rotation_z @ rotation_y @ rotation_x
+        logger.subinfo( 'Random orientation matrix computed', indent_char='*')
+        rotated_fib_points = fib_points @ rotation_matrix.T
+
+        # assign every non-zero voxel to the nearest reference point
+        similarity = directions @ rotated_fib_points.T
+        labels_idx = np.argmax(similarity, axis=1) + 1
+        labels_data = np.zeros_like(image_data, dtype=np.uint16)
+        labels_data[z_idx, y_idx, x_idx] = labels_idx
+
+        # save output image
+        output_nii = nib.Nifti1Image(labels_data, image_nii.affine)
+        output_nii.to_filename(output_filename)
+        logger.subinfo( f'Output image: "{output_filename}"', indent_char='*')
+
+    except Exception as e:
+        if os.path.isfile( output_filename ):
+            os.remove( output_filename )
+        logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
+
+    finally:
+        t1 = time()
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
