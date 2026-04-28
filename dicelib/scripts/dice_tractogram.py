@@ -380,7 +380,8 @@ def smooth_sg():
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
         [['--window', '-w'], {'type': int, 'default': 11, 'help': desc['window']}],
         [['--order', '-o'], {'type': int, 'default': 3, 'help': desc['polyorder']}],
-        [['--endpoints', '-e'], {'action': 'store_true', 'help': desc['alter_endpoints']}]
+        [['--endpoints', '-e'], {'action': 'store_true', 'help': desc['alter_endpoints']}],
+        [['--segment_len', '-l'], {'type': float, 'default': None, 'help': desc['polyorder']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
@@ -390,6 +391,7 @@ def smooth_sg():
             window=options.window,
             polyorder=options.order,
             alter_endpoints=options.endpoints,
+            segment_len=options.segment_len,
             force=options.force,
             verbose=options.verbose
         )

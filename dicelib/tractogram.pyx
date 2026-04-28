@@ -1932,7 +1932,7 @@ def smooth_splines( tractogram_filename, out_tractogram_filename, spline_type='c
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=11, polyorder=3, alter_endpoints=False, force=False, verbose=3 ):
+cpdef smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=11, polyorder=3, alter_endpoints=False, segment_len=None, force=False, verbose=3 ):
     """Smooth the streamlines in a tractogram using the Savitzky–Golay filter [1].
 
     References:
@@ -1952,6 +1952,9 @@ def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=
         Smoothing alters also the endpoints; by default, endpoints are included
         in the filtering window but, after the smoothing, they are restored to
         their original value prior to the filtering to preserve connectivity.
+    segment_len : boolean, optional
+        If specified, resample the output streamlines to have a constant
+        segment length along the path (approximately).
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -1966,6 +1969,14 @@ def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=
         File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck')
     ]
     check_params(files=files, force=force)
+    if segment_len is not None and segment_len <= 0:
+        logger.error('\'segment_len\' parameter must be positive')
+
+    cdef float [::1] lengths = np.empty( 10000, dtype=np.float32 )
+    cdef float [:,::1] resampled_streamline = np.empty( (10000, 3), dtype=np.float32 )
+    cdef float [::1] vers = np.empty( 3, dtype=np.float32 )
+    cdef float tot_len
+    cdef int n_pts
 
     try:
         logger.debug(f'Input tractogram: "{tractogram_filename}"')
@@ -1991,7 +2002,13 @@ def smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, window=
                     # replace first and last points
                     smoothed_streamline[0,:] = TCK_in.streamline[0,:]
                     smoothed_streamline[TCK_in.n_pts-1,:] = TCK_in.streamline[TCK_in.n_pts-1,:]
-                TCK_out.write_streamline( smoothed_streamline, TCK_in.n_pts )
+                if segment_len is not None:
+                    tot_len = streamline_length( smoothed_streamline, TCK_in.n_pts )
+                    n_pts = int(floor(tot_len / segment_len)+1)
+                    set_number_of_points(smoothed_streamline[:TCK_in.n_pts], n_pts, resampled_streamline, vers, lengths)
+                    TCK_out.write_streamline( resampled_streamline, n_pts )
+                else:
+                    TCK_out.write_streamline( smoothed_streamline, TCK_in.n_pts )
                 pbar.update()
 
     except Exception as e:
