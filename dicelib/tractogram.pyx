@@ -2170,6 +2170,8 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
             tmp_hdr = TCK_in.header.copy()
             if 'command_history' not in tmp_hdr.keys():
                 tmp_hdr['command_history'] = []
+            elif type(tmp_hdr['command_history'])==str:
+                tmp_hdr['command_history'] = [ tmp_hdr['command_history'] ]
             tmp_hdr['command_history'].append( cmd )
             TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=tmp_hdr )
             del tmp_hdr
@@ -2180,25 +2182,28 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
         with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
             for i in range(n_streamlines):
                 TCK_in.read_streamline()
-                # value = np.zeros(2000, dtype=np.float32)
                 for j in range(TCK_in.n_pts):
-                    apply_affine_1pt( TCK_in.streamline[j], affine_inv, P, shift )
-                    vx = int(floor(P[0]))
-                    vy = int(floor(P[1]))
-                    vz = int(floor(P[2]))
+                    # apply_affine_1pt( TCK_in.streamline[j], affine_inv, P, shift )
+                    # vx = int(floor(P[0]))
+                    # vy = int(floor(P[1]))
+                    # vz = int(floor(P[2]))
+                    apply_affine_1pt( TCK_in.streamline[j], affine_inv, P, 0.0 )
+                    vx = int(round(P[0]))
+                    vy = int(round(P[1]))
+                    vz = int(round(P[2]))
                     if mask_view[vx, vy, vz] == 0:
                         values[j] = np.nan
                     values[j] = img_view[vx, vy, vz]
 
                 # save sampled values of this streamline to file
                 if stat == 'mean':
-                    file.write(f'{np.nanmean(values[:TCK_in.n_pts]):.3f}\n')
+                    file.write(f'{np.nanmean(values[:TCK_in.n_pts]):.10f}\n')
                 elif stat == 'median':
-                    file.write(f'{np.nanmedian(values[:TCK_in.n_pts]):.3f}\n')
+                    file.write(f'{np.nanmedian(values[:TCK_in.n_pts]):.10f}\n')
                 elif stat == 'min':
-                    file.write(f'{np.nanmin(values[:TCK_in.n_pts]):.3f}\n')
+                    file.write(f'{np.nanmin(values[:TCK_in.n_pts]):.10f}\n')
                 elif stat == 'max':
-                    file.write(f'{np.nanmax(values[:TCK_in.n_pts]):.3f}\n')
+                    file.write(f'{np.nanmax(values[:TCK_in.n_pts]):.10f}\n')
                 else:
                     TSF_out.write_scalars( values, TCK_in.n_pts )
 
