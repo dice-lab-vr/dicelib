@@ -113,28 +113,6 @@ def filter():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
-def recompute_indices():
-    '''Entry point for the tractogram.recompute_indices function'''
-    from dicelib.tractogram import recompute_indices
-    summary, desc, notes = get_argparse_info_from_docstring( recompute_indices.__doc__  )
-    args = [
-        [['indices'], {'type': str, 'help': desc['idx_filename']}],
-        [['kept'], {'type': str, 'help': desc['kept_filename']}],
-        [['out_indices'], {'type': str, 'help': desc['out_idx_filename']}]
-    ]
-    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
-    try:
-        recompute_indices(
-            idx_filename=options.indices,
-            kept_filename=options.kept,
-            out_idx_filename=options.out_indices,
-            force=options.force,
-            verbose=options.verbose
-        )
-    except Exception as e:
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-
 def info():
     '''Entry point for the tractogram.info function'''
     from dicelib.tractogram import info
@@ -515,6 +493,30 @@ def tdi():
         )
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+
+# def recompute_indices():
+#     '''Entry point for the tractogram.recompute_indices function'''
+#     from dicelib.tractogram import recompute_indices
+#     summary, desc, notes = get_argparse_info_from_docstring( recompute_indices.__doc__  )
+#     args = [
+#         [['indices'], {'type': str, 'help': desc['idx_filename']}],
+#         [['kept'], {'type': str, 'help': desc['kept_filename']}],
+#         [['out_indices'], {'type': str, 'help': desc['out_idx_filename']}]
+#     ]
+#     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+#     try:
+#         recompute_indices(
+#             idx_filename=options.indices,
+#             kept_filename=options.kept,
+#             out_idx_filename=options.out_indices,
+#             force=options.force,
+#             verbose=options.verbose
+#         )
+#     except Exception as e:
+#         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+
 
 
 # def compress():
