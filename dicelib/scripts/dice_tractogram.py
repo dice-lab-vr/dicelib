@@ -75,6 +75,36 @@ def cluster():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
+def coherence():
+    '''Entry point for the tractogram.compute_coherence function'''
+    from dicelib.tractogram import compute_coherence
+    summary, desc, notes = get_argparse_info_from_docstring( compute_coherence.__doc__ )
+    args = [
+        [['tractogram'], {'help': desc['tractogram_filename']}],
+        [['sph_func'], {'help': desc['sph_func_filename']}],
+        [['out_weights'], {'help': desc['out_weights_filename']}],
+        [['--stat'], {'choices': ['min','mean','max', 'all'], 'default': 'min', 'help': desc['stat']}],
+        [['--normalize', '-n'], {'type': str, 'default': None, 'help': desc['lobes_filename']}],
+        [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}],
+        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
+    ]
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        compute_coherence(
+            tractogram_filename=options.tractogram,
+            sph_func_filename=options.sph_func,
+            out_weights_filename=options.out_weights,
+            stat=options.stat,
+            lobes_filename=options.normalize,
+            trim=options.trim,
+            shift=options.shift,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+
 def filter():
     '''Entry point for the tractogram.filter function'''
     from dicelib.tractogram import filter
@@ -313,6 +343,34 @@ def shuffle():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
+def smoothPoly():
+    '''Entry point for the tractogram.smooth_savitzky_golay function'''
+    from dicelib.tractogram import smooth_savitzky_golay
+    summary, desc, notes = get_argparse_info_from_docstring( smooth_savitzky_golay.__doc__ )
+    args = [
+        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
+        [['--window', '-w'], {'type': int, 'default': 11, 'help': desc['window']}],
+        [['--order', '-o'], {'type': int, 'default': 3, 'help': desc['polyorder']}],
+        [['--endpoints', '-e'], {'action': 'store_true', 'help': desc['alter_endpoints']}],
+        [['--segment_len', '-l'], {'type': float, 'default': None, 'help': desc['polyorder']}]
+    ]
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        smooth_savitzky_golay(
+            tractogram_filename=options.tractogram,
+            out_tractogram_filename=options.out_tractogram,
+            window=options.window,
+            polyorder=options.order,
+            alter_endpoints=options.endpoints,
+            segment_len=options.segment_len,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+
 def smoothSplines():
     '''Entry point for the tractogram.smooth_splines function'''
     from dicelib.tractogram import smooth_splines
@@ -342,34 +400,6 @@ def smoothSplines():
             resample=options.resample,
             segment_len=options.segment_len,
             streamline_pts=options.streamline_pts,
-            force=options.force,
-            verbose=options.verbose
-        )
-    except Exception as e:
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-
-def smoothPoly():
-    '''Entry point for the tractogram.smooth_savitzky_golay function'''
-    from dicelib.tractogram import smooth_savitzky_golay
-    summary, desc, notes = get_argparse_info_from_docstring( smooth_savitzky_golay.__doc__ )
-    args = [
-        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
-        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
-        [['--window', '-w'], {'type': int, 'default': 11, 'help': desc['window']}],
-        [['--order', '-o'], {'type': int, 'default': 3, 'help': desc['polyorder']}],
-        [['--endpoints', '-e'], {'action': 'store_true', 'help': desc['alter_endpoints']}],
-        [['--segment_len', '-l'], {'type': float, 'default': None, 'help': desc['polyorder']}]
-    ]
-    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
-    try:
-        smooth_savitzky_golay(
-            tractogram_filename=options.tractogram,
-            out_tractogram_filename=options.out_tractogram,
-            window=options.window,
-            polyorder=options.order,
-            alter_endpoints=options.endpoints,
-            segment_len=options.segment_len,
             force=options.force,
             verbose=options.verbose
         )
@@ -434,36 +464,6 @@ def split():
             regions=options.regions,
             scalars_filename=options.scalars,
             max_open=options.max_open,
-            force=options.force,
-            verbose=options.verbose
-        )
-    except Exception as e:
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-
-def coherence():
-    '''Entry point for the tractogram.compute_coherence function'''
-    from dicelib.tractogram import compute_coherence
-    summary, desc, notes = get_argparse_info_from_docstring( compute_coherence.__doc__ )
-    args = [
-        [['tractogram'], {'help': desc['tractogram_filename']}],
-        [['sph_func'], {'help': desc['sph_func_filename']}],
-        [['out_weights'], {'help': desc['out_weights_filename']}],
-        [['--stat'], {'choices': ['min','mean','max', 'all'], 'default': 'min', 'help': desc['stat']}],
-        [['--normalize', '-n'], {'type': str, 'default': None, 'help': desc['lobes_filename']}],
-        [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}],
-        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
-    ]
-    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
-    try:
-        compute_coherence(
-            tractogram_filename=options.tractogram,
-            sph_func_filename=options.sph_func,
-            out_weights_filename=options.out_weights,
-            stat=options.stat,
-            lobes_filename=options.normalize,
-            trim=options.trim,
-            shift=options.shift,
             force=options.force,
             verbose=options.verbose
         )
