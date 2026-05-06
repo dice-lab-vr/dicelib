@@ -1286,7 +1286,7 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
         Path to the tractogram (.tck) that will contain the sorted streamlines. If not specified,
         the output file will be created by appending '_sorted' to the input filename.
     distance : float, default=2.0
-        Distance [in voxels] to consider in the radial search when computing the assignments.
+        Distance [in mm] to consider in the radial search when computing the assignments.
     scalars_filename : str, optional
         Path to the file (.txt, .npy) containing one scalar for each input streamline.
     out_scalars_filename : str, optional
