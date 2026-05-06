@@ -9,7 +9,7 @@ from libcpp cimport bool as cbool
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, set_number_of_points, smooth, create_streamline_replicas
-from dicelib.streamline import apply_xform_to_point
+from dicelib.streamline cimport apply_xform_to_point
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 from dicelib.connectivity import assign
@@ -2771,9 +2771,9 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
                         apply_xform_to_point(P, affine_inv, p2)
                         # assign the whole segment length to the voxel of its centrois
                         #FIXME: allow better computation of segments contributions in voxels
-                        vx = int( floor(0.5*(p2[0]+p1[0])) )
-                        vy = int( floor(0.5*(p2[1]+p1[1])) )
-                        vz = int( floor(0.5*(p2[2]+p1[2])) )
+                        vx = int( round(0.5*(p2[0]+p1[0])) )
+                        vy = int( round(0.5*(p2[1]+p1[1])) )
+                        vz = int( round(0.5*(p2[2]+p1[2])) )
                         niiTDI_img[vx,vy,vz] += sqrt( (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2 + (p2[2] - p1[2])**2)
                         # update point
                         p1[0] = p2[0]

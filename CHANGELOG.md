@@ -12,6 +12,7 @@
 - Documentation of entry-point scripts is automatically taken from docstrings of corresponding functions
 - Renamed spline smoothing functions
 - Added smoothing with Savitzky–Golay filter
+- Removed unused functions
 
 ---
 ---

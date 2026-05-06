@@ -1,6 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 from concurrent.futures import ThreadPoolExecutor
-from libc.math cimport round as cround, sqrt
+from libc.math cimport round as cround, ceil as cceil, sqrt, INFINITY
 from libcpp cimport bool
 import nibabel as nib
 import numpy as np
@@ -10,7 +10,7 @@ from time import time
 from dicelib.streamline import create_replicas
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, File, Num, format_time
-from dicelib.streamline cimport apply_affine
+from dicelib.streamline cimport apply_xform_to_point
 from dicelib.tractogram cimport LazyTractogram
 
 logger = setup_logger('connectivity')
@@ -22,177 +22,92 @@ def compute_chunks(lst, n):
         yield lst[i:i + n]
 
 
-cdef compute_grid( float thr, float[:] vox_dim ):
+cdef compute_grid( float thr ):
     """Compute the offsets grid
         Parameters
         ---------------------
-        thr : double
-            Radius of the radial search
-
-        vox_dim : 1x3 numpy array
-            Voxel dimensions
+        thr : float
+            Radius of the radial search (in voxel units)
     """
-    cdef float grid_center[3]
-    cdef int thr_grid = <int> np.ceil(thr)
-
-    # grid center
-    cdef float x = 0
-    cdef float y = 0
-    cdef float z = 0
-    cdef float[:,::1] centers_c
-    cdef int[:] dist_grid
-
-    grid_center[:] = [ x, y, z ]
+    cdef:
+        int thr_grid = <int>cceil(thr)
+        int[:] dist_grid
 
     # create the mesh
-    mesh = np.linspace( -thr_grid, thr_grid, 2*thr_grid +1 )
+    mesh = np.linspace( -thr_grid, thr_grid, 2*thr_grid+1 )
     mx, my, mz = np.meshgrid( mesh, mesh, mesh )
 
     # find the centers of each voxels
-    centers = np.stack([mx.ravel() + x, my.ravel() + y, mz.ravel() + z], axis=1)
+    centers = np.stack([mx.ravel(), my.ravel(), mz.ravel()], axis=1)
 
     # sort the centers based on their distance from grid_center
-    dist_grid = ((centers - grid_center)**2).sum(axis=1).argsort().astype(np.int32)
-    centers_c = centers[ dist_grid ].astype(np.float32)
-
-    return centers_c
+    dist_grid = (centers**2).sum(axis=1).argsort().astype(np.int32)
+    return centers[ dist_grid ].astype(np.float32)
 
 
-cdef float distance2vox(float vox_x_min, float vox_x_max, float vox_y_min, float vox_y_max, float vox_z_min, float vox_z_max, float p_x, float p_y, float p_z) nogil:
-    cdef float dx = max(vox_x_min - p_x, 0, p_x - vox_x_max)
-    cdef float dy = max(vox_y_min - p_y, 0, p_y - vox_y_max)
-    cdef float dz = max(vox_z_min - p_z, 0, p_z - vox_z_max)
-    return sqrt(dx*dx + dy*dy + dz*dz)
-
-
-cdef int[:] streamline_assignment_endpoints( int[:] start_vox, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, int[:,:,::1] gm_v) noexcept nogil:
-    cdef float [:] starting_pt = mat[0]
-    cdef float [:] ending_pt = mat[1]
-    start_vox[0] = <int> starting_pt[0]
-    start_vox[1] = <int> starting_pt[1]
-    start_vox[2] = <int> starting_pt[2]
-    end_vox[0]   = <int> ending_pt[0]
-    end_vox[1]   = <int> ending_pt[1]
-    end_vox[2]   = <int> ending_pt[2]
-
-    roi_ret[0] = gm_v[ start_vox[0], start_vox[1], start_vox[2]]
-    roi_ret[1] = gm_v[ end_vox[0], end_vox[1], end_vox[2]]
-    return roi_ret
-
-
-cdef int[:] streamline_assignment( float [:] start_pt_grid, int[:] start_vox, float [:] end_pt_grid, int[:] end_vox, int [:] roi_ret, float [:,::1] mat, float [:,::1] grid,
-                            int[:,:,::1] gm_v, float thr, int[:] count_neighbours) noexcept nogil:
-    """Compute the label assigned to each streamline endpoint and then returns a list of connected regions.
+cdef int radial_search( float [:] p, int[:,:,::1] label_img, float thr=0, float [:,::1] grid=None, int[:] count_neighbours=None ) noexcept nogil:
+    """Compute the label corresponding to a point.
 
     Parameters
-    --------------
-    start_pt_grid : 1x3 numpy array
-        Starting point of the streamline in the grid space.
-    start_vox : 1x3 numpy array
-        Starting point of the streamline in the voxel space.
-    end_pt_grid : 1x3 numpy array
-        Ending point of the streamline in the grid space.
-    end_vox : 1x3 numpy array
-        Ending point of the streamline in the voxel space.
-    roi_ret : 1x2 numpy array
-        Labels assigned to the streamline endpoints.
-    mat : 2x3 numpy array
-        Streamline endpoints.
-    grid : Nx3 numpy array
-        Grid of voxels to check.
-    gm_v : 3D numpy array
-        GM map.
+    ----------
+    p : 3x1 float array
+        3D point to evaluate.
+    label_img : 3D numpy array
+        3D voxelwise image containing the labels.
     thr : float
-        Threshold used to compute the grid of voxels to check.
+        Maximum radius [in mm] of the search.
+    grid : Nx3 numpy array
+        Precomputed grid of the voxels to check.
+
+    Returns
+    -------
+    out_label : int
+        Label assigned to the point.
     """
+    cdef:
+        float px=p[0], py=p[1], pz=p[2]
+        float x, y, z
+        int vx, vy, vz
+        float dist, dist_tmp=INFINITY
+        int layer=0
+        int out_label=0
+        size_t i
 
-    cdef float dist_s = 0
-    cdef float dist_e = 0
-    cdef size_t i = 0
-    cdef int idx_s_min = 0
-    cdef int idx_e_min = 0
-    cdef float dist_s_temp = 1000
-    cdef float dist_e_temp = 1000
-    cdef int layer = 0
+    if thr < 0.5 or grid is None:
+        # no radial serach, check only the underlying voxel
+        vx = <int>cround(px)
+        vy = <int>cround(py)
+        vz = <int>cround(pz)
+        if vx < 0 or vx >= label_img.shape[0] or vy < 0 or vy >= label_img.shape[1] or vz < 0 or vz >= label_img.shape[2]:
+            return 0
+        return label_img[vx, vy, vz]
+    else:
+        # iterate over all grid voxels
+        for i in xrange(grid.shape[0]):
+            # check if the voxel is inside the mask
+            vx = <int>cround(px + grid[i][0])
+            vy = <int>cround(py + grid[i][1])
+            vz = <int>cround(pz + grid[i][2])
+            if vx < 0 or vx >= label_img.shape[0] or vy < 0 or vy >= label_img.shape[1] or vz < 0 or vz >= label_img.shape[2]:
+                continue
+            if label_img[vx, vy, vz]<=0:
+                continue
 
-    roi_ret[0] = 0
-    roi_ret[1] = 0
+            # compute distance
+            x = max(vx-0.5-px, 0, px-vx-0.5)
+            y = max(vy-0.5-py, 0, py-vy-0.5)
+            z = max(vz-0.5-pz, 0, pz-vz-0.5)
+            dist = sqrt(x*x + y*y + z*z)
+            if dist <= thr and dist < dist_tmp:
+                out_label = label_img[vx, vy, vz]
+                dist_tmp = dist
 
-    cdef float [:] starting_pt = mat[0]
-    cdef float [:] ending_pt = mat[1]
-    cdef int grid_size = grid.shape[0]
-
-    cdef float vox_x_min = 0
-    cdef float vox_x_max = 0
-    cdef float vox_y_min = 0
-    cdef float vox_y_max = 0
-    cdef float vox_z_min = 0
-    cdef float vox_z_max = 0
-
-    for i in xrange(grid_size):
-
-        # from 3D coordinates to index
-        start_pt_grid[0] = starting_pt[0] + grid[i][0]
-        start_pt_grid[1] = starting_pt[1] + grid[i][1]
-        start_pt_grid[2] = starting_pt[2] + grid[i][2]
-
-        # check if the voxel is inside the mask
-        if start_pt_grid[0] < 0 or start_pt_grid[0] >= gm_v.shape[0] or start_pt_grid[1] < 0 or start_pt_grid[1] >= gm_v.shape[1] or start_pt_grid[2] < 0 or start_pt_grid[2] >= gm_v.shape[2]:
-            continue
-
-        start_vox[0] = <int> start_pt_grid[0]
-        start_vox[1] = <int> start_pt_grid[1]
-        start_vox[2] = <int> start_pt_grid[2]
-
-        if gm_v[ start_vox[0], start_vox[1], start_vox[2] ] > 0:
-            vox_x_min = <int>(start_pt_grid[0])
-            vox_x_max = <int>(start_pt_grid[0]) + 1
-            vox_y_min = <int>(start_pt_grid[1])
-            vox_y_max = <int>(start_pt_grid[1]) + 1
-            vox_z_min = <int>(start_pt_grid[2])
-            vox_z_max = <int>(start_pt_grid[2]) + 1
-            dist_s = distance2vox(vox_x_min, vox_x_max, vox_y_min, vox_y_max, vox_z_min, vox_z_max, starting_pt[0], starting_pt[1], starting_pt[2])
-
-            if dist_s <= thr and dist_s < dist_s_temp:
-                roi_ret[0] = gm_v[ start_vox[0], start_vox[1], start_vox[2]]
-                dist_s_temp = dist_s
-        if i == count_neighbours[layer]:
-            if dist_s_temp < 1000:
-                break
-            else:
-                layer += 1
-    layer = 0
-    for i in xrange(grid_size):
-        end_pt_grid[0] = ending_pt[0] + grid[i][0]
-        end_pt_grid[1] = ending_pt[1] + grid[i][1]
-        end_pt_grid[2] = ending_pt[2] + grid[i][2]
-
-        if end_pt_grid[0] < 0 or end_pt_grid[0] >= gm_v.shape[0] or end_pt_grid[1] < 0 or end_pt_grid[1] >= gm_v.shape[1] or end_pt_grid[2] < 0 or end_pt_grid[2] >= gm_v.shape[2]:
-            continue
-
-        end_vox[0] = <int> end_pt_grid[0]
-        end_vox[1] = <int> end_pt_grid[1]
-        end_vox[2] = <int> end_pt_grid[2]
-
-        if gm_v[ end_vox[0], end_vox[1], end_vox[2] ] > 0:
-            vox_x_min = <int>(end_pt_grid[0])
-            vox_x_max = <int>(end_pt_grid[0]) + 1
-            vox_y_min = <int>(end_pt_grid[1])
-            vox_y_max = <int>(end_pt_grid[1]) + 1
-            vox_z_min = <int>(end_pt_grid[2])
-            vox_z_max = <int>(end_pt_grid[2]) + 1
-            dist_e = distance2vox(vox_x_min, vox_x_max, vox_y_min, vox_y_max, vox_z_min, vox_z_max, ending_pt[0], ending_pt[1], ending_pt[2])
-
-            if dist_e <= thr and dist_e < dist_e_temp:
-                roi_ret[1] = gm_v[ end_vox[0], end_vox[1], end_vox[2]]
-                dist_e_temp = dist_e
-        if i == count_neighbours[layer]:
-            if dist_e_temp < 1000:
-                break
-            else:
-                layer += 1
-
-    return roi_ret
+            if i == count_neighbours[layer]:
+                if dist_tmp<INFINITY:
+                    break
+                else:
+                    layer += 1
+    return out_label
 
 
 cpdef assign(tractogram_filename: str, atlas_filename: str, out_assignments_filename: str, distance: float=2.0, n_threads: int=None, force: bool=False, verbose: int=3, log_list=None) :
@@ -211,7 +126,7 @@ cpdef assign(tractogram_filename: str, atlas_filename: str, out_assignments_file
     out_assignments_filename : str
         Path to the file (.txt, .npy) where to store the resulting assignments.
     distance : float, default=2.0
-        Distance [in voxels] to consider in the radial search when computing the assignments.
+        Distance [in mm] to consider in the radial search when computing the assignments.
     n_threads : int, deault=None
         How many threads to use in parallel for the computations;
         if not specfied, all available threads will be used.
@@ -238,7 +153,7 @@ cpdef assign(tractogram_filename: str, atlas_filename: str, out_assignments_file
 
     num_streamlines = int(LazyTractogram(tractogram_filename, mode='r').header["count"])
     logger.subinfo(f'Number of input streamlines: {num_streamlines}', indent_char='*', indent_lvl=1)
-    logger.subinfo(f'Distance threshold: {distance} voxels', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'Distance threshold: {distance} mm', indent_char='*', indent_lvl=1)
 
     # Load of the gm map
     gm_map_img = nib.load(atlas_filename)
@@ -289,80 +204,37 @@ cpdef assign(tractogram_filename: str, atlas_filename: str, out_assignments_file
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_data, gm_map_img, threshold: 2 ):
+cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start_chunk, int end_chunk, gm_map_data, gm_map_img, threshold: 2.0 ):
+    cdef:
+        int [:,:,::1] gm_map = np.ascontiguousarray(gm_map_data, dtype=np.int32)
+        double [:,::1] affine_inv = np.linalg.inv(gm_map_img.affine)
+        float thr = <float> threshold/np.max(gm_map_img.header.get_zooms())
+        int n_streamlines = end_chunk - start_chunk
+        int[:,:] assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
+        float [:] p = np.zeros(3, dtype=np.float32)
+        float [:,::1] grid
+        cdef int[:] count_neighbours
+        size_t i
 
-    ref_data = gm_map_img
-    ref_header = ref_data.header
-    affine = ref_data.affine
-    cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm_map_data, dtype=np.int32)
-
-    cdef float [:,::1] inverse = np.ascontiguousarray(inv(affine), dtype=np.float32) #inverse of affine
-    cdef float [::1,:] M = inverse[:3, :3].T
-    cdef float [:] abc = inverse[:3, 3]
-    cdef float [:] voxdims = np.asarray( ref_header.get_zooms(), dtype = np.float32 )
-
-    cdef float thr = <float> threshold/np.max(voxdims)
-    cdef float [:,::1] grid
-    cdef size_t i = 0
-    cdef int n_streamlines = end_chunk - start_chunk
-    cdef float [:,::1] matrix = np.zeros( (2,3), dtype=np.float32)
-    assignments = np.zeros( (n_streamlines, 2), dtype=np.int32 )
-    cdef int[:,:] assignments_view = assignments
-
-    cdef float [:,::1] end_pts = np.zeros((2,3), dtype=np.float32)
-    cdef float [:,::1] end_pts_trans = np.zeros((2,3), dtype=np.float32)
-    cdef float [:] start_pt_grid = np.zeros(3, dtype=np.float32)
-    cdef int [:] start_vox = np.zeros(3, dtype=np.int32)
-    cdef float [:] end_pt_grid = np.zeros(3, dtype=np.float32)
-    cdef int [:] end_vox = np.zeros(3, dtype=np.int32)
-    cdef int [:] roi_ret = np.array([0,0], dtype=np.int32)
-
-    TCK_in = None
-    TCK_in = LazyTractogram( input_tractogram, mode='r' )
     # compute the grid of voxels to check
-    grid = compute_grid( thr, voxdims )
-    layers = np.arange( 0,<int> np.ceil(thr)+1, 1 ) # e.g [0, 1, 2, 3]
+    grid = compute_grid(thr)
+    layers = np.arange(0, <int>cceil(thr)+1, 1) # e.g [0, 1, 2, 3]
     lato = layers * 2 + 1 # e.g [0, 3, 5, 7] = layerx2+1
     neighbs = [v**3-1 for v in lato] # e.g [1, 27, 125, 343] = (lato)**3
-    cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
+    count_neighbours = np.array(neighbs, dtype=np.int32)
 
-    if thr < 0.5 :
-        with nogil:
-            while i < start_chunk:
-                TCK_in.read_streamline()
-                i += 1
-            for i in xrange( n_streamlines ):
-                TCK_in.read_streamline()
-                end_pts[0,0]=TCK_in.streamline[0,0]
-                end_pts[0,1]=TCK_in.streamline[0,1]
-                end_pts[0,2]=TCK_in.streamline[0,2]
-                end_pts[1,0]=TCK_in.streamline[TCK_in.n_pts-1,0]
-                end_pts[1,1]=TCK_in.streamline[TCK_in.n_pts-1,1]
-                end_pts[1,2]=TCK_in.streamline[TCK_in.n_pts-1,2]
-
-                matrix = apply_affine(end_pts, M, abc, end_pts_trans)
-                assignments_view[i] = streamline_assignment_endpoints( start_vox, end_vox, roi_ret, matrix, gm_map)
-                pbar_array[id_chunk] += 1
-
-    else:
-        with nogil:
-            while i < start_chunk:
-                TCK_in.read_streamline()
-                i += 1
-            for i in xrange( n_streamlines ):
-                TCK_in.read_streamline()
-                end_pts[0,0]=TCK_in.streamline[0,0]
-                end_pts[0,1]=TCK_in.streamline[0,1]
-                end_pts[0,2]=TCK_in.streamline[0,2]
-                end_pts[1,0]=TCK_in.streamline[TCK_in.n_pts-1,0]
-                end_pts[1,1]=TCK_in.streamline[TCK_in.n_pts-1,1]
-                end_pts[1,2]=TCK_in.streamline[TCK_in.n_pts-1,2]
-
-                matrix = apply_affine(end_pts, M, abc, end_pts_trans)
-                assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret,
-                                                            matrix, grid, gm_map, thr, count_neighbours)
-                pbar_array[id_chunk] += 1
-
+    TCK_in = LazyTractogram( input_tractogram, mode='r' )
+    with nogil:
+        while i < start_chunk:
+            TCK_in.read_streamline()
+            i += 1
+        for i in xrange( n_streamlines ):
+            TCK_in.read_streamline()
+            apply_xform_to_point( TCK_in.streamline[0,:], affine_inv, p )
+            assignments[i,0] = radial_search( p, gm_map, thr, grid, count_neighbours )
+            apply_xform_to_point( TCK_in.streamline[TCK_in.n_pts-1,:], affine_inv, p )
+            assignments[i,1] = radial_search( p, gm_map, thr, grid, count_neighbours )
+            pbar_array[id_chunk] += 1
     if TCK_in is not None:
         TCK_in.close()
     return assignments
@@ -529,8 +401,8 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     threshold = core_extent + gauss_extent
     # print(f'thr = {thr}')
     cdef float thr = threshold + (offset_thr/np.max(voxdims)) # if input streamlines are all connecting but using a radial search
-    grid = compute_grid( thr, voxdims )
-    layers = np.arange( 0,<int> np.ceil(thr)+1, 1 ) # e.g. layer=[0, 1, 2, 3]
+    grid = compute_grid( thr )
+    layers = np.arange( 0,<int> cceil(thr)+1, 1 ) # e.g. layer=[0, 1, 2, 3]
     lato = layers * 2 + 1 # e.g. lato = [0, 3, 5, 7] = layerx2+1
     neighbs = [v**3-1 for v in lato] # e.g. [1, 27, 125, 343] = (lato)**3
     cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
@@ -556,8 +428,6 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     # variables for assignments
     asgn = np.zeros( (nReplicas, 2), dtype=np.int32 )
     cdef int[:,:] asgn_view = asgn
-    cdef float [:] start_pt_grid = np.zeros(3, dtype=np.float32)
-    cdef float [:] end_pt_grid   = np.zeros(3, dtype=np.float32)
     cdef int [:] start_vox = np.zeros(3, dtype=np.int32)
     cdef int [:] end_vox   = np.zeros(3, dtype=np.int32)
     cdef int [:] roi_ret   = np.array([0,0], dtype=np.int32)
@@ -612,8 +482,9 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
                     pts_end[0,2]=ptr_end[5]
 
                     # change space to VOX
-                    pts_start_vox = apply_affine(pts_start, M, abc, pts_start_tmp) # starting points in voxel space
-                    pts_end_vox   = apply_affine(pts_end,   M, abc, pts_end_tmp)   # ending points in voxel space
+                    #FIXME: replace 'apply_affine' with 'apply_xform_to_point'
+                    # pts_start_vox = apply_affine(pts_start, M, abc, pts_start_tmp) # starting points in voxel space
+                    # pts_end_vox   = apply_affine(pts_end,   M, abc, pts_end_tmp)   # ending points in voxel space
 
                     # create replicas of starting and ending points
                     replicas_start = create_replicas(pts_start_vox, blurRho, blurAngle, nReplicas, fiber_shiftX, fiber_shiftY, fiber_shiftZ)
@@ -624,7 +495,8 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
                         points_mat = np.array([[replicas_start[j][0], replicas_start[j][1], replicas_start[j][2]],
                                                 [replicas_end[j][0], replicas_end[j][1], replicas_end[j][2]]],
                                                 dtype=np.float32)
-                        asgn_view[j][:] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret, points_mat, grid, gm_map, thr, count_neighbours)
+                        #FIXME: sistemare la call alla funzione
+                        # asgn_view[j][:] = streamline_assignment( start_vox, end_vox, roi_ret, points_mat, grid, gm_map, thr, count_neighbours)
 
                     zeros_count += (asgn.size - np.count_nonzero(asgn))
 
