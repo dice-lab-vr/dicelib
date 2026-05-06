@@ -1,9 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
-
 from bisect import bisect_right
-
 import numpy as np
-
 from libc.math cimport floor, sqrt
 from libcpp cimport bool
 
@@ -36,6 +33,7 @@ cdef void apply_xform_to_point(float[:] in_P, double[:,::1] M, float[:] out_P) n
     in_P : 3x1 float array
         The point to be trasformed.
     M : 4x4 double array
+        Trasformation matrix.
     out_P : 3x1 float array
         The point after trasformation.
     """

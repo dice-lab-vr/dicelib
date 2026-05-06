@@ -1,25 +1,18 @@
 # cython: boundscheck=False, wraparound=False, profile=False, language_level=3
-
-"""Functions to perform clustering of tractograms"""
-
-from dicelib.connectivity import _assign as assign
+from dicelib.connectivity import _assign
 from dicelib.tractogram import info, split
 from dicelib.streamline import cumulative_lengths, set_number_of_points
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
-
 from concurrent.futures import as_completed, ThreadPoolExecutor
 import os
 import shutil
 from sys import getsizeof
 import time
-
 import nibabel as nib
 import numpy as np
 import psutil
-
 from dicelib.tractogram cimport LazyTractogram
-
 from libc.math cimport sqrt
 from libcpp cimport bool
 
@@ -732,7 +725,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
             with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
                 future = [
                     executor.submit(
-                        assign,
+                        _assign,
                         tractogram_filename,
                         pbar_array,
                         i,

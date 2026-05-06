@@ -5,7 +5,6 @@ from libcpp cimport bool
 import nibabel as nib
 import numpy as np
 import os
-from scipy.linalg import inv
 from time import time
 from dicelib.streamline import create_replicas
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
@@ -16,7 +15,7 @@ from dicelib.tractogram cimport LazyTractogram
 logger = setup_logger('connectivity')
 
 
-def compute_chunks(lst, n):
+def compute_chunks( lst, n ):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
@@ -358,7 +357,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     gm_header = gm_nii.header
     affine = gm_nii.affine
     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm, dtype=np.int32)
-    cdef float [:,::1] inverse = np.ascontiguousarray(inv(affine), dtype=np.float32) #inverse of affine
+    cdef float [:,::1] inverse = np.ascontiguousarray(np.linalg.inv(affine), dtype=np.float32) #inverse of affine
     cdef float [::1,:] M = inverse[:3, :3].T
     cdef float [:] abc = inverse[:3, 3]
     cdef float [:] voxdims = np.asarray( gm_header.get_zooms(), dtype = np.float32 )

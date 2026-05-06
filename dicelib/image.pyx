@@ -5,15 +5,13 @@ from dicelib.utils import check_params, File, Num, format_time
 from dicelib.streamline import create_replicas
 from dicelib.tractogram cimport LazyTractogram
 from scipy.linalg import inv
-
 import os
-
 import nibabel as nib
 import numpy as np
-
 from time import time
 
 logger = setup_logger('image')
+
 
 def extract( input_dwi: str, input_scheme: str, output_dwi: str, output_scheme: str, b: list, b_step: float=0.0, verbose: int=3, force: bool=False ):
     """Extract volumes from a DWI dataset.
