@@ -1,12 +1,7 @@
-<<<<<<< HEAD
 from dicelib.image import extract, tdi_ends
 from dicelib.ui import setup_logger, setup_parser, get_argparse_info_from_docstring
 logger = setup_logger('dice_image')
 
-=======
-from dicelib.image import extract, tdi_ends, segment_gm_polar
-from dicelib.ui import setup_parser
->>>>>>> 777e78ec616a806de34f7d4245f793d63862a77b
 
 def image_extract():
     '''
@@ -69,7 +64,6 @@ def image_tdi_ends():
         options.force
     )
 
-<<<<<<< HEAD
 def image_segmentGmPolar():
     '''Entry point for the image GM polar segmentation function'''
     from dicelib.image import segmentGmPolar
@@ -94,29 +88,3 @@ def image_segmentGmPolar():
         )
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-=======
-def image_segment_gm_polar():
-    '''
-    Entry point for the image GM polar segmentation function.
-    '''
-    # parse the input parameters
-    args = [
-        [["image_filename"], {"help": "Input image"}],
-        [["output_filename"], {"help": "Output image"}],
-        [["--region_amount", "-r"], {"type": int, "default": 85, "help": "Number of regions created"}],
-        [["--threshold", "-t"], {"type": float, "default": 0.0, "help": "Threshold in [0, 1] used to binarize the input image"}],
-        [["--seed", "-s"], {"type": int, "default": None, "help": "Seed used to make the random rotation reproducible"}]
-    ]
-    options = setup_parser(segment_gm_polar.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    # call actual function
-    segment_gm_polar(
-        image_filename=options.image_filename,
-        output_filename=options.output_filename,
-        region_amount=options.region_amount,
-        threshold=options.threshold,
-        seed=options.seed,
-        verbose=options.verbose,
-        force=options.force
-    )
->>>>>>> 777e78ec616a806de34f7d4245f793d63862a77b
