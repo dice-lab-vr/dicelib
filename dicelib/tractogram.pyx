@@ -9,7 +9,7 @@ from libcpp cimport bool as cbool
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, set_number_of_points, smooth, create_streamline_replicas
-from dicelib.streamline cimport apply_affine_1pt
+from dicelib.streamline import apply_xform_to
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 from dicelib.connectivity import assign
@@ -1628,8 +1628,8 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                 fib = np.asarray(TCK_in.streamline)
                 fib = fib[:TCK_in.n_pts, :]
                 for n in xrange(3): # move first 3 point at each end
-                    fib[n,:] = apply_affine_1pt(fib[n,:], affine_inv, moved_pt)
-                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], affine_inv, moved_pt)
+                    fib[n,:] = apply_xform_to(fib[n,:], affine_inv, moved_pt)
+                    fib[idx_last-n,:] = apply_xform_to( fib[idx_last-n,:], affine_inv, moved_pt)
                 fib+=0.5 # move to center
 
                 ok_both  = np.zeros(2, dtype=np.int32)
@@ -1713,12 +1713,12 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                 # bring points back to original space
                 fib=fib-0.5 # move back to corner
                 for n in xrange(2):
-                    fib[n,:] = apply_affine_1pt( fib[n,:], affine, moved_pt)
-                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], affine, moved_pt)
+                    fib[n,:] = apply_xform_to( fib[n,:], affine, moved_pt)
+                    fib[idx_last-n,:] = apply_xform_to( fib[idx_last-n,:], affine, moved_pt)
                 if del_both[0] == False:
-                    fib[2,:] = apply_affine_1pt( fib[2,:], affine, moved_pt)
+                    fib[2,:] = apply_xform_to( fib[2,:], affine, moved_pt)
                 if del_both[1] == False:
-                    fib[idx_last-2,:] = apply_affine_1pt( fib[idx_last-2,:], affine, moved_pt)
+                    fib[idx_last-2,:] = apply_xform_to( fib[idx_last-2,:], affine, moved_pt)
 
                 TCK_out.write_streamline( fib, n_pts_out )
                 n_tot += 1
@@ -2086,7 +2086,7 @@ def recompute_indices(idx_filename, kept_filename, out_idx_filename=None, force=
     return indices_recomputed
 
 
-cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_filename=None, stat='all', shift: float=0.5, force=False, verbose=3):
+cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_filename=None, stat='all', force=False, verbose=3):
     """Sample underlying values of a tractogram along its points from the corresponding image.
 
     This method does not use interpolation during sampling.
@@ -2104,9 +2104,6 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
     stat : {'all', 'mean', 'median', 'min', 'max'}, default='all'
         Compute a summary statistic on the sampled values;
         if not specified, all values will be saved.
-    shift : float, default=0.5
-        If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages.
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -2158,13 +2155,12 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
         pixdim = niiMAP.header['pixdim'] [1:4]
         logger.subinfo(f'Image resolution: {pixdim[0]}x{pixdim[1]}x{pixdim[2]} mm', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Summary statistic: {stat}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
 
         # open output file
         cmd = f"dicelib.tractogram.sample {tractogram_filename} {image_filename} {out_scalars_filename}"
         if mask_filename is not None:
             cmd += f" --mask {mask_filename}"
-        cmd += f" --stat={stat} --shift {shift}"
+        cmd += f" --stat={stat}"
         if stat == 'all':
             tmp_hdr = TCK_in.header.copy()
             if 'command_history' not in tmp_hdr.keys():
@@ -2182,14 +2178,10 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
             for i in range(n_streamlines):
                 TCK_in.read_streamline()
                 for j in range(TCK_in.n_pts):
-                    # apply_affine_1pt( TCK_in.streamline[j], affine_inv, P, shift )
-                    # vx = int(floor(P[0]))
-                    # vy = int(floor(P[1]))
-                    # vz = int(floor(P[2]))
-                    apply_affine_1pt( TCK_in.streamline[j], affine_inv, P, 0.0 )
-                    vx = int(round(P[0]))
-                    vy = int(round(P[1]))
-                    vz = int(round(P[2]))
+                    apply_xform_to( TCK_in.streamline[j], affine_inv, P )
+                    vx = <int>round(P[0])
+                    vy = <int>round(P[1])
+                    vz = <int>round(P[2])
                     if mask_view[vx, vy, vz] == 0:
                         values[j] = np.nan
                     values[j] = img_view[vx, vy, vz]
@@ -2434,7 +2426,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', lobes_filename: str=None, trim: float=0.05, shift: float=0.5, force: bool=False, verbose: int=3 ):
+cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', lobes_filename: str=None, trim: float=0.05, force: bool=False, verbose: int=3 ):
     """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
 
     The file containing the spherical functions should follow the MrTrix3 conventions
@@ -2463,9 +2455,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         Percentage of segments to skip at each extremity.
         Note: if 'stat' is set to 'all', only the segments that are not trimmed will be saved in the output file and the
         points that are extremities of the trimmed segments will be assigned a weight of -1 by default.
-    shift : float, default=0.5
-        If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages.
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -2530,7 +2519,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
         if n_streamlines <= 0:
             logger.error('The tractogram is empty')
-        logger.subinfo(f'Shifting coordinates by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Trimming {trim*100:.1f}% of segments at each extremity', indent_char='*', indent_lvl=1)
 
         # open spherical functions
@@ -2601,11 +2589,11 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         coherence[i] = 0
                         continue
 
-                    apply_affine_1pt(TCK_in.streamline[trim_offset], affine_inv, p1, shift)
+                    apply_xform_to(TCK_in.streamline[trim_offset], affine_inv, p1)
                     n = 0
                     for j in range(trim_offset+1,TCK_in.n_pts-trim_offset):
                         # get direction of current segment
-                        apply_affine_1pt(TCK_in.streamline[j], affine_inv, p2, shift)
+                        apply_xform_to(TCK_in.streamline[j], affine_inv, p2)
 
                         # compute polar angles (NB: hash tables cover half sphere)
                         dir[1] = p2[1]-p1[1]
@@ -2718,7 +2706,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         return coherence
 
 
-cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_filename: str, shift: float=0.5, force: bool=False, verbose: int=3 ):
+cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_filename: str, force: bool=False, verbose: int=3 ):
     """Compute the voxelwise TDI map from a tractogram.
 
     Parameters
@@ -2729,9 +2717,6 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
         Path to the reference image (.nii, .nii.gz) to infer geometry/orientation.
     out_map_filename : str
         Path to the file (.nii, .nii.gz) that will contain the estimated TDI map.
-    shift : float, dafault=0.5
-        If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages.
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -2767,7 +2752,6 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
         # open reference image
         niiREF = nib.load( ref_image_filename )
         logger.subinfo(f'Reference image: {niiREF.shape[0]}x{niiREF.shape[1]}x{niiREF.shape[2]}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Coordinate shift: {shift:.1f} voxels', indent_char='*', indent_lvl=1)
         affine_inv  = np.linalg.inv(niiREF.affine)
 
         # process every streamline
@@ -2780,11 +2764,11 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
                         break # no more data, stop reading
 
                     P = TCK_in.streamline[0]
-                    apply_affine_1pt(P, affine_inv, p1, shift)
+                    apply_xform_to(P, affine_inv, p1)
                     n = 0
                     for j in range(TCK_in.n_pts):
                         P = TCK_in.streamline[j]
-                        apply_affine_1pt(P, affine_inv, p2, shift)
+                        apply_xform_to(P, affine_inv, p2)
                         # assign the whole segment length to the voxel of its centrois
                         #FIXME: allow better computation of segments contributions in voxels
                         vx = int( floor(0.5*(p2[0]+p1[0])) )
@@ -2807,195 +2791,3 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
             TCK_in.close()
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
-
-
-#TODO: check with Matteo if still needed
-# cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, shift: float=0.5, verbose=3, force=False ):
-#     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
-#     More info at http://algorithmist.net/docs/catmullrom.pdf.
-
-#     Parameters
-#     ----------
-#     input_tractogram : str
-#         Path to the file (.tck) containing the streamlines to process.
-#     output_tractogram : str
-#         Path to the file where to store the filtered tractogram. If not specified (default),
-#         the new file will be created by appending '_smooth' to the input filename.
-#     mask : str
-#         Path to the mask file (.nii, .nii.gz) to constrain the smoothing to a specific region (default : None).
-#     pts_cutoff : float
-#         Percentage of points of the streamline that must be inside the mask to be considered (default : 0.5).
-#     spline_type : str
-#         Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default : 'centripetal').
-#     epsilon : float
-#         Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).
-#     segment_len : float
-#         Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set.
-#     streamline_pts : int
-#         Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
-#     shift : float (optional)
-#         If necessary, apply a shift (in voxel units) to streamline coordinates to
-#         account for differences between software packages (default : 0.5)
-#     verbose : int, default=3
-#         What information to print, must be in [0...4] as defined in ui.set_verbose()
-#     force : boolean, default=False
-#         Force overwriting of the output files
-#     """
-
-#     set_verbose('tractogram', verbose)
-
-#     if segment_len==None and streamline_pts==None:
-#         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set.')
-#     if segment_len!=None and streamline_pts!=None:
-#         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set, not both.')
-
-#     if output_tractogram is None :
-#         basename, extension = os.path.splitext(input_tractogram)
-#         output_tractogram = basename+'_smooth'+extension
-
-#     files = [
-#         File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
-#         File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
-#     ]
-#     if mask is not None:
-#         files.append( {'type_': 'input', 'name': 'mask', 'path': mask} )
-#     nums = [
-#         Num(name='epsilon', value=epsilon, min_=0.0, max_=None,)
-#     ]
-#     check_params(files=files, nums=nums, force=force)
-
-#     if spline_type == 'centripetal':
-#         alpha = 0.5
-#     elif spline_type == 'chordal':
-#         alpha = 1.0
-#     elif spline_type == 'uniform':
-#         alpha = 0.0
-#     else:
-#         logger.error('\'spline_type\' parameter must be \'centripetal\', \'uniform\' or \'chordal\'')
-
-#     # if epsilon < 0 :
-#     #     raise ValueError( "'epsilon' parameter must be non-negative" )
-
-#     # cdef float [:,:] smoothed_fib = np.zeros((1000,3), dtype=np.float32)
-#     # cdef float [:,:] resampled_fib = np.zeros((1000,3), dtype=np.float32)
-#     cdef int n_pts_tot = 0
-#     cdef int n_pts_in = 0
-#     cdef int[:,:,:] mask_view
-#     cdef float[:] pt_aff = np.zeros(3, dtype=np.float32)
-#     cdef cbool in_mask
-#     cdef float fib_len = 0
-#     cdef int n_pts_out = 0
-#     cdef int in_mask_count
-#     cdef float epsilon_tmp
-#     cdef int n_pts_tmp = 0
-#     cdef size_t i, j = 0
-#     cdef int attempts = 0
-#     cdef float threshold = pts_cutoff
-
-#     if mask is not None:
-#         if not os.path.isfile(mask):
-#             logger.error(f'File \'mask\' not found')
-#         mask_nii = nib.load(mask)
-#         mask_view = np.ascontiguousarray(mask_nii.get_fdata(), dtype=np.int32)
-#         affine_inv = np.linalg.inv(mask_nii.affine)
-
-#     try:
-#         TCK_in = LazyTractogram( input_tractogram, mode='r' )
-#         n_streamlines = int( TCK_in.header['count'] )
-
-#         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
-
-#         logger.info('Smoothing tractogram')
-#         t0 = time()
-#         logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
-#         logger.subinfo(f'{input_tractogram}', indent_lvl=2, indent_char='-')
-#         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='-')
-
-#         mb = os.path.getsize( input_tractogram )/1.0E6
-#         if mb >= 1E3:
-#             logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
-#         else:
-#             logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-
-#         logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
-#         logger.subinfo(f'{output_tractogram}', indent_lvl=2, indent_char='-')
-#         logger.subinfo(f'Spline type: {spline_type}', indent_lvl=1, indent_char='-')
-#         if not segment_len==None:
-#             logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
-#         if not streamline_pts==None:
-#             logger.subinfo(f'Number of points: {streamline_pts}', indent_lvl=1, indent_char='-')
-#         if mask is not None:
-#             logger.subinfo(f'Mask: {mask}', indent_lvl=1, indent_char='-')
-
-#         if streamline_pts!=None:
-#             n_pts_out = streamline_pts
-#         else:
-#             n_pts_out = 50
-
-
-#         # process each streamline
-#         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
-#             for i in range( n_streamlines ):
-#                 epsilon_tmp = epsilon
-#                 in_mask = False
-#                 TCK_in.read_streamline()
-#                 n_pts_in = TCK_in.n_pts
-#                 if TCK_in.n_pts==0:
-#                     break # no more data, stop reading
-#                 while in_mask==False:
-#                     # smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha)
-#                     fib_red_ptr, n_red = rdp_reduction(TCK_in.streamline, n_pts_in, epsilon_tmp)
-
-#                     # check number of points
-#                     if n_red==2: # no need to smooth
-#                         smoothed_fib = fib_red_ptr
-#                         n_pts_tot = n_red
-#                         in_mask = True
-#                     else:
-#                         smoothed_fib =  apply_smoothing(fib_red_ptr, alpha, n_pts_out)
-#                         in_mask_count = 0
-#                         for j in range(n_pts_out):
-#                             pt_aff = apply_affine_1pt(smoothed_fib[j,:], affine_inv, pt_aff, shift)
-#                             if mask_view[<int>pt_aff[0], <int>pt_aff[1], <int>pt_aff[2]] > 0:
-#                                 in_mask_count += 1
-#                         if in_mask_count > threshold*n_pts_out:
-#                             in_mask = True
-#                         else:
-#                             # reduce epsilon and try again
-#                             attempts += 1
-#                             epsilon_tmp = epsilon_tmp-0.1
-#                             if epsilon_tmp < 0.1:
-#                                 smoothed_fib = fib_red_ptr
-#                                 n_pts_tot = n_pts_in
-#                                 in_mask = True
-
-#                     # compute streamline length
-#                     fib_len = streamline_length( smoothed_fib, n_pts_out )
-
-#                     if segment_len!=None:
-#                         n_pts_out = int(fib_len / segment_len)
-
-#                     # resample smoothed streamline
-#                     resampled_fib = s_resample(smoothed_fib, n_pts_out)
-
-#                 TCK_out.write_streamline( resampled_fib, n_pts_out )
-#                 pbar.update()
-
-#     except Exception as e:
-#         if os.path.exists( output_tractogram ):
-#             os.remove( output_tractogram )
-#         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-#     finally:
-#         TCK_in.close()
-#         TCK_out.close()
-
-#     mb = os.path.getsize( output_tractogram )/1.0E6
-#     logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-#     if mb >= 1E3:
-#         logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
-#     else:
-#         logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-#     t1 = time()
-#     logger.info( f'[ {format_time(t1 - t0)} ]' )
-

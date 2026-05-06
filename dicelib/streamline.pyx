@@ -28,69 +28,6 @@ cdef extern from "streamline_utils.hpp":
     ) nogil
 
 
-# cpdef double [:,::1] space_tovox(streamline, header,curr_space = None ):
-#     """Method to change space reference of streamlines (.tck)
-#     Note that if curr_space is None, space is interpreted as RASmm
-
-#     Allowed spaces tranformation:
-#     voxmm --> vox
-#     rasmm --> vox
-
-#     Parameters:
-
-#     -----------
-
-#     streamline : Numpy array Nx3
-#         Data of the streamline, coordinates
-#     header : NiftiHeader
-#         header of the image
-#     curr space : string
-#         coordinates space of streamline to transform
-#     """
-#     streamline = np.asarray(streamline)
-#     voxsize = np.asarray(header["pixdim"][1:4]) #resolution
-#     affine = np.asarray([header["srow_x"],header["srow_y"],header["srow_z"],[0,0,0,1]]) #affine retrieved from the header
-#     inverse = np.linalg.inv(affine) #inverse of affine
-#     small = inverse[:-1,:-1].T
-#     val = inverse[:-1,-1]
-#     # if curr_space == "voxmm":
-#     #     streamline /= voxsize
-#     # elif curr_space == "rasmm":
-#     #     streamline = np.matmul(streamline,inverse[:-1,:-1].T) + inverse[:-1,-1] #same as nibabel.affines.apply_affine()
-#     #     streamline += voxsize/2 #to point center of the voxel
-#     #     streamline = np.floor(streamline) #cast
-
-
-#     if not streamline.flags['C_CONTIGUOUS']:
-#         streamline = np.ascontiguousarray(streamline)
-#     if not small.flags['C_CONTIGUOUS']:
-#         small = np.ascontiguousarray(small)
-#     if not val.flags['C_CONTIGUOUS']:
-#         val = np.ascontiguousarray(val)
-#     if not small.flags['C_CONTIGUOUS']:
-#         small = np.ascontiguousarray(small)
-
-#     cdef double [:,::1] streamline_view = np.double(streamline)
-#     cdef double [:,::1] small_view = small
-#     cdef float  [::1] voxsize_view = voxsize
-#     cdef double [::1] val_view = val
-#     cdef double somma = 0.0
-#     cdef size_t ii, yy
-
-#     if curr_space == "voxmm":
-#         for ii in range(streamline_view.shape[0]):
-#             for yy in range(streamline_view.shape[1]):
-#                 streamline_view[ii][yy] = streamline_view[ii][yy]/voxsize_view[yy]
-#     else :     #rasmm
-#         for ii in range(streamline_view.shape[0]):
-#             for yy in range(streamline_view.shape[1]):
-#                 somma = ((streamline_view[ii,0]*small_view[0,yy] + streamline_view[ii,1]*small_view[1,yy] + streamline_view[ii,2]*small_view[2,yy]) + val_view[yy])
-#                 somma += (voxsize_view[yy]/2)
-#                 streamline_view[ii][yy] = floor(somma)
-
-#     return streamline_view
-
-
 #TODO: replace this function everywhere with apply_affine_1pt
 cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
                                 float [:] abc, float [:,::1] end_pts_trans) noexcept nogil:
@@ -105,12 +42,20 @@ cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
     return end_pts_trans
 
 
-cdef float [:] apply_affine_1pt(float [:] orig_pt, double[:,::1] M, float [:] moved_pt, float shift=0):
-    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[0,1] + orig_pt[2]*M[0,2]) + M[0,3] + shift)
-    moved_pt[1] = float((orig_pt[0]*M[1,0] + orig_pt[1]*M[1,1] + orig_pt[2]*M[1,2]) + M[1,3] + shift)
-    moved_pt[2] = float((orig_pt[0]*M[2,0] + orig_pt[1]*M[2,1] + orig_pt[2]*M[2,2]) + M[2,3] + shift)
-    return moved_pt
+cpdef void apply_xform_to(float[:] in_P, double[:,::1] M, float[:] out_P) noexcept nogil:
+    """Apply a trasformation to a point.
 
+    Parameters
+    ----------
+    in_P : 3x1 float array
+        The point to be trasformed.
+    M : 4x4 double array
+    out_P : 3x1 float array
+        The point after trasformation.
+    """
+    out_P[0] = <float>(in_P[0]*M[0,0] + in_P[1]*M[0,1] + in_P[2]*M[0,2] + M[0,3])
+    out_P[1] = <float>(in_P[0]*M[1,0] + in_P[1]*M[1,1] + in_P[2]*M[1,2] + M[1,3])
+    out_P[2] = <float>(in_P[0]*M[2,0] + in_P[1]*M[2,1] + in_P[2]*M[2,2] + M[2,3])
 
 
 cpdef length( float [:,:] streamline, int n=0 ):
@@ -621,3 +566,66 @@ cpdef bint is_flipped( float[:,::1] fib_in, float[:,::1] ref_fib):
         return True
     else:
         return False
+
+
+# cpdef double [:,::1] space_tovox(streamline, header,curr_space = None ):
+#     """Method to change space reference of streamlines (.tck)
+#     Note that if curr_space is None, space is interpreted as RASmm
+
+#     Allowed spaces tranformation:
+#     voxmm --> vox
+#     rasmm --> vox
+
+#     Parameters:
+
+#     -----------
+
+#     streamline : Numpy array Nx3
+#         Data of the streamline, coordinates
+#     header : NiftiHeader
+#         header of the image
+#     curr space : string
+#         coordinates space of streamline to transform
+#     """
+#     streamline = np.asarray(streamline)
+#     voxsize = np.asarray(header["pixdim"][1:4]) #resolution
+#     affine = np.asarray([header["srow_x"],header["srow_y"],header["srow_z"],[0,0,0,1]]) #affine retrieved from the header
+#     inverse = np.linalg.inv(affine) #inverse of affine
+#     small = inverse[:-1,:-1].T
+#     val = inverse[:-1,-1]
+#     # if curr_space == "voxmm":
+#     #     streamline /= voxsize
+#     # elif curr_space == "rasmm":
+#     #     streamline = np.matmul(streamline,inverse[:-1,:-1].T) + inverse[:-1,-1] #same as nibabel.affines.apply_affine()
+#     #     streamline += voxsize/2 #to point center of the voxel
+#     #     streamline = np.floor(streamline) #cast
+
+
+#     if not streamline.flags['C_CONTIGUOUS']:
+#         streamline = np.ascontiguousarray(streamline)
+#     if not small.flags['C_CONTIGUOUS']:
+#         small = np.ascontiguousarray(small)
+#     if not val.flags['C_CONTIGUOUS']:
+#         val = np.ascontiguousarray(val)
+#     if not small.flags['C_CONTIGUOUS']:
+#         small = np.ascontiguousarray(small)
+
+#     cdef double [:,::1] streamline_view = np.double(streamline)
+#     cdef double [:,::1] small_view = small
+#     cdef float  [::1] voxsize_view = voxsize
+#     cdef double [::1] val_view = val
+#     cdef double somma = 0.0
+#     cdef size_t ii, yy
+
+#     if curr_space == "voxmm":
+#         for ii in range(streamline_view.shape[0]):
+#             for yy in range(streamline_view.shape[1]):
+#                 streamline_view[ii][yy] = streamline_view[ii][yy]/voxsize_view[yy]
+#     else :     #rasmm
+#         for ii in range(streamline_view.shape[0]):
+#             for yy in range(streamline_view.shape[1]):
+#                 somma = ((streamline_view[ii,0]*small_view[0,yy] + streamline_view[ii,1]*small_view[1,yy] + streamline_view[ii,2]*small_view[2,yy]) + val_view[yy])
+#                 somma += (voxsize_view[yy]/2)
+#                 streamline_view[ii][yy] = floor(somma)
+
+#     return streamline_view
