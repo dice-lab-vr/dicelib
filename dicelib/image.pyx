@@ -312,16 +312,28 @@ def tdi_ends(input_tractogram: str, input_ref: str, output_image: str, blur_core
 
 
 
+<<<<<<< HEAD
 def segmentGmPolar( image_filename: str, output_filename: str, n_regions: int=85, threshold: float=0.0, seed: int=None, verbose: int=3, force: bool=False ):
     """Segment a gm mask into equally spaced homogeneous geometrical regions using the Fibonacci sphere algorithm.
+=======
+def segment_gm_polar( image_filename: str, output_filename: str, region_amount: int=85, threshold: float=0.0, seed: int=None, verbose: int=3, force: bool=False ):
+    """Segment an image into equally spaced homogeneous regions.
+>>>>>>> 777e78ec616a806de34f7d4245f793d63862a77b
 
     Parameters
     ----------
     image_filename : str
+<<<<<<< HEAD
         Path to the file (.nii.gz) containing the gm mask to segment.
     output_filename : str
         Path to the file (.nii.gz) where to store the resulting segmentation.
     n_regions : int
+=======
+        Path to the file (.nii.gz) containing the image to segment.
+    output_filename : str
+        Path to the file (.nii.gz) where to store the resulting image.
+    region_amount : int
+>>>>>>> 777e78ec616a806de34f7d4245f793d63862a77b
         Number of regions created.
     threshold : float
         Intensity threshold in [0, 1] used to binarize the input image;
@@ -342,7 +354,11 @@ def segmentGmPolar( image_filename: str, output_filename: str, n_regions: int=85
         File(name='output_filename', type_='output', path=output_filename, ext=['.nii', '.nii.gz'])
     ]
     nums = [
+<<<<<<< HEAD
         Num(name='n_regions', value=n_regions, min_=1, max_=1000),
+=======
+        Num(name='region_amount', value=region_amount, min_=1, max_=1000),
+>>>>>>> 777e78ec616a806de34f7d4245f793d63862a77b
         Num(name='threshold', value=threshold, min_=0.0, max_=1.0)
     ]
     if seed is not None:
@@ -351,7 +367,11 @@ def segmentGmPolar( image_filename: str, output_filename: str, n_regions: int=85
 
     logger.subinfo( f'Input image: "{image_filename}"', indent_char='*')
     logger.subinfo( f'Output image: "{output_filename}"', indent_char='*')
+<<<<<<< HEAD
     logger.subinfo( f'Number of regions: {n_regions}', indent_char='*')
+=======
+    logger.subinfo( f'Number of regions: {region_amount}', indent_char='*')
+>>>>>>> 777e78ec616a806de34f7d4245f793d63862a77b
     logger.subinfo( f'Threshold: {threshold}', indent_char='*')
     if seed is None:
         logger.subinfo( 'Random orientation: enabled', indent_char='*')
@@ -398,9 +418,15 @@ def segmentGmPolar( image_filename: str, output_filename: str, n_regions: int=85
         directions = np.column_stack( (dx / radius, dy / radius, dz / radius) )
 
         # compute reference points using the Fibonacci sphere algorithm
+<<<<<<< HEAD
         indices = np.arange( n_regions, dtype=float )
         golden_angle = np.pi * (3.0 - np.sqrt(5.0))
         fib_y = 1.0 - 2.0 * (indices + 0.5) / n_regions
+=======
+        indices = np.arange( region_amount, dtype=float )
+        golden_angle = np.pi * (3.0 - np.sqrt(5.0))
+        fib_y = 1.0 - 2.0 * (indices + 0.5) / region_amount
+>>>>>>> 777e78ec616a806de34f7d4245f793d63862a77b
         radius = np.sqrt(1.0 - fib_y * fib_y) # radius of the latitude parallel
         theta = indices * golden_angle # longitude
         fib_x = radius * np.cos(theta)
@@ -452,4 +478,8 @@ def segmentGmPolar( image_filename: str, output_filename: str, n_regions: int=85
 
     finally:
         t1 = time()
+<<<<<<< HEAD
         logger.info( f'[ {format_time(t1 - t0)} ]' )
+=======
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
+>>>>>>> 777e78ec616a806de34f7d4245f793d63862a77b
