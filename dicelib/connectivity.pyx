@@ -58,29 +58,6 @@ cdef compute_grid( float thr, float[:] vox_dim ):
     return centers_c
 
 
-cpdef float [:,::1] to_matrix( float[:,::1] streamline, int n, float [:,::1] end_pts ) noexcept nogil:
-    """Retrieve the coordinates of the streamlines' endpoints.
-
-    Parameters
-    -----------------
-    streamline: Nx3 numpy array
-        The streamline data
-    n: int
-        Writes first n points of the streamline. If n<0 (default), writes all points.
-    """
-    cdef float *ptr = &streamline[0,0]
-    cdef float *ptr_end = ptr+n*3-3
-
-    end_pts[0,0]=ptr[0]
-    end_pts[0,1]=ptr[1]
-    end_pts[0,2]=ptr[2]
-    end_pts[1,0]=ptr_end[0]
-    end_pts[1,1]=ptr_end[1]
-    end_pts[1,2]=ptr_end[2]
-
-    return end_pts
-
-
 cdef float distance2vox(float vox_x_min, float vox_x_max, float vox_y_min, float vox_y_max, float vox_z_min, float vox_z_max, float p_x, float p_y, float p_z) nogil:
     cdef float dx = max(vox_x_min - p_x, 0, p_x - vox_x_max)
     cdef float dy = max(vox_y_min - p_y, 0, p_y - vox_y_max)
@@ -333,7 +310,6 @@ cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start
     cdef int[:,:] assignments_view = assignments
 
     cdef float [:,::1] end_pts = np.zeros((2,3), dtype=np.float32)
-    cdef float [:,::1] end_pts_temp = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] end_pts_trans = np.zeros((2,3), dtype=np.float32)
     cdef float [:] start_pt_grid = np.zeros(3, dtype=np.float32)
     cdef int [:] start_vox = np.zeros(3, dtype=np.int32)
@@ -357,7 +333,13 @@ cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start
                 i += 1
             for i in xrange( n_streamlines ):
                 TCK_in.read_streamline()
-                end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
+                end_pts[0,0]=TCK_in.streamline[0,0]
+                end_pts[0,1]=TCK_in.streamline[0,1]
+                end_pts[0,2]=TCK_in.streamline[0,2]
+                end_pts[1,0]=TCK_in.streamline[TCK_in.n_pts-1,0]
+                end_pts[1,1]=TCK_in.streamline[TCK_in.n_pts-1,1]
+                end_pts[1,2]=TCK_in.streamline[TCK_in.n_pts-1,2]
+
                 matrix = apply_affine(end_pts, M, abc, end_pts_trans)
                 assignments_view[i] = streamline_assignment_endpoints( start_vox, end_vox, roi_ret, matrix, gm_map)
                 pbar_array[id_chunk] += 1
@@ -369,7 +351,13 @@ cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start
                 i += 1
             for i in xrange( n_streamlines ):
                 TCK_in.read_streamline()
-                end_pts = to_matrix( TCK_in.streamline, TCK_in.n_pts, end_pts_temp )
+                end_pts[0,0]=TCK_in.streamline[0,0]
+                end_pts[0,1]=TCK_in.streamline[0,1]
+                end_pts[0,2]=TCK_in.streamline[0,2]
+                end_pts[1,0]=TCK_in.streamline[TCK_in.n_pts-1,0]
+                end_pts[1,1]=TCK_in.streamline[TCK_in.n_pts-1,1]
+                end_pts[1,2]=TCK_in.streamline[TCK_in.n_pts-1,2]
+
                 matrix = apply_affine(end_pts, M, abc, end_pts_trans)
                 assignments_view[i] = streamline_assignment( start_pt_grid, start_vox, end_pt_grid, end_vox, roi_ret,
                                                             matrix, grid, gm_map, thr, count_neighbours)

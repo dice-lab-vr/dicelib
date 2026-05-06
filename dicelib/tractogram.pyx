@@ -9,7 +9,7 @@ from libcpp cimport bool as cbool
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
 from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, set_number_of_points, smooth, create_streamline_replicas
-from dicelib.streamline import apply_xform_to
+from dicelib.streamline import apply_xform_to_point
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 from dicelib.connectivity import assign
@@ -1628,8 +1628,8 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                 fib = np.asarray(TCK_in.streamline)
                 fib = fib[:TCK_in.n_pts, :]
                 for n in xrange(3): # move first 3 point at each end
-                    fib[n,:] = apply_xform_to(fib[n,:], affine_inv, moved_pt)
-                    fib[idx_last-n,:] = apply_xform_to( fib[idx_last-n,:], affine_inv, moved_pt)
+                    fib[n,:] = apply_xform_to_point(fib[n,:], affine_inv, moved_pt)
+                    fib[idx_last-n,:] = apply_xform_to_point( fib[idx_last-n,:], affine_inv, moved_pt)
                 fib+=0.5 # move to center
 
                 ok_both  = np.zeros(2, dtype=np.int32)
@@ -1713,12 +1713,12 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                 # bring points back to original space
                 fib=fib-0.5 # move back to corner
                 for n in xrange(2):
-                    fib[n,:] = apply_xform_to( fib[n,:], affine, moved_pt)
-                    fib[idx_last-n,:] = apply_xform_to( fib[idx_last-n,:], affine, moved_pt)
+                    fib[n,:] = apply_xform_to_point( fib[n,:], affine, moved_pt)
+                    fib[idx_last-n,:] = apply_xform_to_point( fib[idx_last-n,:], affine, moved_pt)
                 if del_both[0] == False:
-                    fib[2,:] = apply_xform_to( fib[2,:], affine, moved_pt)
+                    fib[2,:] = apply_xform_to_point( fib[2,:], affine, moved_pt)
                 if del_both[1] == False:
-                    fib[idx_last-2,:] = apply_xform_to( fib[idx_last-2,:], affine, moved_pt)
+                    fib[idx_last-2,:] = apply_xform_to_point( fib[idx_last-2,:], affine, moved_pt)
 
                 TCK_out.write_streamline( fib, n_pts_out )
                 n_tot += 1
@@ -2178,7 +2178,7 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
             for i in range(n_streamlines):
                 TCK_in.read_streamline()
                 for j in range(TCK_in.n_pts):
-                    apply_xform_to( TCK_in.streamline[j], affine_inv, P )
+                    apply_xform_to_point( TCK_in.streamline[j], affine_inv, P )
                     vx = <int>round(P[0])
                     vy = <int>round(P[1])
                     vz = <int>round(P[2])
@@ -2589,11 +2589,11 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         coherence[i] = 0
                         continue
 
-                    apply_xform_to(TCK_in.streamline[trim_offset], affine_inv, p1)
+                    apply_xform_to_point(TCK_in.streamline[trim_offset], affine_inv, p1)
                     n = 0
                     for j in range(trim_offset+1,TCK_in.n_pts-trim_offset):
                         # get direction of current segment
-                        apply_xform_to(TCK_in.streamline[j], affine_inv, p2)
+                        apply_xform_to_point(TCK_in.streamline[j], affine_inv, p2)
 
                         # compute polar angles (NB: hash tables cover half sphere)
                         dir[1] = p2[1]-p1[1]
@@ -2764,11 +2764,11 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
                         break # no more data, stop reading
 
                     P = TCK_in.streamline[0]
-                    apply_xform_to(P, affine_inv, p1)
+                    apply_xform_to_point(P, affine_inv, p1)
                     n = 0
                     for j in range(TCK_in.n_pts):
                         P = TCK_in.streamline[j]
-                        apply_xform_to(P, affine_inv, p2)
+                        apply_xform_to_point(P, affine_inv, p2)
                         # assign the whole segment length to the voxel of its centrois
                         #FIXME: allow better computation of segments contributions in voxels
                         vx = int( floor(0.5*(p2[0]+p1[0])) )

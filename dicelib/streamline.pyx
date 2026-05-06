@@ -28,21 +28,7 @@ cdef extern from "streamline_utils.hpp":
     ) nogil
 
 
-#TODO: replace this function everywhere with apply_affine_1pt
-cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
-                                float [:] abc, float [:,::1] end_pts_trans) noexcept nogil:
-
-    # N.B. use this function only to move from RASmm to VOX, not the inverse (because of +0.5)
-    end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0]) +0.5
-    end_pts_trans[0][1] = ((end_pts[0][0]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1]) +0.5
-    end_pts_trans[0][2] = ((end_pts[0][0]*M[0,2] + end_pts[0][1]*M[1,2] + end_pts[0][2]*M[2,2]) + abc[2]) +0.5
-    end_pts_trans[1][0] = ((end_pts[1][0]*M[0,0] + end_pts[1][1]*M[1,0] + end_pts[1][2]*M[2,0]) + abc[0]) +0.5
-    end_pts_trans[1][1] = ((end_pts[1][0]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1]) +0.5
-    end_pts_trans[1][2] = ((end_pts[1][0]*M[0,2] + end_pts[1][1]*M[1,2] + end_pts[1][2]*M[2,2]) + abc[2]) +0.5
-    return end_pts_trans
-
-
-cpdef void apply_xform_to(float[:] in_P, double[:,::1] M, float[:] out_P) noexcept nogil:
+cpdef void apply_xform_to_point(float[:] in_P, double[:,::1] M, float[:] out_P) noexcept nogil:
     """Apply a trasformation to a point.
 
     Parameters
@@ -56,6 +42,20 @@ cpdef void apply_xform_to(float[:] in_P, double[:,::1] M, float[:] out_P) noexce
     out_P[0] = <float>(in_P[0]*M[0,0] + in_P[1]*M[0,1] + in_P[2]*M[0,2] + M[0,3])
     out_P[1] = <float>(in_P[0]*M[1,0] + in_P[1]*M[1,1] + in_P[2]*M[1,2] + M[1,3])
     out_P[2] = <float>(in_P[0]*M[2,0] + in_P[1]*M[2,1] + in_P[2]*M[2,2] + M[2,3])
+
+
+#TODO: replace this function everywhere with apply_xform_to_point
+cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
+                                float [:] abc, float [:,::1] end_pts_trans) noexcept nogil:
+
+    # N.B. use this function only to move from RASmm to VOX, not the inverse (because of +0.5)
+    end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0]) +0.5
+    end_pts_trans[0][1] = ((end_pts[0][0]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1]) +0.5
+    end_pts_trans[0][2] = ((end_pts[0][0]*M[0,2] + end_pts[0][1]*M[1,2] + end_pts[0][2]*M[2,2]) + abc[2]) +0.5
+    end_pts_trans[1][0] = ((end_pts[1][0]*M[0,0] + end_pts[1][1]*M[1,0] + end_pts[1][2]*M[2,0]) + abc[0]) +0.5
+    end_pts_trans[1][1] = ((end_pts[1][0]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1]) +0.5
+    end_pts_trans[1][2] = ((end_pts[1][0]*M[0,2] + end_pts[1][1]*M[1,2] + end_pts[1][2]*M[2,2]) + abc[2]) +0.5
+    return end_pts_trans
 
 
 cpdef length( float [:,:] streamline, int n=0 ):
@@ -596,7 +596,7 @@ cpdef bint is_flipped( float[:,::1] fib_in, float[:,::1] ref_fib):
 #     # if curr_space == "voxmm":
 #     #     streamline /= voxsize
 #     # elif curr_space == "rasmm":
-#     #     streamline = np.matmul(streamline,inverse[:-1,:-1].T) + inverse[:-1,-1] #same as nibabel.affines.apply_affine()
+#     #     streamline = np.matmul(streamline,inverse[:-1,:-1].T) + inverse[:-1,-1]
 #     #     streamline += voxsize/2 #to point center of the voxel
 #     #     streamline = np.floor(streamline) #cast
 
