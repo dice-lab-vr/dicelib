@@ -379,7 +379,7 @@ def smoothSplines():
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
         [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': desc['spline_type']}],
-        [['--epsilon', '-e'], {'type': float, 'default': None, 'help': desc['epsilon']}],
+        [['--epsilon', '-e'], {'type': float, 'default': 0.3, 'help': desc['epsilon']}],
         [['--n_ctrl_pts', '-n'], {'type': int, 'default': None, 'help': desc['n_ctrl_pts']}],
         [['--n_pts_eval', '-ne'], {'type': int, 'default': None, 'help': desc['n_pts_eval']}],
         [['--segment_len_eval', '-le'], {'type': float, 'default': None, 'help': desc['segment_len_eval']}],
