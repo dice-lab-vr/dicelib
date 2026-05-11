@@ -2611,9 +2611,9 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         o = htable[ox*181+oy]
 
                         # evaluate the SF along this direction (i.e. sh_basis[o,:] @ niiSF_img[vx,vy,vz,:])
-                        vx = int( floor(0.5*(p2[0]+p1[0])) )
-                        vy = int( floor(0.5*(p2[1]+p1[1])) )
-                        vz = int( floor(0.5*(p2[2]+p1[2])) )
+                        vx = <int>( round(0.5*(p2[0]+p1[0])) )
+                        vy = <int>( round(0.5*(p2[1]+p1[1])) )
+                        vz = <int>( round(0.5*(p2[2]+p1[2])) )
                         ptr1 = &niiSF_img[vx,vy,vz,0]
                         ptr2 = &sh_basis[o,0]
                         sf_val1 = 0
