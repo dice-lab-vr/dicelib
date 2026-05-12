@@ -1599,7 +1599,7 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
     cdef bint[:] ok_both  = np.zeros(2, dtype=np.int32) # in GM with starting (0) / ending (1) point?
     cdef bint[:] del_both = np.zeros(2, dtype=np.int32) # have I deleted starting (0) / ending (1) point?
 
-    cdef int chances   = int(round(max_dist / step))
+    cdef int chances   = <int>round(max_dist / step)
     cdef int chances_f = 0
     cdef float [:] moved_pt = np.zeros(3, dtype=np.float32)
 
@@ -1662,7 +1662,7 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                         if ok_both[extremity] == False: # I used all the possible chances following the direct direction but I have not reached the GM or I stepped outside the image space
                             vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_1, pt_0)
                             tmp = pt_0.copy() # changing starting point, flipped
-                            chances_f = int(sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step)
+                            chances_f = <int>( sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step )
                             if chances_f < chances:
                                 ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances_f, gm)
                             else:
@@ -1692,7 +1692,7 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                                 else:
                                     vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_2, pt_0)
                                     tmp = pt_1.copy() # changing starting point, flipped
-                                    chances_f = int(sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step)
+                                    chances_f = <int>( sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step )
                                     if chances_f < chances:
                                         ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances_f, gm)
                                     else:
@@ -2003,7 +2003,7 @@ cpdef smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, windo
                     smoothed_streamline[TCK_in.n_pts-1,:] = TCK_in.streamline[TCK_in.n_pts-1,:]
                 if segment_len is not None:
                     tot_len = streamline_length( smoothed_streamline, TCK_in.n_pts )
-                    n_pts = int(floor(tot_len / segment_len)+1)
+                    n_pts = <int>( floor(tot_len/segment_len)+1 )
                     set_number_of_points(smoothed_streamline[:TCK_in.n_pts], n_pts, resampled_streamline, lengths)
                     TCK_out.write_streamline( resampled_streamline, n_pts )
                 else:
@@ -2583,7 +2583,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                     if TCK_in.n_pts>10000:
                         logger.error( 'The streamline {i} contains too many points ({TCK_in.n_pts})' )
 
-                    trim_offset = int( round((TCK_in.n_pts-1)*trim) ) # skip 'trim' percent of segments
+                    trim_offset = <int>round((TCK_in.n_pts-1)*trim) # skip 'trim' percent of segments
                     if TCK_in.n_pts - trim_offset*2 <=0 :
                         logger.warning( f'"trim" too high, streamline {i} is empty; coherence set to 0' )
                         coherence[i] = 0
@@ -2606,14 +2606,14 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                             dir[2] = p2[2]-p1[2]
 
                         # round to the closest direction among the canonical 500 internally used by AMICO/COMMIT
-                        ox = int( round(atan2( sqrt(dir[0]*dir[0]+dir[1]*dir[1]), dir[2] )/M_PI*180.0) )
-                        oy = int( round(atan2( dir[1], dir[0] )/M_PI*180.0) )
+                        ox = <int>round(atan2( sqrt(dir[0]*dir[0]+dir[1]*dir[1]), dir[2] )/M_PI*180.0)
+                        oy = <int>round(atan2( dir[1], dir[0] )/M_PI*180.0)
                         o = htable[ox*181+oy]
 
                         # evaluate the SF along this direction (i.e. sh_basis[o,:] @ niiSF_img[vx,vy,vz,:])
-                        vx = <int>( round(0.5*(p2[0]+p1[0])) )
-                        vy = <int>( round(0.5*(p2[1]+p1[1])) )
-                        vz = <int>( round(0.5*(p2[2]+p1[2])) )
+                        vx = <int>round(0.5*(p2[0]+p1[0]))
+                        vy = <int>round(0.5*(p2[1]+p1[1]))
+                        vz = <int>round(0.5*(p2[2]+p1[2]))
                         ptr1 = &niiSF_img[vx,vy,vz,0]
                         ptr2 = &sh_basis[o,0]
                         sf_val1 = 0
@@ -2633,11 +2633,11 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
 
                                 # compute polar angles (NB: hash tables cover half sphere)
                                 if ptr2[1] > 0:
-                                    ox = int( round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), ptr2[2] )/M_PI*180.0) )
-                                    oy = int( round(atan2( ptr2[1], ptr2[0] )/M_PI*180.0) )
+                                    ox = <int>round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), ptr2[2] )/M_PI*180.0)
+                                    oy = <int>round(atan2( ptr2[1], ptr2[0] )/M_PI*180.0)
                                 else:
-                                    ox = int( round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), -ptr2[2] )/M_PI*180.0) )
-                                    oy = int( round(atan2( -ptr2[1], -ptr2[0] )/M_PI*180.0) )
+                                    ox = <int>round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), -ptr2[2] )/M_PI*180.0)
+                                    oy = <int>round(atan2( -ptr2[1], -ptr2[0] )/M_PI*180.0)
                                 o2 = htable[ox*181+oy]
                                 if o<0 or o>=500 or o2<0 or o2>=500:
                                     logger.error( f'This should not happen: o={o} o2={o2}' )
@@ -2771,9 +2771,9 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
                         apply_xform_to_point(P, affine_inv, p2)
                         # assign the whole segment length to the voxel of its centrois
                         #FIXME: allow better computation of segments contributions in voxels
-                        vx = int( round(0.5*(p2[0]+p1[0])) )
-                        vy = int( round(0.5*(p2[1]+p1[1])) )
-                        vz = int( round(0.5*(p2[2]+p1[2])) )
+                        vx = <int>round(0.5*(p2[0]+p1[0]))
+                        vy = <int>round(0.5*(p2[1]+p1[1]))
+                        vz = <int>round(0.5*(p2[2]+p1[2]))
                         niiTDI_img[vx,vy,vz] += sqrt( (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2 + (p2[2] - p1[2])**2)
                         # update point
                         p1[0] = p2[0]
