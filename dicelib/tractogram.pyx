@@ -371,40 +371,6 @@ cdef class LazyTractogram:
 
 
 #---------------------------------------  FUNCTIONS  ---------------------------------------
-cpdef compute_vect_vers(float [:] p0, float[:] p1):
-    cdef float vec_x, vec_y, vec_z = 0
-    cdef float ver_x, ver_y, ver_z = 0
-    cdef size_t ax = 0
-    vec_x = p0[0] - p1[0]
-    vec_y = p0[1] - p1[1]
-    vec_z = p0[2] - p1[2]
-    cdef float s = sqrt( vec_x**2 + vec_y**2 + vec_z**2 )
-    ver_x = vec_x / s
-    ver_y = vec_y / s
-    ver_z = vec_z / s
-    return vec_x, vec_y, vec_z, ver_x, ver_y, ver_z
-
-
-cpdef move_point_to_gm(float[:] point, float vers_x, float vers_y, float vers_z, float step, int chances, int[:,:,::1] gm):
-    cdef bint ok = False
-    size_x, size_y, size_z = gm.shape[:3]
-    cdef size_t c, a = 0
-    cdef int coord_x, coord_y, coord_z = 0
-    for c in xrange(chances):
-        point[0] = point[0] + vers_x * step
-        point[1] = point[1] + vers_y * step
-        point[2] = point[2] + vers_z * step
-        coord_x = <int>point[0]
-        coord_y = <int>point[1]
-        coord_z = <int>point[2]
-        if coord_x < 0 or coord_y < 0 or coord_z < 0 or coord_x >= size_x or coord_y >= size_y or coord_z >= size_z: # check if I'll moved outside the image space
-            break
-        if gm[coord_x,coord_y,coord_z] > 0: # I moved in the GM
-            ok = True
-            break
-    return ok, point
-
-
 def compute_lengths( tractogram_filename: str, out_scalars_filename: str=None, force: bool=False , verbose: int=3 ) -> np.ndarray:
     """Compute the lengths [in mm] of each streamline in a tractogram.
 
@@ -1543,6 +1509,40 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
     verbose : int, default=3
         What information to print, must be in [0...4] as defined in ui.set_verbose().
      """
+    def compute_vect_vers(float [:] p0, float[:] p1):
+        cdef float vec_x, vec_y, vec_z = 0
+        cdef float ver_x, ver_y, ver_z = 0
+        cdef size_t ax = 0
+        vec_x = p0[0] - p1[0]
+        vec_y = p0[1] - p1[1]
+        vec_z = p0[2] - p1[2]
+        cdef float s = sqrt( vec_x**2 + vec_y**2 + vec_z**2 )
+        ver_x = vec_x / s
+        ver_y = vec_y / s
+        ver_z = vec_z / s
+        return vec_x, vec_y, vec_z, ver_x, ver_y, ver_z
+
+
+    def move_point_to_gm(float[:] point, float vers_x, float vers_y, float vers_z, float step, int chances, int[:,:,::1] gm):
+        cdef bint ok = False
+        size_x, size_y, size_z = gm.shape[:3]
+        cdef size_t c, a = 0
+        cdef int coord_x, coord_y, coord_z = 0
+        for c in xrange(chances):
+            point[0] = point[0] + vers_x * step
+            point[1] = point[1] + vers_y * step
+            point[2] = point[2] + vers_z * step
+            coord_x = <int>point[0]
+            coord_y = <int>point[1]
+            coord_z = <int>point[2]
+            if coord_x < 0 or coord_y < 0 or coord_z < 0 or coord_x >= size_x or coord_y >= size_y or coord_z >= size_z: # check if I'll moved outside the image space
+                break
+            if gm[coord_x,coord_y,coord_z] > 0: # I moved in the GM
+                ok = True
+                break
+        return ok, point
+
+
     t0 = time()
     set_verbose('tractogram', verbose)
     logger.info('Sanitizing streamlines')
