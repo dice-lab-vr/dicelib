@@ -83,7 +83,8 @@ def coherence():
         [['tractogram'], {'help': desc['tractogram_filename']}],
         [['sph_func'], {'help': desc['sph_func_filename']}],
         [['out_weights'], {'help': desc['out_weights_filename']}],
-        [['--stat'], {'choices': ['min','mean','max', 'all'], 'default': 'min', 'help': desc['stat']}],
+        [['--stat'], {'choices': ['mean','min','percentile','max','all'], 'default': 'min', 'help': desc['stat']}],
+        [['--percentile', '-p'], {'type': int, 'default': 5, 'help': desc['percentile']}],
         [['--normalize', '-n'], {'type': str, 'default': None, 'help': desc['lobes_filename']}],
         [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}]
     ]
@@ -94,6 +95,7 @@ def coherence():
             sph_func_filename=options.sph_func,
             out_weights_filename=options.out_weights,
             stat=options.stat,
+            percentile=options.percentile,
             lobes_filename=options.normalize,
             trim=options.trim,
             force=options.force,

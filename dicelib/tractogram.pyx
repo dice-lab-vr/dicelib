@@ -2423,7 +2423,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', lobes_filename: str=None, trim: float=0.05, force: bool=False, verbose: int=3 ):
+cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', percentile: int=5, lobes_filename: str=None, trim: float=0.05, force: bool=False, verbose: int=3 ):
     """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
 
     The file containing the spherical functions should follow the MrTrix3 conventions
@@ -2438,13 +2438,15 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         Path to the file (.nii, .nii.gz) containing the spherical function against which each streamline is evaluated.
     out_weights_filename : str
         Path to the file (.txt, .npy, .tsf) that will contain the estimated coherence weights.
-    stat : {'min', 'mean', 'max', 'all'}, default='min'
+    stat : {'mean', 'min', 'percentile', 'max', 'all'}, default='min'
         Summary statistic to use once the coherence is computed for all segments of a streamline.
         If 'all' is specified, the coherence of each segment will be saved in a .tsf file;
         otherwise, the summary statistic will be saved in a .txt or .npy file.
         When a .tsf file is produced, each point of a streamline is assigned a weight corresponding
         to the average coherence of the segments centered on that point. For the first and last points,
         the weight is computed using only the following or preceding segment, respectively.
+    percentile : int, default=5
+        ????
     lobes_filename : string, optional
         Path to the file (.nii, .nii.gz) containing the peaks that identify the lobes of the spherical functions, which
         will be used to normalize the local coherence by the value of the corresponding lobe.
@@ -2491,6 +2493,13 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     set_verbose('tractogram', verbose)
     logger.info('Computing coherence')
 
+    if trim<0 or trim>=0.5:
+        logger.error('"trim" must be in [0..0.5)')
+    if stat not in ['mean','min','percentile','max','all']:
+        logger.error('"stat" must be one of [mean, min, percentile, max, all]')
+    if stat=='percentile' and (percentile<0 or percentile>100):
+        logger.error('"percentile" must be an integer in the range [0..100]')
+
     files = [File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck'])]
     files.append(File(name='sph_func_filename', type_='input', path=sph_func_filename, ext=['.nii', '.nii.gz']))
     if out_weights_filename is not None:
@@ -2501,11 +2510,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     if lobes_filename is not None:
         files.append(File(name='lobes_filename', type_='input', path=lobes_filename, ext=['.nii', '.nii.gz']))
     check_params(files=files, force=force)
-
-    if trim<0 or trim>=0.5:
-        logger.error('"trim" must be in [0..0.5)')
-    if stat not in ['min','mean','max','all']:
-        logger.error('"stat" must be one of [min, mean, max, all]')
 
     try:
         # open tractogram
@@ -2567,7 +2571,10 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             peaks_idx = np.zeros(n_peaks, dtype=np.int32)
         del dirs
 
-        logger.subinfo(f'Summary statistic along streamlines: "{stat}"', indent_char='*', indent_lvl=1)
+        if stat!='percentile':
+            logger.subinfo(f'Summary statistic along streamlines: "{stat}"', indent_char='*', indent_lvl=1)
+        else:
+            logger.subinfo(f'Summary statistic along streamlines: "{percentile}-th percentile"', indent_char='*', indent_lvl=1)
 
         #----- process every streamline -----
         coherence = np.zeros( n_streamlines, dtype=np.float32 )
@@ -2662,10 +2669,12 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         p1[1] = p2[1]
                         p1[2] = p2[2]
 
-                    if stat=='min':
-                        coherence[i] = np.min(w[:n])
-                    elif stat=='mean':
+                    if stat=='mean':
                         coherence[i] = np.mean(w[:n])
+                    elif stat=='min':
+                        coherence[i] = np.min(w[:n])
+                    elif stat=='percentile':
+                        coherence[i] = np.percentile(w[:n], percentile)
                     elif stat=='max':
                         coherence[i] = np.max(w[:n])
                     elif stat=='all':
