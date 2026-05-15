@@ -542,40 +542,40 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
 
 
 
-def build_connectome( input_assignments: str, output_connectome: str, input_weights: str=None, input_tractogram: str=None, input_nodes: str=None, atlas_dist: float=2.0, metric: str='sum', symmetric: bool=False, n_threads: int=None, verbose: int=3, force: bool=False, log_list=None ):
+def build_connectome( input_assignments: str, output_connectome: str, input_weights: str=None, metric: str='sum', symmetric: bool=False, input_tractogram: str=None, input_nodes: str=None, atlas_dist: float=2.0, n_threads: int=None, verbose: int=3, force: bool=False, log_list=None ):
     """Build the (weighted) connectome having the assignments or the tractogram and an atlas.
 
     Parameters
     ----------
-    input_weights : str
-        Scalar file (.txt, .npy) for the input streamline weights.
-
-    input_assignments : str
+    input_assignments : str # to change in assignments_filename
         Path to the file (.txt, .npy) containing the streamline assignments.
-
-    output_connectome : str
-        Path to the file where to store the resulting connectome.
-
-    input_tractogram : str
+        Note: if it does not exist, the assignments file will be created from the given tractogram and atlas.
+    output_connectome : str # to change in out_connectome_filename
+        Path to the file (.csv, .npy) that will contain the resulting connectome.
+    input_weights : str # to change in weights_filename
+        Path to the scalar file (.txt, .npy) containing the streamline weights used to compute the value of the connectome edges.
+        If None, the value of the edges will be number of streamline connecting the corresponding regions.
+    metric : {'sum', 'mean', 'min', 'max'} default='sum' # to change in stat
+        Summary statistic to compute the value of the connectome edges.
+        Note: if no weights are provided, this parameter will be ignored.
+    symmetric : boolean, default=False
+        Make the output connectome symmetric.
+    input_tractogram : str # to change in tractogram_filename
         Path to the file (.tck) containing the streamlines to process.
-
-    input_nodes : str
-        Path to the file containing the gray matter parcellation (nodes of the connectome).
-
-    atlas_dist : float
-        Distance [in mm] used to assign streamlines to the atlas' nodes (default: 2.0).
-
-    metric : str
-        Operation to compute the value of the edges, options: sum, mean, min, max (default: sum).
-
-    symmetric : boolean
-        Make output connectome symmetric (default : False).
-
-    verbose : int
-        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
-
-    force : boolean
-        Force overwriting of the output (default : False).
+        Required if the assignments file does not exist.
+    input_nodes : str # to change in atlas_filename
+        Path to the file (.nii, .nii.gz) containing the labels of the atlas (nodes of the connectome).
+        Required if the assignments file does not exist.
+    atlas_dist : float, default=2.0 # to change in distance
+        Distance [in mm] to consider in the radial search when computing the assignments.
+        Note: this parameter is used only if the assignments file does not exist and needs to be computed from the input tractogram and atlas.
+    n_threads : int, deault=None
+        How many threads to use in parallel for the computations;
+        if not specfied, all available threads will be used.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
+    force : boolean, default=False
+        Force overwriting of the output files.
     """
 
     set_verbose('connectivity', verbose)
