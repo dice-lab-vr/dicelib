@@ -631,9 +631,7 @@ def build_connectome( assignments_filename: str, out_connectome_filename: str, w
             logger.error(f'Number of streamlines in the tractogram ({n_str_tck}) is different from the number of streamline assignments ({n_streamlines})')
 
     # streamline weights
-    if weights_filename is None:
-        w = np.ones( n_streamlines, dtype=np.int32 )
-    else:
+    if weights_filename is not None:
         weights_filename_ext = os.path.splitext(weights_filename)[1]
         if weights_filename_ext=='.txt':
             w = np.loadtxt( weights_filename ).astype(np.float64)
@@ -646,16 +644,16 @@ def build_connectome( assignments_filename: str, out_connectome_filename: str, w
     # stat for edges
     if stat not in ['sum', 'mean', 'min', 'max']:
         logger.error('Invalid type of statistic for the edges. Available options: sum, mean, min, max.')
-    if weights_filename is None:
-        stat = 'sum' # to compute connectome NOS
 
 
     logger.subinfo(f'Streamline assignments: "{assignments_filename}"', indent_char='*', indent_lvl=1)
     if weights_filename is not None:
-        logger.subinfo(f'Chosen statistic to weight the edges: {stat}', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Input weights: "{weights_filename}"', indent_char='*', indent_lvl=1)
+        logger.subinfo(f'Summary statistic to weight the edges: {stat}', indent_char='*', indent_lvl=1)
     else:
         logger.subinfo('No weights provided, the connectome will contain the number of streamlines', indent_char='*', indent_lvl=1)
+        stat = 'sum' # to compute connectome NOS
+        w = np.ones( n_streamlines, dtype=np.int32 )
 
     # create connectome to fill
     if atlas_filename is not None:
@@ -668,9 +666,9 @@ def build_connectome( assignments_filename: str, out_connectome_filename: str, w
         logger.subinfo(f'Number of regions: {n_rois}', indent_char='*', indent_lvl=1)
 
     if stat == 'min':
-        conn = np.triu(np.full((n_rois, n_rois), 1000000000, dtype=np.float64))
+        conn = np.triu(np.full((n_rois, n_rois), np.inf, dtype=np.float64))
     elif stat == 'max':
-        conn = np.triu(np.full((n_rois, n_rois), -1000000000, dtype=np.float64))
+        conn = np.triu(np.full((n_rois, n_rois), -np.inf, dtype=np.float64))
     else:
         conn = np.zeros((n_rois, n_rois), dtype=np.float64)
     conn_nos = np.zeros((n_rois, n_rois), dtype=np.float64)
@@ -700,21 +698,18 @@ def build_connectome( assignments_filename: str, out_connectome_filename: str, w
     if stat == 'mean':
         conn[conn_nos>0] = conn[conn_nos>0]/conn_nos[conn_nos>0]
 
-    conn[conn_nos==0] = 0
+    conn[conn_nos==0] = 0 # update unconnected edges to 0
 
     conn_out_ext = os.path.splitext(out_connectome_filename)[1]
     if symmetric:
-        conn_sym = conn.T + conn
-        np.fill_diagonal(conn_sym,np.diag(conn))
-        if conn_out_ext=='.csv':
-            np.savetxt(out_connectome_filename, conn_sym, delimiter=",")
-        else:
-            np.save(out_connectome_filename, conn_sym, allow_pickle=False)
+        conn_diag = np.diag(conn).copy()
+        conn += conn.T
+        np.fill_diagonal(conn,conn_diag)
+        logger.subinfo('Output connectome will be symmetric', indent_char='*', indent_lvl=1)
+    if conn_out_ext=='.csv':
+        np.savetxt(out_connectome_filename, conn, delimiter=",")
     else:
-        if conn_out_ext=='.csv':
-            np.savetxt(out_connectome_filename, conn, delimiter=",")
-        else:
-            np.save(out_connectome_filename, conn, allow_pickle=False)
+        np.save(out_connectome_filename, conn, allow_pickle=False)
 
     logger.subinfo( f'Output connectome: "{out_connectome_filename}"', indent_char='*', indent_lvl=1)
     t1 = time()
