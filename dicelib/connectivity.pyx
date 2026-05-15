@@ -239,24 +239,21 @@ cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start
     return assignments
 
 
-def compute_connectome_blur(input_tractogram: str, output_connectome: str, weights_in: str, input_nodes: str,
-                            blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25,
-                            blur_gauss_min: float=0.1, offset_thr: float=0.0, symmetric: bool=False, fiber_shift=0,
-                            verbose: int=3, force: bool=False):
+def build_connectome_blur(tractogram_filename: str, out_connectome_filename: str, weights_filename: str, atlas: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, offset_distance: float=0.0, symmetric: bool=False, fiber_shift=0, verbose: int=3, force: bool=False):
     """Build the connectome weighted by COMMITblur (only sum).
 
     Parameters
     ----------
-    input_tractogram : str
+    tractogram_filename : str
         Path to the file (.tck) containing the streamlines to process.
 
-    output_connectome : str
+    out_connectome_filename : str
         Path to the file where to store the resulting connectome.
 
-    weights_in : str
+    weights_filename : str
         Scalar file (.txt, .npy) for the input streamline weights estimated by COMMITblur.
 
-    input_nodes : str
+    atlas : str
         Path to the file containing the gray matter parcellation (nodes of the connectome).
 
     blur_core_extent: float
@@ -272,8 +269,8 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     blur_gauss_min: float
         Minimum value of the Gaussian to consider when computing the sigma (default : 0.1).
 
-    offset_thr: float
-        Quantity added to the threshold used to compute the assignments of the replicas.
+    offset_distance: float
+        Quantity added to the distance used to compute the assignments of the replicas.
         If the input streamlines don't have both ending points inside a GM region, increase this value (default : 0.0).
 
     symmetric : boolean
@@ -297,32 +294,32 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     t0 = time()
 
     # check input tractogram
-    if not os.path.isfile(input_tractogram):
-        logger.error( f'File "{input_tractogram}" not found' )
-    logger.subinfo( f'Input tractogram: "{input_tractogram}"', indent_char='*')
+    if not os.path.isfile(tractogram_filename):
+        logger.error( f'File "{tractogram_filename}" not found' )
+    logger.subinfo( f'Input tractogram: "{tractogram_filename}"', indent_char='*')
 
     # output
-    if os.path.isfile(output_connectome) and not force:
+    if os.path.isfile(out_connectome_filename) and not force:
         logger.error( 'Output connectome already exists, use -f to overwrite' )
-    conn_out_ext = os.path.splitext(output_connectome)[1]
+    conn_out_ext = os.path.splitext(out_connectome_filename)[1]
     if conn_out_ext not in ['.csv', '.npy']:
         logger.error('Invalid extension for the output connectome file')
 
     # streamline weights
-    if not os.path.isfile( weights_in ):
-        logger.error( f'File "{weights_in}" not found' )
-    weights_in_ext = os.path.splitext(weights_in)[1]
-    if weights_in_ext=='.txt':
-        w = np.loadtxt( weights_in ).astype(np.float64)
-    elif weights_in_ext=='.npy':
-        w = np.load( weights_in, allow_pickle=False ).astype(np.float64)
+    if not os.path.isfile( weights_filename ):
+        logger.error( f'File "{weights_filename}" not found' )
+    weights_filename_ext = os.path.splitext(weights_filename)[1]
+    if weights_filename_ext=='.txt':
+        w = np.loadtxt( weights_filename ).astype(np.float64)
+    elif weights_filename_ext=='.npy':
+        w = np.load( weights_filename, allow_pickle=False ).astype(np.float64)
     else:
         logger.error( 'Invalid extension for the weights file' )
 
     # parcellation
-    if not os.path.isfile(input_nodes):
-        logger.error( f'File "{input_nodes}" not found' )
-    logger.subinfo( f'Input parcellation: "{input_nodes}"', indent_char='*')
+    if not os.path.isfile(atlas):
+        logger.error( f'File "{atlas}" not found' )
+    logger.subinfo( f'Input parcellation: "{atlas}"', indent_char='*')
 
     # blur parameters
     if blur_core_extent<0:
@@ -352,14 +349,15 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
         logger.error( '"fiber_shift" must be a scalar or a vector with 3 elements' )
 
     # load parcellation
-    gm_nii = nib.load(input_nodes)
+    gm_nii = nib.load(atlas)
     gm = gm_nii.get_fdata()
     gm_header = gm_nii.header
-    affine = gm_nii.affine
+    # affine = gm_nii.affine
     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm, dtype=np.int32)
-    cdef float [:,::1] inverse = np.ascontiguousarray(np.linalg.inv(affine), dtype=np.float32) #inverse of affine
-    cdef float [::1,:] M = inverse[:3, :3].T
-    cdef float [:] abc = inverse[:3, 3]
+    # cdef float [:,::1] inverse = np.ascontiguousarray(np.linalg.inv(affine), dtype=np.float32) #inverse of affine
+    # cdef float [::1,:] M = inverse[:3, :3].T
+    # cdef float [:] abc = inverse[:3, 3]
+    cdef double [:,::1] affine_inv = np.linalg.inv(gm_nii.affine)
     cdef float [:] voxdims = np.asarray( gm_header.get_zooms(), dtype = np.float32 )
 
     # divide blur parameters by voxelsize bacause we use them in VOX space
@@ -399,13 +397,13 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     # compute the grid of voxels for the radial search
     threshold = core_extent + gauss_extent
     # print(f'thr = {thr}')
-    cdef float thr = threshold + (offset_thr/np.max(voxdims)) # if input streamlines are all connecting but using a radial search
+    cdef float thr = threshold + (offset_distance/np.max(voxdims)) # if input streamlines are all connecting but using a radial search
     grid = compute_grid( thr )
     layers = np.arange( 0,<int> cceil(thr)+1, 1 ) # e.g. layer=[0, 1, 2, 3]
     lato = layers * 2 + 1 # e.g. lato = [0, 3, 5, 7] = layerx2+1
     neighbs = [v**3-1 for v in lato] # e.g. [1, 27, 125, 343] = (lato)**3
     cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
-    thr += 0.005 # to take into accound rounding errors in the distance of the replicas
+    thr += 0.005 # to take into account rounding errors in the distance of the replicas
     # print(f'core+gauss = {core_extent + gauss_extent}')
     logger.subinfo(f'Threshold to use when computing assignments (in VOX space): {thr:.3f}', indent_lvl=1, indent_char='-')
 
@@ -441,7 +439,7 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
     cdef size_t i, j, k = 0
     try:
         # open the input file
-        TCK_in = LazyTractogram( input_tractogram, mode='r' )
+        TCK_in = LazyTractogram( tractogram_filename, mode='r' )
 
         n_streamlines = int( TCK_in.header['count'] )
         logger.subinfo( f'Number of streamlines in input tractogram: {n_streamlines}', indent_char='*')
@@ -484,6 +482,10 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
                     #FIXME: replace 'apply_affine' with 'apply_xform_to_point'
                     # pts_start_vox = apply_affine(pts_start, M, abc, pts_start_tmp) # starting points in voxel space
                     # pts_end_vox   = apply_affine(pts_end,   M, abc, pts_end_tmp)   # ending points in voxel space
+                    apply_xform_to_point( TCK_in.streamline[0,:], affine_inv, pts_start_vox[0,:] )
+                    apply_xform_to_point( TCK_in.streamline[1,:], affine_inv, pts_start_vox[1,:] )
+                    apply_xform_to_point( TCK_in.streamline[TCK_in.n_pts-1,:], affine_inv, pts_end_vox[0,:] )
+                    apply_xform_to_point( TCK_in.streamline[TCK_in.n_pts-2,:], affine_inv, pts_end_vox[1,:] )
 
                     # create replicas of starting and ending points
                     replicas_start = create_replicas(pts_start_vox, blurRho, blurAngle, nReplicas, fiber_shiftX, fiber_shiftY, fiber_shiftZ)
@@ -491,11 +493,13 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
 
                     # compute assignments of the replicas
                     for j in range(nReplicas):
-                        points_mat = np.array([[replicas_start[j][0], replicas_start[j][1], replicas_start[j][2]],
-                                                [replicas_end[j][0], replicas_end[j][1], replicas_end[j][2]]],
-                                                dtype=np.float32)
+                        # points_mat = np.array([[replicas_start[j][0], replicas_start[j][1], replicas_start[j][2]],
+                        #                         [replicas_end[j][0], replicas_end[j][1], replicas_end[j][2]]],
+                        #                         dtype=np.float32)
                         #FIXME: sistemare la call alla funzione
                         # asgn_view[j][:] = streamline_assignment( start_vox, end_vox, roi_ret, points_mat, grid, gm_map, thr, count_neighbours)
+                        asgn_view[j,0] = radial_search( np.array([replicas_start[j][0], replicas_start[j][1], replicas_start[j][2]], dtype=np.float32), gm_map, thr, grid, count_neighbours )
+                        asgn_view[j,1] = radial_search( np.array([replicas_end[j][0], replicas_end[j][1], replicas_end[j][2]], dtype=np.float32), gm_map, thr, grid, count_neighbours )
 
                     zeros_count += (asgn.size - np.count_nonzero(asgn))
 
@@ -528,15 +532,15 @@ def compute_connectome_blur(input_tractogram: str, output_connectome: str, weigh
             conn_sym = conn.T + conn
             np.fill_diagonal(conn_sym,np.diag(conn))
             if conn_out_ext=='.csv':
-                np.savetxt(output_connectome, conn_sym, delimiter=",")
+                np.savetxt(out_connectome_filename, conn_sym, delimiter=",")
             else:
-                np.save(output_connectome, conn_sym, allow_pickle=False)
+                np.save(out_connectome_filename, conn_sym, allow_pickle=False)
         else:
             if conn_out_ext=='.csv':
-                np.savetxt(output_connectome, conn, delimiter=",")
+                np.savetxt(out_connectome_filename, conn, delimiter=",")
             else:
-                np.save(output_connectome, conn, allow_pickle=False)
-    logger.subinfo( f'Output connectome: "{output_connectome}"', indent_char='*')
+                np.save(out_connectome_filename, conn, allow_pickle=False)
+    logger.subinfo( f'Output connectome: "{out_connectome_filename}"', indent_char='*')
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
@@ -590,7 +594,7 @@ def build_connectome( assignments_filename: str, out_connectome_filename: str, w
     if os.path.isfile(assignments_filename):
         files.append(File(name='assignments_filename', type_='input', path=assignments_filename, ext=['.txt', '.npy']))
     else:
-        # check input tractogram and parcellation
+        # check input tractogram and atlas
         if tractogram_filename is None:
             logger.error(f'Tractogram file not provided. Required if the assignments does not exist.')
         if atlas_filename is None:
