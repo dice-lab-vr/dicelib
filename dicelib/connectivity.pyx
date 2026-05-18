@@ -330,6 +330,8 @@ def build_connectome_blur(tractogram_filename: str, out_connectome_filename: str
         logger.error( '"blur_spacing" must be > 0' )
     if blur_gauss_min<=0:
         logger.error( '"blur_gauss_min" must be > 0' )
+    if blur_core_extent==0 and blur_gauss_extent==0:
+        logger.error( 'No blur applied because both "blur_core_extent" and "blur_gauss_extent" are set to 0, use the standard connectivity computation instead' )
     logger.subinfo( 'Blur parameters:', indent_char='*')
     logger.subinfo( f'blur_core_extent:  {blur_core_extent}', indent_lvl=1, indent_char='-')
     logger.subinfo( f'blur_gauss_extent: {blur_gauss_extent}', indent_lvl=1, indent_char='-')
@@ -351,14 +353,9 @@ def build_connectome_blur(tractogram_filename: str, out_connectome_filename: str
     # load parcellation
     gm_nii = nib.load(atlas)
     gm = gm_nii.get_fdata()
-    gm_header = gm_nii.header
-    # affine = gm_nii.affine
     cdef int [:,:,::1] gm_map = np.ascontiguousarray(gm, dtype=np.int32)
-    # cdef float [:,::1] inverse = np.ascontiguousarray(np.linalg.inv(affine), dtype=np.float32) #inverse of affine
-    # cdef float [::1,:] M = inverse[:3, :3].T
-    # cdef float [:] abc = inverse[:3, 3]
     cdef double [:,::1] affine_inv = np.linalg.inv(gm_nii.affine)
-    cdef float [:] voxdims = np.asarray( gm_header.get_zooms(), dtype = np.float32 )
+    cdef float [:] voxdims = np.asarray( gm_nii.header.get_zooms(), dtype = np.float32 )
 
     # divide blur parameters by voxelsize bacause we use them in VOX space
     core_extent  = blur_core_extent/np.max(voxdims)
@@ -396,7 +393,6 @@ def build_connectome_blur(tractogram_filename: str, out_connectome_filename: str
 
     # compute the grid of voxels for the radial search
     threshold = core_extent + gauss_extent
-    # print(f'thr = {thr}')
     cdef float thr = threshold + (offset_distance/np.max(voxdims)) # if input streamlines are all connecting but using a radial search
     grid = compute_grid( thr )
     layers = np.arange( 0,<int> cceil(thr)+1, 1 ) # e.g. layer=[0, 1, 2, 3]
@@ -404,31 +400,18 @@ def build_connectome_blur(tractogram_filename: str, out_connectome_filename: str
     neighbs = [v**3-1 for v in lato] # e.g. [1, 27, 125, 343] = (lato)**3
     cdef int[:] count_neighbours = np.array(neighbs, dtype=np.int32)
     thr += 0.005 # to take into account rounding errors in the distance of the replicas
-    # print(f'core+gauss = {core_extent + gauss_extent}')
     logger.subinfo(f'Threshold to use when computing assignments (in VOX space): {thr:.3f}', indent_lvl=1, indent_char='-')
 
     # variables for transformations
-    cdef float [:,::1] pts_start = np.zeros((2,3), dtype=np.float32)
-    cdef float [:,::1] pts_end   = np.zeros((2,3), dtype=np.float32)
-    cdef float *ptr
-    cdef float *ptr_end
-    cdef float [:,::1] pts_start_tmp = np.zeros((2,3), dtype=np.float32)
-    cdef float [:,::1] pts_end_tmp   = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] pts_start_vox = np.zeros((2,3), dtype=np.float32)
     cdef float [:,::1] pts_end_vox   = np.zeros((2,3), dtype=np.float32)
-
     # variables for replicas creation
     cdef float [:,::1] replicas_start = np.zeros((3,nReplicas), dtype=np.float32)
     cdef float [:,::1] replicas_end   = np.zeros((nReplicas,3), dtype=np.float32)
     cdef double [:] blurWeights_norm  = blurWeights/np.sum(blurWeights) # normalize in order to have sum = 1
-
     # variables for assignments
     asgn = np.zeros( (nReplicas, 2), dtype=np.int32 )
     cdef int[:,:] asgn_view = asgn
-    cdef int [:] start_vox = np.zeros(3, dtype=np.int32)
-    cdef int [:] end_vox   = np.zeros(3, dtype=np.int32)
-    cdef int [:] roi_ret   = np.array([0,0], dtype=np.int32)
-    cdef float [:,::1] points_mat = np.zeros( (2,3), dtype=np.float32)
 
     # create connectome to fill
     n_rois = np.max(gm).astype(np.int32)
@@ -500,17 +483,14 @@ def build_connectome_blur(tractogram_filename: str, out_connectome_filename: str
         if TCK_in is not None:
             TCK_in.close()
         if symmetric:
-            conn_sym = conn.T + conn
-            np.fill_diagonal(conn_sym,np.diag(conn))
-            if conn_out_ext=='.csv':
-                np.savetxt(out_connectome_filename, conn_sym, delimiter=",")
-            else:
-                np.save(out_connectome_filename, conn_sym, allow_pickle=False)
+            conn_diag = np.diag(conn).copy()
+            conn += conn.T
+            np.fill_diagonal(conn,conn_diag)
+            logger.subinfo('Output connectome will be symmetric', indent_char='*', indent_lvl=1)
+        if conn_out_ext=='.csv':
+            np.savetxt(out_connectome_filename, conn, delimiter=",")
         else:
-            if conn_out_ext=='.csv':
-                np.savetxt(out_connectome_filename, conn, delimiter=",")
-            else:
-                np.save(out_connectome_filename, conn, allow_pickle=False)
+            np.save(out_connectome_filename, conn, allow_pickle=False)
     logger.subinfo( f'Output connectome: "{out_connectome_filename}"', indent_char='*')
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
