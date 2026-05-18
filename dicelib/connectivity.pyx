@@ -457,31 +457,7 @@ def build_connectome_blur(tractogram_filename: str, out_connectome_filename: str
                     break # no more data, stop reading
 
                 if w[i]>0:
-                    # retrieve the coordinates of 2 points at each end
-                    ptr = &TCK_in.streamline[0,0]
-                    #first
-                    pts_start[0,0]=ptr[0]
-                    pts_start[0,1]=ptr[1]
-                    pts_start[0,2]=ptr[2]
-                    # second
-                    pts_start[1,0]=ptr[3]
-                    pts_start[1,1]=ptr[4]
-                    pts_start[1,2]=ptr[5]
-
-                    ptr_end = ptr+TCK_in.n_pts*3-3*2
-                    # second-to-last
-                    pts_end[1,0]=ptr_end[0]
-                    pts_end[1,1]=ptr_end[1]
-                    pts_end[1,2]=ptr_end[2]
-                    # last
-                    pts_end[0,0]=ptr_end[3]
-                    pts_end[0,1]=ptr_end[4]
-                    pts_end[0,2]=ptr_end[5]
-
                     # change space to VOX
-                    #FIXME: replace 'apply_affine' with 'apply_xform_to_point'
-                    # pts_start_vox = apply_affine(pts_start, M, abc, pts_start_tmp) # starting points in voxel space
-                    # pts_end_vox   = apply_affine(pts_end,   M, abc, pts_end_tmp)   # ending points in voxel space
                     apply_xform_to_point( TCK_in.streamline[0,:], affine_inv, pts_start_vox[0,:] )
                     apply_xform_to_point( TCK_in.streamline[1,:], affine_inv, pts_start_vox[1,:] )
                     apply_xform_to_point( TCK_in.streamline[TCK_in.n_pts-1,:], affine_inv, pts_end_vox[0,:] )
@@ -493,11 +469,6 @@ def build_connectome_blur(tractogram_filename: str, out_connectome_filename: str
 
                     # compute assignments of the replicas
                     for j in range(nReplicas):
-                        # points_mat = np.array([[replicas_start[j][0], replicas_start[j][1], replicas_start[j][2]],
-                        #                         [replicas_end[j][0], replicas_end[j][1], replicas_end[j][2]]],
-                        #                         dtype=np.float32)
-                        #FIXME: sistemare la call alla funzione
-                        # asgn_view[j][:] = streamline_assignment( start_vox, end_vox, roi_ret, points_mat, grid, gm_map, thr, count_neighbours)
                         asgn_view[j,0] = radial_search( np.array([replicas_start[j][0], replicas_start[j][1], replicas_start[j][2]], dtype=np.float32), gm_map, thr, grid, count_neighbours )
                         asgn_view[j,1] = radial_search( np.array([replicas_end[j][0], replicas_end[j][1], replicas_end[j][2]], dtype=np.float32), gm_map, thr, grid, count_neighbours )
 
