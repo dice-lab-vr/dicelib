@@ -2581,7 +2581,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                     if TCK_in.n_pts==0:
                         break # no more data, stop reading
                     if TCK_in.n_pts>10000:
-                        logger.error( 'The streamline {i} contains too many points ({TCK_in.n_pts})' )
+                        logger.error( f'The streamline {i} contains too many points ({TCK_in.n_pts})' )
 
                     trim_offset = <int>round((TCK_in.n_pts-1)*trim) # skip 'trim' percent of segments
                     if TCK_in.n_pts - trim_offset*2 <=0 :
