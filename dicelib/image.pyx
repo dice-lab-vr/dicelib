@@ -330,7 +330,7 @@ def segmentGmPolar( image_filename: str, output_filename: str, n_regions: int=85
         Intensity threshold in [0, 1] used to binarize the input image;
         only voxels with value strictly greater than this threshold are selected.
     seed : int, optional
-        Seed used to make the random rotation reproducible (default : None).
+        Seed used to make the random rotation reproducible.
     verbose : int
         What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
     force : boolean

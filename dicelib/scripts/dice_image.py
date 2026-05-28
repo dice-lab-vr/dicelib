@@ -69,11 +69,11 @@ def image_segmentGmPolar():
     from dicelib.image import segmentGmPolar
     summary, desc, notes = get_argparse_info_from_docstring( segmentGmPolar.__doc__  )
     args = [
-        [["image_filename"], {"help": "Input image"}],
-        [["output_filename"], {"help": "Output image"}],
-        [["--n_regions", "-r"], {"type": int, "default": 85, "help": "Number of regions created"}],
-        [["--threshold", "-t"], {"type": float, "default": 0.0, "help": "Threshold in [0, 1] used to binarize the input image"}],
-        [["--seed", "-s"], {"type": int, "default": None, "help": "Seed used to make the random rotation reproducible"}]
+        [['image_filename'], {'type': str, 'help': desc['image_filename'] }],
+        [['output_filename'], {'type': str, 'help': desc['output_filename'] }],
+        [['--n_regions', '-r'], {'type': int, 'default': 85, 'help': desc['n_regions'] }],
+        [['--threshold', '-t'], {'type': float, 'default': 0.0, 'help': desc['threshold'] }],
+        [['--seed', '-s'], {'type': int, 'default': None, 'help': desc['seed'] }]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:

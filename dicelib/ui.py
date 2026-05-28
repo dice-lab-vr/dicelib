@@ -817,7 +817,7 @@ class ArgumentParser(argparse.ArgumentParser):
         # parse the arguments and exit if there are any errors
         if self.exit_on_error:
             try:
-                namespace, args = self._parse_known_args(args, namespace) if sys.version_info < (3, 12) else self._parse_known_args(args, namespace, intermixed)
+                namespace, args = self._parse_known_args(args, namespace) if sys.version_info < (3, 12) or not intermixed else self._parse_known_intermixed_args(args, namespace)
             except argparse.ArgumentError as err:
                 # self.error(str(err))
                 if logger is not None:
@@ -825,7 +825,7 @@ class ArgumentParser(argparse.ArgumentParser):
                 else:
                     self.error(str(err))
         else:
-            namespace, args = self._parse_known_args(args, namespace) if sys.version_info < (3, 12) else self._parse_known_args(args, namespace, intermixed)
+            namespace, args = self._parse_known_args(args, namespace) if sys.version_info < (3, 12) or not intermixed else self._parse_known_intermixed_args(args, namespace)
 
         if hasattr(namespace, argparse._UNRECOGNIZED_ARGS_ATTR):
             args.extend(getattr(namespace, argparse._UNRECOGNIZED_ARGS_ATTR))
