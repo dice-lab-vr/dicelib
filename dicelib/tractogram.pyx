@@ -1532,9 +1532,9 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
             point[0] = point[0] + vers_x * step
             point[1] = point[1] + vers_y * step
             point[2] = point[2] + vers_z * step
-            coord_x = <int>point[0]
-            coord_y = <int>point[1]
-            coord_z = <int>point[2]
+            coord_x = <int>round(point[0])
+            coord_y = <int>round(point[1])
+            coord_z = <int>round(point[2])
             if coord_x < 0 or coord_y < 0 or coord_z < 0 or coord_x >= size_x or coord_y >= size_y or coord_z >= size_z: # check if I'll moved outside the image space
                 break
             if gm[coord_x,coord_y,coord_z] > 0: # I moved in the GM
@@ -1627,30 +1627,38 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
 
                 fib = np.asarray(TCK_in.streamline)
                 fib = fib[:TCK_in.n_pts, :]
-                for n in xrange(3): # move first 3 point at each end
-                    fib[n,:] = apply_xform_to_point(fib[n,:], affine_inv, moved_pt)
-                    fib[idx_last-n,:] = apply_xform_to_point( fib[idx_last-n,:], affine_inv, moved_pt)
-                fib+=0.5 # move to center
+                for n in xrange(3): # move first 3 points of the streamline
+                    apply_xform_to_point(fib[n,:], affine_inv, moved_pt)
+                    fib[n,0] = moved_pt[0]
+                    fib[n,1] = moved_pt[1]
+                    fib[n,2] = moved_pt[2]
+                for n in xrange(3): # move ending 3 points of the streamline
+                    apply_xform_to_point( fib[idx_last-n,:], affine_inv, moved_pt)
+                    fib[idx_last-n,0] = moved_pt[0]
+                    fib[idx_last-n,1] = moved_pt[1]
+                    fib[idx_last-n,2] = moved_pt[2]
 
                 ok_both  = np.zeros(2, dtype=np.int32)
                 del_both = np.zeros(2, dtype=np.int32)
 
                 for extremity in xrange(2):
                     if extremity == 0:
-                        coord_x = <int>fib[0,0]
-                        coord_y = <int>fib[0,1]
-                        coord_z = <int>fib[0,2]
+                        coord_x = <int>round(fib[0,0])
+                        coord_y = <int>round(fib[0,1])
+                        coord_z = <int>round(fib[0,2])
+
                         pt_0  = fib[0,:]
                         pt_1  = fib[1,:]
                         pt_2  = fib[2,:]
                     else:
-                        coord_x = <int>fib[idx_last,0]
-                        coord_y = <int>fib[idx_last,1]
-                        coord_z = <int>fib[idx_last,2]
+                        coord_x = <int>round(fib[idx_last,0])
+                        coord_y = <int>round(fib[idx_last,1])
+                        coord_z = <int>round(fib[idx_last,2])
+
                         pt_0  = fib[idx_last,:]
                         pt_1  = fib[idx_last-1,:]
                         pt_2  = fib[idx_last-2,:]
-
+                    
                     if gm[coord_x,coord_y,coord_z]==0: # starting point is outside gm
                         if wm[coord_x,coord_y,coord_z]==1: # starting point is inside wm
                             vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_0, pt_1)
@@ -1662,23 +1670,23 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                         if ok_both[extremity] == False: # I used all the possible chances following the direct direction but I have not reached the GM or I stepped outside the image space
                             vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_1, pt_0)
                             tmp = pt_0.copy() # changing starting point, flipped
-                            chances_f = <int>( sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step )
+                            chances_f = <int>round( sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step )
                             if chances_f < chances:
                                 ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances_f, gm)
                             else:
                                 ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances, gm)
                             if ok_both[extremity]:
-                                    if extremity==0: fib[0,:] = tmp.copy()
-                                    else: fib[idx_last,:] = tmp.copy()
+                                if extremity==0: fib[0,:] = tmp.copy()
+                                else: fib[idx_last,:] = tmp.copy()
                         if ok_both[extremity] == False: # starting point is outside wm
                             if extremity==0:  # coordinates of second point
-                                coord_x = <int>fib[1,0]
-                                coord_y = <int>fib[1,1]
-                                coord_z = <int>fib[1,2]
+                                coord_x = <int>round(fib[1,0])
+                                coord_y = <int>round(fib[1,1])
+                                coord_z = <int>round(fib[1,2])
                             else: # coordinates of second-to-last point
-                                coord_x = <int>fib[idx_last-1,0]
-                                coord_y = <int>fib[idx_last-1,1]
-                                coord_z = <int>fib[idx_last-1,2]
+                                coord_x = <int>round(fib[idx_last-1,0])
+                                coord_y = <int>round(fib[idx_last-1,1])
+                                coord_z = <int>round(fib[idx_last-1,2])
                             if gm[coord_x,coord_y,coord_z]>0: # second point is inside gm => delete first point
                                 ok_both[extremity] = True
                             else: # second point is outside gm
@@ -1687,19 +1695,19 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                                     tmp = pt_1.copy() # changing starting point, direct
                                     ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances, gm)
                                     if ok_both[extremity]:
-                                            if extremity==0: fib[1,:] = tmp.copy()
-                                            else: fib[idx_last-1,:] = tmp.copy()
+                                        if extremity==0: fib[1,:] = tmp.copy()
+                                        else: fib[idx_last-1,:] = tmp.copy()
                                 else:
                                     vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_2, pt_0)
                                     tmp = pt_1.copy() # changing starting point, flipped
-                                    chances_f = <int>( sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step )
+                                    chances_f = <int>round( sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step )
                                     if chances_f < chances:
                                         ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances_f, gm)
                                     else:
                                         ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances, gm)
                                     if ok_both[extremity]:
-                                            if extremity==0: fib[1,:] = tmp.copy()
-                                            else: fib[idx_last-1,:] = tmp.copy()
+                                        if extremity==0: fib[1,:] = tmp.copy()
+                                        else: fib[idx_last-1,:] = tmp.copy()
                             if ok_both[extremity]: # delete first/last point because the second one reaches/is inside GM
                                 if extremity==0: fib = np.delete(fib, 0, axis=0)
                                 else: fib = np.delete(fib, -1, axis=0)
@@ -1708,17 +1716,6 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                                 del_both[extremity] = True
                     else: # starting point is inside gm
                         ok_both[extremity] = True
-
-
-                # bring points back to original space
-                fib=fib-0.5 # move back to corner
-                for n in xrange(2):
-                    fib[n,:] = apply_xform_to_point( fib[n,:], affine, moved_pt)
-                    fib[idx_last-n,:] = apply_xform_to_point( fib[idx_last-n,:], affine, moved_pt)
-                if del_both[0] == False:
-                    fib[2,:] = apply_xform_to_point( fib[2,:], affine, moved_pt)
-                if del_both[1] == False:
-                    fib[idx_last-2,:] = apply_xform_to_point( fib[idx_last-2,:], affine, moved_pt)
 
                 TCK_out.write_streamline( fib, n_pts_out )
                 n_tot += 1
