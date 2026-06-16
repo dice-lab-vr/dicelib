@@ -10,6 +10,8 @@
 ### 🛠️Changed
 - Minor modifications towards an alignment in the way voxel coordinates are computed
 - Documentation of entry-point scripts is automatically taken from docstrings of corresponding functions
+- Renamed spline smoothing functions
+- Added smoothing with Savitzky–Golay filter
 
 ---
 ---
