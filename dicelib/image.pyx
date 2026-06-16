@@ -313,12 +313,12 @@ def tdi_ends(input_tractogram: str, input_ref: str, output_image: str, blur_core
 
 
 def segmentGmPolar( image_filename: str, output_filename: str, n_regions: int=85, threshold: float=0.0, seed: int=None, verbose: int=3, force: bool=False ):
-    """Segment a gm mask into equally spaced homogeneous geometrical regions using the Fibonacci sphere algorithm.
+    """Segment a gray matter mask into equally spaced homogeneous geometrical regions using the Fibonacci sphere algorithm.
 
     Parameters
     ----------
     image_filename : str
-        Path to the file (.nii.gz) containing the gm mask to segment.
+        Path to the file (.nii.gz) containing the GM mask to segment.
         If the max intensity of the image is less or equal to 1 it's assumed a range of [0, 1]
         If and less or equal to 255 it's assumed a range of [0, 255]
         Non-binary masks get binarized using a threshold.
