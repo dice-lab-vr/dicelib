@@ -309,3 +309,150 @@ def tdi_ends(input_tractogram: str, input_ref: str, output_image: str, blur_core
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
+
+
+
+def segmentGmPolar( image_filename: str, output_filename: str, n_regions: int=85, threshold: float=0.0, seed: int=None, verbose: int=3, force: bool=False ):
+    """Segment a gray matter mask into equally spaced homogeneous geometrical regions using the Fibonacci sphere algorithm.
+
+    Parameters
+    ----------
+    image_filename : str
+        Path to the file (.nii.gz) containing the GM mask to segment.
+        If the max intensity of the image is less or equal to 1 it's assumed a range of [0, 1]
+        If and less or equal to 255 it's assumed a range of [0, 255]
+        Non-binary masks get binarized using a threshold.
+    output_filename : str
+        Path to the file (.nii.gz) where to store the resulting segmentation.
+    n_regions : int
+        Number of regions created.
+    threshold : float
+        Intensity threshold in [0, 1] used to binarize the input image;
+        only voxels with value strictly greater than this threshold are selected.
+    seed : int, optional
+        Seed used to make the random rotation reproducible.
+    verbose : int
+        What information to print, must be in [0...4] as defined in ui.set_verbose() (default : 3).
+    force : boolean
+        Force overwriting of the output (default : False).
+    """
+    t0 = time()
+    set_verbose('image', verbose)
+    logger.info( 'Segmenting image in polar regions' )
+
+    files = [
+        File(name='image_filename', type_='input', path=image_filename, ext=['.nii', '.nii.gz']),
+        File(name='output_filename', type_='output', path=output_filename, ext=['.nii', '.nii.gz'])
+    ]
+    nums = [
+        Num(name='n_regions', value=n_regions, min_=1, max_=1000),
+        Num(name='threshold', value=threshold, min_=0.0, max_=1.0)
+    ]
+    if seed is not None:
+        nums.append(Num(name='seed', value=seed, min_=0))
+    check_params(files=files, nums=nums, force=force)
+
+    logger.subinfo( f'Input image: "{image_filename}"', indent_char='*')
+    logger.subinfo( f'Output image: "{output_filename}"', indent_char='*')
+    logger.subinfo( f'Number of regions: {n_regions}', indent_char='*')
+    logger.subinfo( f'Threshold: {threshold}', indent_char='*')
+    if seed is None:
+        logger.subinfo( 'Random orientation: enabled', indent_char='*')
+    else:
+        logger.subinfo( f'Random orientation seed: {seed}', indent_char='*')
+
+    try:
+        # load input image
+        image_nii = nib.load( image_filename )
+        image_data = image_nii.get_fdata()
+        if image_data.ndim != 3:
+            logger.error('Input image is not 3D')
+
+        image_max = np.max(image_data)
+        if image_max > 255.0:
+            logger.error('Input image intensity range is invalid: found values greater than 255')
+        elif image_max > 1.0:
+            logger.subinfo( 'Detected intensity range: [0, 255]', indent_char='*')
+            image_data = image_data / 255.0
+            logger.subinfo( 'Input image scaled to [0, 1]', indent_char='*')
+        else:
+            logger.subinfo( 'Detected intensity range: [0, 1]', indent_char='*')
+
+        # compute the center of mass of thresholded voxels
+        mask = image_data > threshold
+        z_idx, y_idx, x_idx = np.where( mask )
+        if x_idx.size == 0:
+            logger.error('Input image does not contain voxels above threshold')
+        logger.subinfo( f'Voxels above threshold: {x_idx.size}', indent_char='*')
+
+        x_center = int( np.mean(x_idx) )
+        y_center = int( np.mean(y_idx) )
+        z_center = int( np.mean(z_idx) )
+        logger.subinfo( f'Center of mass: ({x_center}, {y_center}, {z_center})', indent_char='*')
+
+        # express coordinates relative to the center of mass
+        dx = x_idx - x_center
+        dy = y_idx - y_center
+        dz = z_idx - z_center
+
+        # compute unit direction vectors
+        radius = np.sqrt( dx**2 + dy**2 + dz**2 )
+        radius[radius == 0] = 1e-6
+        directions = np.column_stack( (dx / radius, dy / radius, dz / radius) )
+
+        # compute reference points using the Fibonacci sphere algorithm
+        indices = np.arange( n_regions, dtype=float )
+        golden_angle = np.pi * (3.0 - np.sqrt(5.0))
+        fib_y = 1.0 - 2.0 * (indices + 0.5) / n_regions
+        radius = np.sqrt(1.0 - fib_y * fib_y) # radius of the latitude parallel
+        theta = indices * golden_angle # longitude
+        fib_x = radius * np.cos(theta)
+        fib_z = radius * np.sin(theta)
+        fib_points = np.column_stack((fib_x, fib_y, fib_z))
+
+        # randomize the orientation of the regions
+        rng = np.random.default_rng(seed)
+        alpha = rng.uniform(0.0, 2.0 * np.pi)
+        beta  = rng.uniform(0.0, 2.0 * np.pi)
+        gamma = rng.uniform(0.0, 2.0 * np.pi)
+        cos_a, sin_a = np.cos(alpha), np.sin(alpha)
+        cos_b, sin_b = np.cos(beta), np.sin(beta)
+        cos_g, sin_g = np.cos(gamma), np.sin(gamma)
+        rotation_x = np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, cos_a, -sin_a],
+            [0.0, sin_a,  cos_a]
+        ])
+        rotation_y = np.array([
+            [ cos_b, 0.0, sin_b],
+            [0.0, 1.0, 0.0],
+            [-sin_b, 0.0, cos_b]
+        ])
+        rotation_z = np.array([
+            [cos_g, -sin_g, 0.0],
+            [sin_g,  cos_g, 0.0],
+            [0.0, 0.0, 1.0]
+        ])
+        rotation_matrix = rotation_z @ rotation_y @ rotation_x
+        logger.subinfo( 'Random orientation matrix computed', indent_char='*')
+        rotated_fib_points = fib_points @ rotation_matrix.T
+
+        # assign every non-zero voxel to the nearest reference point
+        similarity = directions @ rotated_fib_points.T
+        labels_idx = np.argmax(similarity, axis=1) + 1
+        labels_data = np.zeros_like(image_data, dtype=np.uint16)
+        labels_data[z_idx, y_idx, x_idx] = labels_idx
+
+        # save output image
+        output_nii = nib.Nifti1Image(labels_data, image_nii.affine)
+        output_nii.to_filename(output_filename)
+        logger.subinfo( f'Output image: "{output_filename}"', indent_char='*')
+
+    except Exception as e:
+        if os.path.isfile( output_filename ):
+            os.remove( output_filename )
+        logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
+
+    finally:
+        t1 = time()
+        logger.info( f'[ {format_time(t1 - t0)} ]' )

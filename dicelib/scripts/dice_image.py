@@ -1,5 +1,7 @@
 from dicelib.image import extract, tdi_ends
-from dicelib.ui import setup_parser
+from dicelib.ui import setup_logger, setup_parser, get_argparse_info_from_docstring
+logger = setup_logger('dice_image')
+
 
 def image_extract():
     '''
@@ -28,6 +30,31 @@ def image_extract():
         options.force
     )
 
+def image_segmentGmPolar():
+    '''Entry point for the image GM polar segmentation function'''
+    from dicelib.image import segmentGmPolar
+    summary, desc, notes = get_argparse_info_from_docstring( segmentGmPolar.__doc__  )
+    args = [
+        [['image_filename'], {'type': str, 'help': desc['image_filename'] }],
+        [['output_filename'], {'type': str, 'help': desc['output_filename'] }],
+        [['--n_regions', '-r'], {'type': int, 'default': 85, 'help': desc['n_regions'] }],
+        [['--threshold', '-t'], {'type': float, 'default': 0.0, 'help': desc['threshold'] }],
+        [['--seed', '-s'], {'type': int, 'default': None, 'help': desc['seed'] }]
+    ]
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        segmentGmPolar(
+            image_filename=options.image_filename,
+            output_filename=options.output_filename,
+            n_regions=options.n_regions,
+            threshold=options.threshold,
+            seed=options.seed,
+            verbose=options.verbose,
+            force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
 # def image_tdi_ends():
 #     '''
 #     Entry point for the tdi of ending points (with blur) function.
@@ -42,7 +69,7 @@ def image_extract():
 #         [["--blur_spacing", "-spacing"], {"type": float, "default": 0.25, "help": "Spacing for blurring (in mm)"}],
 #         [["--blur_gauss_min", "-min"], {"type": float, "default": 0.1, "help": "Minimum Gaussian value for blurring (in mm)"}],
 #         [["--fiber_shift", "-shift"], {"type": float, "default": 0.0, "help": '''\
-#                                        If necessary, shift the streamline coordinates by this amount.
+#                                        If necessary, shift the streamline coordinates by this amount. 
 #                                        Either a single value or a list of three values.
 #                                        The value is specified in voxel units, e.g., 0.5 translates by half voxel.'''}]
 #     ]
@@ -50,14 +77,14 @@ def image_extract():
 
 #     # call actual function
 #     tdi_ends(
-#         options.input_tractogram,
-#         options.input_ref,
-#         options.output_image,
+#         options.input_tractogram, 
+#         options.input_ref, 
+#         options.output_image, 
 #         options.blur_core_extent,
 #         options.blur_gauss_extent,
 #         options.blur_spacing,
 #         options.blur_gauss_min,
-#         options.fiber_shift,
+#         options.fiber_shift, 
 #         options.verbose,
 #         options.force
 #     )

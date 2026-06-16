@@ -6,6 +6,8 @@
 - Added function to compute streamline coherence with underlying FOD  (`dice_tractogram_coherence` script)
 - Added function to compute TDI maps  (`dice_tractogram_tdi` script)
 - Added support for handling additional TSF files when joining and filtering tractograms
+- Added function to segment a GM mask into equally spaced geometrical regions (`dice_image_segmentGmPolar` script)
+
 
 ### 🛠️Changed
 - Minor modifications towards an alignment in the way voxel coordinates are computed
