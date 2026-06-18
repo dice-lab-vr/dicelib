@@ -8,8 +8,8 @@ from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
-from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, resample as s_resample, set_number_of_points, smooth, create_streamline_replicas
-from dicelib.streamline cimport apply_affine_1pt
+from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, set_number_of_points, smooth, create_streamline_replicas
+from dicelib.streamline cimport apply_xform_to_point
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 from dicelib.connectivity import assign
@@ -371,40 +371,6 @@ cdef class LazyTractogram:
 
 
 #---------------------------------------  FUNCTIONS  ---------------------------------------
-cpdef compute_vect_vers(float [:] p0, float[:] p1):
-    cdef float vec_x, vec_y, vec_z = 0
-    cdef float ver_x, ver_y, ver_z = 0
-    cdef size_t ax = 0
-    vec_x = p0[0] - p1[0]
-    vec_y = p0[1] - p1[1]
-    vec_z = p0[2] - p1[2]
-    cdef float s = sqrt( vec_x**2 + vec_y**2 + vec_z**2 )
-    ver_x = vec_x / s
-    ver_y = vec_y / s
-    ver_z = vec_z / s
-    return vec_x, vec_y, vec_z, ver_x, ver_y, ver_z
-
-
-cpdef move_point_to_gm(float[:] point, float vers_x, float vers_y, float vers_z, float step, int chances, int[:,:,::1] gm):
-    cdef bint ok = False
-    size_x, size_y, size_z = gm.shape[:3]
-    cdef size_t c, a = 0
-    cdef int coord_x, coord_y, coord_z = 0
-    for c in xrange(chances):
-        point[0] = point[0] + vers_x * step
-        point[1] = point[1] + vers_y * step
-        point[2] = point[2] + vers_z * step
-        coord_x = <int>point[0]
-        coord_y = <int>point[1]
-        coord_z = <int>point[2]
-        if coord_x < 0 or coord_y < 0 or coord_z < 0 or coord_x >= size_x or coord_y >= size_y or coord_z >= size_z: # check if I'll moved outside the image space
-            break
-        if gm[coord_x,coord_y,coord_z] > 0: # I moved in the GM
-            ok = True
-            break
-    return ok, point
-
-
 def compute_lengths( tractogram_filename: str, out_scalars_filename: str=None, force: bool=False , verbose: int=3 ) -> np.ndarray:
     """Compute the lengths [in mm] of each streamline in a tractogram.
 
@@ -1286,7 +1252,7 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
         Path to the tractogram (.tck) that will contain the sorted streamlines. If not specified,
         the output file will be created by appending '_sorted' to the input filename.
     distance : float, default=2.0
-        Distance [in voxels] to consider in the radial search when computing the assignments.
+        Distance [in mm] to consider in the radial search when computing the assignments.
     scalars_filename : str, optional
         Path to the file (.txt, .npy) containing one scalar for each input streamline.
     out_scalars_filename : str, optional
@@ -1543,6 +1509,40 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
     verbose : int, default=3
         What information to print, must be in [0...4] as defined in ui.set_verbose().
      """
+    def compute_vect_vers(float [:] p0, float[:] p1):
+        cdef float vec_x, vec_y, vec_z = 0
+        cdef float ver_x, ver_y, ver_z = 0
+        cdef size_t ax = 0
+        vec_x = p0[0] - p1[0]
+        vec_y = p0[1] - p1[1]
+        vec_z = p0[2] - p1[2]
+        cdef float s = sqrt( vec_x**2 + vec_y**2 + vec_z**2 )
+        ver_x = vec_x / s
+        ver_y = vec_y / s
+        ver_z = vec_z / s
+        return vec_x, vec_y, vec_z, ver_x, ver_y, ver_z
+
+
+    def move_point_to_gm(float[:] point, float vers_x, float vers_y, float vers_z, float step, int chances, int[:,:,::1] gm):
+        cdef bint ok = False
+        size_x, size_y, size_z = gm.shape[:3]
+        cdef size_t c, a = 0
+        cdef int coord_x, coord_y, coord_z = 0
+        for c in xrange(chances):
+            point[0] = point[0] + vers_x * step
+            point[1] = point[1] + vers_y * step
+            point[2] = point[2] + vers_z * step
+            coord_x = <int>round(point[0])
+            coord_y = <int>round(point[1])
+            coord_z = <int>round(point[2])
+            if coord_x < 0 or coord_y < 0 or coord_z < 0 or coord_x >= size_x or coord_y >= size_y or coord_z >= size_z: # check if I'll moved outside the image space
+                break
+            if gm[coord_x,coord_y,coord_z] > 0: # I moved in the GM
+                ok = True
+                break
+        return ok, point
+
+
     t0 = time()
     set_verbose('tractogram', verbose)
     logger.info('Sanitizing streamlines')
@@ -1599,7 +1599,7 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
     cdef bint[:] ok_both  = np.zeros(2, dtype=np.int32) # in GM with starting (0) / ending (1) point?
     cdef bint[:] del_both = np.zeros(2, dtype=np.int32) # have I deleted starting (0) / ending (1) point?
 
-    cdef int chances   = int(round(max_dist / step))
+    cdef int chances   = <int>round(max_dist / step)
     cdef int chances_f = 0
     cdef float [:] moved_pt = np.zeros(3, dtype=np.float32)
 
@@ -1627,30 +1627,38 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
 
                 fib = np.asarray(TCK_in.streamline)
                 fib = fib[:TCK_in.n_pts, :]
-                for n in xrange(3): # move first 3 point at each end
-                    fib[n,:] = apply_affine_1pt(fib[n,:], affine_inv, moved_pt)
-                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], affine_inv, moved_pt)
-                fib+=0.5 # move to center
+                for n in xrange(3): # move first 3 points of the streamline
+                    apply_xform_to_point(fib[n,:], affine_inv, moved_pt)
+                    fib[n,0] = moved_pt[0]
+                    fib[n,1] = moved_pt[1]
+                    fib[n,2] = moved_pt[2]
+                for n in xrange(3): # move ending 3 points of the streamline
+                    apply_xform_to_point( fib[idx_last-n,:], affine_inv, moved_pt)
+                    fib[idx_last-n,0] = moved_pt[0]
+                    fib[idx_last-n,1] = moved_pt[1]
+                    fib[idx_last-n,2] = moved_pt[2]
 
                 ok_both  = np.zeros(2, dtype=np.int32)
                 del_both = np.zeros(2, dtype=np.int32)
 
                 for extremity in xrange(2):
                     if extremity == 0:
-                        coord_x = <int>fib[0,0]
-                        coord_y = <int>fib[0,1]
-                        coord_z = <int>fib[0,2]
+                        coord_x = <int>round(fib[0,0])
+                        coord_y = <int>round(fib[0,1])
+                        coord_z = <int>round(fib[0,2])
+
                         pt_0  = fib[0,:]
                         pt_1  = fib[1,:]
                         pt_2  = fib[2,:]
                     else:
-                        coord_x = <int>fib[idx_last,0]
-                        coord_y = <int>fib[idx_last,1]
-                        coord_z = <int>fib[idx_last,2]
+                        coord_x = <int>round(fib[idx_last,0])
+                        coord_y = <int>round(fib[idx_last,1])
+                        coord_z = <int>round(fib[idx_last,2])
+
                         pt_0  = fib[idx_last,:]
                         pt_1  = fib[idx_last-1,:]
                         pt_2  = fib[idx_last-2,:]
-
+                    
                     if gm[coord_x,coord_y,coord_z]==0: # starting point is outside gm
                         if wm[coord_x,coord_y,coord_z]==1: # starting point is inside wm
                             vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_0, pt_1)
@@ -1662,23 +1670,23 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                         if ok_both[extremity] == False: # I used all the possible chances following the direct direction but I have not reached the GM or I stepped outside the image space
                             vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_1, pt_0)
                             tmp = pt_0.copy() # changing starting point, flipped
-                            chances_f = int(sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step)
+                            chances_f = <int>round( sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step )
                             if chances_f < chances:
                                 ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances_f, gm)
                             else:
                                 ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances, gm)
                             if ok_both[extremity]:
-                                    if extremity==0: fib[0,:] = tmp.copy()
-                                    else: fib[idx_last,:] = tmp.copy()
+                                if extremity==0: fib[0,:] = tmp.copy()
+                                else: fib[idx_last,:] = tmp.copy()
                         if ok_both[extremity] == False: # starting point is outside wm
                             if extremity==0:  # coordinates of second point
-                                coord_x = <int>fib[1,0]
-                                coord_y = <int>fib[1,1]
-                                coord_z = <int>fib[1,2]
+                                coord_x = <int>round(fib[1,0])
+                                coord_y = <int>round(fib[1,1])
+                                coord_z = <int>round(fib[1,2])
                             else: # coordinates of second-to-last point
-                                coord_x = <int>fib[idx_last-1,0]
-                                coord_y = <int>fib[idx_last-1,1]
-                                coord_z = <int>fib[idx_last-1,2]
+                                coord_x = <int>round(fib[idx_last-1,0])
+                                coord_y = <int>round(fib[idx_last-1,1])
+                                coord_z = <int>round(fib[idx_last-1,2])
                             if gm[coord_x,coord_y,coord_z]>0: # second point is inside gm => delete first point
                                 ok_both[extremity] = True
                             else: # second point is outside gm
@@ -1687,19 +1695,19 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                                     tmp = pt_1.copy() # changing starting point, direct
                                     ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances, gm)
                                     if ok_both[extremity]:
-                                            if extremity==0: fib[1,:] = tmp.copy()
-                                            else: fib[idx_last-1,:] = tmp.copy()
+                                        if extremity==0: fib[1,:] = tmp.copy()
+                                        else: fib[idx_last-1,:] = tmp.copy()
                                 else:
                                     vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_2, pt_0)
                                     tmp = pt_1.copy() # changing starting point, flipped
-                                    chances_f = int(sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step)
+                                    chances_f = <int>round( sqrt( vec_x**2 + vec_y**2 + vec_z**2 ) / step )
                                     if chances_f < chances:
                                         ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances_f, gm)
                                     else:
                                         ok_both[extremity], tmp = move_point_to_gm(tmp, ver_x, ver_y, ver_z, step, chances, gm)
                                     if ok_both[extremity]:
-                                            if extremity==0: fib[1,:] = tmp.copy()
-                                            else: fib[idx_last-1,:] = tmp.copy()
+                                        if extremity==0: fib[1,:] = tmp.copy()
+                                        else: fib[idx_last-1,:] = tmp.copy()
                             if ok_both[extremity]: # delete first/last point because the second one reaches/is inside GM
                                 if extremity==0: fib = np.delete(fib, 0, axis=0)
                                 else: fib = np.delete(fib, -1, axis=0)
@@ -1708,17 +1716,6 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                                 del_both[extremity] = True
                     else: # starting point is inside gm
                         ok_both[extremity] = True
-
-
-                # bring points back to original space
-                fib=fib-0.5 # move back to corner
-                for n in xrange(2):
-                    fib[n,:] = apply_affine_1pt( fib[n,:], affine, moved_pt)
-                    fib[idx_last-n,:] = apply_affine_1pt( fib[idx_last-n,:], affine, moved_pt)
-                if del_both[0] == False:
-                    fib[2,:] = apply_affine_1pt( fib[2,:], affine, moved_pt)
-                if del_both[1] == False:
-                    fib[idx_last-2,:] = apply_affine_1pt( fib[idx_last-2,:], affine, moved_pt)
 
                 TCK_out.write_streamline( fib, n_pts_out )
                 n_tot += 1
@@ -1972,9 +1969,8 @@ cpdef smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, windo
     if segment_len is not None and segment_len <= 0:
         logger.error('\'segment_len\' parameter must be positive')
 
-    cdef float [::1] lengths = np.empty( 10000, dtype=np.float32 )
-    cdef float [:,::1] resampled_streamline = np.empty( (10000, 3), dtype=np.float32 )
-    cdef float [::1] vers = np.empty( 3, dtype=np.float32 )
+    cdef float [::1] lengths = np.empty( 3000, dtype=np.float32 )
+    cdef float [:,::1] resampled_streamline = np.empty( (3000, 3), dtype=np.float32 )
     cdef float tot_len
     cdef int n_pts
 
@@ -2004,8 +2000,8 @@ cpdef smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, windo
                     smoothed_streamline[TCK_in.n_pts-1,:] = TCK_in.streamline[TCK_in.n_pts-1,:]
                 if segment_len is not None:
                     tot_len = streamline_length( smoothed_streamline, TCK_in.n_pts )
-                    n_pts = int(floor(tot_len / segment_len)+1)
-                    set_number_of_points(smoothed_streamline[:TCK_in.n_pts], n_pts, resampled_streamline, vers, lengths)
+                    n_pts = <int>( floor(tot_len/segment_len)+1 )
+                    set_number_of_points(smoothed_streamline[:TCK_in.n_pts], n_pts, resampled_streamline, lengths)
                     TCK_out.write_streamline( resampled_streamline, n_pts )
                 else:
                     TCK_out.write_streamline( smoothed_streamline, TCK_in.n_pts )
@@ -2087,7 +2083,7 @@ def recompute_indices(idx_filename, kept_filename, out_idx_filename=None, force=
     return indices_recomputed
 
 
-cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_filename=None, stat='all', shift: float=0.5, force=False, verbose=3):
+cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_filename=None, stat='all', force=False, verbose=3):
     """Sample underlying values of a tractogram along its points from the corresponding image.
 
     This method does not use interpolation during sampling.
@@ -2105,9 +2101,6 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
     stat : {'all', 'mean', 'median', 'min', 'max'}, default='all'
         Compute a summary statistic on the sampled values;
         if not specified, all values will be saved.
-    shift : float, default=0.5
-        If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages.
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -2159,17 +2152,18 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
         pixdim = niiMAP.header['pixdim'] [1:4]
         logger.subinfo(f'Image resolution: {pixdim[0]}x{pixdim[1]}x{pixdim[2]} mm', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Summary statistic: {stat}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Coordinates shifted by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
 
         # open output file
         cmd = f"dicelib.tractogram.sample {tractogram_filename} {image_filename} {out_scalars_filename}"
         if mask_filename is not None:
             cmd += f" --mask {mask_filename}"
-        cmd += f" --stat={stat} --shift {shift}"
+        cmd += f" --stat={stat}"
         if stat == 'all':
             tmp_hdr = TCK_in.header.copy()
             if 'command_history' not in tmp_hdr.keys():
                 tmp_hdr['command_history'] = []
+            elif type(tmp_hdr['command_history'])==str:
+                tmp_hdr['command_history'] = [ tmp_hdr['command_history'] ]
             tmp_hdr['command_history'].append( cmd )
             TSF_out = TrackScalarFile( out_scalars_filename, mode='w', header=tmp_hdr )
             del tmp_hdr
@@ -2180,25 +2174,24 @@ cpdef sample(tractogram_filename, image_filename, out_scalars_filename, mask_fil
         with ProgressBar( total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
             for i in range(n_streamlines):
                 TCK_in.read_streamline()
-                # value = np.zeros(2000, dtype=np.float32)
                 for j in range(TCK_in.n_pts):
-                    apply_affine_1pt( TCK_in.streamline[j], affine_inv, P, shift )
-                    vx = int(floor(P[0]))
-                    vy = int(floor(P[1]))
-                    vz = int(floor(P[2]))
+                    apply_xform_to_point( TCK_in.streamline[j], affine_inv, P )
+                    vx = <int>round(P[0])
+                    vy = <int>round(P[1])
+                    vz = <int>round(P[2])
                     if mask_view[vx, vy, vz] == 0:
                         values[j] = np.nan
                     values[j] = img_view[vx, vy, vz]
 
                 # save sampled values of this streamline to file
                 if stat == 'mean':
-                    file.write(f'{np.nanmean(values[:TCK_in.n_pts]):.3f}\n')
+                    file.write(f'{np.nanmean(values[:TCK_in.n_pts]):.10f}\n')
                 elif stat == 'median':
-                    file.write(f'{np.nanmedian(values[:TCK_in.n_pts]):.3f}\n')
+                    file.write(f'{np.nanmedian(values[:TCK_in.n_pts]):.10f}\n')
                 elif stat == 'min':
-                    file.write(f'{np.nanmin(values[:TCK_in.n_pts]):.3f}\n')
+                    file.write(f'{np.nanmin(values[:TCK_in.n_pts]):.10f}\n')
                 elif stat == 'max':
-                    file.write(f'{np.nanmax(values[:TCK_in.n_pts]):.3f}\n')
+                    file.write(f'{np.nanmax(values[:TCK_in.n_pts]):.10f}\n')
                 else:
                     TSF_out.write_scalars( values, TCK_in.n_pts )
 
@@ -2245,9 +2238,8 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     nums = [Num(name='n_pts', value=n_pts, min_=2)]
     check_params(files=files, nums=nums, force=force)
 
-    cdef float [::1] lengths = np.empty( 1000, dtype=np.float32 )
+    cdef float [::1] lengths = np.empty( 3000, dtype=np.float32 )
     cdef float [:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
-    cdef float [::1] vers = np.empty( 3, dtype=np.float32 )
 
     logger.info('Resampling')
     TCK_in = LazyTractogram( tractogram_filename, mode='r' )
@@ -2268,7 +2260,7 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
         for i in range( n_streamlines ):
             TCK_in.read_streamline()
-            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, s0, vers, lengths)
+            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, s0, lengths)
             TCK_out.write_streamline( s0, n_pts )
             pbar.update()
     TCK_in.close()
@@ -2431,7 +2423,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', lobes_filename: str=None, trim: float=0.05, shift: float=0.5, force: bool=False, verbose: int=3 ):
+cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', percentile: int=5, lobes_filename: str=None, trim: float=0.05, force: bool=False, verbose: int=3 ):
     """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
 
     The file containing the spherical functions should follow the MrTrix3 conventions
@@ -2446,13 +2438,15 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         Path to the file (.nii, .nii.gz) containing the spherical function against which each streamline is evaluated.
     out_weights_filename : str
         Path to the file (.txt, .npy, .tsf) that will contain the estimated coherence weights.
-    stat : {'min', 'mean', 'max', 'all'}, default='min'
+    stat : {'mean', 'min', 'percentile', 'max', 'all'}, default='min'
         Summary statistic to use once the coherence is computed for all segments of a streamline.
         If 'all' is specified, the coherence of each segment will be saved in a .tsf file;
         otherwise, the summary statistic will be saved in a .txt or .npy file.
         When a .tsf file is produced, each point of a streamline is assigned a weight corresponding
         to the average coherence of the segments centered on that point. For the first and last points,
         the weight is computed using only the following or preceding segment, respectively.
+    percentile : int, default=5
+        ????
     lobes_filename : string, optional
         Path to the file (.nii, .nii.gz) containing the peaks that identify the lobes of the spherical functions, which
         will be used to normalize the local coherence by the value of the corresponding lobe.
@@ -2460,9 +2454,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         Percentage of segments to skip at each extremity.
         Note: if 'stat' is set to 'all', only the segments that are not trimmed will be saved in the output file and the
         points that are extremities of the trimmed segments will be assigned a weight of -1 by default.
-    shift : float, default=0.5
-        If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages.
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -2502,6 +2493,13 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     set_verbose('tractogram', verbose)
     logger.info('Computing coherence')
 
+    if trim<0 or trim>=0.5:
+        logger.error('"trim" must be in [0..0.5)')
+    if stat not in ['mean','min','percentile','max','all']:
+        logger.error('"stat" must be one of [mean, min, percentile, max, all]')
+    if stat=='percentile' and (percentile<0 or percentile>100):
+        logger.error('"percentile" must be an integer in the range [0..100]')
+
     files = [File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck'])]
     files.append(File(name='sph_func_filename', type_='input', path=sph_func_filename, ext=['.nii', '.nii.gz']))
     if out_weights_filename is not None:
@@ -2513,11 +2511,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         files.append(File(name='lobes_filename', type_='input', path=lobes_filename, ext=['.nii', '.nii.gz']))
     check_params(files=files, force=force)
 
-    if trim<0 or trim>=0.5:
-        logger.error('"trim" must be in [0..0.5)')
-    if stat not in ['min','mean','max','all']:
-        logger.error('"stat" must be one of [min, mean, max, all]')
-
     try:
         # open tractogram
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
@@ -2527,7 +2520,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
         if n_streamlines <= 0:
             logger.error('The tractogram is empty')
-        logger.subinfo(f'Shifting coordinates by {shift:.1f} voxel', indent_char='*', indent_lvl=1)
         logger.subinfo(f'Trimming {trim*100:.1f}% of segments at each extremity', indent_char='*', indent_lvl=1)
 
         # open spherical functions
@@ -2579,7 +2571,10 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             peaks_idx = np.zeros(n_peaks, dtype=np.int32)
         del dirs
 
-        logger.subinfo(f'Summary statistic along streamlines: "{stat}"', indent_char='*', indent_lvl=1)
+        if stat!='percentile':
+            logger.subinfo(f'Summary statistic along streamlines: "{stat}"', indent_char='*', indent_lvl=1)
+        else:
+            logger.subinfo(f'Summary statistic along streamlines: "{percentile}-th percentile"', indent_char='*', indent_lvl=1)
 
         #----- process every streamline -----
         coherence = np.zeros( n_streamlines, dtype=np.float32 )
@@ -2590,19 +2585,19 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                     if TCK_in.n_pts==0:
                         break # no more data, stop reading
                     if TCK_in.n_pts>10000:
-                        logger.error( 'The streamline {i} contains too many points ({TCK_in.n_pts})' )
+                        logger.error( f'The streamline {i} contains too many points ({TCK_in.n_pts})' )
 
-                    trim_offset = int( round((TCK_in.n_pts-1)*trim) ) # skip 'trim' percent of segments
+                    trim_offset = <int>round((TCK_in.n_pts-1)*trim) # skip 'trim' percent of segments
                     if TCK_in.n_pts - trim_offset*2 <=0 :
                         logger.warning( f'"trim" too high, streamline {i} is empty; coherence set to 0' )
                         coherence[i] = 0
                         continue
 
-                    apply_affine_1pt(TCK_in.streamline[trim_offset], affine_inv, p1, shift)
+                    apply_xform_to_point(TCK_in.streamline[trim_offset], affine_inv, p1)
                     n = 0
                     for j in range(trim_offset+1,TCK_in.n_pts-trim_offset):
                         # get direction of current segment
-                        apply_affine_1pt(TCK_in.streamline[j], affine_inv, p2, shift)
+                        apply_xform_to_point(TCK_in.streamline[j], affine_inv, p2)
 
                         # compute polar angles (NB: hash tables cover half sphere)
                         dir[1] = p2[1]-p1[1]
@@ -2615,14 +2610,14 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                             dir[2] = p2[2]-p1[2]
 
                         # round to the closest direction among the canonical 500 internally used by AMICO/COMMIT
-                        ox = int( round(atan2( sqrt(dir[0]*dir[0]+dir[1]*dir[1]), dir[2] )/M_PI*180.0) )
-                        oy = int( round(atan2( dir[1], dir[0] )/M_PI*180.0) )
+                        ox = <int>round(atan2( sqrt(dir[0]*dir[0]+dir[1]*dir[1]), dir[2] )/M_PI*180.0)
+                        oy = <int>round(atan2( dir[1], dir[0] )/M_PI*180.0)
                         o = htable[ox*181+oy]
 
                         # evaluate the SF along this direction (i.e. sh_basis[o,:] @ niiSF_img[vx,vy,vz,:])
-                        vx = int( floor(0.5*(p2[0]+p1[0])) )
-                        vy = int( floor(0.5*(p2[1]+p1[1])) )
-                        vz = int( floor(0.5*(p2[2]+p1[2])) )
+                        vx = <int>round(0.5*(p2[0]+p1[0]))
+                        vy = <int>round(0.5*(p2[1]+p1[1]))
+                        vz = <int>round(0.5*(p2[2]+p1[2]))
                         ptr1 = &niiSF_img[vx,vy,vz,0]
                         ptr2 = &sh_basis[o,0]
                         sf_val1 = 0
@@ -2642,11 +2637,11 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
 
                                 # compute polar angles (NB: hash tables cover half sphere)
                                 if ptr2[1] > 0:
-                                    ox = int( round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), ptr2[2] )/M_PI*180.0) )
-                                    oy = int( round(atan2( ptr2[1], ptr2[0] )/M_PI*180.0) )
+                                    ox = <int>round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), ptr2[2] )/M_PI*180.0)
+                                    oy = <int>round(atan2( ptr2[1], ptr2[0] )/M_PI*180.0)
                                 else:
-                                    ox = int( round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), -ptr2[2] )/M_PI*180.0) )
-                                    oy = int( round(atan2( -ptr2[1], -ptr2[0] )/M_PI*180.0) )
+                                    ox = <int>round(atan2( sqrt(ptr2[0]*ptr2[0]+ptr2[1]*ptr2[1]), -ptr2[2] )/M_PI*180.0)
+                                    oy = <int>round(atan2( -ptr2[1], -ptr2[0] )/M_PI*180.0)
                                 o2 = htable[ox*181+oy]
                                 if o<0 or o>=500 or o2<0 or o2>=500:
                                     logger.error( f'This should not happen: o={o} o2={o2}' )
@@ -2674,10 +2669,12 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                         p1[1] = p2[1]
                         p1[2] = p2[2]
 
-                    if stat=='min':
-                        coherence[i] = np.min(w[:n])
-                    elif stat=='mean':
+                    if stat=='mean':
                         coherence[i] = np.mean(w[:n])
+                    elif stat=='min':
+                        coherence[i] = np.min(w[:n])
+                    elif stat=='percentile':
+                        coherence[i] = np.percentile(w[:n], percentile)
                     elif stat=='max':
                         coherence[i] = np.max(w[:n])
                     elif stat=='all':
@@ -2715,7 +2712,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         return coherence
 
 
-cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_filename: str, shift: float=0.5, force: bool=False, verbose: int=3 ):
+cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_filename: str, force: bool=False, verbose: int=3 ):
     """Compute the voxelwise TDI map from a tractogram.
 
     Parameters
@@ -2726,9 +2723,6 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
         Path to the reference image (.nii, .nii.gz) to infer geometry/orientation.
     out_map_filename : str
         Path to the file (.nii, .nii.gz) that will contain the estimated TDI map.
-    shift : float, dafault=0.5
-        If necessary, apply a shift (in voxel units) to streamline coordinates to
-        account for differences between software packages.
     force : boolean, default=False
         Force overwriting of the output files.
     verbose : int, default=3
@@ -2764,7 +2758,6 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
         # open reference image
         niiREF = nib.load( ref_image_filename )
         logger.subinfo(f'Reference image: {niiREF.shape[0]}x{niiREF.shape[1]}x{niiREF.shape[2]}', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Coordinate shift: {shift:.1f} voxels', indent_char='*', indent_lvl=1)
         affine_inv  = np.linalg.inv(niiREF.affine)
 
         # process every streamline
@@ -2777,16 +2770,16 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
                         break # no more data, stop reading
 
                     P = TCK_in.streamline[0]
-                    apply_affine_1pt(P, affine_inv, p1, shift)
+                    apply_xform_to_point(P, affine_inv, p1)
                     n = 0
                     for j in range(TCK_in.n_pts):
                         P = TCK_in.streamline[j]
-                        apply_affine_1pt(P, affine_inv, p2, shift)
+                        apply_xform_to_point(P, affine_inv, p2)
                         # assign the whole segment length to the voxel of its centrois
                         #FIXME: allow better computation of segments contributions in voxels
-                        vx = int( floor(0.5*(p2[0]+p1[0])) )
-                        vy = int( floor(0.5*(p2[1]+p1[1])) )
-                        vz = int( floor(0.5*(p2[2]+p1[2])) )
+                        vx = <int>round(0.5*(p2[0]+p1[0]))
+                        vy = <int>round(0.5*(p2[1]+p1[1]))
+                        vz = <int>round(0.5*(p2[2]+p1[2]))
                         niiTDI_img[vx,vy,vz] += sqrt( (p2[0] - p1[0])**2 + (p2[1] - p1[1])**2 + (p2[2] - p1[2])**2)
                         # update point
                         p1[0] = p2[0]
@@ -2804,195 +2797,3 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
             TCK_in.close()
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
-
-
-#TODO: check with Matteo if still needed
-# cpdef smooth_tractogram( input_tractogram, output_tractogram=None, mask=None, pts_cutoff=0.5, spline_type='centripetal', epsilon=0.3, segment_len=None, streamline_pts=None, shift: float=0.5, verbose=3, force=False ):
-#     """Smooth each streamline in the input tractogram using Catmull-Rom splines.
-#     More info at http://algorithmist.net/docs/catmullrom.pdf.
-
-#     Parameters
-#     ----------
-#     input_tractogram : str
-#         Path to the file (.tck) containing the streamlines to process.
-#     output_tractogram : str
-#         Path to the file where to store the filtered tractogram. If not specified (default),
-#         the new file will be created by appending '_smooth' to the input filename.
-#     mask : str
-#         Path to the mask file (.nii, .nii.gz) to constrain the smoothing to a specific region (default : None).
-#     pts_cutoff : float
-#         Percentage of points of the streamline that must be inside the mask to be considered (default : 0.5).
-#     spline_type : str
-#         Type of the Catmull-Rom spline: 'centripetal', 'uniform' or 'chordal' (default : 'centripetal').
-#     epsilon : float
-#         Distance threshold used by Ramer-Douglas-Peucker algorithm to choose the control points of the spline (default : 0.3).
-#     segment_len : float
-#         Sampling resolution of the final streamline after interpolation. NOTE: either 'segment_len' or 'streamline_pts' must be set.
-#     streamline_pts : int
-#         Number of points in each of the final streamlines. NOTE: either 'streamline_pts' or 'segment_len' must be set.
-#     shift : float (optional)
-#         If necessary, apply a shift (in voxel units) to streamline coordinates to
-#         account for differences between software packages (default : 0.5)
-#     verbose : int, default=3
-#         What information to print, must be in [0...4] as defined in ui.set_verbose()
-#     force : boolean, default=False
-#         Force overwriting of the output files
-#     """
-
-#     set_verbose('tractogram', verbose)
-
-#     if segment_len==None and streamline_pts==None:
-#         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set.')
-#     if segment_len!=None and streamline_pts!=None:
-#         logger.error('Either \'streamline_pts\' or \'segment_len\' must be set, not both.')
-
-#     if output_tractogram is None :
-#         basename, extension = os.path.splitext(input_tractogram)
-#         output_tractogram = basename+'_smooth'+extension
-
-#     files = [
-#         File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck'),
-#         File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck')
-#     ]
-#     if mask is not None:
-#         files.append( {'type_': 'input', 'name': 'mask', 'path': mask} )
-#     nums = [
-#         Num(name='epsilon', value=epsilon, min_=0.0, max_=None,)
-#     ]
-#     check_params(files=files, nums=nums, force=force)
-
-#     if spline_type == 'centripetal':
-#         alpha = 0.5
-#     elif spline_type == 'chordal':
-#         alpha = 1.0
-#     elif spline_type == 'uniform':
-#         alpha = 0.0
-#     else:
-#         logger.error('\'spline_type\' parameter must be \'centripetal\', \'uniform\' or \'chordal\'')
-
-#     # if epsilon < 0 :
-#     #     raise ValueError( "'epsilon' parameter must be non-negative" )
-
-#     # cdef float [:,:] smoothed_fib = np.zeros((1000,3), dtype=np.float32)
-#     # cdef float [:,:] resampled_fib = np.zeros((1000,3), dtype=np.float32)
-#     cdef int n_pts_tot = 0
-#     cdef int n_pts_in = 0
-#     cdef int[:,:,:] mask_view
-#     cdef float[:] pt_aff = np.zeros(3, dtype=np.float32)
-#     cdef cbool in_mask
-#     cdef float fib_len = 0
-#     cdef int n_pts_out = 0
-#     cdef int in_mask_count
-#     cdef float epsilon_tmp
-#     cdef int n_pts_tmp = 0
-#     cdef size_t i, j = 0
-#     cdef int attempts = 0
-#     cdef float threshold = pts_cutoff
-
-#     if mask is not None:
-#         if not os.path.isfile(mask):
-#             logger.error(f'File \'mask\' not found')
-#         mask_nii = nib.load(mask)
-#         mask_view = np.ascontiguousarray(mask_nii.get_fdata(), dtype=np.int32)
-#         affine_inv = np.linalg.inv(mask_nii.affine)
-
-#     try:
-#         TCK_in = LazyTractogram( input_tractogram, mode='r' )
-#         n_streamlines = int( TCK_in.header['count'] )
-
-#         TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
-
-#         logger.info('Smoothing tractogram')
-#         t0 = time()
-#         logger.subinfo('Input tractogram', indent_char='*', indent_lvl=1)
-#         logger.subinfo(f'{input_tractogram}', indent_lvl=2, indent_char='-')
-#         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=1, indent_char='-')
-
-#         mb = os.path.getsize( input_tractogram )/1.0E6
-#         if mb >= 1E3:
-#             logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
-#         else:
-#             logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-
-#         logger.subinfo('Output tractogram', indent_char='*', indent_lvl=1)
-#         logger.subinfo(f'{output_tractogram}', indent_lvl=2, indent_char='-')
-#         logger.subinfo(f'Spline type: {spline_type}', indent_lvl=1, indent_char='-')
-#         if not segment_len==None:
-#             logger.subinfo(f'Segment length: {segment_len:.2f}', indent_lvl=1, indent_char='-')
-#         if not streamline_pts==None:
-#             logger.subinfo(f'Number of points: {streamline_pts}', indent_lvl=1, indent_char='-')
-#         if mask is not None:
-#             logger.subinfo(f'Mask: {mask}', indent_lvl=1, indent_char='-')
-
-#         if streamline_pts!=None:
-#             n_pts_out = streamline_pts
-#         else:
-#             n_pts_out = 50
-
-
-#         # process each streamline
-#         with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True ) as pbar:
-#             for i in range( n_streamlines ):
-#                 epsilon_tmp = epsilon
-#                 in_mask = False
-#                 TCK_in.read_streamline()
-#                 n_pts_in = TCK_in.n_pts
-#                 if TCK_in.n_pts==0:
-#                     break # no more data, stop reading
-#                 while in_mask==False:
-#                     # smoothed_streamline, n = apply_smoothing(TCK_in.streamline, TCK_in.n_pts, segment_len=segment_len, epsilon=epsilon, alpha=alpha)
-#                     fib_red_ptr, n_red = rdp_reduction(TCK_in.streamline, n_pts_in, epsilon_tmp)
-
-#                     # check number of points
-#                     if n_red==2: # no need to smooth
-#                         smoothed_fib = fib_red_ptr
-#                         n_pts_tot = n_red
-#                         in_mask = True
-#                     else:
-#                         smoothed_fib =  apply_smoothing(fib_red_ptr, alpha, n_pts_out)
-#                         in_mask_count = 0
-#                         for j in range(n_pts_out):
-#                             pt_aff = apply_affine_1pt(smoothed_fib[j,:], affine_inv, pt_aff, shift)
-#                             if mask_view[<int>pt_aff[0], <int>pt_aff[1], <int>pt_aff[2]] > 0:
-#                                 in_mask_count += 1
-#                         if in_mask_count > threshold*n_pts_out:
-#                             in_mask = True
-#                         else:
-#                             # reduce epsilon and try again
-#                             attempts += 1
-#                             epsilon_tmp = epsilon_tmp-0.1
-#                             if epsilon_tmp < 0.1:
-#                                 smoothed_fib = fib_red_ptr
-#                                 n_pts_tot = n_pts_in
-#                                 in_mask = True
-
-#                     # compute streamline length
-#                     fib_len = streamline_length( smoothed_fib, n_pts_out )
-
-#                     if segment_len!=None:
-#                         n_pts_out = int(fib_len / segment_len)
-
-#                     # resample smoothed streamline
-#                     resampled_fib = s_resample(smoothed_fib, n_pts_out)
-
-#                 TCK_out.write_streamline( resampled_fib, n_pts_out )
-#                 pbar.update()
-
-#     except Exception as e:
-#         if os.path.exists( output_tractogram ):
-#             os.remove( output_tractogram )
-#         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-#     finally:
-#         TCK_in.close()
-#         TCK_out.close()
-
-#     mb = os.path.getsize( output_tractogram )/1.0E6
-#     logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-#     if mb >= 1E3:
-#         logger.debug(f'{mb/1.0E3:.2f} GB', indent_lvl=1, indent_char='-')
-#     else:
-#         logger.debug(f'{mb:.2f} MB', indent_lvl=1, indent_char='-')
-#     t1 = time()
-#     logger.info( f'[ {format_time(t1 - t0)} ]' )
-

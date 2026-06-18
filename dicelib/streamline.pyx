@@ -1,9 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
-
 from bisect import bisect_right
-
 import numpy as np
-
 from libc.math cimport floor, sqrt
 from libcpp cimport bool
 
@@ -28,90 +25,21 @@ cdef extern from "streamline_utils.hpp":
     ) nogil
 
 
-cpdef double [:,::1] space_tovox(streamline, header,curr_space = None ):
-    """Method to change space reference of streamlines (.tck)
-    Note that if curr_space is None, space is interpreted as RASmm
+cdef void apply_xform_to_point(float[:] in_P, double[:,::1] M, float[:] out_P) noexcept nogil:
+    """Apply a trasformation to a point.
 
-    Allowed spaces tranformation:
-    voxmm --> vox
-    rasmm --> vox
-
-    Parameters:
-
-    -----------
-
-    streamline : Numpy array Nx3
-        Data of the streamline, coordinates
-    header : NiftiHeader
-        header of the image
-    curr space : string
-        coordinates space of streamline to transform
+    Parameters
+    ----------
+    in_P : 3x1 float array
+        The point to be trasformed.
+    M : 4x4 double array
+        Trasformation matrix.
+    out_P : 3x1 float array
+        The point after trasformation.
     """
-    streamline = np.asarray(streamline)
-    voxsize = np.asarray(header["pixdim"][1:4]) #resolution
-    affine = np.asarray([header["srow_x"],header["srow_y"],header["srow_z"],[0,0,0,1]]) #affine retrieved from the header
-    inverse = np.linalg.inv(affine) #inverse of affine
-    small = inverse[:-1,:-1].T
-    val = inverse[:-1,-1]
-    # if curr_space == "voxmm":
-    #     streamline /= voxsize
-    # elif curr_space == "rasmm":
-    #     streamline = np.matmul(streamline,inverse[:-1,:-1].T) + inverse[:-1,-1] #same as nibabel.affines.apply_affine()
-    #     streamline += voxsize/2 #to point center of the voxel
-    #     streamline = np.floor(streamline) #cast
-
-
-    if not streamline.flags['C_CONTIGUOUS']:
-        streamline = np.ascontiguousarray(streamline)
-    if not small.flags['C_CONTIGUOUS']:
-        small = np.ascontiguousarray(small)
-    if not val.flags['C_CONTIGUOUS']:
-        val = np.ascontiguousarray(val)
-    if not small.flags['C_CONTIGUOUS']:
-        small = np.ascontiguousarray(small)
-
-    cdef double [:,::1] streamline_view = np.double(streamline)
-    cdef double [:,::1] small_view = small
-    cdef float  [::1] voxsize_view = voxsize
-    cdef double [::1] val_view = val
-    cdef double somma = 0.0
-    cdef size_t ii, yy
-
-    if curr_space == "voxmm":
-        for ii in range(streamline_view.shape[0]):
-            for yy in range(streamline_view.shape[1]):
-                streamline_view[ii][yy] = streamline_view[ii][yy]/voxsize_view[yy]
-    else :     #rasmm
-        for ii in range(streamline_view.shape[0]):
-            for yy in range(streamline_view.shape[1]):
-                somma = ((streamline_view[ii,0]*small_view[0,yy] + streamline_view[ii,1]*small_view[1,yy] + streamline_view[ii,2]*small_view[2,yy]) + val_view[yy])
-                somma += (voxsize_view[yy]/2)
-                streamline_view[ii][yy] = floor(somma)
-
-    return streamline_view
-
-
-#TODO: replace this function everywhere with apply_affine_1pt
-cdef float [:,::1] apply_affine(float [:,::1] end_pts, float [::1,:] M,
-                                float [:] abc, float [:,::1] end_pts_trans) noexcept nogil:
-
-    # N.B. use this function only to move from RASmm to VOX, not the inverse (because of +0.5)
-    end_pts_trans[0][0] = ((end_pts[0][0]*M[0,0] + end_pts[0][1]*M[1,0] + end_pts[0][2]*M[2,0]) + abc[0]) +0.5
-    end_pts_trans[0][1] = ((end_pts[0][0]*M[0,1] + end_pts[0][1]*M[1,1] + end_pts[0][2]*M[2,1]) + abc[1]) +0.5
-    end_pts_trans[0][2] = ((end_pts[0][0]*M[0,2] + end_pts[0][1]*M[1,2] + end_pts[0][2]*M[2,2]) + abc[2]) +0.5
-    end_pts_trans[1][0] = ((end_pts[1][0]*M[0,0] + end_pts[1][1]*M[1,0] + end_pts[1][2]*M[2,0]) + abc[0]) +0.5
-    end_pts_trans[1][1] = ((end_pts[1][0]*M[0,1] + end_pts[1][1]*M[1,1] + end_pts[1][2]*M[2,1]) + abc[1]) +0.5
-    end_pts_trans[1][2] = ((end_pts[1][0]*M[0,2] + end_pts[1][1]*M[1,2] + end_pts[1][2]*M[2,2]) + abc[2]) +0.5
-
-
-    return end_pts_trans
-
-cdef float [:] apply_affine_1pt(float [:] orig_pt, double[:,::1] M, float [:] moved_pt, float shift=0):
-    moved_pt[0] = float((orig_pt[0]*M[0,0] + orig_pt[1]*M[0,1] + orig_pt[2]*M[0,2]) + M[0,3] + shift)
-    moved_pt[1] = float((orig_pt[0]*M[1,0] + orig_pt[1]*M[1,1] + orig_pt[2]*M[1,2]) + M[1,3] + shift)
-    moved_pt[2] = float((orig_pt[0]*M[2,0] + orig_pt[1]*M[2,1] + orig_pt[2]*M[2,2]) + M[2,3] + shift)
-    return moved_pt
-
+    out_P[0] = <float>(in_P[0]*M[0,0] + in_P[1]*M[0,1] + in_P[2]*M[0,2] + M[0,3])
+    out_P[1] = <float>(in_P[0]*M[1,0] + in_P[1]*M[1,1] + in_P[2]*M[1,2] + M[1,3])
+    out_P[2] = <float>(in_P[0]*M[2,0] + in_P[1]*M[2,1] + in_P[2]*M[2,2] + M[2,3])
 
 
 cpdef length( float [:,:] streamline, int n=0 ):
@@ -243,12 +171,13 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red =
     # reduce number of points
     fib_red_ptr, n_red = rdp_reduction(fib_ptr, n_pts_in, epsilon, nPtsred)
 
-    cdef float [:,:] smoothed_fib
-    cdef float [:,:] resampled_fib
+    cdef float [:,::1] smoothed_fib
+    cdef resampled_fib = np.zeros((3000,3), dtype=np.float32)
     cdef int n_pts_tot = 0
     cdef int n_pts_out
     cdef float fib_len
-    cdef float[:, :] matrix = np.array([ [2, -2, 1, 1],
+    cdef float[:] lengths = np.zeros(3000, dtype=np.float32)
+    cdef float[:, ::1] matrix = np.array([ [2, -2, 1, 1],
                                         [-3, 3, -2, -1],
                                         [0, 0, 1, 0],
                                         [1, 0, 0, 0]]).astype(np.float32)
@@ -277,7 +206,7 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red =
         if n_pts_out < 2:
             n_pts_out = 2
         # resample smoothed streamline
-        resampled_fib = resample(smoothed_fib, n_pts_out)
+        set_number_of_points( smoothed_fib, n_pts_out, resampled_fib, lengths )
         resampled_fib[0][0] = fib_ptr[0][0]
         resampled_fib[0][1] = fib_ptr[0][1]
         resampled_fib[0][2] = fib_ptr[0][2]
@@ -294,66 +223,6 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red =
         smoothed_fib[n_pts_tot-1][1] = fib_ptr[n_pts_in-1][1]
         smoothed_fib[n_pts_tot-1][2] = fib_ptr[n_pts_in-1][2]
         return smoothed_fib, n_pts_tot
-
-
-
-cpdef resample (streamline, nb_pts) :
-    if nb_pts < 2:
-        nb_pts = 2
-
-    cdef int nb_pts_in = streamline.shape[0]
-    cdef resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
-    cdef size_t i = 0
-    cdef size_t j = 0
-    cdef float sum_step = 0
-    cdef float[:] vers = np.zeros(3, dtype=np.float32)
-    cdef float[:] lengths = np.zeros(nb_pts_in, dtype=np.float32)
-    cdef float[:,::1] fib_in = np.ascontiguousarray(streamline, dtype=np.float32)
-
-    resample_len(fib_in, &lengths[0])
-
-    cdef float step_size = lengths[nb_pts_in-1]/(nb_pts-1)
-    cdef float sum_len = 0
-    cdef float ratio = 0
-
-    # for i in xrange(1, lengths.shape[0]-1):
-    resampled_fib[0][0] = fib_in[0][0]
-    resampled_fib[0][1] = fib_in[0][1]
-    resampled_fib[0][2] = fib_in[0][2]
-
-    while sum_step < lengths[nb_pts_in-1]:
-        if sum_step == lengths[i]:
-            resampled_fib[j][0] = fib_in[i][0]
-            resampled_fib[j][1] = fib_in[i][1]
-            resampled_fib[j][2] = fib_in[i][2]
-            j += 1
-            sum_step += step_size
-        elif sum_step < lengths[i]:
-            ratio = 1 - ((lengths[i]- sum_step)/(lengths[i]-lengths[i-1]))
-            vers[0] = fib_in[i][0] - fib_in[i-1][0]
-            vers[1] = fib_in[i][1] - fib_in[i-1][1]
-            vers[2] = fib_in[i][2] - fib_in[i-1][2]
-            resampled_fib[j][0] = fib_in[i-1][0] + ratio * vers[0]
-            resampled_fib[j][1] = fib_in[i-1][1] + ratio * vers[1]
-            resampled_fib[j][2] = fib_in[i-1][2] + ratio * vers[2]
-            j += 1
-            sum_step += step_size
-        else:
-            i+=1
-
-    resampled_fib[nb_pts-1][0] = fib_in[nb_pts_in-1][0]
-    resampled_fib[nb_pts-1][1] = fib_in[nb_pts_in-1][1]
-    resampled_fib[nb_pts-1][2] = fib_in[nb_pts_in-1][2]
-
-    return resampled_fib
-
-
-cdef void resample_len(float[:,::1] fib_in, float* length):
-    cdef size_t i = 0
-
-    length[0] = 0.0
-    for i in xrange(1,fib_in.shape[0]):
-        length[i] = <float>(length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 ))
 
 
 cpdef float [:,::1] create_replicas( float [:,::1] in_pts, double [:] blurRho, double [:] blurAngle, int nReplicas, float fiber_shiftX, float fiber_shiftY, float fiber_shiftZ):
@@ -420,96 +289,107 @@ cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nRepl
     return str_replicas_reshape, n_pt_replicas
 
 
-cpdef sampling(float [:,::1] streamline_view, float [:,:,::1] img_view, int npoints, float [:,:,::1] mask_view, option=None):
-    """Compute the length of a streamline.
+# cpdef sampling(float [:,::1] streamline_view, float [:,:,::1] img_view, int npoints, float [:,:,::1] mask_view, option=None):
+#     """Compute the length of a streamline.
 
-    Parameters
-    ----------
-    streamline : Nx3 numpy array
-        The streamline data, coordinates
-    img : numpy array
-        data of the image
-    npoints : int
-        points of the streamline
-    Returns
-    -------
-    value : numpy array of dim (npoint,)
-        values that correspond to coordinates of streamline in the image space
+#     Parameters
+#     ----------
+#     streamline : Nx3 numpy array
+#         The streamline data, coordinates
+#     img : numpy array
+#         data of the image
+#     npoints : int
+#         points of the streamline
+#     Returns
+#     -------
+#     value : numpy array of dim (npoint,)
+#         values that correspond to coordinates of streamline in the image space
 
-    """
+#     """
 
-    value = np.empty([npoints,], dtype= float)
-    opt_value = 0
-    cdef size_t ii
+#     value = np.empty([npoints,], dtype= float)
+#     opt_value = 0
+#     cdef size_t ii
 
-    for ii in range(npoints):
-        vox_coords = np.array([int(streamline_view[ii,0]), int(streamline_view[ii,1]), int(streamline_view[ii,2])])
-        if mask_view[<int>vox_coords[0], <int>vox_coords[1], <int>vox_coords[2]] == 0:
-            value[ii] = np.nan
-        else:
-            value[ii] = img_view[<int>streamline_view[ii,0],<int>streamline_view[ii,1],<int>streamline_view[ii,2]] #cast int values
-
-
-    if option == "mean":
-        opt_value = np.nanmean(value)
-        return opt_value
-    elif option == "median":
-        opt_value = np.nanmedian(value)
-        return opt_value
-    elif option == "min":
-        opt_value = value.min()
-        return opt_value
-    elif option == "max":
-        opt_value = value.max()
-        return opt_value
-    else: #none case
-        return value
+#     for ii in range(npoints):
+#         vox_coords = np.array([int(streamline_view[ii,0]), int(streamline_view[ii,1]), int(streamline_view[ii,2])])
+#         if mask_view[<int>vox_coords[0], <int>vox_coords[1], <int>vox_coords[2]] == 0:
+#             value[ii] = np.nan
+#         else:
+#             value[ii] = img_view[<int>streamline_view[ii,0],<int>streamline_view[ii,1],<int>streamline_view[ii,2]] #cast int values
 
 
-cpdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib, float[::1] vers, float[::1] lengths):# noexcept nogil:
-    cdef int nb_pts_in = fib_in.shape[0]
-    cdef size_t i = 0
-    cdef size_t j = 0
-    cdef float sum_step = 0
-    tot_lenght(fib_in, lengths)
+#     if option == "mean":
+#         opt_value = np.nanmean(value)
+#         return opt_value
+#     elif option == "median":
+#         opt_value = np.nanmedian(value)
+#         return opt_value
+#     elif option == "min":
+#         opt_value = value.min()
+#         return opt_value
+#     elif option == "max":
+#         opt_value = value.max()
+#         return opt_value
+#     else: #none case
+#         return value
 
-    cdef float step_size = lengths[nb_pts_in-1]/(nb_pts-1)
-    cdef float ratio = 0
+
+cpdef void set_number_of_points( float[:,::1] in_streamline, int out_n_pts, float[:,::1] out_streamline, float[:] lengths ) noexcept nogil:
+    cdef:
+        size_t i = 0, j = 0
+        int in_n_pts = in_streamline.shape[0]
+        float sum_step = 0, ratio = 0, step_size
+        float vers_x, vers_y, vers_z
+
+    if out_n_pts < 2:
+        out_n_pts = 2
+    cumulative_lengths(in_streamline, lengths)
+    step_size = lengths[in_n_pts-1]/(out_n_pts-1)
 
     # for i in xrange(1, lengths.shape[0]-1):
-    resampled_fib[0][0] = fib_in[0][0]
-    resampled_fib[0][1] = fib_in[0][1]
-    resampled_fib[0][2] = fib_in[0][2]
-    while sum_step < lengths[nb_pts_in-1]:
+    out_streamline[0][0] = in_streamline[0][0]
+    out_streamline[0][1] = in_streamline[0][1]
+    out_streamline[0][2] = in_streamline[0][2]
+    while sum_step < lengths[in_n_pts-1]:
         if sum_step == lengths[i]:
-            resampled_fib[j][0] = fib_in[i][0]
-            resampled_fib[j][1] = fib_in[i][1]
-            resampled_fib[j][2] = fib_in[i][2]
+            out_streamline[j][0] = in_streamline[i][0]
+            out_streamline[j][1] = in_streamline[i][1]
+            out_streamline[j][2] = in_streamline[i][2]
             j += 1
             sum_step += step_size
         elif sum_step < lengths[i]:
             ratio = 1 - ((lengths[i]- sum_step)/(lengths[i]-lengths[i-1]))
-            vers[0] = fib_in[i][0] - fib_in[i-1][0]
-            vers[1] = fib_in[i][1] - fib_in[i-1][1]
-            vers[2] = fib_in[i][2] - fib_in[i-1][2]
-            resampled_fib[j][0] = fib_in[i-1][0] + ratio * vers[0]
-            resampled_fib[j][1] = fib_in[i-1][1] + ratio * vers[1]
-            resampled_fib[j][2] = fib_in[i-1][2] + ratio * vers[2]
+            vers_x = in_streamline[i][0] - in_streamline[i-1][0]
+            vers_y = in_streamline[i][1] - in_streamline[i-1][1]
+            vers_z = in_streamline[i][2] - in_streamline[i-1][2]
+            out_streamline[j][0] = in_streamline[i-1][0] + ratio * vers_x
+            out_streamline[j][1] = in_streamline[i-1][1] + ratio * vers_y
+            out_streamline[j][2] = in_streamline[i-1][2] + ratio * vers_z
             j += 1
             sum_step += step_size
         else:
             i+=1
-    resampled_fib[nb_pts-1][0] = fib_in[nb_pts_in-1][0]
-    resampled_fib[nb_pts-1][1] = fib_in[nb_pts_in-1][1]
-    resampled_fib[nb_pts-1][2] = fib_in[nb_pts_in-1][2]
+    out_streamline[out_n_pts-1][0] = in_streamline[in_n_pts-1][0]
+    out_streamline[out_n_pts-1][1] = in_streamline[in_n_pts-1][1]
+    out_streamline[out_n_pts-1][2] = in_streamline[in_n_pts-1][2]
 
 
-cdef void tot_lenght(float[:,::1] fib_in, float[::1] length):# noexcept nogil:
+
+cpdef void cumulative_lengths( float[:,::1] in_streamline, float[:] out_lengths ) noexcept nogil:
+    """Compute the cumulative lenght of the segments along a streamline.
+
+    Parameters
+    ----------
+    in_streamline : 2D float array
+        The input streamline.
+    out_lenghts : 1D float array
+        The compute lenghts.
+    """
     cdef size_t i = 0
-
-    length[0] = 0.0
-    for i in xrange(1,fib_in.shape[0]):
-        length[i] = <float>(length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 ))
+    out_lengths[0] = 0.0
+    for i in xrange(1,in_streamline.shape[0]):
+        out_lengths[i] = <float>(out_lengths[i-1] + sqrt( (in_streamline[i][0]-in_streamline[i-1][0])**2 + (in_streamline[i][1]-in_streamline[i-1][1])**2 + (in_streamline[i][2]-in_streamline[i-1][2])**2 ))
 
 
 cdef float[:] compute_tangent(float[:,:] points, float[:] grid):
@@ -535,7 +415,7 @@ cdef float[:] compute_tangent(float[:,:] points, float[:] grid):
     return tangent
 
 
-cdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, float alpha=0.5, int num_pts=10):
+cdef float[:, ::1] CatmullRom_smooth(float[:, ::1] vertices, float[:, ::1] matrix, float alpha=0.5, int num_pts=10):
     """
     Cython implementation of the Catmull-Rom spline algorithm from https://github.com/AudioSceneDescriptionFormat/splines
     """
@@ -547,14 +427,14 @@ cdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, flo
     cdef float t1 = 0
 
     cdef float[:] t = np.empty((num_pts,), dtype=np.float32)
-    cdef float[:, :] tangent = np.empty((vertices.shape[0]-2, 3), dtype=np.float32)
-    cdef float[:,:] tangents = np.empty((2*tangent.shape[0]+2, 3), dtype=np.float32)
-    cdef float[:, :, :] segments = np.empty((vertices.shape[0]-1, 4, 3), dtype=np.float32)
+    cdef float[:,::1] tangent = np.empty((vertices.shape[0]-2, 3), dtype=np.float32)
+    cdef float[:,::1] tangents = np.empty((2*tangent.shape[0]+2, 3), dtype=np.float32)
+    cdef float[:,:,::1] segments = np.empty((vertices.shape[0]-1, 4, 3), dtype=np.float32)
     cdef float[:] grid = np.empty(vertices.shape[0], dtype=np.float32)
-    cdef float[:,:] prod = np.empty((4, 3), dtype=np.float32)
+    cdef float[:,::1] prod = np.empty((4, 3), dtype=np.float32)
 
     grid = check_grid(grid, alpha, vertices)
-    cdef float[:, :] smoothed = np.empty((num_pts, 3), dtype=np.float32)
+    cdef float[:,::1] smoothed = np.empty((num_pts, 3), dtype=np.float32)
 
     for i in range(vertices.shape[0]):
         # compute tangent over triplets of vertices and grid points
@@ -615,7 +495,7 @@ cdef float[:, :] CatmullRom_smooth(float[:, :] vertices, float[:, :] matrix, flo
     return smoothed
 
 
-cdef float[:] check_grid(float[:] grid, float alpha, float[:, :] vertices):
+cdef float[:] check_grid(float[:] grid, float alpha, float[:,::1] vertices):
     cdef size_t i = 1
     cdef size_t ii = 0
     cdef size_t jj = 0
@@ -670,3 +550,66 @@ cpdef bint is_flipped( float[:,::1] fib_in, float[:,::1] ref_fib):
         return True
     else:
         return False
+
+
+# cpdef double [:,::1] space_tovox(streamline, header,curr_space = None ):
+#     """Method to change space reference of streamlines (.tck)
+#     Note that if curr_space is None, space is interpreted as RASmm
+
+#     Allowed spaces tranformation:
+#     voxmm --> vox
+#     rasmm --> vox
+
+#     Parameters:
+
+#     -----------
+
+#     streamline : Numpy array Nx3
+#         Data of the streamline, coordinates
+#     header : NiftiHeader
+#         header of the image
+#     curr space : string
+#         coordinates space of streamline to transform
+#     """
+#     streamline = np.asarray(streamline)
+#     voxsize = np.asarray(header["pixdim"][1:4]) #resolution
+#     affine = np.asarray([header["srow_x"],header["srow_y"],header["srow_z"],[0,0,0,1]]) #affine retrieved from the header
+#     inverse = np.linalg.inv(affine) #inverse of affine
+#     small = inverse[:-1,:-1].T
+#     val = inverse[:-1,-1]
+#     # if curr_space == "voxmm":
+#     #     streamline /= voxsize
+#     # elif curr_space == "rasmm":
+#     #     streamline = np.matmul(streamline,inverse[:-1,:-1].T) + inverse[:-1,-1]
+#     #     streamline += voxsize/2 #to point center of the voxel
+#     #     streamline = np.floor(streamline) #cast
+
+
+#     if not streamline.flags['C_CONTIGUOUS']:
+#         streamline = np.ascontiguousarray(streamline)
+#     if not small.flags['C_CONTIGUOUS']:
+#         small = np.ascontiguousarray(small)
+#     if not val.flags['C_CONTIGUOUS']:
+#         val = np.ascontiguousarray(val)
+#     if not small.flags['C_CONTIGUOUS']:
+#         small = np.ascontiguousarray(small)
+
+#     cdef double [:,::1] streamline_view = np.double(streamline)
+#     cdef double [:,::1] small_view = small
+#     cdef float  [::1] voxsize_view = voxsize
+#     cdef double [::1] val_view = val
+#     cdef double somma = 0.0
+#     cdef size_t ii, yy
+
+#     if curr_space == "voxmm":
+#         for ii in range(streamline_view.shape[0]):
+#             for yy in range(streamline_view.shape[1]):
+#                 streamline_view[ii][yy] = streamline_view[ii][yy]/voxsize_view[yy]
+#     else :     #rasmm
+#         for ii in range(streamline_view.shape[0]):
+#             for yy in range(streamline_view.shape[1]):
+#                 somma = ((streamline_view[ii,0]*small_view[0,yy] + streamline_view[ii,1]*small_view[1,yy] + streamline_view[ii,2]*small_view[2,yy]) + val_view[yy])
+#                 somma += (voxsize_view[yy]/2)
+#                 streamline_view[ii][yy] = floor(somma)
+
+#     return streamline_view

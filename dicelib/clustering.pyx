@@ -1,90 +1,22 @@
 # cython: boundscheck=False, wraparound=False, profile=False, language_level=3
-
-"""Functions to perform clustering of tractograms"""
-
-from dicelib.connectivity import _assign as assign
+from dicelib.connectivity import _assign
 from dicelib.tractogram import info, split
-from dicelib.streamline import length as streamline_length
+from dicelib.streamline import cumulative_lengths, set_number_of_points
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
-
 from concurrent.futures import as_completed, ThreadPoolExecutor
 import os
 import shutil
 from sys import getsizeof
 import time
-
 import nibabel as nib
 import numpy as np
 import psutil
-
 from dicelib.tractogram cimport LazyTractogram
-
 from libc.math cimport sqrt
-from libc.stdlib cimport free, malloc
 from libcpp cimport bool
 
 logger = setup_logger('clustering')
-
-cdef void tot_lenght(float[:,::1] fib_in, float* length) noexcept nogil:
-    cdef size_t i = 0
-
-    length[0] = 0.0
-    for i in xrange(1,fib_in.shape[0]):
-        length[i] = <float>(length[i-1]+ sqrt( (fib_in[i][0]-fib_in[i-1][0])**2 + (fib_in[i][1]-fib_in[i-1][1])**2 + (fib_in[i][2]-fib_in[i-1][2])**2 ))
-
-
-cdef float[:,::1] extract_ending_pts(float[:,::1] fib_in, float[:,::1] resampled_fib) :
-    cdef int nb_pts_in = fib_in.shape[0]
-    resampled_fib[0][0] = fib_in[0][0]
-    resampled_fib[0][1] = fib_in[0][1]
-    resampled_fib[0][2] = fib_in[0][2]
-    resampled_fib[1][0] = fib_in[nb_pts_in-1][0]
-    resampled_fib[1][1] = fib_in[nb_pts_in-1][1]
-    resampled_fib[1][2] = fib_in[nb_pts_in-1][2]
-
-    return resampled_fib
-
-
-cdef void set_number_of_points(float[:,::1] fib_in, int nb_pts, float[:,::1] resampled_fib, float *vers, float *lengths) noexcept nogil:
-    cdef int nb_pts_in = fib_in.shape[0]
-    cdef size_t i = 0
-    cdef size_t j = 0
-    cdef float sum_step = 0
-    tot_lenght(fib_in, lengths)
-
-    cdef float step_size = lengths[nb_pts_in-1]/(nb_pts-1)
-    cdef float ratio = 0
-
-    # for i in xrange(1, lengths.shape[0]-1):
-    resampled_fib[0][0] = fib_in[0][0]
-    resampled_fib[0][1] = fib_in[0][1]
-    resampled_fib[0][2] = fib_in[0][2]
-    while sum_step < lengths[nb_pts_in-1]:
-        if sum_step == lengths[i]:
-            resampled_fib[j][0] = fib_in[i][0]
-            resampled_fib[j][1] = fib_in[i][1]
-            resampled_fib[j][2] = fib_in[i][2]
-            j += 1
-            sum_step += step_size
-        elif sum_step < lengths[i]:
-            ratio = 1 - ((lengths[i]- sum_step)/(lengths[i]-lengths[i-1]))
-            vers[0] = fib_in[i][0] - fib_in[i-1][0]
-            vers[1] = fib_in[i][1] - fib_in[i-1][1]
-            vers[2] = fib_in[i][2] - fib_in[i-1][2]
-            resampled_fib[j][0] = fib_in[i-1][0] + ratio * vers[0]
-            resampled_fib[j][1] = fib_in[i-1][1] + ratio * vers[1]
-            resampled_fib[j][2] = fib_in[i-1][2] + ratio * vers[2]
-            j += 1
-            sum_step += step_size
-        else:
-            i+=1
-    resampled_fib[nb_pts-1][0] = fib_in[nb_pts_in-1][0]
-    resampled_fib[nb_pts-1][1] = fib_in[nb_pts_in-1][1]
-    resampled_fib[nb_pts-1][2] = fib_in[nb_pts_in-1][2]
-
-    # free(vers)
-    # free(lengths)
 
 
 cdef (int, int) compute_dist_mean(float[:,::1] fib_in, float[:,:,::1] target, float thr,
@@ -93,7 +25,7 @@ cdef (int, int) compute_dist_mean(float[:,::1] fib_in, float[:,:,::1] target, fl
     cdef float meandist_pt   = 0
     cdef float meandist_pt_d = 0
     cdef float meandist_pt_i = 0
-    cdef float meandist_fib = 10000000000
+    cdef float meandist_fib = 3000000000
     cdef int  i = 0
     cdef int  j = 0
     cdef int idx_ret = 0
@@ -141,7 +73,7 @@ cdef (int, int) compute_dist_max(float[:,::1] fib_in, float[:,:,::1] target, flo
     cdef float maxdist_pt   = 0
     cdef float maxdist_pt_d = 0
     cdef float maxdist_pt_i = 0
-    cdef float maxdist_fib  = 10000000000
+    cdef float maxdist_fib  = 3000000000
     cdef int  i = 0
     cdef int  j = 0
     cdef int idx_ret = 0
@@ -185,51 +117,6 @@ cdef (int, int) compute_dist_max(float[:,::1] fib_in, float[:,:,::1] target, flo
     return (num_c, flipped)
 
 
-cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_idx, str path_resampled, int num_pt):
-    """Compute the distance between the streamlines and the centroid of the cluster to which they belong
-        centroids      = array with the final centroids
-        clust_idx      = array containing for each streamline the idx of the cluster to which it belongs
-        path_resampled = path of the input streamlines after resampling
-        num_pt         = number of points
-    """
-    cdef float dist_d = 0
-    cdef float dist_f = 0
-    cdef float d_x = 0
-    cdef float d_y = 0
-    cdef float d_z = 0
-    cdef size_t  i = 0
-    cdef size_t  j = 0
-
-    cdef LazyTractogram TCK_res = LazyTractogram( path_resampled, mode='r' )
-    cdef int num_str = int( TCK_res.header['count'] )
-    cdef float [:] distances = np.zeros(num_str, dtype=np.float32) # array containing for each streamline the distance from the centroid (output)
-
-    for i in xrange(num_str):
-        TCK_res.read_streamline()
-        dist_d = 0
-        dist_f = 0
-
-        for j in xrange(num_pt):
-            # direct
-            d_x = (centroids[clust_idx[i]][j][0] - TCK_res.streamline[j][0])**2
-            d_y = (centroids[clust_idx[i]][j][1] - TCK_res.streamline[j][1])**2
-            d_z = (centroids[clust_idx[i]][j][2] - TCK_res.streamline[j][2])**2
-            dist_d += sqrt(d_x + d_y + d_z)
-
-            # flipped
-            d_x = (centroids[clust_idx[i]][j][0] - TCK_res.streamline[num_pt-j-1][0])**2
-            d_y = (centroids[clust_idx[i]][j][1] - TCK_res.streamline[num_pt-j-1][1])**2
-            d_z = (centroids[clust_idx[i]][j][2] - TCK_res.streamline[num_pt-j-1][2])**2
-            dist_f += sqrt(d_x + d_y + d_z)
-
-        if dist_d < dist_f:
-            distances[i] = dist_d/num_pt
-        else:
-            distances[i] = dist_f/num_pt
-
-    return distances
-
-
 cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts: int=12,
               verbose: int=3):
     """ Cluster streamlines in a tractogram based on a given metric (mean or max distance to the centroids)
@@ -265,8 +152,7 @@ cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts
     cdef float[:,::1] resampled_fib = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,:,::1] set_centroids = np.zeros((n_streamlines,nb_pts,3), dtype=np.float32)
     cdef float[:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
-    cdef float* vers = <float*>malloc(3*sizeof(float))
-    cdef float* lengths = <float*>malloc(1000*sizeof(float))
+    cdef float[:] lengths = np.zeros(3000, dtype=np.float32)
     TCK_in.read_streamline()
     cdef size_t pp = 0
 
@@ -276,7 +162,7 @@ cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts
             s0[pp][1] = TCK_in.streamline[pp][1]
             s0[pp][2] = TCK_in.streamline[pp][2]
     else:
-        set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0, vers, lengths)
+        set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, s0, lengths )
 
     cdef float[:,::1] new_centroid = np.zeros((nb_pts,3), dtype=np.float32)
     cdef float[:,::1] streamline_in = np.zeros((nb_pts,3), dtype=np.float32)
@@ -296,7 +182,6 @@ cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts
     cdef float d1_y = 0
     cdef float d1_z= 0
 
-
     set_centroids[0] = s0
     cdef int [:] clust_idx = np.zeros(n_streamlines, dtype=np.int32)
     t1 = time.time()
@@ -310,7 +195,7 @@ cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts
                     streamline_in[pp][1] = TCK_in.streamline[pp][1]
                     streamline_in[pp][2] = TCK_in.streamline[pp][2]
             else:
-                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, streamline_in[:] , vers, lengths)
+                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], nb_pts, streamline_in[:], lengths)
 
             if metric_mean:
                 t, flipped = compute_dist_mean(streamline_in, set_centroids[:new_c], thr, d1_x, d1_y, d1_z, new_c, nb_pts)
@@ -387,8 +272,7 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
     cdef float [:,:,::1] centroids = np.zeros((num_c, 3000,3), dtype=np.float32)
     cdef LazyTractogram TCK_in = LazyTractogram( tractogram_in, mode='r' )
     cdef int n_streamlines = int( TCK_in.header['count'] )
-    cdef float* vers = <float*>malloc(3*sizeof(float))
-    cdef float* lengths = <float*>malloc(2000*sizeof(float))
+    cdef float[:] lengths = np.zeros(3000, dtype=np.float32)
     cdef size_t p = 0
 
 
@@ -402,7 +286,7 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
                     fib_in[p][1] = TCK_in.streamline[p][1]
                     fib_in[p][2] = TCK_in.streamline[p][2]
             else:
-                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, fib_in[:] , vers, lengths)
+                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], num_pt, fib_in[:], lengths )
             maxdist_pt_d = 0
             maxdist_pt_i = 0
 
@@ -460,8 +344,7 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
 
     idx_cl = np.zeros((len(filenames), num_fibs), dtype=np.intc)
     cdef int[:,::1] idx_closest = idx_cl
-    cdef float* vers = <float*>malloc(3*sizeof(float))
-    cdef float* lengths = <float*>malloc(1000*sizeof(float))
+    cdef float[:] lengths = np.zeros(3000, dtype=np.float32)
 
     for i, filename in enumerate(filenames):
         TCK_in = LazyTractogram( filename, mode='r', max_points=1000 )
@@ -476,7 +359,7 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
                 set_centroids[i, 0, pp, 1] = TCK_in.streamline[pp][1]
                 set_centroids[i, 0, pp, 2] = TCK_in.streamline[pp][2]
         else:
-            set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, set_centroids[i, 0], vers, lengths)
+            set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, set_centroids[i, 0], lengths )
         TCK_in.close()
 
 
@@ -498,10 +381,8 @@ cpdef cluster_chunk(filenames: list[str], num_fibs: int, threshold: float=10.0, 
                     resampled_streamlines[i, st, pp, 1] = TCK_in.streamline[pp][1]
                     resampled_streamlines[i, st, pp, 2] = TCK_in.streamline[pp][2]
             else:
-                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, resampled_streamlines[i, st], vers, lengths)
+                set_number_of_points( TCK_in.streamline[:TCK_in.n_pts], n_pts, resampled_streamlines[i, st], lengths)
         TCK_in.close()
-    free(vers)
-    free(lengths)
 
     cdef int nb_pts = n_pts
     idx_cl_return = np.zeros((len(filenames), int(np.max(n_streamlines))), dtype=np.intc)
@@ -593,6 +474,7 @@ cdef void closest_streamline_s( float[:,::1] streamline_in, int n_pts, int c_i, 
     cdef float d2_y = 0
     cdef float d2_z= 0
     cdef int  j = 0
+    cdef size_t i = 0
 
     maxdist_pt_d = 0
     maxdist_pt_i = 0
@@ -618,17 +500,12 @@ cdef void closest_streamline_s( float[:,::1] streamline_in, int n_pts, int c_i, 
 
     if maxdist_pt < fib_centr_dist[c_i]:
         fib_centr_dist[c_i] = maxdist_pt
-        copy_s(streamline_in, closest_streamlines[c_i], n_pts)
+        for i in range(n_pts):
+            closest_streamlines[c_i][i][0] = streamline_in[i][0]
+            closest_streamlines[c_i][i][1] = streamline_in[i][1]
+            closest_streamlines[c_i][i][2] = streamline_in[i][2]
         centr_len[c_i] = n_pts
         idx_closest_return[c_i] = idx_closest[jj]
-
-
-cdef void copy_s(float[:,::1] fib_in, float[:,::1] fib_out, int n_pts) noexcept nogil:
-    cdef size_t i = 0
-    for i in range(n_pts):
-        fib_out[i][0] = fib_in[i][0]
-        fib_out[i][1] = fib_in[i][1]
-        fib_out[i][2] = fib_in[i][2]
 
 
 def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filename: str, metric: str="EDavg", n_pts: int=12,
@@ -787,7 +664,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
             with ThreadPoolExecutor(max_workers=MAX_THREAD) as executor:
                 future = [
                     executor.submit(
-                        assign,
+                        _assign,
                         tractogram_filename,
                         pbar_array,
                         i,
@@ -1083,7 +960,6 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
 
 
 cpdef closest_centroid_pt(float[:,::1] centroid, float[:,::1] streamline, float[:] streamline_values, int num_pt):
-
     cdef float dist_d = 0
     cdef float dist_f = 0
     cdef float dist_min = 1e6
@@ -1127,8 +1003,7 @@ cpdef closest_centroid_pt(float[:,::1] centroid, float[:,::1] streamline, float[
 cpdef project_values_on_centroid(filename_tractogram: str, float[:,:] streamline_vals, thr: float=20.0 ):
 
     cdef LazyTractogram TCK_in = LazyTractogram( filename_tractogram, mode='r', max_points=1000 )
-    cdef float* vers = <float*>malloc(3*sizeof(float))
-    cdef float* lengths = <float*>malloc(1000*sizeof(float))
+    cdef float[:] lengths = np.zeros(3000, dtype=np.float32)
     cdef float[:,::1] centroid_resampled = np.empty( (256, 3), dtype=np.float32 )
     cdef float[:,::1] streamline_resampled = np.empty( (256, 3), dtype=np.float32 )
     cdef float[:] proj_values = np.zeros(256, dtype=np.float32)
@@ -1139,15 +1014,61 @@ cpdef project_values_on_centroid(filename_tractogram: str, float[:,:] streamline
     cdef size_t j = 0
 
     _, centroid = cluster(filename_tractogram, threshold=thr, n_pts=12)
-    set_number_of_points( centroid[0], 256, centroid_resampled, vers, lengths)
+    set_number_of_points( centroid[0], 256, centroid_resampled, lengths)
 
     for i in xrange(num_str):
         proj_values[:] = 0
         TCK_in.read_streamline()
-        set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], 256, streamline_resampled, vers, lengths)
+        set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], 256, streamline_resampled, lengths)
         proj_values = closest_centroid_pt(centroid_resampled, streamline_resampled, streamline_values[i], 256)
         for j in xrange(256):
             final_values[j] += proj_values[j]
 
     TCK_in.close()
     return np.asarray(final_values)
+
+
+
+cpdef float [:] compute_dist_centroid(float[:,:,::1] centroids, int [:] clust_idx, str path_resampled, int num_pt):
+    """Compute the distance between the streamlines and the centroid of the cluster to which they belong
+        centroids      = array with the final centroids
+        clust_idx      = array containing for each streamline the idx of the cluster to which it belongs
+        path_resampled = path of the input streamlines after resampling
+        num_pt         = number of points
+    """
+    cdef float dist_d = 0
+    cdef float dist_f = 0
+    cdef float d_x = 0
+    cdef float d_y = 0
+    cdef float d_z = 0
+    cdef size_t  i = 0
+    cdef size_t  j = 0
+
+    cdef LazyTractogram TCK_res = LazyTractogram( path_resampled, mode='r' )
+    cdef int num_str = int( TCK_res.header['count'] )
+    cdef float [:] distances = np.zeros(num_str, dtype=np.float32) # array containing for each streamline the distance from the centroid (output)
+
+    for i in xrange(num_str):
+        TCK_res.read_streamline()
+        dist_d = 0
+        dist_f = 0
+
+        for j in xrange(num_pt):
+            # direct
+            d_x = (centroids[clust_idx[i]][j][0] - TCK_res.streamline[j][0])**2
+            d_y = (centroids[clust_idx[i]][j][1] - TCK_res.streamline[j][1])**2
+            d_z = (centroids[clust_idx[i]][j][2] - TCK_res.streamline[j][2])**2
+            dist_d += sqrt(d_x + d_y + d_z)
+
+            # flipped
+            d_x = (centroids[clust_idx[i]][j][0] - TCK_res.streamline[num_pt-j-1][0])**2
+            d_y = (centroids[clust_idx[i]][j][1] - TCK_res.streamline[num_pt-j-1][1])**2
+            d_z = (centroids[clust_idx[i]][j][2] - TCK_res.streamline[num_pt-j-1][2])**2
+            dist_f += sqrt(d_x + d_y + d_z)
+
+        if dist_d < dist_f:
+            distances[i] = dist_d/num_pt
+        else:
+            distances[i] = dist_f/num_pt
+
+    return distances

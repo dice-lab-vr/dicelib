@@ -83,10 +83,10 @@ def coherence():
         [['tractogram'], {'help': desc['tractogram_filename']}],
         [['sph_func'], {'help': desc['sph_func_filename']}],
         [['out_weights'], {'help': desc['out_weights_filename']}],
-        [['--stat'], {'choices': ['min','mean','max', 'all'], 'default': 'min', 'help': desc['stat']}],
+        [['--stat'], {'choices': ['mean','min','percentile','max','all'], 'default': 'min', 'help': desc['stat']}],
+        [['--percentile', '-p'], {'type': int, 'default': 5, 'help': desc['percentile']}],
         [['--normalize', '-n'], {'type': str, 'default': None, 'help': desc['lobes_filename']}],
-        [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}],
-        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
+        [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
@@ -95,9 +95,9 @@ def coherence():
             sph_func_filename=options.sph_func,
             out_weights_filename=options.out_weights,
             stat=options.stat,
+            percentile=options.percentile,
             lobes_filename=options.normalize,
             trim=options.trim,
-            shift=options.shift,
             force=options.force,
             verbose=options.verbose
         )
@@ -262,8 +262,7 @@ def sample():
         [['image'], {'type': str, 'help': desc['image_filename']}],
         [['out_scalars'], {'type': str, 'help': desc['out_scalars_filename']}],
         [['--mask', '-m'], {'type': str, 'default': None, 'help': desc['mask_filename']}],
-        [['--stat'], {'type': str, 'nargs': '?', 'default': 'all', 'choices': ['all', 'mean', 'median', 'min', 'max'], 'help': desc['stat']}],
-        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
+        [['--stat'], {'type': str, 'nargs': '?', 'default': 'all', 'choices': ['all', 'mean', 'median', 'min', 'max'], 'help': desc['stat']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
@@ -273,7 +272,6 @@ def sample():
             out_scalars_filename=options.out_scalars,
             mask_filename=options.mask,
             stat=options.stat,
-            shift=options.shift,
             force=options.force,
             verbose=options.verbose
         )
@@ -379,7 +377,7 @@ def smoothSplines():
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
         [['--type', '-t'], {'type': str, 'default': 'centripetal', 'choices': ['uniform', 'chordal', 'centripetal'], 'help': desc['spline_type']}],
-        [['--epsilon', '-e'], {'type': float, 'default': None, 'help': desc['epsilon']}],
+        [['--epsilon', '-e'], {'type': float, 'default': 0.3, 'help': desc['epsilon']}],
         [['--n_ctrl_pts', '-n'], {'type': int, 'default': None, 'help': desc['n_ctrl_pts']}],
         [['--n_pts_eval', '-ne'], {'type': int, 'default': None, 'help': desc['n_pts_eval']}],
         [['--segment_len_eval', '-le'], {'type': float, 'default': None, 'help': desc['segment_len_eval']}],
@@ -478,8 +476,7 @@ def tdi():
     args = [
         [['tractogram'], {'help': desc['tractogram_filename']}],
         [['ref_image'], {'help': desc['ref_image_filename']}],
-        [['out_map'], {'help': desc['out_map_filename']}],
-        [['--shift', '-s'], {'type': float, 'default': 0.5, 'help': desc['shift']}]
+        [['out_map'], {'help': desc['out_map_filename']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
@@ -487,7 +484,6 @@ def tdi():
             tractogram_filename=options.tractogram,
             ref_image_filename=options.ref_image,
             out_map_filename=options.out_map,
-            shift=options.shift,
             force=options.force,
             verbose=options.verbose
         )
