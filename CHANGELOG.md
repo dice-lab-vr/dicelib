@@ -1,6 +1,27 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.3.0`<br>_2026-01-14_
+### 🐛Fixed
+- Conversion from streamline space to voxel space
+- Minor bugs
+
+### ✨Added
+- Computation of the coherence of streamline with the underlying FOD  (`dice_tractogram_coherence` script)
+- Computation of TDI maps  (`dice_tractogram_tdi` script)
+- Streamline smoothing with Savitzky–Golay filter
+- Support for handling additional TSF files when joining and filtering tractograms
+
+### 🛠️Changed
+- Documentation of entry-point scripts is automatically taken from docstrings of corresponding functions
+- Function parameters now follow the same conventions
+- Minor modifications towards a consistent way to compute voxel coordinates
+- Renamed spline smoothing functions
+- Removed unused functions
+
+---
+---
+
 ## `v1.2.1`<br>_2025-10-06_
 ### 🐛Fixed
 - Fixed ending points in `smooth`

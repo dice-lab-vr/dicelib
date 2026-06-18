@@ -1,8 +1,8 @@
 from dicelib.utils import get_version
 
 import numpy as np
-
 import argparse
+from numpydoc.docscrape import NumpyDocString
 from datetime import datetime as _datetime
 import itertools
 import logging
@@ -29,8 +29,8 @@ def _in_notebook() -> bool:
 
 # ASCII art
 ascii_art = f"""
-       ___           ___ __  
-  ____/ (_)_______  / (_) /_ 
+       ___           ___ __
+  ____/ (_)_______  / (_) /_
  / __  / / ___/ _ \\/ / / __ \\
 / /_/ / / /__/  __/ / / /_/ /
 \\__,_/_/\\___/\\___/_/_/_.___/ [v{get_version()}]"""
@@ -85,7 +85,7 @@ Mode = Literal['console', 'file']
 class LoggerFormatter(logging.Formatter):
     def __init__(self, mode: Mode) -> NoReturn:
         # self.levelname_len = 10
-        self.msg_len = 75
+        self.msg_len = 100
         # self.levelname_sep = '-'
         self.message_sep = ' '
         asctime = '{asctime}'
@@ -117,7 +117,7 @@ class LoggerFormatter(logging.Formatter):
         else:
             raise ValueError('\'mode\' must be \'console\' or \'file\'')
         super().__init__(fmt=self.formats[logging.DEBUG], datefmt='%Y-%m-%d, %H:%M:%S', style='{')
-    
+
     def format(self, record):
         super().__init__(fmt=self.formats[record.levelno], datefmt='%Y-%m-%d, %H:%M:%S', style='{')
         record.message = record.getMessage()
@@ -158,7 +158,7 @@ class LoggerFormatter(logging.Formatter):
                 s = textwrap.dedent(record.message.strip())
                 s = s.ljust(msg_len, self.message_sep)
                 record.message = s
-        
+
         s = self.formatMessage(record)
         if record.exc_info:
             # Cache the traceback text to avoid converting it multiple times
@@ -178,7 +178,13 @@ class LoggerFormatter(logging.Formatter):
 class Logger(logging.getLoggerClass()):
     def __init__(self, name, level=logging.NOTSET):
         super().__init__(name, level)
-    
+
+    def __del__(self):
+        for _, handler in enumerate(self.handlers):
+            if type(handler) is logging.FileHandler:
+                handler.close()
+        super().__del__()
+
     def subinfo(self, msg, indent_lvl=0, indent_char='', with_progress=False, stacklevel=2, *args, **kwargs):
         if self.isEnabledFor(SUBINFO):
             stream_handler_indices = []
@@ -202,20 +208,20 @@ class Logger(logging.getLoggerClass()):
                 for i in stream_handler_indices:
                     self.handlers[i].terminator = '\n'
         return msg
-    
-    def warning(self, msg, stacklevel=1, *args, **kwargs):
-        if self.isEnabledFor(logging.WARNING):
-            stream_handler_indices = []
-            for i, handler in enumerate(self.handlers):
-                    if type(handler) is logging.StreamHandler:
-                        stream_handler_indices.append(i)
-            if _in_notebook():
-                msg = f'{bg_yellow}{fg_black} {logging.getLevelName(logging.WARNING)} {reset} {fg_yellow}{msg}{reset}'
-                print(msg, flush=True)
-            else:
-                self._log(logging.WARNING, msg, args, stacklevel=stacklevel, **kwargs)
-        return msg
-    
+
+    # def warning(self, msg, stacklevel=1, *args, **kwargs):
+    #     if self.isEnabledFor(logging.WARNING):
+    #         # stream_handler_indices = []
+    #         # for i, handler in enumerate(self.handlers):
+    #         #         if type(handler) is logging.StreamHandler:
+    #         #             stream_handler_indices.append(i)
+    #         # if not _in_notebook():
+    #         #     msg = f'{bg_yellow}{fg_black} {logging.getLevelName(logging.WARNING)} {reset} {fg_yellow}{msg}{reset}'
+    #         #     print(msg, flush=True)
+    #         # else:
+    #         self._log(logging.WARNING, msg, args, stacklevel=stacklevel, **kwargs)
+    #     return msg
+
     def error(self, msg, stacklevel=2, *args, **kwargs):
         super().error(msg, stacklevel=stacklevel, *args, **kwargs)
         sys.exit(1)
@@ -232,7 +238,7 @@ def verbose2loglvl(verbose: int) -> int:
     elif verbose == 4:
         return logging.DEBUG
 
-def setup_logger(name, verbose=3, log_on_file=False, file_verbose=4):
+def setup_logger(name, verbose=3, log_on_file=None, file_verbose=4):
     try:
         lvl = verbose2loglvl(verbose)
         file_lvl = verbose2loglvl(file_verbose)
@@ -246,17 +252,18 @@ def setup_logger(name, verbose=3, log_on_file=False, file_verbose=4):
         console_handler.setLevel(lvl)
         console_handler.setFormatter(LoggerFormatter('console'))
         logger.addHandler(console_handler)
-        if log_on_file:
-            file_handler = logging.FileHandler('log.log', mode='w')
+        if log_on_file is not None:
+            file_handler = logging.FileHandler(log_on_file, mode='w')
+            file_handler.setFormatter(LoggerFormatter('file'))
             file_handler.setLevel(file_lvl)
-            file_handler.emit(logger.makeRecord(name, logging.DEBUG, abspath(''), 0, 'Log created', None, None))
+            # file_handler.emit(logger.makeRecord(name, logging.DEBUG, abspath(''), 0, 'Log created', None, None))
             logger.addHandler(file_handler)
     else:
         for i, handler in enumerate(logger.handlers):
             if type(handler) == logging.StreamHandler:
                 logger.handlers[i].setLevel(lvl)
             if type(handler) == logging.FileHandler:
-                if log_on_file:
+                if log_on_file is not None:
                     logger.handlers[i].setLevel(file_lvl)
                 else:
                     logger.removeHandler(handler)
@@ -485,7 +492,7 @@ class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.Arg
 
         # return the text
         return text
-        
+
     def _format_action(self, action):
         # determine the required width and the entry label
         help_position = min(self._action_max_length + 2,
@@ -633,7 +640,7 @@ class ArgumentParserFormatter(argparse.RawDescriptionHelpFormatter, argparse.Arg
 
             # join the section-initial newline, the heading and the help
             return join(['\n', heading, item_help, '\n'])
-        
+
     def _format_usage(self, usage, actions, groups, prefix):
         if prefix is None:
             prefix = 'usage' # NOTE: change default prefix
@@ -778,11 +785,13 @@ class ArgumentParser(argparse.ArgumentParser):
             formatter.end_section()
 
         # epilog
-        formatter.add_text(self.epilog)
+        if self.epilog is not None:
+            formatter.start_section('NOTES')
+            formatter.add_text(self.epilog)
 
         # determine help from format above
         return formatter.format_help()
-    
+
     def parse_known_args(self, args=None, namespace=None, intermixed=None):
         if args is None:
             # args default to the system args
@@ -790,7 +799,7 @@ class ArgumentParser(argparse.ArgumentParser):
         else:
             # make sure that args are mutable
             args = list(args)
-        
+
         # NOTE: print help if no arguments are given
         if len(args) == 0:
             self.print_help()
@@ -830,14 +839,26 @@ class ArgumentParser(argparse.ArgumentParser):
             delattr(namespace, argparse._UNRECOGNIZED_ARGS_ATTR)
         return namespace, args
 
-def setup_parser(description: str, args: list, add_force: bool=False, add_verbose: bool=False) -> argparse.Namespace:
-    parser = ArgumentParser(description=description)
+
+def get_argparse_info_from_docstring( docstring ):
+    '''Get parameter' descriptions from function's docstring'''
+    ds = NumpyDocString( docstring )
+    p = dict( [ (p.name,'\n'.join(p.desc).replace('%','%%')) for p in ds['Parameters'] ] )
+    s = ' '.join(ds['Summary'])
+    e = None
+    if len( ds['Extended Summary'] ) > 0:
+        e = '\n'.join(ds['Extended Summary'])
+    return s, p, e
+
+
+def setup_parser(description: str, args: list, add_force: bool=False, add_verbose: bool=False, epilog: str=None) -> argparse.Namespace:
+    parser = ArgumentParser(description=description, epilog=epilog)
     # specific arguments
     for arg in args:
         parser.add_argument(*arg[0], **arg[1])
     # common arguments
     if add_force:
-        parser.add_argument('--force', '-f', action='store_true', help='Force overwriting of the output')
+        parser.add_argument('--force', '-f', action='store_true', help='Force overwriting of the output files.')
     if add_verbose:
         parser.add_argument('--verbose', '-v', type=int, default=3, metavar='VERBOSE_LEVEL', help='''\
                             Verbosity level:
@@ -845,14 +866,15 @@ def setup_parser(description: str, args: list, add_force: bool=False, add_verbos
                             1 = warnings and errors
                             2 = info, warnings and errors
                             3 = info, warnings, errors and progressbars
-                            4 = debug, info, warnings, errors and progressbars''')
+                            4 = debug, info, warnings, errors and progressbars.''')
     parser.add_argument('--help', '-h', action='help', help='Show this help message and exit')
     return parser.parse_args()
+
 
 # Progress bar
 class ProgressBar:
     """Class that provides a progress bar during long-running processes.
-    
+
     It can be used either as a indeterminate or determinate progress bar.
     Determinate progress bar supports multithread progress tracking.
     It can be used as a context manager.
@@ -879,7 +901,7 @@ class ProgressBar:
         Whether to hide the progress bar on exit (default is True).
     disable : bool
         Whether to disable the progress bar (default is False).
-	
+
 	Examples
 	--------
 	Indeterminate progress bar.
@@ -1002,7 +1024,7 @@ class ProgressBar:
                 elif type(self.subinfo) is bool and not self.subinfo or type(self.subinfo) is str and self.subinfo == '':
                     print(f"\r|{fg_pink}{'━' * int(self.ncols * self._progress / self.total)}{fg_bright_black}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}{reset}| {fg_green}[{100 * self._progress / self.total:.1f}%] {fg_cyan}{self._eta}{reset}", end='', flush=True)
                 sleep(self.refresh)
-    
+
     def _handle_subinfo(self):
         print(clear_line, end='\r', flush=True)
         print(f'{esc}1A{clear_line}', end='\r', flush=True)

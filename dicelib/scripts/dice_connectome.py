@@ -1,48 +1,36 @@
-from dicelib.connectivity import build_connectome
-from dicelib.ui import setup_parser
+from dicelib.ui import setup_logger, setup_parser, get_argparse_info_from_docstring
+logger = setup_logger('dice_connectome')
 
-def connectome_build():
-    '''
-    Entry point for the connectome build function.
-    '''
-    # parse the input parameters
+
+def build():
+    '''Entry point for the connectivity.build_connectome function.'''
+    from dicelib.connectivity import build_connectome
+    summary, desc, notes = get_argparse_info_from_docstring( build_connectome.__doc__  )
     args = [
-        [['assignments'], {'type': str, 'help': 'Streamline assignments file (if it doesn\'t exist, it will be created using the given tractogram and atlas files)'}],
-        [['connectome_out'], {'type': str, 'help': 'Output connectome file'}],
-        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': '''\
-                                  Input streamline weights file, used to compute the value of the edges. 
-                                  If None, the value of the edges will be number of streamline connecting those regions.'''}],
-        [['--metric', '-m'], {'type': str, 'default': 'sum', 'help': '''\
-                              Operation to compute the value of the edges, options: sum, mean, min, max. 
-                              NB: if \'weights_in\' is None, this parameter is ignored because the connectome will contain the number of streamlines.'''}],
-        [['--symmetric', '-s'], {'action': 'store_true', 'help': 'Make output connectome symmetric'}],
-        [['--tractogram_in', '-tck'], {'type': str, 'default': None, 'help': '''\
-                                     Input tractogram file, used to compute the assignments.
-                                     Required if \'assignments_in\' does not exist'''}],
-        [['--atlas', '-a'], {'type': str, 'default': None, 'help': '''\
-                                Path to the atlas file defining the nodes of the connectome.
-                                Required to compute streamlines assignments if \'assignments_in\' does not exist'''}],
-        [['--atlas_dist', '-d'], {'type': float, 'default': 2.0, 'help': '''\
-                                   Distance used to perform a radial search from each streamline endpoint to locate the nearest node and assign the streamline to the corresponding bundle.
-                                   Argument is the maximum radius in mm
-                                   Used only if \'assignments_in\' does not exist'''}],
-        [['--n_threads', '-n'], {'type': int, 'default': 3, 'metavar': 'N_THREADS', 'help': '''\
-                                 Number of threads to use.
-                                 If None, all the available threads will be used'''}]
+        [['assignments'], {'type': str, 'help': desc['assignments_filename']}],
+        [['out_connectome'], {'type': str, 'help': desc['out_connectome_filename']}],
+        [['--weights_in', '-w'], {'type': str, 'default': None, 'help': desc['weights_filename']}],
+        [['--stat'], {'type': str, 'default': 'sum', 'help': desc['stat']}],
+        [['--symmetric', '-s'], {'action': 'store_true', 'help': desc['symmetric']}],
+        [['--tractogram', '-tck'], {'type': str, 'default': None, 'help': desc['tractogram_filename']}],
+        [['--atlas', '-a'], {'type': str, 'default': None, 'help': desc['atlas_filename']}],
+        [['--distance', '-d'], {'type': float, 'default': 2.0, 'help': desc['distance']}],
+        [['--n_threads', '-n'], {'type': int, 'default': 3, 'help': desc['n_threads']}]
     ]
-    options = setup_parser(build_connectome.__doc__.split('\n')[0], args, add_force=True, add_verbose=True)
-
-    # call actual function
-    build_connectome(
-        options.assignments,
-        options.connectome_out,
-        options.weights_in,
-        options.tractogram_in,
-        options.atlas,
-        options.atlas_dist,
-        options.metric,
-        options.symmetric,
-        options.n_threads,
-        options.verbose,
-        options.force
-    )
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        build_connectome(
+            assignments_filename=options.assignments,
+            out_connectome_filename=options.out_connectome,
+            weights_filename=options.weights_in,
+            stat=options.stat,
+            symmetric=options.symmetric,
+            tractogram_filename=options.tractogram,
+            atlas_filename=options.atlas,
+            distance=options.distance,
+            n_threads=options.n_threads,
+            verbose=options.verbose,
+            force=options.force
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
