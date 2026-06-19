@@ -1,6 +1,13 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.4.0`<br>_2026-06-19_
+### 🛠️Changed
+- Refactor clustering functions
+
+---
+---
+
 ## `v1.3.0`<br>_2026-01-14_
 ### 🐛Fixed
 - Conversion from streamline space to voxel space

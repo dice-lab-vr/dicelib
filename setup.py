@@ -13,41 +13,41 @@ def get_extensions():
         name=f'{package_name}.image',
         sources=[f'{package_name}/image.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11', '-g0'],
+        extra_compile_args=['-w', '-std=c++11', '-g0', '-O3', '-ffast-math', '-march=native'],
         language='c++'
     )
     streamline = Extension(
         name=f'{package_name}.streamline',
         sources=[f'{package_name}/streamline.pyx'],
         include_dirs=[get_include(), f'{package_name}/include'],
-        extra_compile_args=['-w', '-std=c++11', '-g0'],
+        extra_compile_args=['-w', '-std=c++11', '-g0', '-O3', '-ffast-math', '-march=native'],
         language='c++'
     )
     tractogram = Extension(
         name=f'{package_name}.tractogram',
         sources=[f'{package_name}/tractogram.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11', '-g0'],
+        extra_compile_args=['-w', '-std=c++11', '-g0', '-O3', '-ffast-math', '-march=native'],
         language='c++'
     )
     clustering = Extension(
         name=f'{package_name}.clustering',
         sources=[f'{package_name}/clustering.pyx'],
-        extra_compile_args=['-w', '-std=c++11'],
+        extra_compile_args=['-w', '-std=c++11', '-g0', '-O3', '-ffast-math', '-march=native'],
         language='c++',
     )
     connectivity = Extension(
         name=f'{package_name}.connectivity',
         sources=['dicelib/connectivity.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
+        extra_compile_args=['-w', '-std=c++11', '-g0', '-O3', '-ffast-math', '-march=native'],
         language='c++',
     )
     tsf = Extension(
         name=f'{package_name}.tsf',
         sources=[f'{package_name}/tsf.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11'],
+        extra_compile_args=['-w', '-std=c++11', '-g0', '-O3', '-ffast-math', '-march=native'],
         language='c++',
     )
 

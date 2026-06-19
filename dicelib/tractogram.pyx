@@ -1658,7 +1658,7 @@ def sanitize(tractogram_filename: str, gm_filename: str, wm_filename: str, out_t
                         pt_0  = fib[idx_last,:]
                         pt_1  = fib[idx_last-1,:]
                         pt_2  = fib[idx_last-2,:]
-                    
+
                     if gm[coord_x,coord_y,coord_z]==0: # starting point is outside gm
                         if wm[coord_x,coord_y,coord_z]==1: # starting point is inside wm
                             vec_x, vec_y, vec_z, ver_x, ver_y, ver_z = compute_vect_vers(pt_0, pt_1)
@@ -2699,7 +2699,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
                 np.savetxt(out_weights_filename, coherence, fmt='%.4f')
             else:
                 np.save(out_weights_filename, coherence, allow_pickle=False)
-
 
     except Exception as e:
         logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )

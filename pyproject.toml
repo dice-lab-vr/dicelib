@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dmri-dicelib"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
     "cython>=3.0.10",
     "nibabel>=5.2.1",
@@ -58,6 +58,7 @@ Changelog = "https://github.com/dice-lab-vr/dicelib/blob/master/CHANGELOG.md"
 dice_image_extract = "dicelib.scripts.dice_image:image_extract"
 dice_tractogram_assign = "dicelib.scripts.dice_tractogram:assign"
 dice_tractogram_cluster = "dicelib.scripts.dice_tractogram:cluster"
+dice_tractogram_cluster_new = "dicelib.scripts.dice_tractogram:cluster_new"
 dice_tractogram_coherence = "dicelib.scripts.dice_tractogram:coherence"
 dice_tractogram_filter = "dicelib.scripts.dice_tractogram:filter"
 dice_tractogram_info = "dicelib.scripts.dice_tractogram:info"

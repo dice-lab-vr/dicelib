@@ -1,4 +1,4 @@
-# cython: boundscheck=False, wraparound=False, profile=False, language_level=3
+# cython: boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True, language_level=3
 from dicelib.connectivity import _assign
 from dicelib.tractogram import info, split
 from dicelib.streamline import cumulative_lengths, set_number_of_points
@@ -8,9 +8,10 @@ from concurrent.futures import as_completed, ThreadPoolExecutor
 import os
 import shutil
 from sys import getsizeof
-import time
+from time import time
 import nibabel as nib
 import numpy as np
+cimport numpy as np
 import psutil
 from dicelib.tractogram cimport LazyTractogram
 from libc.math cimport sqrt
@@ -184,7 +185,7 @@ cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts
 
     set_centroids[0] = s0
     cdef int [:] clust_idx = np.zeros(n_streamlines, dtype=np.int32)
-    t1 = time.time()
+    t1 = time()
 
     with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=True) as pbar:
         for i in xrange(1, n_streamlines, 1):
@@ -566,7 +567,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
     verbose : int, default=3
         What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
-    t0 = time.time()
+    t0 = time()
     set_verbose('clustering', verbose)
     logger.info(f'Clustering')
 
@@ -676,7 +677,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
                 chunks_asgn = [f.result() for f in future]
                 chunks_asgn = [c for f in chunks_asgn for c in f]
 
-        t1 = time.time()
+        t1 = time()
         logger.subinfo(f'Number of regions: {np.max(np.array(chunks_asgn))}', indent_lvl=1, indent_char='*')
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
@@ -721,7 +722,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
         if warning_msg != '':
             logger.warning(warning_msg) if log_list is None else log_list.append(warning_msg)
 
-        t1 = time.time()
+        t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
         ref_indices = []
@@ -747,7 +748,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
                         MAX_BYTES = int(0.9 * mem_avail)//MAX_THREAD
 
                     executor = ThreadPoolExecutor(max_workers=MAX_THREAD)
-                    t0 = time.time()
+                    t0 = time()
 
                     # compute base size of centroid array
                     base_size = getsizeof(np.zeros((1,1, 1000, 3), dtype=np.float32))
@@ -952,7 +953,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
     if save_clust_idx:
         np.savetxt(f'{out_tractogram_filename[:len(out_tractogram_filename)-4]}_clust_idx.txt', ret_clust_idx, fmt='%d')
 
-    t1 = time.time()
+    t1 = time()
     logger.subinfo(f"Number of output centroids: {TCK_out_size}", indent_char='*', indent_lvl=1)
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
@@ -1026,3 +1027,224 @@ cpdef project_values_on_centroid(filename_tractogram: str, float[:,:] streamline
 
     TCK_in.close()
     return np.asarray(final_values)
+
+
+cdef class AverageSquaredEuclideanDistance:
+    """Class to compute the Average Squared Euclidean Distance (ASED) between streamlines"""
+    cdef:
+        int n_pts
+
+    def __init__(self, int n_pts):
+        self.n_pts = n_pts
+
+    def __dealloc__(self):
+        pass
+
+    cdef void dist_to_centroids(self, float[:,::1] streamline, float[:,:,::1] centroids, float thr, int n_centroids, int* out_cluster_idx, int* out_flipped) nogil:
+        """Compute the distance between a streamline and a set of centroids"""
+        cdef:
+            size_t i, j, k
+            float dx, dy, dz
+            float dist_direct, dist_flipped
+            float dist_all_sum = 3e9
+            int cluster_idx, flipped
+
+        if streamline.shape[0] != self.n_pts:
+            raise ValueError(f"Streamline has {streamline.shape[0]} points, but expected {self.n_pts} points.")
+        if streamline.shape[1] != 3:
+            raise ValueError(f"Streamline has {streamline.shape[1]} dimensions, but expected 3 dimensions.")
+        if centroids.shape[1] != self.n_pts:
+            raise ValueError(f"Centroids have {centroids.shape[1]} points, but expected {self.n_pts} points.")
+        if centroids.shape[2] != 3:
+            raise ValueError(f"Centroids have {centroids.shape[2]} dimensions, but expected 3 dimensions.")
+
+        for i in range(n_centroids):
+            dist_direct = 0
+            dist_flipped = 0
+
+            for j in range(self.n_pts):
+                dx = streamline[j, 0] - centroids[i, j, 0]
+                dy = streamline[j, 1] - centroids[i, j, 1]
+                dz = streamline[j, 2] - centroids[i, j, 2]
+                dist_direct += dx*dx + dy*dy + dz*dz
+
+                k = self.n_pts-j-1
+                dx = streamline[k, 0] - centroids[i, j, 0]
+                dy = streamline[k, 1] - centroids[i, j, 1]
+                dz = streamline[k, 2] - centroids[i, j, 2]
+                dist_flipped += dx*dx + dy*dy + dz*dz
+
+                # if both direct and flipped distances are already worse
+                # than best found distance, no need to continue computing
+                if j % 4 == 0:
+                    if dist_direct >= dist_all_sum and dist_flipped >= dist_all_sum:
+                        break
+
+            # Only update if we actually found a new minimum
+            if dist_direct <= dist_flipped:
+                if dist_direct < dist_all_sum:
+                    dist_all_sum = dist_direct
+                    flipped = 0
+                    cluster_idx = i
+            else:
+                if dist_flipped < dist_all_sum:
+                    dist_all_sum = dist_flipped
+                    flipped = 1
+                    cluster_idx = i
+
+        # Final threshold check against the sum
+        if dist_all_sum >= thr * self.n_pts:
+            cluster_idx = n_centroids
+        out_cluster_idx[0] = cluster_idx
+        out_flipped[0] = flipped
+        return
+
+
+cpdef cluster_new( tractogram_filename: str, thr: float, out_tractogram_filename: str, metric: str="ASED", n_points: int=12, force: bool=False, verbose: int=3):
+    """Cluster streamlines in a tractogram based on a given distance metric.
+
+    Parameters
+    ----------
+    tractogram_filename : str
+        Path to the tractogram (.tck) containing the streamlines to process.
+    thr : float
+        Threshold to use when computing distances between the streamlines.
+    out_tractogram_filename : str
+        Path to the tractogram (.tck) that will contain the clustered streamlines.
+    metric : {'ASED'}, default='ASED'
+        Metric to use for computing distances between streamlines:
+        - 'ASED' = Average Squared Euclidean Distance (i.e., streamlines with
+          average squared Euclidean distance smaller than 'thr' will be clustered together).
+    n_points : int, default=12
+        Number of points to resample the streamlines before clustering.
+        NB: this clustering algorithm requires all streamlines to have the same number of points.
+    force : boolean, default=False
+        Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
+    """
+    cdef:
+        int n_streamlines, n_centroids, n_pts = n_points
+        size_t i, j, k
+        float n1, n2
+        float[:] lengths = np.empty(3000, dtype=np.float32)
+        float [:,:,::1] centroids, centroids_updated
+        int [:] centroids_size
+        float[:,::1] streamline = np.empty((n_pts,3), dtype=np.float32)
+        int [:] cluster_idx
+        int [:] c_w
+        int c_idx, c_flipped
+        LazyTractogram TCK_in = None, TCK_out = None
+        AverageSquaredEuclideanDistance dist = AverageSquaredEuclideanDistance(n_pts)
+
+    t0 = time()
+    set_verbose('clustering', verbose)
+    logger.info('Clustering tractogram')
+
+    if not os.path.isfile(tractogram_filename):
+        logger.error(f"File '{tractogram_filename}' not found")
+        return
+    if metric != 'ASED':
+        logger.error(f"Metric '{metric}' not recognized")
+        return
+
+    files = [
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck']),
+        File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext=['.tck'])
+    ]
+    nums = [
+        Num(name='thr', value=thr, min_=0.0, include_min=False),
+        Num(name='n_pts', value=n_pts, min_=2)
+    ]
+    check_params(files=files, nums=nums, force=force)
+
+    try:
+        TCK_in = LazyTractogram( tractogram_filename, mode='r', max_points=1000 )
+        n_streamlines = int(TCK_in.header['count'])
+        logger.subinfo(f'Number of input streamlines: {n_streamlines}', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Points per streamline: {n_pts}', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Distance metric: "{metric}"', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Distance threshold: {thr}', indent_lvl=1, indent_char='*')
+        if n_streamlines == 0:
+            return
+
+        centroids = np.empty((n_streamlines, n_pts, 3), dtype=np.float32)
+        c_w = np.ones(n_streamlines, dtype=np.int32)
+        cluster_idx = np.empty(n_streamlines, dtype=np.int32)
+
+        # Process first streamline
+        n_centroids = 1
+        cluster_idx[0] = 0
+        TCK_in.read_streamline()
+        if TCK_in.n_pts == n_pts:
+            for j in range(n_pts):
+                centroids[0, j, 0] = TCK_in.streamline[j, 0]
+                centroids[0, j, 1] = TCK_in.streamline[j, 1]
+                centroids[0, j, 2] = TCK_in.streamline[j, 2]
+        else:
+            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, centroids[0], lengths)
+
+        #----- process every streamline -----
+        with ProgressBar(total=n_streamlines-1, disable=verbose<3, hide_on_exit=True) as pbar:
+            for i in range(1, n_streamlines):
+                TCK_in.read_streamline()
+                if TCK_in.n_pts == n_pts:
+                    for j in range(n_pts):
+                        streamline[j, 0] = TCK_in.streamline[j, 0]
+                        streamline[j, 1] = TCK_in.streamline[j, 1]
+                        streamline[j, 2] = TCK_in.streamline[j, 2]
+                else:
+                    set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, streamline[:], lengths)
+
+                # Compute distance to all current centroids
+                dist.dist_to_centroids(streamline, centroids, thr, n_centroids, &c_idx, &c_flipped)
+                # c_idx = 0
+                # c_flipped = 0
+                # _ASED_to_centroids(streamline, centroids, thr, n_centroids, &c_idx, &c_flipped)
+
+                # Update centroids to coount for the new streamline
+                cluster_idx[i] = c_idx
+                if c_idx < n_centroids:
+                    # Update corresponding centroid
+                    n1 = c_w[c_idx]
+                    n2 = 1.0 / (n1 + 1.0)
+                    if c_flipped:
+                        for j in range(n_pts):
+                            centroids[c_idx, j, 0] = (n1 * centroids[c_idx, j, 0] + streamline[n_pts-1-j, 0]) * n2
+                            centroids[c_idx, j, 1] = (n1 * centroids[c_idx, j, 1] + streamline[n_pts-1-j, 1]) * n2
+                            centroids[c_idx, j, 2] = (n1 * centroids[c_idx, j, 2] + streamline[n_pts-1-j, 2]) * n2
+                    else:
+                        for j in range(n_pts):
+                            centroids[c_idx, j, 0] = (n1 * centroids[c_idx, j, 0] + streamline[j, 0]) * n2
+                            centroids[c_idx, j, 1] = (n1 * centroids[c_idx, j, 1] + streamline[j, 1]) * n2
+                            centroids[c_idx, j, 2] = (n1 * centroids[c_idx, j, 2] + streamline[j, 2]) * n2
+                    c_w[c_idx] += 1
+                else:
+                    # Add a new centroid
+                    for j in range(n_pts):
+                        centroids[c_idx, j, 0] = streamline[j, 0]
+                        centroids[c_idx, j, 1] = streamline[j, 1]
+                        centroids[c_idx, j, 2] = streamline[j, 2]
+                    n_centroids += 1
+
+                pbar.update()
+        TCK_in.close()
+        logger.subinfo(f"Number of output centroids: {n_centroids}", indent_char='*', indent_lvl=1)
+
+        # locate the closest streamline to each centroid  to be saved as representative of the corresponding cluster
+        centroids_size = np.empty(n_centroids, dtype=np.intc)
+        centroids_updated = closest_streamline(tractogram_filename, centroids, cluster_idx, n_pts, n_centroids, centroids_size, verbose=verbose)
+
+        # Save clustered tractogram to file
+        TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
+        for i, c in enumerate(centroids_updated):
+            TCK_out.write_streamline(c[:centroids_size[i]], centroids_size[i])
+        TCK_out.close(write_eof=True, count=n_centroids)
+
+    except Exception as e:
+        logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
+
+    finally:
+        t1 = time()
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
+        return
