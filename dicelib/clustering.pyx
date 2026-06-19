@@ -1,7 +1,7 @@
 # cython: boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True, language_level=3
 from dicelib.connectivity import _assign
 from dicelib.tractogram import info, split
-from dicelib.streamline import cumulative_lengths, set_number_of_points
+from dicelib.streamline import set_number_of_points
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 from concurrent.futures import as_completed, ThreadPoolExecutor
@@ -1101,7 +1101,8 @@ cdef class AverageSquaredEuclideanDistance:
 
 
 cpdef cluster_new( tractogram_filename: str, thr: float, out_tractogram_filename: str, metric: str="ASED", n_points: int=12, force: bool=False, verbose: int=3):
-    """Cluster streamlines in a tractogram based on a given distance metric.
+    """Cluster streamlines in a tractogram based on a given distance metric; streamlines with
+    distance smaller than 'thr' will be clustered together.
 
     Parameters
     ----------
@@ -1113,8 +1114,7 @@ cpdef cluster_new( tractogram_filename: str, thr: float, out_tractogram_filename
         Path to the tractogram (.tck) that will contain the clustered streamlines.
     metric : {'ASED'}, default='ASED'
         Metric to use for computing distances between streamlines:
-        - 'ASED' = Average Squared Euclidean Distance (i.e., streamlines with
-          average squared Euclidean distance smaller than 'thr' will be clustered together).
+        - ASED = Average Squared Euclidean Distance.
     n_points : int, default=12
         Number of points to resample the streamlines before clustering.
         NB: this clustering algorithm requires all streamlines to have the same number of points.

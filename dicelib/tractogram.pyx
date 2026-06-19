@@ -125,8 +125,9 @@ cdef class LazyTractogram:
         int
             Number of points/coordinates read from disk.
         """
-        cdef float* ptr = &self.streamline[0,0]
-        cdef int    n_read
+        cdef:
+            float* ptr = &self.streamline[0,0]
+            int    n_read
         if self.is_open==False:
             raise RuntimeError( 'File is not open' )
         if self.mode!='r':
@@ -135,7 +136,7 @@ cdef class LazyTractogram:
         self.n_pts = 0
         while True:
             if self.n_pts>self.max_points:
-                raise RuntimeError( f'Problem reading data, streamline seems too long (>{self.max_points} points)' )
+                raise RuntimeError( f'Problem reading data, streamline seems too long ({self.n_pts}>{self.max_points} points)' )
             if self.buffer_ptr==self.buffer_end: # reached end of buffer, need to reload
                 n_read = fread( self.buffer, 4, 3*1000000, self.fp )
                 self.buffer_ptr = self.buffer

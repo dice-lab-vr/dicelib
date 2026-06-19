@@ -335,7 +335,7 @@ cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nRepl
 #         return value
 
 
-cpdef void set_number_of_points( float[:,::1] in_streamline, int out_n_pts, float[:,::1] out_streamline, float[:] lengths ) noexcept nogil:
+cpdef void set_number_of_points(float[:,::1] in_streamline, int out_n_pts, float[:,::1] out_streamline, float[:] lengths) noexcept nogil:
     cdef:
         size_t i = 0, j = 0
         int in_n_pts = in_streamline.shape[0]
@@ -347,36 +347,35 @@ cpdef void set_number_of_points( float[:,::1] in_streamline, int out_n_pts, floa
     cumulative_lengths(in_streamline, lengths)
     step_size = lengths[in_n_pts-1]/(out_n_pts-1)
 
-    # for i in xrange(1, lengths.shape[0]-1):
-    out_streamline[0][0] = in_streamline[0][0]
-    out_streamline[0][1] = in_streamline[0][1]
-    out_streamline[0][2] = in_streamline[0][2]
+    out_streamline[0,0] = in_streamline[0,0]
+    out_streamline[0,1] = in_streamline[0,1]
+    out_streamline[0,2] = in_streamline[0,2]
     while sum_step < lengths[in_n_pts-1]:
         if sum_step == lengths[i]:
-            out_streamline[j][0] = in_streamline[i][0]
-            out_streamline[j][1] = in_streamline[i][1]
-            out_streamline[j][2] = in_streamline[i][2]
+            out_streamline[j,0] = in_streamline[i,0]
+            out_streamline[j,1] = in_streamline[i,1]
+            out_streamline[j,2] = in_streamline[i,2]
             j += 1
             sum_step += step_size
         elif sum_step < lengths[i]:
             ratio = 1 - ((lengths[i]- sum_step)/(lengths[i]-lengths[i-1]))
-            vers_x = in_streamline[i][0] - in_streamline[i-1][0]
-            vers_y = in_streamline[i][1] - in_streamline[i-1][1]
-            vers_z = in_streamline[i][2] - in_streamline[i-1][2]
-            out_streamline[j][0] = in_streamline[i-1][0] + ratio * vers_x
-            out_streamline[j][1] = in_streamline[i-1][1] + ratio * vers_y
-            out_streamline[j][2] = in_streamline[i-1][2] + ratio * vers_z
+            vers_x = in_streamline[i,0] - in_streamline[i-1,0]
+            vers_y = in_streamline[i,1] - in_streamline[i-1,1]
+            vers_z = in_streamline[i,2] - in_streamline[i-1,2]
+            out_streamline[j,0] = in_streamline[i-1,0] + ratio * vers_x
+            out_streamline[j,1] = in_streamline[i-1,1] + ratio * vers_y
+            out_streamline[j,2] = in_streamline[i-1,2] + ratio * vers_z
             j += 1
             sum_step += step_size
         else:
             i+=1
-    out_streamline[out_n_pts-1][0] = in_streamline[in_n_pts-1][0]
-    out_streamline[out_n_pts-1][1] = in_streamline[in_n_pts-1][1]
-    out_streamline[out_n_pts-1][2] = in_streamline[in_n_pts-1][2]
+    out_streamline[out_n_pts-1,0] = in_streamline[in_n_pts-1,0]
+    out_streamline[out_n_pts-1,1] = in_streamline[in_n_pts-1,1]
+    out_streamline[out_n_pts-1,2] = in_streamline[in_n_pts-1][2]
 
 
 
-cpdef void cumulative_lengths( float[:,::1] in_streamline, float[:] out_lengths ) noexcept nogil:
+cdef void cumulative_lengths( float[:,::1] in_streamline, float[:] out_lengths ) noexcept nogil:
     """Compute the cumulative lenght of the segments along a streamline.
 
     Parameters
@@ -389,7 +388,11 @@ cpdef void cumulative_lengths( float[:,::1] in_streamline, float[:] out_lengths 
     cdef size_t i = 0
     out_lengths[0] = 0.0
     for i in xrange(1,in_streamline.shape[0]):
-        out_lengths[i] = <float>(out_lengths[i-1] + sqrt( (in_streamline[i][0]-in_streamline[i-1][0])**2 + (in_streamline[i][1]-in_streamline[i-1][1])**2 + (in_streamline[i][2]-in_streamline[i-1][2])**2 ))
+        out_lengths[i] = <float>(out_lengths[i-1] + sqrt(
+            (in_streamline[i][0]-in_streamline[i-1][0])*(in_streamline[i][0]-in_streamline[i-1][0]) +
+            (in_streamline[i][1]-in_streamline[i-1][1])*(in_streamline[i][1]-in_streamline[i-1][1]) +
+            (in_streamline[i][2]-in_streamline[i-1][2])*(in_streamline[i][2]-in_streamline[i-1][2])
+        ))
 
 
 cdef float[:] compute_tangent(float[:,:] points, float[:] grid):
