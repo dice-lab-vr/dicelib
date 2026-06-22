@@ -83,7 +83,7 @@ def cluster_new():
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['thr'], {'type': float, 'help': desc['thr']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
-        [['--metric', '-m'], {'type': str, 'choices': ['ASED'], 'default': 'ASED', 'help': desc['metric']}],
+        [['--metric', '-m'], {'type': str, 'choices': ['AED','ASED'], 'default': 'ASED', 'help': desc['metric']}],
         [['--n_points', '-n'], {'type': int, 'default': 12, 'help': desc['n_points']}],
         [['--chunk_size', '-c'], {'type': int, 'default': 10000, 'help': desc['chunk_size']}],
     ]
