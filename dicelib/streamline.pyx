@@ -1,7 +1,7 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 from bisect import bisect_right
 import numpy as np
-from libc.math cimport floor, sqrt
+from libc.math cimport floor, sqrt, sqrtf
 from libcpp cimport bool
 
 cdef extern from "streamline_utils.hpp":
@@ -399,11 +399,11 @@ cdef void cumulative_lengths( float[:,::1] in_streamline, float[:] out_lengths )
     cdef size_t i = 0
     out_lengths[0] = 0.0
     for i in xrange(1,in_streamline.shape[0]):
-        out_lengths[i] = <float>(out_lengths[i-1] + sqrt(
+        out_lengths[i] = out_lengths[i-1] + sqrtf(
             (in_streamline[i,0]-in_streamline[i-1,0])*(in_streamline[i,0]-in_streamline[i-1,0]) +
             (in_streamline[i,1]-in_streamline[i-1,1])*(in_streamline[i,1]-in_streamline[i-1,1]) +
             (in_streamline[i,2]-in_streamline[i-1,2])*(in_streamline[i,2]-in_streamline[i-1,2])
-        ))
+        )
 
 
 cdef float[:] compute_tangent(float[:,:] points, float[:] grid):
