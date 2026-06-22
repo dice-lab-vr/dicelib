@@ -119,7 +119,7 @@ cdef (int, int) compute_dist_max(float[:,::1] fib_in, float[:,:,::1] target, flo
     return (num_c, flipped)
 
 
-cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts: int=12,
+cpdef cluster_old(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts: int=12,
               verbose: int=3):
     """ Cluster streamlines in a tractogram based on a given metric (mean or max distance to the centroids)
 
@@ -884,7 +884,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
             hash_superset[i] = hash(np.array(TCK_in.streamline[:TCK_in.n_pts]).tobytes())
         TCK_in.close()
 
-        clust_idx, set_centroids = cluster(
+        clust_idx, set_centroids = cluster_old(
             tractogram_filename,
             metric=metric,
             threshold=thr,
@@ -1012,7 +1012,7 @@ cpdef project_values_on_centroid(filename_tractogram: str, float[:,:] streamline
     cdef size_t i = 0
     cdef size_t j = 0
 
-    _, centroid = cluster(filename_tractogram, threshold=thr, n_pts=12)
+    _, centroid = cluster_old(filename_tractogram, threshold=thr, n_pts=12)
     set_number_of_points( centroid[0], 256, centroid_resampled, lengths)
 
     for i in xrange(num_str):
@@ -1142,9 +1142,6 @@ cdef class AverageEuclideanDistance(DistanceMetric):
     def __init__(self, int n_pts):
         self.n_pts = n_pts
 
-    def __dealloc__(self):
-        pass
-
     cdef float calculate(self, float[:,::1] f, float[:,::1] g, int* out_flipped) nogil:
         """Compute the distance between two streamlines"""
         cdef:
@@ -1220,10 +1217,13 @@ cdef class AverageEuclideanDistance(DistanceMetric):
         return
 
 
-cpdef cluster_new( tractogram_filename: str, thr: float, out_tractogram_filename: str, metric: str="ASED", n_points: int=12, chunk_size: int=10000, force: bool=False, verbose: int=3):
-    """Cluster streamlines in a tractogram based on a given distance metric.
+cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: str, metric: str="ASED", n_points: int=12, chunk_size: int=10000, force: bool=False, verbose: int=3):
+    """Cluster streamlines in a tractogram with QuickBundles [1].
 
     Streamlines with distance smaller than 'thr' will be clustered together.
+
+    References:
+    [1] https://doi.org/10.3389/fnins.2012.00175
 
     Parameters
     ----------
@@ -1381,10 +1381,10 @@ cpdef cluster_new( tractogram_filename: str, thr: float, out_tractogram_filename
         centroid_n_pts = np.empty(n_centroids, dtype=np.intc)
         centroids_updated = closest_streamline(tractogram_filename, centroids, belongs_to, n_pts, n_centroids, centroid_n_pts, max_streamline_len=max_streamline_len, verbose=verbose)
 
-        # Save clustered tractogram to file
+        # save clustered tractogram to file
         TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
         for i, c in enumerate(centroids_updated):
-            TCK_out.write_streamline(c[:centroid_n_pts[i]], centroid_n_pts[i])
+            TCK_out.write_streamline( c[:centroid_n_pts[i]], centroid_n_pts[i] )
         TCK_out.close(write_eof=True, count=n_centroids)
 
     except Exception as e:

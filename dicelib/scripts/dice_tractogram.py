@@ -28,7 +28,7 @@ def assign():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
-def cluster():
+def cluster_old():
     '''Entry point for the clustering.run_clustering function'''
     from dicelib.clustering import run_clustering
     summary, desc, notes = get_argparse_info_from_docstring( run_clustering.__doc__ )
@@ -75,10 +75,10 @@ def cluster():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
-def cluster_new():
-    '''Entry point for the clustering.cluster_new function'''
-    from dicelib.clustering import cluster_new
-    summary, desc, notes = get_argparse_info_from_docstring( cluster_new.__doc__ )
+def cluster():
+    '''Entry point for the clustering.cluster function'''
+    from dicelib.clustering import cluster
+    summary, desc, notes = get_argparse_info_from_docstring( cluster.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['thr'], {'type': float, 'help': desc['thr']}],
@@ -89,7 +89,7 @@ def cluster_new():
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        cluster_new(
+        cluster(
             tractogram_filename=options.tractogram,
             thr=options.thr,
             out_tractogram_filename=options.out_tractogram,
