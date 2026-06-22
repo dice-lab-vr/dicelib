@@ -20,7 +20,7 @@ def get_extensions():
         name=f'{package_name}.streamline',
         sources=[f'{package_name}/streamline.pyx'],
         include_dirs=[get_include(), f'{package_name}/include'],
-        extra_compile_args=['-w', '-std=c++11', '-g0'],
+        extra_compile_args=['-w', '-std=c++11', '-g0', '-O3', '-march=native'],
         language='c++'
     )
     tractogram = Extension(
@@ -33,7 +33,7 @@ def get_extensions():
     clustering = Extension(
         name=f'{package_name}.clustering',
         sources=[f'{package_name}/clustering.pyx'],
-        extra_compile_args=['-w', '-std=c++11', '-g0'],
+        extra_compile_args=['-w', '-std=c++11', '-g0', '-O3', '-march=native'],
         language='c++',
     )
     connectivity = Extension(

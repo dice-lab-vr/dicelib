@@ -84,7 +84,8 @@ def cluster_new():
         [['thr'], {'type': float, 'help': desc['thr']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
         [['--metric', '-m'], {'type': str, 'choices': ['ASED'], 'default': 'ASED', 'help': desc['metric']}],
-        [['--n_points', '-n'], {'type': int, 'default': 12, 'help': desc['n_points']}]
+        [['--n_points', '-n'], {'type': int, 'default': 12, 'help': desc['n_points']}],
+        [['--chunk_size', '-c'], {'type': int, 'default': 10000, 'help': desc['chunk_size']}],
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
@@ -94,6 +95,7 @@ def cluster_new():
             out_tractogram_filename=options.out_tractogram,
             metric=options.metric,
             n_points=options.n_points,
+            chunk_size=options.chunk_size,
             force=options.force,
             verbose=options.verbose
         )

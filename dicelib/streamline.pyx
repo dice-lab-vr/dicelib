@@ -337,42 +337,53 @@ cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nRepl
 
 cpdef void set_number_of_points(float[:,::1] in_streamline, int out_n_pts, float[:,::1] out_streamline, float[:] lengths) noexcept nogil:
     cdef:
-        size_t i = 0, j = 0
-        int in_n_pts = in_streamline.shape[0]
-        float sum_step = 0, ratio = 0, step_size
+        size_t i = 1
+        int j, in_n_pts = in_streamline.shape[0]
+        float target_len, ratio, segment_len
         float vers_x, vers_y, vers_z
 
     if out_n_pts < 2:
         out_n_pts = 2
+
     cumulative_lengths(in_streamline, lengths)
-    step_size = lengths[in_n_pts-1]/(out_n_pts-1)
 
-    out_streamline[0,0] = in_streamline[0,0]
-    out_streamline[0,1] = in_streamline[0,1]
-    out_streamline[0,2] = in_streamline[0,2]
-    while sum_step < lengths[in_n_pts-1]:
-        if sum_step == lengths[i]:
-            out_streamline[j,0] = in_streamline[i,0]
-            out_streamline[j,1] = in_streamline[i,1]
-            out_streamline[j,2] = in_streamline[i,2]
-            j += 1
-            sum_step += step_size
-        elif sum_step < lengths[i]:
-            ratio = 1 - ((lengths[i]- sum_step)/(lengths[i]-lengths[i-1]))
-            vers_x = in_streamline[i,0] - in_streamline[i-1,0]
-            vers_y = in_streamline[i,1] - in_streamline[i-1,1]
-            vers_z = in_streamline[i,2] - in_streamline[i-1,2]
-            out_streamline[j,0] = in_streamline[i-1,0] + ratio * vers_x
-            out_streamline[j,1] = in_streamline[i-1,1] + ratio * vers_y
-            out_streamline[j,2] = in_streamline[i-1,2] + ratio * vers_z
-            j += 1
-            sum_step += step_size
+    # Handle the start point explicitly
+    out_streamline[0, 0] = in_streamline[0, 0]
+    out_streamline[0, 1] = in_streamline[0, 1]
+    out_streamline[0, 2] = in_streamline[0, 2]
+
+    # Pre-calculate step-related multiplier to avoid division inside the loop
+    # total_length / (out_n_pts - 1)
+    cdef float total_length = lengths[in_n_pts - 1]
+    cdef float step_scale = total_length / <float>(out_n_pts-1)
+
+    # Loop over the destination points (excluding first and last to prevent precision drift issues)
+    for j in range(1, out_n_pts - 1):
+        target_len = <float>j * step_scale
+
+        # Advance the input index until we find the segment containing target_len
+        while i < <size_t>in_n_pts and lengths[i] < target_len:
+            i += 1
+        segment_len = lengths[i] - lengths[i-1]
+
+        # Avoid division by zero if two sequential input points are identical
+        if segment_len > 0.0:
+            ratio = (target_len - lengths[i-1]) / segment_len
         else:
-            i+=1
-    out_streamline[out_n_pts-1,0] = in_streamline[in_n_pts-1,0]
-    out_streamline[out_n_pts-1,1] = in_streamline[in_n_pts-1,1]
-    out_streamline[out_n_pts-1,2] = in_streamline[in_n_pts-1][2]
+            ratio = 0.0
 
+        vers_x = in_streamline[i, 0] - in_streamline[i-1, 0]
+        vers_y = in_streamline[i, 1] - in_streamline[i-1, 1]
+        vers_z = in_streamline[i, 2] - in_streamline[i-1, 2]
+
+        out_streamline[j, 0] = in_streamline[i-1, 0] + ratio*vers_x
+        out_streamline[j, 1] = in_streamline[i-1, 1] + ratio*vers_y
+        out_streamline[j, 2] = in_streamline[i-1, 2] + ratio*vers_z
+
+    # Handle the end point explicitly to eliminate precision errors
+    out_streamline[out_n_pts-1, 0] = in_streamline[in_n_pts-1, 0]
+    out_streamline[out_n_pts-1, 1] = in_streamline[in_n_pts-1, 1]
+    out_streamline[out_n_pts-1, 2] = in_streamline[in_n_pts-1, 2]
 
 
 cdef void cumulative_lengths( float[:,::1] in_streamline, float[:] out_lengths ) noexcept nogil:
@@ -389,9 +400,9 @@ cdef void cumulative_lengths( float[:,::1] in_streamline, float[:] out_lengths )
     out_lengths[0] = 0.0
     for i in xrange(1,in_streamline.shape[0]):
         out_lengths[i] = <float>(out_lengths[i-1] + sqrt(
-            (in_streamline[i][0]-in_streamline[i-1][0])*(in_streamline[i][0]-in_streamline[i-1][0]) +
-            (in_streamline[i][1]-in_streamline[i-1][1])*(in_streamline[i][1]-in_streamline[i-1][1]) +
-            (in_streamline[i][2]-in_streamline[i-1][2])*(in_streamline[i][2]-in_streamline[i-1][2])
+            (in_streamline[i,0]-in_streamline[i-1,0])*(in_streamline[i,0]-in_streamline[i-1,0]) +
+            (in_streamline[i,1]-in_streamline[i-1,1])*(in_streamline[i,1]-in_streamline[i-1,1]) +
+            (in_streamline[i,2]-in_streamline[i-1,2])*(in_streamline[i,2]-in_streamline[i-1,2])
         ))
 
 
@@ -518,7 +529,7 @@ cdef float[:] check_grid(float[:] grid, float alpha, float[:,::1] vertices):
             x1[jj] = vertices[ii+1][jj]
 
         # rewrite diff to avoid numpy overhead
-        diff = np.sqrt((x1[0] - x0[0])**2 + (x1[1] - x0[1])**2 + (x1[2] - x0[2])**2)**alpha
+        diff = sqrt((x1[0] - x0[0])**2 + (x1[1] - x0[1])**2 + (x1[2] - x0[2])**2)**alpha
         # x0 = np.asarray(vertices[ii])
         # x1 = np.asarray(vertices[ii+1])
         # diff = np.linalg.norm(x1 - x0)**alpha
