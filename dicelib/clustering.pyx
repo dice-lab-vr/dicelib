@@ -237,7 +237,7 @@ cpdef cluster(filename_in: str, metric: str="EDavg", threshold: float=4.0, n_pts
     return clust_idx, set_centroids[:new_c]
 
 
-cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, verbose: int=3):
+cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clust_idx, int num_pt, int num_c, int [:] centr_len, int max_streamline_len=3000, verbose: int=3):
     """
     Compute the distance between a fiber and a set of centroids
 
@@ -271,7 +271,7 @@ cpdef closest_streamline(tractogram_in: str, float[:,:,::1] target, int [:] clus
     cdef float [:] fib_centr_dist = np.repeat(1000, num_c).astype(np.float32)
     cdef float[:,::1] fib_in = np.zeros((num_pt,3), dtype=np.float32)
     cdef float[:,::1] resampled_fib = np.zeros((num_pt,3), dtype=np.float32)
-    cdef float [:,:,::1] centroids = np.zeros((num_c, 3000,3), dtype=np.float32)
+    cdef float [:,:,::1] centroids = np.zeros((num_c, max_streamline_len,3), dtype=np.float32)
     cdef LazyTractogram TCK_in = LazyTractogram( tractogram_in, mode='r' )
     cdef int n_streamlines = int( TCK_in.header['count'] )
     cdef float[:] lengths = np.zeros(3000, dtype=np.float32)
@@ -894,7 +894,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
 
         ret_clust_idx = np.asarray(clust_idx)
         centr_len = np.zeros(set_centroids.shape[0], dtype=np.intc)
-        new_c = closest_streamline(tractogram_filename, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len)
+        new_c = closest_streamline(tractogram_filename, set_centroids, clust_idx, n_pts, set_centroids.shape[0], centr_len, max_streamline_len=3000)
 
         TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
         TCK_out_size = 0
@@ -1254,7 +1254,7 @@ cpdef cluster_new( tractogram_filename: str, thr: float, out_tractogram_filename
         float n1, n2
         float [:,:,::1] centroids, centroids_updated
         int [:] cluster_size
-        int centroid_chunk_size = chunk_size
+        int centroid_chunk_size = chunk_size, max_streamline_len
         int centroids_in_mem = centroid_chunk_size
         int [:] centroid_n_pts
         float[:,::1] streamline = np.empty((n_pts,3), dtype=np.float32)
@@ -1315,6 +1315,7 @@ cpdef cluster_new( tractogram_filename: str, thr: float, out_tractogram_filename
         n_centroids = 1
         belongs_to[0] = 0
         TCK_in.read_streamline()
+        max_streamline_len = TCK_in.n_pts
         if TCK_in.n_pts == n_pts:
             for j in range(n_pts):
                 centroids[0, j, 0] = TCK_in.streamline[j, 0]
@@ -1327,6 +1328,8 @@ cpdef cluster_new( tractogram_filename: str, thr: float, out_tractogram_filename
         with ProgressBar(total=n_streamlines-1, disable=verbose<3, hide_on_exit=True) as pbar:
             for i in range(1, n_streamlines):
                 TCK_in.read_streamline()
+                if TCK_in.n_pts > max_streamline_len:
+                    max_streamline_len = TCK_in.n_pts
                 if TCK_in.n_pts == n_pts:
                     for j in range(n_pts):
                         streamline[j, 0] = TCK_in.streamline[j, 0]
@@ -1376,7 +1379,7 @@ cpdef cluster_new( tractogram_filename: str, thr: float, out_tractogram_filename
 
         # locate the closest streamline to each centroid to be saved as representative of the corresponding cluster
         centroid_n_pts = np.empty(n_centroids, dtype=np.intc)
-        centroids_updated = closest_streamline(tractogram_filename, centroids, belongs_to, n_pts, n_centroids, centroid_n_pts, verbose=verbose)
+        centroids_updated = closest_streamline(tractogram_filename, centroids, belongs_to, n_pts, n_centroids, centroid_n_pts, max_streamline_len=max_streamline_len, verbose=verbose)
 
         # Save clustered tractogram to file
         TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
