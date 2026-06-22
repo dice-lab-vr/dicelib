@@ -21,6 +21,378 @@ from libcpp cimport bool
 logger = setup_logger('clustering')
 
 
+cdef class DistanceMetric:
+    """Basic class to define new distance metrics; new metrics should inherit from this class.
+    All the methods need to be overloaded to account for the specific needs of the metric.
+    Each method will then be called by a dispatcher when needed.
+
+    Attributes
+    ----------
+    id : string
+        Identification code for the distance metric
+    name : string
+        A more human-readable description for the distance metric (can be equal to id)
+    """
+    cdef:
+        int n_pts
+
+    def __init__( self, int n_pts ) :
+        self.n_pts = n_pts
+        return
+
+    cdef float calculate(self, float[:,::1] f, float[:,::1] g, int* out_flipped) nogil:
+        raise NotImplementedError("Subclasses must implement calculate().")
+
+    cdef void closest_centroid(self, float[:,::1] streamline, float[:,:,::1] centroids, float thr, int n_centroids, int* out_belongs_to, int* out_flipped) nogil:
+        raise NotImplementedError("Subclasses must implement calculate().")
+
+    def __dealloc__(self):
+        pass
+
+
+cdef class AverageSquaredEuclideanDistance(DistanceMetric):
+    """Average Squared Euclidean Distance (ASED) between streamlines"""
+
+    cdef float calculate(self, float[:,::1] f, float[:,::1] g, int* out_flipped) nogil:
+        """Compute the distance between two streamlines"""
+        cdef:
+            size_t j, k
+            float dx, dy, dz
+            float dist_direct = 0, dist_flipped = 0
+
+        for j in range(self.n_pts):
+            dx = f[j, 0] - g[j, 0]
+            dy = f[j, 1] - g[j, 1]
+            dz = f[j, 2] - g[j, 2]
+            dist_direct += dx*dx + dy*dy + dz*dz
+
+            k = self.n_pts-j-1
+            dx = f[k, 0] - g[j, 0]
+            dy = f[k, 1] - g[j, 1]
+            dz = f[k, 2] - g[j, 2]
+            dist_flipped += dx*dx + dy*dy + dz*dz
+
+        # Only update if we actually found a new minimum
+        if dist_direct <= dist_flipped:
+            out_flipped[0] = 0
+            return dist_direct
+        else:
+            out_flipped[0] = 1
+            return dist_flipped
+
+
+    cdef void closest_centroid(self, float[:,::1] streamline, float[:,:,::1] centroids, float thr, int n_centroids, int* out_belongs_to, int* out_flipped) nogil:
+        """Compute the distance between a streamline and a set of centroids"""
+        cdef:
+            size_t i, j, k
+            float dx, dy, dz
+            float dist_direct, dist_flipped
+            float dist_min_all = self.n_pts * thr
+            int belongs_to = n_centroids, flipped
+
+        for i in range(n_centroids):
+            dist_direct = 0
+            dist_flipped = 0
+            for j in range(self.n_pts):
+                dx = streamline[j, 0] - centroids[i, j, 0]
+                dy = streamline[j, 1] - centroids[i, j, 1]
+                dz = streamline[j, 2] - centroids[i, j, 2]
+                dist_direct += dx*dx + dy*dy + dz*dz
+
+                k = self.n_pts-j-1
+                dx = streamline[k, 0] - centroids[i, j, 0]
+                dy = streamline[k, 1] - centroids[i, j, 1]
+                dz = streamline[k, 2] - centroids[i, j, 2]
+                dist_flipped += dx*dx + dy*dy + dz*dz
+
+                # if both direct and flipped distances are already worse
+                # than best found distance, no need to continue computing
+                if j % 4 == 0:
+                    if dist_direct >= dist_min_all and dist_flipped >= dist_min_all:
+                        break
+
+            # Only update if we actually found a new minimum
+            if dist_direct <= dist_flipped:
+                if dist_direct < dist_min_all:
+                    dist_min_all = dist_direct
+                    flipped = 0
+                    belongs_to = i
+            else:
+                if dist_flipped < dist_min_all:
+                    dist_min_all = dist_flipped
+                    flipped = 1
+                    belongs_to = i
+
+        out_belongs_to[0] = belongs_to
+        out_flipped[0] = flipped
+        return
+
+cdef class AverageEuclideanDistance(DistanceMetric):
+    """Average Euclidean Distance (AED) between streamlines"""
+
+    cdef float calculate(self, float[:,::1] f, float[:,::1] g, int* out_flipped) nogil:
+        """Compute the distance between two streamlines"""
+        cdef:
+            size_t j, k
+            float dx, dy, dz
+            float dist_direct = 0, dist_flipped = 0
+
+        for j in range(self.n_pts):
+            dx = f[j, 0] - g[j, 0]
+            dy = f[j, 1] - g[j, 1]
+            dz = f[j, 2] - g[j, 2]
+            dist_direct += sqrtf( dx*dx + dy*dy + dz*dz )
+
+            k = self.n_pts-j-1
+            dx = f[k, 0] - g[j, 0]
+            dy = f[k, 1] - g[j, 1]
+            dz = f[k, 2] - g[j, 2]
+            dist_flipped += sqrtf( dx*dx + dy*dy + dz*dz )
+
+        # Only update if we actually found a new minimum
+        if dist_direct <= dist_flipped:
+            out_flipped[0] = 0
+            return dist_direct
+        else:
+            out_flipped[0] = 1
+            return dist_flipped
+
+
+    cdef void closest_centroid(self, float[:,::1] streamline, float[:,:,::1] centroids, float thr, int n_centroids, int* out_belongs_to, int* out_flipped) nogil:
+        """Compute the distance between a streamline and a set of centroids"""
+        cdef:
+            size_t i, j, k
+            float dx, dy, dz
+            float dist_direct, dist_flipped
+            float dist_min_all = self.n_pts * thr
+            int belongs_to = n_centroids, flipped
+
+        for i in range(n_centroids):
+            dist_direct = 0
+            dist_flipped = 0
+            for j in range(self.n_pts):
+                dx = streamline[j, 0] - centroids[i, j, 0]
+                dy = streamline[j, 1] - centroids[i, j, 1]
+                dz = streamline[j, 2] - centroids[i, j, 2]
+                dist_direct += sqrtf( dx*dx + dy*dy + dz*dz )
+
+                k = self.n_pts-j-1
+                dx = streamline[k, 0] - centroids[i, j, 0]
+                dy = streamline[k, 1] - centroids[i, j, 1]
+                dz = streamline[k, 2] - centroids[i, j, 2]
+                dist_flipped += sqrtf( dx*dx + dy*dy + dz*dz )
+
+                # if both direct and flipped distances are already worse
+                # than best found distance, no need to continue computing
+                if j % 4 == 0:
+                    if dist_direct >= dist_min_all and dist_flipped >= dist_min_all:
+                        break
+
+            # Only update if we actually found a new minimum
+            if dist_direct <= dist_flipped:
+                if dist_direct < dist_min_all:
+                    dist_min_all = dist_direct
+                    flipped = 0
+                    belongs_to = i
+            else:
+                if dist_flipped < dist_min_all:
+                    dist_min_all = dist_flipped
+                    flipped = 1
+                    belongs_to = i
+
+        out_belongs_to[0] = belongs_to
+        out_flipped[0] = flipped
+        return
+
+
+cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: str, metric: str="ASED", n_points: int=12, save_clust_idx: bool=False, chunk_size: int=10000, force: bool=False, verbose: int=3):
+    """Cluster streamlines in a tractogram with QuickBundles [1].
+
+    Streamlines with distance smaller than 'thr' will be clustered together.
+
+    References:
+    [1] https://doi.org/10.3389/fnins.2012.00175
+
+    Parameters
+    ----------
+    tractogram_filename : str
+        Path to the tractogram (.tck) containing the streamlines to process.
+    thr : float
+        Threshold to use when computing distances between the streamlines.
+    out_tractogram_filename : str
+        Path to the tractogram (.tck) that will contain the clustered streamlines.
+    metric : {'AED','ASED'}, default='ASED'
+        Metric to use for computing distances between streamlines:
+        - AED = Average Euclidean Distance
+        - ASED = Average Squared Euclidean Distance
+    n_points : int, default=12
+        Number of points to resample the streamlines before clustering.
+        NB: this clustering algorithm requires all streamlines to have the same number of points.
+    save_clust_idx : bool, default=False
+        Save the index of the cluster each input streamline belongs to.
+    chunk_size : int, default=10000
+        The number of centroids to keep in memory is dynamically incremented,
+        when needed, by chunks of this value.
+    force : boolean, default=False
+        Force overwriting of the output files.
+    verbose : int, default=3
+        What information to print, must be in [0...4] as defined in ui.set_verbose().
+    """
+    cdef:
+        int n_streamlines, n_centroids, n_pts = n_points
+        size_t i, j, k
+        float n1, n2
+        float [:,:,::1] centroids, centroids_updated
+        int [:] cluster_size
+        int centroid_chunk_size = chunk_size, max_streamline_len
+        int centroids_in_mem = centroid_chunk_size
+        int [:] centroid_n_pts
+        float[:,::1] streamline = np.empty((n_pts,3), dtype=np.float32)
+        int [:] belongs_to
+        int c_idx, c_flipped
+        LazyTractogram TCK_in = None, TCK_out = None
+        float[:] lengths = np.empty(3000, dtype=np.float32)
+        DistanceMetric distance
+
+
+    t0 = time()
+    set_verbose('clustering', verbose)
+    logger.info('Clustering tractogram')
+
+    if not os.path.isfile(tractogram_filename):
+        logger.error(f"File '{tractogram_filename}' not found")
+        return
+    if metric not in ['AED', 'ASED']:
+        logger.error(f"Metric '{metric}' not recognized")
+        return
+
+    files = [
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck']),
+        File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext=['.tck'])
+    ]
+    nums = [
+        Num(name='thr', value=thr, min_=0.0, include_min=False),
+        Num(name='n_pts', value=n_pts, min_=2),
+        Num(name='chunk_size', value=chunk_size, min_=100),
+    ]
+    check_params(files=files, nums=nums, force=force)
+
+    try:
+        if metric == 'AED':
+            distance = AverageEuclideanDistance( n_pts )
+        elif metric == 'ASED':
+            distance = AverageSquaredEuclideanDistance( n_pts )
+
+        TCK_in = LazyTractogram( tractogram_filename, mode='r' )
+        n_streamlines = int(TCK_in.header['count'])
+        logger.subinfo(f'Input:', indent_lvl=1, indent_char='*')
+        logger.subinfo(f'Number of input streamlines: {n_streamlines}', indent_lvl=2, indent_char='-')
+        logger.subinfo(f'Points per streamline: {n_pts}', indent_lvl=2, indent_char='-')
+        logger.subinfo(f'Distance metric: "{metric}"', indent_lvl=2, indent_char='-')
+        logger.subinfo(f'Distance threshold: {thr}', indent_lvl=2, indent_char='-')
+        logger.debug(f'Memory for centroids is dynamically incremented in chunks of {chunk_size} items')
+        if n_streamlines == 0:
+            return
+
+        # centroids = np.empty((n_streamlines, n_pts, 3), dtype=np.float32)
+        # cluster_size = np.ones(n_streamlines, dtype=np.int32)
+        centroids_np = np.empty((centroids_in_mem, n_pts, 3), dtype=np.float32)
+        centroids = centroids_np
+        cluster_size_np = np.ones(centroids_in_mem, dtype=np.int32)
+        cluster_size = cluster_size_np
+        belongs_to = np.empty(n_streamlines, dtype=np.int32)
+
+        # Process first streamline
+        n_centroids = 1
+        belongs_to[0] = 0
+        TCK_in.read_streamline()
+        max_streamline_len = TCK_in.n_pts
+        if TCK_in.n_pts == n_pts:
+            for j in range(n_pts):
+                centroids[0, j, 0] = TCK_in.streamline[j, 0]
+                centroids[0, j, 1] = TCK_in.streamline[j, 1]
+                centroids[0, j, 2] = TCK_in.streamline[j, 2]
+        else:
+            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, centroids[0], lengths)
+
+        #----- process every streamline -----
+        with ProgressBar(total=n_streamlines-1, disable=verbose<3, hide_on_exit=True) as pbar:
+            for i in range(1, n_streamlines):
+                TCK_in.read_streamline()
+                if TCK_in.n_pts > max_streamline_len:
+                    max_streamline_len = TCK_in.n_pts
+                if TCK_in.n_pts == n_pts:
+                    for j in range(n_pts):
+                        streamline[j, 0] = TCK_in.streamline[j, 0]
+                        streamline[j, 1] = TCK_in.streamline[j, 1]
+                        streamline[j, 2] = TCK_in.streamline[j, 2]
+                else:
+                    set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, streamline[:], lengths)
+
+                # Fibd the closest centroid
+                distance.closest_centroid(streamline, centroids, thr, n_centroids, &c_idx, &c_flipped)
+                belongs_to[i] = c_idx
+
+                # Update centroids data structure to account for the new streamline
+                if c_idx < n_centroids:
+                    # Update corresponding centroid
+                    n1 = cluster_size[c_idx]
+                    n2 = 1.0 / (n1 + 1.0)
+                    if c_flipped:
+                        for j in range(n_pts):
+                            centroids[c_idx, j, 0] = (n1 * centroids[c_idx, j, 0] + streamline[n_pts-1-j, 0]) * n2
+                            centroids[c_idx, j, 1] = (n1 * centroids[c_idx, j, 1] + streamline[n_pts-1-j, 1]) * n2
+                            centroids[c_idx, j, 2] = (n1 * centroids[c_idx, j, 2] + streamline[n_pts-1-j, 2]) * n2
+                    else:
+                        for j in range(n_pts):
+                            centroids[c_idx, j, 0] = (n1 * centroids[c_idx, j, 0] + streamline[j, 0]) * n2
+                            centroids[c_idx, j, 1] = (n1 * centroids[c_idx, j, 1] + streamline[j, 1]) * n2
+                            centroids[c_idx, j, 2] = (n1 * centroids[c_idx, j, 2] + streamline[j, 2]) * n2
+                    cluster_size[c_idx] += 1
+                else:
+                    # Add a new centroid
+                    if n_centroids % centroid_chunk_size == 0:
+                        centroids_in_mem += centroid_chunk_size
+                        centroids_np = np.resize( centroids_np, (centroids_in_mem, n_pts, 3) )
+                        centroids = centroids_np
+                        cluster_size_np = np.resize( cluster_size_np, (centroids_in_mem) )
+                        cluster_size = cluster_size_np
+                    cluster_size[n_centroids] = 1
+                    for j in range(n_pts):
+                        centroids[n_centroids, j, 0] = streamline[j, 0]
+                        centroids[n_centroids, j, 1] = streamline[j, 1]
+                        centroids[n_centroids, j, 2] = streamline[j, 2]
+                    n_centroids += 1
+
+                pbar.update()
+        TCK_in.close()
+        logger.subinfo(f"Number of output centroids: {n_centroids}", indent_char='*', indent_lvl=1)
+
+        # locate the closest streamline to each centroid to be saved as representative of the corresponding cluster
+        centroid_n_pts = np.empty(n_centroids, dtype=np.intc)
+        centroids_updated = closest_streamline(tractogram_filename, centroids, belongs_to, n_pts, n_centroids, centroid_n_pts, max_streamline_len=max_streamline_len, verbose=verbose)
+
+        # save clustered tractogram to file
+        TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
+        for i, c in enumerate(centroids_updated):
+            TCK_out.write_streamline( c[:centroid_n_pts[i]], centroid_n_pts[i] )
+        TCK_out.close(write_eof=True, count=n_centroids)
+
+        if save_clust_idx:
+            np.savetxt(f'{out_tractogram_filename[:len(out_tractogram_filename)-4]}_clust_idx.txt', belongs_to, fmt='%d')
+
+    except Exception as e:
+        logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
+
+    finally:
+        t1 = time()
+        logger.info( f'[ {format_time(t1 - t0)} ]' )
+        return
+
+
+#------------------------------------------------------------------------------------
+#------------------------------------- OLD CODE -------------------------------------
+#------------------------------------------------------------------------------------
 cdef (int, int) compute_dist_mean(float[:,::1] fib_in, float[:,:,::1] target, float thr,
                             float d1_x, float d1_y, float d1_z, int num_c, int num_pt) noexcept nogil:
     """Compute the distance between a fiber and a set of centroids"""
@@ -1025,372 +1397,3 @@ cpdef project_values_on_centroid(filename_tractogram: str, float[:,:] streamline
 
     TCK_in.close()
     return np.asarray(final_values)
-
-
-
-cdef class DistanceMetric:
-    """Basic class to define new distance metrics; new metrics should inherit from this class.
-    All the methods need to be overloaded to account for the specific needs of the metric.
-    Each method will then be called by a dispatcher when needed.
-
-    Attributes
-    ----------
-    id : string
-        Identification code for the distance metric
-    name : string
-        A more human-readable description for the distance metric (can be equal to id)
-    """
-    cdef:
-        int n_pts
-
-    def __init__( self, int n_pts ) :
-        self.n_pts = n_pts
-        return
-
-    cdef float calculate(self, float[:,::1] f, float[:,::1] g, int* out_flipped) nogil:
-        raise NotImplementedError("Subclasses must implement calculate().")
-
-    cdef void closest_centroid(self, float[:,::1] streamline, float[:,:,::1] centroids, float thr, int n_centroids, int* out_belongs_to, int* out_flipped) nogil:
-        raise NotImplementedError("Subclasses must implement calculate().")
-
-
-
-cdef class AverageSquaredEuclideanDistance(DistanceMetric):
-    """Average Squared Euclidean Distance (ASED) between streamlines"""
-    def __init__(self, int n_pts):
-        self.n_pts = n_pts
-
-    def __dealloc__(self):
-        pass
-
-    cdef float calculate(self, float[:,::1] f, float[:,::1] g, int* out_flipped) nogil:
-        """Compute the distance between two streamlines"""
-        cdef:
-            size_t j, k
-            float dx, dy, dz
-            float dist_direct = 0, dist_flipped = 0
-
-        for j in range(self.n_pts):
-            dx = f[j, 0] - g[j, 0]
-            dy = f[j, 1] - g[j, 1]
-            dz = f[j, 2] - g[j, 2]
-            dist_direct += dx*dx + dy*dy + dz*dz
-
-            k = self.n_pts-j-1
-            dx = f[k, 0] - g[j, 0]
-            dy = f[k, 1] - g[j, 1]
-            dz = f[k, 2] - g[j, 2]
-            dist_flipped += dx*dx + dy*dy + dz*dz
-
-        # Only update if we actually found a new minimum
-        if dist_direct <= dist_flipped:
-            out_flipped[0] = 0
-            return dist_direct
-        else:
-            out_flipped[0] = 1
-            return dist_flipped
-
-
-    cdef void closest_centroid(self, float[:,::1] streamline, float[:,:,::1] centroids, float thr, int n_centroids, int* out_belongs_to, int* out_flipped) nogil:
-        """Compute the distance between a streamline and a set of centroids"""
-        cdef:
-            size_t i, j, k
-            float dx, dy, dz
-            float dist_direct, dist_flipped
-            float dist_min_all = self.n_pts * thr
-            int belongs_to = n_centroids, flipped
-
-        for i in range(n_centroids):
-            dist_direct = 0
-            dist_flipped = 0
-            for j in range(self.n_pts):
-                dx = streamline[j, 0] - centroids[i, j, 0]
-                dy = streamline[j, 1] - centroids[i, j, 1]
-                dz = streamline[j, 2] - centroids[i, j, 2]
-                dist_direct += dx*dx + dy*dy + dz*dz
-
-                k = self.n_pts-j-1
-                dx = streamline[k, 0] - centroids[i, j, 0]
-                dy = streamline[k, 1] - centroids[i, j, 1]
-                dz = streamline[k, 2] - centroids[i, j, 2]
-                dist_flipped += dx*dx + dy*dy + dz*dz
-
-                # if both direct and flipped distances are already worse
-                # than best found distance, no need to continue computing
-                if j % 4 == 0:
-                    if dist_direct >= dist_min_all and dist_flipped >= dist_min_all:
-                        break
-
-            # Only update if we actually found a new minimum
-            if dist_direct <= dist_flipped:
-                if dist_direct < dist_min_all:
-                    dist_min_all = dist_direct
-                    flipped = 0
-                    belongs_to = i
-            else:
-                if dist_flipped < dist_min_all:
-                    dist_min_all = dist_flipped
-                    flipped = 1
-                    belongs_to = i
-
-        out_belongs_to[0] = belongs_to
-        out_flipped[0] = flipped
-        return
-
-cdef class AverageEuclideanDistance(DistanceMetric):
-    """Average Euclidean Distance (AED) between streamlines"""
-    def __init__(self, int n_pts):
-        self.n_pts = n_pts
-
-    cdef float calculate(self, float[:,::1] f, float[:,::1] g, int* out_flipped) nogil:
-        """Compute the distance between two streamlines"""
-        cdef:
-            size_t j, k
-            float dx, dy, dz
-            float dist_direct = 0, dist_flipped = 0
-
-        for j in range(self.n_pts):
-            dx = f[j, 0] - g[j, 0]
-            dy = f[j, 1] - g[j, 1]
-            dz = f[j, 2] - g[j, 2]
-            dist_direct += sqrtf( dx*dx + dy*dy + dz*dz )
-
-            k = self.n_pts-j-1
-            dx = f[k, 0] - g[j, 0]
-            dy = f[k, 1] - g[j, 1]
-            dz = f[k, 2] - g[j, 2]
-            dist_flipped += sqrtf( dx*dx + dy*dy + dz*dz )
-
-        # Only update if we actually found a new minimum
-        if dist_direct <= dist_flipped:
-            out_flipped[0] = 0
-            return dist_direct
-        else:
-            out_flipped[0] = 1
-            return dist_flipped
-
-
-    cdef void closest_centroid(self, float[:,::1] streamline, float[:,:,::1] centroids, float thr, int n_centroids, int* out_belongs_to, int* out_flipped) nogil:
-        """Compute the distance between a streamline and a set of centroids"""
-        cdef:
-            size_t i, j, k
-            float dx, dy, dz
-            float dist_direct, dist_flipped
-            float dist_min_all = self.n_pts * thr
-            int belongs_to = n_centroids, flipped
-
-        for i in range(n_centroids):
-            dist_direct = 0
-            dist_flipped = 0
-            for j in range(self.n_pts):
-                dx = streamline[j, 0] - centroids[i, j, 0]
-                dy = streamline[j, 1] - centroids[i, j, 1]
-                dz = streamline[j, 2] - centroids[i, j, 2]
-                dist_direct += sqrtf( dx*dx + dy*dy + dz*dz )
-
-                k = self.n_pts-j-1
-                dx = streamline[k, 0] - centroids[i, j, 0]
-                dy = streamline[k, 1] - centroids[i, j, 1]
-                dz = streamline[k, 2] - centroids[i, j, 2]
-                dist_flipped += sqrtf( dx*dx + dy*dy + dz*dz )
-
-                # if both direct and flipped distances are already worse
-                # than best found distance, no need to continue computing
-                if j % 4 == 0:
-                    if dist_direct >= dist_min_all and dist_flipped >= dist_min_all:
-                        break
-
-            # Only update if we actually found a new minimum
-            if dist_direct <= dist_flipped:
-                if dist_direct < dist_min_all:
-                    dist_min_all = dist_direct
-                    flipped = 0
-                    belongs_to = i
-            else:
-                if dist_flipped < dist_min_all:
-                    dist_min_all = dist_flipped
-                    flipped = 1
-                    belongs_to = i
-
-        out_belongs_to[0] = belongs_to
-        out_flipped[0] = flipped
-        return
-
-
-cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: str, metric: str="ASED", n_points: int=12, chunk_size: int=10000, force: bool=False, verbose: int=3):
-    """Cluster streamlines in a tractogram with QuickBundles [1].
-
-    Streamlines with distance smaller than 'thr' will be clustered together.
-
-    References:
-    [1] https://doi.org/10.3389/fnins.2012.00175
-
-    Parameters
-    ----------
-    tractogram_filename : str
-        Path to the tractogram (.tck) containing the streamlines to process.
-    thr : float
-        Threshold to use when computing distances between the streamlines.
-    out_tractogram_filename : str
-        Path to the tractogram (.tck) that will contain the clustered streamlines.
-    metric : {'AED','ASED'}, default='ASED'
-        Metric to use for computing distances between streamlines:
-        - AED = Average Euclidean Distance
-        - ASED = Average Squared Euclidean Distance
-    n_points : int, default=12
-        Number of points to resample the streamlines before clustering.
-        NB: this clustering algorithm requires all streamlines to have the same number of points.
-    chunk_size : int, default=10000
-        The number of centroids to keep in memory is dynamically incremented,
-        when needed, by chunks of this value.
-    force : boolean, default=False
-        Force overwriting of the output files.
-    verbose : int, default=3
-        What information to print, must be in [0...4] as defined in ui.set_verbose().
-    """
-    cdef:
-        int n_streamlines, n_centroids, n_pts = n_points
-        size_t i, j, k
-        float n1, n2
-        float [:,:,::1] centroids, centroids_updated
-        int [:] cluster_size
-        int centroid_chunk_size = chunk_size, max_streamline_len
-        int centroids_in_mem = centroid_chunk_size
-        int [:] centroid_n_pts
-        float[:,::1] streamline = np.empty((n_pts,3), dtype=np.float32)
-        int [:] belongs_to
-        int c_idx, c_flipped
-        LazyTractogram TCK_in = None, TCK_out = None
-        float[:] lengths = np.empty(3000, dtype=np.float32)
-        DistanceMetric distance
-
-
-    t0 = time()
-    set_verbose('clustering', verbose)
-    logger.info('Clustering tractogram')
-
-    if not os.path.isfile(tractogram_filename):
-        logger.error(f"File '{tractogram_filename}' not found")
-        return
-    if metric not in ['AED', 'ASED']:
-        logger.error(f"Metric '{metric}' not recognized")
-        return
-
-    files = [
-        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck']),
-        File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext=['.tck'])
-    ]
-    nums = [
-        Num(name='thr', value=thr, min_=0.0, include_min=False),
-        Num(name='n_pts', value=n_pts, min_=2),
-        Num(name='chunk_size', value=chunk_size, min_=100),
-    ]
-    check_params(files=files, nums=nums, force=force)
-
-    try:
-        if metric == 'AED':
-            distance = AverageEuclideanDistance( n_pts )
-        elif metric == 'ASED':
-            distance = AverageSquaredEuclideanDistance( n_pts )
-
-        TCK_in = LazyTractogram( tractogram_filename, mode='r' )
-        n_streamlines = int(TCK_in.header['count'])
-        logger.subinfo(f'Number of input streamlines: {n_streamlines}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Points per streamline: {n_pts}', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Distance metric: "{metric}"', indent_lvl=1, indent_char='*')
-        logger.subinfo(f'Distance threshold: {thr}', indent_lvl=1, indent_char='*')
-        logger.debug(f'Memory for centroids is dynamically incremented in chunks of {chunk_size} items')
-        if n_streamlines == 0:
-            return
-
-        # centroids = np.empty((n_streamlines, n_pts, 3), dtype=np.float32)
-        # cluster_size = np.ones(n_streamlines, dtype=np.int32)
-        centroids_np = np.empty((centroids_in_mem, n_pts, 3), dtype=np.float32)
-        centroids = centroids_np
-        cluster_size_np = np.ones(centroids_in_mem, dtype=np.int32)
-        cluster_size = cluster_size_np
-        belongs_to = np.empty(n_streamlines, dtype=np.int32)
-
-        # Process first streamline
-        n_centroids = 1
-        belongs_to[0] = 0
-        TCK_in.read_streamline()
-        max_streamline_len = TCK_in.n_pts
-        if TCK_in.n_pts == n_pts:
-            for j in range(n_pts):
-                centroids[0, j, 0] = TCK_in.streamline[j, 0]
-                centroids[0, j, 1] = TCK_in.streamline[j, 1]
-                centroids[0, j, 2] = TCK_in.streamline[j, 2]
-        else:
-            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, centroids[0], lengths)
-
-        #----- process every streamline -----
-        with ProgressBar(total=n_streamlines-1, disable=verbose<3, hide_on_exit=True) as pbar:
-            for i in range(1, n_streamlines):
-                TCK_in.read_streamline()
-                if TCK_in.n_pts > max_streamline_len:
-                    max_streamline_len = TCK_in.n_pts
-                if TCK_in.n_pts == n_pts:
-                    for j in range(n_pts):
-                        streamline[j, 0] = TCK_in.streamline[j, 0]
-                        streamline[j, 1] = TCK_in.streamline[j, 1]
-                        streamline[j, 2] = TCK_in.streamline[j, 2]
-                else:
-                    set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, streamline[:], lengths)
-
-                # Fibd the closest centroid
-                distance.closest_centroid(streamline, centroids, thr, n_centroids, &c_idx, &c_flipped)
-                belongs_to[i] = c_idx
-
-                # Update centroids data structure to account for the new streamline
-                if c_idx < n_centroids:
-                    # Update corresponding centroid
-                    n1 = cluster_size[c_idx]
-                    n2 = 1.0 / (n1 + 1.0)
-                    if c_flipped:
-                        for j in range(n_pts):
-                            centroids[c_idx, j, 0] = (n1 * centroids[c_idx, j, 0] + streamline[n_pts-1-j, 0]) * n2
-                            centroids[c_idx, j, 1] = (n1 * centroids[c_idx, j, 1] + streamline[n_pts-1-j, 1]) * n2
-                            centroids[c_idx, j, 2] = (n1 * centroids[c_idx, j, 2] + streamline[n_pts-1-j, 2]) * n2
-                    else:
-                        for j in range(n_pts):
-                            centroids[c_idx, j, 0] = (n1 * centroids[c_idx, j, 0] + streamline[j, 0]) * n2
-                            centroids[c_idx, j, 1] = (n1 * centroids[c_idx, j, 1] + streamline[j, 1]) * n2
-                            centroids[c_idx, j, 2] = (n1 * centroids[c_idx, j, 2] + streamline[j, 2]) * n2
-                    cluster_size[c_idx] += 1
-                else:
-                    # Add a new centroid
-                    if n_centroids % centroid_chunk_size == 0:
-                        centroids_in_mem += centroid_chunk_size
-                        centroids_np = np.resize( centroids_np, (centroids_in_mem, n_pts, 3) )
-                        centroids = centroids_np
-                        cluster_size_np = np.resize( cluster_size_np, (centroids_in_mem) )
-                        cluster_size = cluster_size_np
-                    cluster_size[n_centroids] = 1
-                    for j in range(n_pts):
-                        centroids[n_centroids, j, 0] = streamline[j, 0]
-                        centroids[n_centroids, j, 1] = streamline[j, 1]
-                        centroids[n_centroids, j, 2] = streamline[j, 2]
-                    n_centroids += 1
-
-                pbar.update()
-        TCK_in.close()
-        logger.subinfo(f"Number of output centroids: {n_centroids}", indent_char='*', indent_lvl=1)
-
-        # locate the closest streamline to each centroid to be saved as representative of the corresponding cluster
-        centroid_n_pts = np.empty(n_centroids, dtype=np.intc)
-        centroids_updated = closest_streamline(tractogram_filename, centroids, belongs_to, n_pts, n_centroids, centroid_n_pts, max_streamline_len=max_streamline_len, verbose=verbose)
-
-        # save clustered tractogram to file
-        TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
-        for i, c in enumerate(centroids_updated):
-            TCK_out.write_streamline( c[:centroid_n_pts[i]], centroid_n_pts[i] )
-        TCK_out.close(write_eof=True, count=n_centroids)
-
-    except Exception as e:
-        logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
-
-    finally:
-        t1 = time()
-        logger.info( f'[ {format_time(t1 - t0)} ]' )
-        return
