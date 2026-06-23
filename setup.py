@@ -1,6 +1,5 @@
-from setuptools import setup, find_packages, Extension, Command
+from setuptools import setup, Extension, Command
 from setuptools.command.build_ext import build_ext
-from glob import glob
 from numpy import get_include
 from shutil import rmtree
 
