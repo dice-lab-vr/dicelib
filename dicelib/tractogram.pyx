@@ -8,8 +8,8 @@ from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
 from libc.string cimport strchr, strlen, strncmp
 from libcpp.string cimport string
-from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, set_number_of_points, smooth, create_streamline_replicas
-from dicelib.streamline cimport apply_xform_to_point
+from dicelib.streamline import apply_smoothing, length as streamline_length, rdp_reduction, smooth, create_streamline_replicas
+from dicelib.streamline cimport apply_xform_to_point, set_number_of_points
 from dicelib.ui import ProgressBar, set_verbose, setup_logger
 from dicelib.utils import check_params, Dir, File, Num, format_time
 from dicelib.connectivity import assign
@@ -2002,7 +2002,7 @@ cpdef smooth_savitzky_golay( tractogram_filename, out_tractogram_filename, windo
                 if segment_len is not None:
                     tot_len = streamline_length( smoothed_streamline, TCK_in.n_pts )
                     n_pts = <int>( floor(tot_len/segment_len)+1 )
-                    set_number_of_points(smoothed_streamline[:TCK_in.n_pts], n_pts, resampled_streamline, lengths)
+                    set_number_of_points(smoothed_streamline, TCK_in.n_pts, resampled_streamline, n_pts, lengths)
                     TCK_out.write_streamline( resampled_streamline, n_pts )
                 else:
                     TCK_out.write_streamline( smoothed_streamline, TCK_in.n_pts )
@@ -2261,7 +2261,7 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     with ProgressBar( total=n_streamlines, disable=verbose < 3, hide_on_exit=True) as pbar:
         for i in range( n_streamlines ):
             TCK_in.read_streamline()
-            set_number_of_points(TCK_in.streamline[:TCK_in.n_pts], n_pts, s0, lengths)
+            set_number_of_points(TCK_in.streamline, TCK_in.n_pts, s0, n_pts, lengths)
             TCK_out.write_streamline( s0, n_pts )
             pbar.update()
     TCK_in.close()

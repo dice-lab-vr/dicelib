@@ -206,7 +206,7 @@ cpdef apply_smoothing(fib_ptr, n_pts_in, alpha = 0.5, epsilon = 0.3, n_pts_red =
         if n_pts_out < 2:
             n_pts_out = 2
         # resample smoothed streamline
-        set_number_of_points( smoothed_fib, n_pts_out, resampled_fib, lengths )
+        set_number_of_points( smoothed_fib, smoothed_fib.shape[0], resampled_fib, n_pts_out, lengths )
         resampled_fib[0][0] = fib_ptr[0][0]
         resampled_fib[0][1] = fib_ptr[0][1]
         resampled_fib[0][2] = fib_ptr[0][2]
@@ -334,35 +334,33 @@ cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nRepl
 #     else: #none case
 #         return value
 
-
-cpdef void set_number_of_points(float[:,::1] in_streamline, int out_n_pts, float[:,::1] out_streamline, float[:] lengths) noexcept nogil:
+cdef void set_number_of_points(float[:,::1] in_streamline, int in_n_pts, float[:,::1] out_streamline, int out_n_pts, float[:] lengths) noexcept nogil:
     cdef:
-        size_t i = 1
-        int j, in_n_pts = in_streamline.shape[0]
-        float target_len, ratio, segment_len
-        float vers_x, vers_y, vers_z
+        size_t i, j
+        float target_len, ratio, segment_len, total_length, step_size
 
     if out_n_pts < 2:
         out_n_pts = 2
 
-    cumulative_lengths(in_streamline, lengths)
-
-    # Handle the start point explicitly
+    # Handle endpoints explicitly to eliminate precision errors
     out_streamline[0, 0] = in_streamline[0, 0]
     out_streamline[0, 1] = in_streamline[0, 1]
     out_streamline[0, 2] = in_streamline[0, 2]
+    out_streamline[out_n_pts-1, 0] = in_streamline[in_n_pts-1, 0]
+    out_streamline[out_n_pts-1, 1] = in_streamline[in_n_pts-1, 1]
+    out_streamline[out_n_pts-1, 2] = in_streamline[in_n_pts-1, 2]
 
     # Pre-calculate step-related multiplier to avoid division inside the loop
-    # total_length / (out_n_pts - 1)
-    cdef float total_length = lengths[in_n_pts - 1]
-    cdef float step_scale = total_length / <float>(out_n_pts-1)
+    cumulative_lengths(in_streamline, in_n_pts, lengths)
+    total_length = lengths[in_n_pts-1]
+    step_size = total_length / <float>(out_n_pts-1)
 
     # Loop over the destination points (excluding first and last to prevent precision drift issues)
-    for j in range(1, out_n_pts - 1):
-        target_len = <float>j * step_scale
+    for j in range(1, out_n_pts-1):
+        target_len = <float>j * step_size
 
         # Advance the input index until we find the segment containing target_len
-        while i < <size_t>in_n_pts and lengths[i] < target_len:
+        while i < in_n_pts and lengths[i] < target_len:
             i += 1
         segment_len = lengths[i] - lengths[i-1]
 
@@ -372,21 +370,12 @@ cpdef void set_number_of_points(float[:,::1] in_streamline, int out_n_pts, float
         else:
             ratio = 0.0
 
-        vers_x = in_streamline[i, 0] - in_streamline[i-1, 0]
-        vers_y = in_streamline[i, 1] - in_streamline[i-1, 1]
-        vers_z = in_streamline[i, 2] - in_streamline[i-1, 2]
-
-        out_streamline[j, 0] = in_streamline[i-1, 0] + ratio*vers_x
-        out_streamline[j, 1] = in_streamline[i-1, 1] + ratio*vers_y
-        out_streamline[j, 2] = in_streamline[i-1, 2] + ratio*vers_z
-
-    # Handle the end point explicitly to eliminate precision errors
-    out_streamline[out_n_pts-1, 0] = in_streamline[in_n_pts-1, 0]
-    out_streamline[out_n_pts-1, 1] = in_streamline[in_n_pts-1, 1]
-    out_streamline[out_n_pts-1, 2] = in_streamline[in_n_pts-1, 2]
+        out_streamline[j, 0] = in_streamline[i-1, 0] + ratio * (in_streamline[i, 0] - in_streamline[i-1, 0])
+        out_streamline[j, 1] = in_streamline[i-1, 1] + ratio * (in_streamline[i, 1] - in_streamline[i-1, 1])
+        out_streamline[j, 2] = in_streamline[i-1, 2] + ratio * (in_streamline[i, 2] - in_streamline[i-1, 2])
 
 
-cdef void cumulative_lengths( float[:,::1] in_streamline, float[:] out_lengths ) noexcept nogil:
+cdef void cumulative_lengths( float[:,::1] in_streamline, int n_pts, float[:] out_lengths ) noexcept nogil:
     """Compute the cumulative lenght of the segments along a streamline.
 
     Parameters
@@ -398,7 +387,7 @@ cdef void cumulative_lengths( float[:,::1] in_streamline, float[:] out_lengths )
     """
     cdef size_t i = 0
     out_lengths[0] = 0.0
-    for i in xrange(1,in_streamline.shape[0]):
+    for i in xrange(1,n_pts):
         out_lengths[i] = out_lengths[i-1] + sqrtf(
             (in_streamline[i,0]-in_streamline[i-1,0])*(in_streamline[i,0]-in_streamline[i-1,0]) +
             (in_streamline[i,1]-in_streamline[i-1,1])*(in_streamline[i,1]-in_streamline[i-1,1]) +
