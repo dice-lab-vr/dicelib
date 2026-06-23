@@ -2,7 +2,7 @@
 requires = [
     "cython>=3.0.10",
     "numpy>=1.24.4",
-    "setuptools>=69.2.0"
+    "setuptools>=77.0.0"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -28,14 +28,14 @@ maintainers = [
 ]
 description = "Software library of the DICE Lab (Diffusion Imaging and Connectivity Estimation Laboratory)"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
 keywords = [
     "Neuroimaging"
 ]
 classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Image Processing",
-    "License :: Other/Proprietary License",
     "Programming Language :: C++",
     "Programming Language :: Cython",
     "Programming Language :: Python :: 3",
