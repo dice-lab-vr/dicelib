@@ -28,53 +28,6 @@ def assign():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
-def cluster_old():
-    '''Entry point for the clustering.run_clustering function'''
-    from dicelib.clustering import run_clustering
-    summary, desc, notes = get_argparse_info_from_docstring( run_clustering.__doc__ )
-    args = [
-        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
-        [['thr'], {'type': float, 'help': desc['thr']}],
-        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
-        [['--metric', '-m'], {'type': str, 'choices': ['EDavg', 'EDmax'], 'default': 'EDavg', 'help': desc['metric']}],
-        [['--n_pts', '-n'], {'type': int, 'default': 12, 'help': desc['n_pts']}],
-        [['--atlas', '-a'], {'type': str, 'help': desc['atlas']}],
-        [['--atlas_thr', '-d'], {'type': float, 'default': 2.0, 'help': desc['atlas_thr']}],
-        [['--save_clust_idx', '-s'], {'action': 'store_true', 'help': desc['save_clust_idx']}],
-        [['--scalars', '-wi'], {'type': str, 'default': None, 'help': desc['scalars_filename']}],
-        [['--out_scalars', '-wo'], {'type': str, 'default': None, 'help': desc['out_scalars_filename']}],
-        [['--scalars_stat', '-ws'], {'type': str, 'choices': ['sum','mean','median','min','max'], 'default': 'sum', 'help': desc['scalars_stat']}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_cluster', 'help': desc['tmp_folder']}],
-        [['--keep_tmp', '-k'], {'action': 'store_true', 'help': desc['keep_tmp']}],
-        [['--n_threads'], {'type': int, 'help': desc['n_threads']}],
-        [['--max_open_files'], {'type': int, 'default': None, 'help': desc['max_open']}],
-        [['--max_bytes'], {'type': int, 'default': 0, 'help': desc['max_bytes']}]
-    ]
-    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
-    try:
-        run_clustering(
-            tractogram_filename=options.tractogram,
-            thr=options.thr,
-            out_tractogram_filename=options.out_tractogram,
-            metric=options.metric,
-            n_pts=options.n_pts,
-            atlas=options.atlas,
-            atlas_thr=options.atlas_thr,
-            save_clust_idx=options.save_clust_idx,
-            scalars_filename=options.scalars,
-            scalars_stat=options.scalars_stat,
-            out_scalars_filename=options.out_scalars,
-            tmp_folder=options.tmp_folder,
-            keep_tmp=options.keep_tmp,
-            n_threads=options.n_threads,
-            max_open=options.max_open_files,
-            force=options.force,
-            verbose=options.verbose
-        )
-    except Exception as e:
-        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
-
-
 def cluster():
     '''Entry point for the clustering.cluster function'''
     from dicelib.clustering import cluster
