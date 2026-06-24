@@ -103,7 +103,6 @@ def cluster():
             force=options.force,
             verbose=options.verbose
         )
-        print( f'options.ret_centroids={options.ret_centroids}' )
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
