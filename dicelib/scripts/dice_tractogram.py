@@ -85,7 +85,7 @@ def cluster():
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
         [['--metric', '-m'], {'type': str, 'choices': ['AED','ASED'], 'default': 'ASED', 'help': desc['metric']}],
         [['--n_points', '-n'], {'type': int, 'default': 12, 'help': desc['n_points']}],
-        [['--save_clust_idx', '-s'], {'action': 'store_true', 'help': desc['save_clust_idx']}],
+        [['--out_clust_idx', '-i'], {'type': str, 'help': desc['out_clust_idx_filename']}],
         [['--chunk_size', '-c'], {'type': int, 'default': 10000, 'help': desc['chunk_size']}],
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
@@ -96,7 +96,7 @@ def cluster():
             out_tractogram_filename=options.out_tractogram,
             metric=options.metric,
             n_points=options.n_points,
-            save_clust_idx=options.save_clust_idx,
+            out_clust_idx_filename=options.out_clust_idx,
             chunk_size=options.chunk_size,
             force=options.force,
             verbose=options.verbose

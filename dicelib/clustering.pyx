@@ -202,9 +202,9 @@ cdef class AverageEuclideanDistance(DistanceMetric):
         return
 
 
-cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: str,
-               metric: str="ASED", n_points: int=12, save_clust_idx: bool=False,
-               chunk_size: int=10000, force: bool=False, verbose: int=3 ):
+cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
+               str metric="ASED", int n_points=12, str out_clust_idx_filename=None,
+               int chunk_size=10000, bool force=False, int verbose=3 ):
     """Cluster streamlines in a tractogram with QuickBundles [1].
 
     Streamlines with distance smaller than 'thr' will be clustered together.
@@ -227,8 +227,9 @@ cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: st
     n_points : int, default=12
         Number of points to resample the streamlines before clustering.
         NB: this clustering algorithm requires all streamlines to have the same number of points.
-    save_clust_idx : bool, default=False
-        Save the index of the cluster each input streamline belongs to.
+    out_clust_idx_filename : str, optional
+        Path to the scalar file (.txt, .npy) that will contain the index of
+        the cluster each input streamline belongs to.
     chunk_size : int, default=10000
         The number of centroids to keep in memory is dynamically incremented,
         when needed, by chunks of this value.
@@ -241,6 +242,7 @@ cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: st
         int n_streamlines, n_clusters, n_pts = n_points
         float [:,:,::1] centroids
         float [:,:,::1] medoids
+        int [::1] medoid_idx
         int [:] cluster_size
         int centroid_chunk_size = chunk_size, max_streamline_len
         int centroids_in_mem = centroid_chunk_size
@@ -250,7 +252,7 @@ cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: st
         int c_idx, is_flipped
         size_t i, j, k
         float n1, n2, d
-        float [:] closest_steamline_distance
+        float [:] closest_streamline_distance
         DistanceMetric distance
         LazyTractogram TCK_in = None, TCK_out = None
         float[:] lengths = np.empty(3000, dtype=np.float32)
@@ -270,6 +272,8 @@ cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: st
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck']),
         File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext=['.tck'])
     ]
+    if out_clust_idx_filename is not None:
+        files.append(File(name='out_clust_idx_filename', type_='output', path=out_clust_idx_filename, ext=['.txt', '.npy']))
     nums = [
         Num(name='thr', value=thr, min_=0.0, include_min=False),
         Num(name='n_pts', value=n_pts, min_=2),
@@ -318,7 +322,7 @@ cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: st
                     max_streamline_len = TCK_in.n_pts
                 set_number_of_points(TCK_in.streamline, TCK_in.n_pts, streamline, n_pts, lengths)
 
-                # Fibd the closest centroid
+                # Find the closest centroid
                 distance.closest_centroid(streamline, centroids, n_clusters, thr, &c_idx, &is_flipped)
                 belongs_to[i] = c_idx
 
@@ -356,8 +360,7 @@ cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: st
 
         # locate the closest streamline to each centroid (a.k.a. medoid) to be saved as representative of the corresponding cluster
         logger.subinfo(f"Computing medoids:", indent_char='*', indent_lvl=1, with_progress=True)
-        centroid_n_pts = np.empty(n_clusters, dtype=np.intc)
-        medoids = np.zeros((n_clusters, max_streamline_len, 3), dtype=np.float32)
+        medoid_idx = np.empty(n_clusters, dtype=np.int32) # index of the streamline that will represent the cluster
         closest_streamline_distance = 1e9 * np.ones(n_clusters, dtype=np.float32)
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
         with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=False, subinfo=True) as pbar:
@@ -369,26 +372,44 @@ cpdef cluster( tractogram_filename: str, thr: float, out_tractogram_filename: st
                 d = distance.calculate(streamline, centroids[c_idx, :, :], &is_flipped)
                 if d < closest_streamline_distance[c_idx]:
                     closest_streamline_distance[c_idx] = d
-                    medoids[c_idx, :TCK_in.n_pts] = TCK_in.streamline[:TCK_in.n_pts].copy()
-                    centroid_n_pts[c_idx] = TCK_in.n_pts
+                    medoid_idx[c_idx] = i
                 pbar.update()
         TCK_in.close()
 
         # save clustered tractogram to file
+        medoid_idx_indices = np.argsort( np.asarray(medoid_idx) )
+        medoid_idx_sorted = np.asarray(medoid_idx)[ medoid_idx_indices ]
+        TCK_in = LazyTractogram( tractogram_filename, mode='r' )
         TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
-        for i, m in enumerate(medoids):
-            TCK_out.write_streamline( m[:centroid_n_pts[i]], centroid_n_pts[i] )
-        TCK_out.close(write_eof=True, count=n_clusters)
+        c_idx = 0
+        for i in range(n_streamlines):
+            TCK_in.read_streamline()
+            if i == medoid_idx_sorted[c_idx]:
+                TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
+                c_idx += 1
+                if c_idx==n_clusters:
+                    break
+        TCK_out.close(write_eof=True, count=c_idx)
+        TCK_in.close()
+        if c_idx != n_clusters:
+            logger.error( f'Written only {c_idx} streamlines to file (<{n_clusters})' )
 
-        if save_clust_idx:
-            np.savetxt(f'{out_tractogram_filename[:len(out_tractogram_filename)-4]}_clust_idx.txt', belongs_to, fmt='%d')
+        if out_clust_idx_filename is not None:
+            tmp = medoid_idx_indices[belongs_to].astype(dtype=np.uint32)
+            if out_clust_idx_filename.endswith('.txt'):
+                np.savetxt(out_clust_idx_filename, tmp, fmt='%d')
+            else:
+                np.save(out_clust_idx_filename, tmp, allow_pickle=False)
 
     except Exception as e:
+        if os.path.isfile( out_tractogram_filename ):
+            os.remove( out_tractogram_filename )
+        if (out_clust_idx_filename is not None) and os.path.isfile( out_clust_idx_filename ):
+            os.remove( out_clust_idx_filename )
         logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:
-        t1 = time()
-        logger.info( f'[ {format_time(t1 - t0)} ]' )
+        logger.info( f'[ {format_time(time() - t0)} ]' )
         return
 
 
