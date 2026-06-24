@@ -204,7 +204,7 @@ cdef class AverageEuclideanDistance(DistanceMetric):
 
 cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
                str metric="ASED", int n_points=12, bool ret_centroids=False,
-               str out_clust_idx_filename=None, int chunk_size=10000,
+               str out_labels_filename=None, int chunk_size=10000,
                bool force=False, int verbose=3 ):
     """Cluster streamlines in a tractogram with QuickBundles [1].
 
@@ -231,7 +231,7 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
     ret_centroids : bool, default=False
         Whether to return the centroids (i.e. mean streamline is a cluster) or medoids (i.e. closest streamline
         to a centroid) as cluster representatives.
-    out_clust_idx_filename : str, optional
+    out_labels_filename : str, optional
         Path to the scalar file (.txt, .npy) that will contain the index of
         the cluster each input streamline belongs to.
     chunk_size : int, default=10000
@@ -275,8 +275,8 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck']),
         File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext=['.tck'])
     ]
-    if out_clust_idx_filename is not None:
-        files.append(File(name='out_clust_idx_filename', type_='output', path=out_clust_idx_filename, ext=['.txt', '.npy']))
+    if out_labels_filename is not None:
+        files.append(File(name='out_labels_filename', type_='output', path=out_labels_filename, ext=['.txt', '.npy']))
     nums = [
         Num(name='thr', value=thr, min_=0.0, include_min=False),
         Num(name='n_pts', value=n_pts, min_=2),
@@ -407,18 +407,18 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
             if c_idx != n_clusters:
                 logger.error( f'Written only {c_idx} streamlines to file (<{n_clusters})' )
 
-            if out_clust_idx_filename is not None:
+            if out_labels_filename is not None:
                 tmp = medoid_idx_indices[belongs_to].astype(dtype=np.uint32)
-                if out_clust_idx_filename.endswith('.txt'):
-                    np.savetxt(out_clust_idx_filename, tmp, fmt='%d')
+                if out_labels_filename.endswith('.txt'):
+                    np.savetxt(out_labels_filename, tmp, fmt='%d')
                 else:
-                    np.save(out_clust_idx_filename, tmp, allow_pickle=False)
+                    np.save(out_labels_filename, tmp, allow_pickle=False)
 
     except Exception as e:
         if os.path.isfile( out_tractogram_filename ):
             os.remove( out_tractogram_filename )
-        if (out_clust_idx_filename is not None) and os.path.isfile( out_clust_idx_filename ):
-            os.remove( out_clust_idx_filename )
+        if (out_labels_filename is not None) and os.path.isfile( out_labels_filename ):
+            os.remove( out_labels_filename )
         logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
 
     finally:
