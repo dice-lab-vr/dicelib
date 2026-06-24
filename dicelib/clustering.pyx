@@ -203,8 +203,9 @@ cdef class AverageEuclideanDistance(DistanceMetric):
 
 
 cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
-               str metric="ASED", int n_points=12, str out_clust_idx_filename=None,
-               int chunk_size=10000, bool force=False, int verbose=3 ):
+               str metric="ASED", int n_points=12, bool ret_centroids=False,
+               str out_clust_idx_filename=None, int chunk_size=10000,
+               bool force=False, int verbose=3 ):
     """Cluster streamlines in a tractogram with QuickBundles [1].
 
     Streamlines with distance smaller than 'thr' will be clustered together.
@@ -227,6 +228,9 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
     n_points : int, default=12
         Number of points to resample the streamlines before clustering.
         NB: this clustering algorithm requires all streamlines to have the same number of points.
+    ret_centroids : bool, default=False
+        Whether to return the centroids (i.e. mean streamline is a cluster) or medoids (i.e. closest streamline
+        to a centroid) as cluster representatives.
     out_clust_idx_filename : str, optional
         Path to the scalar file (.txt, .npy) that will contain the index of
         the cluster each input streamline belongs to.
@@ -241,7 +245,6 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
     cdef:
         int n_streamlines, n_clusters, n_pts = n_points
         float [:,:,::1] centroids
-        float [:,:,::1] medoids
         int [::1] medoid_idx
         int [:] cluster_size
         int centroid_chunk_size = chunk_size, max_streamline_len
@@ -359,47 +362,57 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
         logger.subinfo(f"Number of clusters: {n_clusters}", indent_char='-', indent_lvl=2)
 
         # locate the closest streamline to each centroid (a.k.a. medoid) to be saved as representative of the corresponding cluster
-        logger.subinfo(f"Computing medoids:", indent_char='*', indent_lvl=1, with_progress=True)
-        medoid_idx = np.empty(n_clusters, dtype=np.int32) # index of the streamline that will represent the cluster
-        closest_streamline_distance = 1e9 * np.ones(n_clusters, dtype=np.float32)
-        TCK_in = LazyTractogram( tractogram_filename, mode='r' )
-        with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=False, subinfo=True) as pbar:
-            for i in range(n_streamlines):
-                TCK_in.read_streamline()
-                set_number_of_points(TCK_in.streamline, TCK_in.n_pts, streamline, n_pts, lengths)
-                c_idx = belongs_to[i]
-
-                d = distance.calculate(streamline, centroids[c_idx, :, :], &is_flipped)
-                if d < closest_streamline_distance[c_idx]:
-                    closest_streamline_distance[c_idx] = d
-                    medoid_idx[c_idx] = i
-                pbar.update()
-        TCK_in.close()
 
         # save clustered tractogram to file
-        medoid_idx_indices = np.argsort( np.asarray(medoid_idx) )
-        medoid_idx_sorted = np.asarray(medoid_idx)[ medoid_idx_indices ]
-        TCK_in = LazyTractogram( tractogram_filename, mode='r' )
-        TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
-        c_idx = 0
-        for i in range(n_streamlines):
-            TCK_in.read_streamline()
-            if i == medoid_idx_sorted[c_idx]:
-                TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
-                c_idx += 1
-                if c_idx==n_clusters:
-                    break
-        TCK_out.close(write_eof=True, count=c_idx)
-        TCK_in.close()
-        if c_idx != n_clusters:
-            logger.error( f'Written only {c_idx} streamlines to file (<{n_clusters})' )
+        if ret_centroids==True:
+            logger.subinfo(f"Saving centroids:", indent_char='*', indent_lvl=1, with_progress=True)
+            TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
+            with ProgressBar(total=n_clusters, disable=verbose<3, hide_on_exit=False, subinfo=True) as pbar:
+                for i in range(n_clusters):
+                    TCK_out.write_streamline( centroids[i], n_pts )
+            TCK_out.close( write_eof=True, count=n_clusters)
 
-        if out_clust_idx_filename is not None:
-            tmp = medoid_idx_indices[belongs_to].astype(dtype=np.uint32)
-            if out_clust_idx_filename.endswith('.txt'):
-                np.savetxt(out_clust_idx_filename, tmp, fmt='%d')
-            else:
-                np.save(out_clust_idx_filename, tmp, allow_pickle=False)
+        else:
+            logger.subinfo(f"Saving medoids:", indent_char='*', indent_lvl=1, with_progress=True)
+            medoid_idx = np.empty(n_clusters, dtype=np.int32) # index of the streamline that will represent the cluster
+            closest_streamline_distance = 1e9 * np.ones(n_clusters, dtype=np.float32)
+            TCK_in = LazyTractogram( tractogram_filename, mode='r' )
+            with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=False, subinfo=True) as pbar:
+                for i in range(n_streamlines):
+                    TCK_in.read_streamline()
+                    set_number_of_points(TCK_in.streamline, TCK_in.n_pts, streamline, n_pts, lengths)
+                    c_idx = belongs_to[i]
+
+                    d = distance.calculate(streamline, centroids[c_idx, :, :], &is_flipped)
+                    if d < closest_streamline_distance[c_idx]:
+                        closest_streamline_distance[c_idx] = d
+                        medoid_idx[c_idx] = i
+                    pbar.update()
+            TCK_in.close()
+
+            medoid_idx_indices = np.argsort( np.asarray(medoid_idx) )
+            medoid_idx_sorted = np.asarray(medoid_idx)[ medoid_idx_indices ]
+            TCK_in = LazyTractogram( tractogram_filename, mode='r' )
+            TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
+            c_idx = 0
+            for i in range(n_streamlines):
+                TCK_in.read_streamline()
+                if i == medoid_idx_sorted[c_idx]:
+                    TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
+                    c_idx += 1
+                    if c_idx==n_clusters:
+                        break
+            TCK_out.close(write_eof=True, count=c_idx)
+            TCK_in.close()
+            if c_idx != n_clusters:
+                logger.error( f'Written only {c_idx} streamlines to file (<{n_clusters})' )
+
+            if out_clust_idx_filename is not None:
+                tmp = medoid_idx_indices[belongs_to].astype(dtype=np.uint32)
+                if out_clust_idx_filename.endswith('.txt'):
+                    np.savetxt(out_clust_idx_filename, tmp, fmt='%d')
+                else:
+                    np.save(out_clust_idx_filename, tmp, allow_pickle=False)
 
     except Exception as e:
         if os.path.isfile( out_tractogram_filename ):
