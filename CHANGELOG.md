@@ -1,6 +1,13 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.3.1`<br>_2026-07-02_
+### 🐛Fixed
+- Coherence computation to match MRtrix3 SH basis definition
+
+---
+---
+
 ## `v1.3.0`<br>_2026-01-14_
 ### 🐛Fixed
 - Conversion from streamline space to voxel space
