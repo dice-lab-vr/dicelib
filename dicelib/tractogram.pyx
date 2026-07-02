@@ -2546,7 +2546,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             phi[i] = atan2(dirs[i,1], dirs[i,0])
             theta[i] = atan2(sqrt(dirs[i,0]*dirs[i,0]+dirs[i,1]*dirs[i,1]), dirs[i,2])
             dirs[i,:] /= np.linalg.norm(dirs[i,:]) # normalize for later computation
-        tmp, _, _ = real_sh_tournier(lmax, theta, phi)
+        tmp, _, _ = real_sh_tournier(lmax, theta, phi, legacy=False)
         sh_basis = np.asarray(tmp, dtype=np.float32)
         del theta, phi, tmp
 
