@@ -2488,7 +2488,8 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     cdef int ox, oy, o, o2, trim_offset, n
     cdef int vx, vy, vz, i, j, k, n_peaks=0, peaks_found
     cdef float sf_val1, sf_val2
-    cdef float *ptr1, *ptr2
+    cdef float *ptr1
+    cdef float *ptr2
 
     t0 = time()
     set_verbose('tractogram', verbose)

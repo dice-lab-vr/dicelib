@@ -337,7 +337,7 @@ cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nRepl
 cdef void set_number_of_points(float[:,::1] in_streamline, int in_n_pts, float[:,::1] out_streamline, int out_n_pts, float[:] lengths) noexcept nogil:
     cdef:
         size_t i, j
-        float target_len, ratio, segment_len, total_length, step_size
+        double target_len, ratio, segment_len, total_length, step_size
 
     if out_n_pts < 2:
         out_n_pts = 2
@@ -353,11 +353,52 @@ cdef void set_number_of_points(float[:,::1] in_streamline, int in_n_pts, float[:
     # Pre-calculate step-related multiplier to avoid division inside the loop
     cumulative_lengths(in_streamline, in_n_pts, lengths)
     total_length = lengths[in_n_pts-1]
-    step_size = total_length / <float>(out_n_pts-1)
+    step_size = total_length / <double>(out_n_pts-1)
 
     # Loop over the destination points (excluding first and last to prevent precision drift issues)
     for j in range(1, out_n_pts-1):
-        target_len = <float>j * step_size
+        target_len = <double>j * step_size
+
+        # Advance the input index until we find the segment containing target_len
+        while i < in_n_pts and lengths[i] < target_len:
+            i += 1
+        segment_len = lengths[i] - lengths[i-1]
+
+        # Avoid division by zero if two sequential input points are identical
+        if segment_len > 0.0:
+            ratio = (target_len - lengths[i-1]) / segment_len
+        else:
+            ratio = 0.0
+
+        out_streamline[j, 0] = in_streamline[i-1, 0] + ratio * (in_streamline[i, 0] - in_streamline[i-1, 0])
+        out_streamline[j, 1] = in_streamline[i-1, 1] + ratio * (in_streamline[i, 1] - in_streamline[i-1, 1])
+        out_streamline[j, 2] = in_streamline[i-1, 2] + ratio * (in_streamline[i, 2] - in_streamline[i-1, 2])
+
+
+cdef void set_number_of_points_f64(float[:,::1] in_streamline, int in_n_pts, double[:,::1] out_streamline, int out_n_pts, float[:] lengths) noexcept nogil:
+    cdef:
+        size_t i, j
+        double target_len, ratio, segment_len, total_length, step_size
+
+    if out_n_pts < 2:
+        out_n_pts = 2
+
+    # Handle endpoints explicitly to eliminate precision errors
+    out_streamline[0, 0] = in_streamline[0, 0]
+    out_streamline[0, 1] = in_streamline[0, 1]
+    out_streamline[0, 2] = in_streamline[0, 2]
+    out_streamline[out_n_pts-1, 0] = in_streamline[in_n_pts-1, 0]
+    out_streamline[out_n_pts-1, 1] = in_streamline[in_n_pts-1, 1]
+    out_streamline[out_n_pts-1, 2] = in_streamline[in_n_pts-1, 2]
+
+    # Pre-calculate step-related multiplier to avoid division inside the loop
+    cumulative_lengths(in_streamline, in_n_pts, lengths)
+    total_length = lengths[in_n_pts-1]
+    step_size = total_length / <double>(out_n_pts-1)
+
+    # Loop over the destination points (excluding first and last to prevent precision drift issues)
+    for j in range(1, out_n_pts-1):
+        target_len = <double>j * step_size
 
         # Advance the input index until we find the segment containing target_len
         while i < in_n_pts and lengths[i] < target_len:
