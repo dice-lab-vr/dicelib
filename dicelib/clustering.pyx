@@ -23,8 +23,8 @@ cdef class DistanceMetric:
     n_pts : integer
         The number of coordinates that each streamline must have to compute the distance.
     """
-    cdef:
-        int n_pts
+    # cdef:
+    #     int n_pts
 
     def __init__( self, int n_pts ) :
         self.n_pts = n_pts
@@ -33,160 +33,11 @@ cdef class DistanceMetric:
     cdef double calculate(self, double[:,::1] f, double[:,::1] g, int* out_flipped) nogil:
         raise NotImplementedError("Subclasses must implement this function")
 
-    cdef double closest_centroid(self, double[:,::1] streamline, float[:,:,::1] centroids, int n_clusters, float thr, int* out_labels, int* out_flipped) nogil:
+    cdef double closest_centroid(self, double[:,::1] streamline, float[:,:,::1] centroids, int n_clusters, float thr, int* out_label, int* out_flipped) nogil:
         raise NotImplementedError("Subclasses must implement this function")
 
     def __dealloc__(self):
         pass
-
-
-cdef class AverageSquaredEuclideanDistance(DistanceMetric):
-    """Average Squared Euclidean Distance (ASED) between streamlines."""
-
-    cdef double calculate(self, double[:,::1] f, double[:,::1] g, int* out_flipped) nogil:
-        """Calculate the distance between two streamlines"""
-        cdef:
-            size_t j, k
-            double dist_direct=0, dist_flipped=0
-        for j in range(self.n_pts):
-            dist_direct += (f[j,0]-g[j,0])*(f[j,0]-g[j,0]) + (f[j,1]-g[j,1])*(f[j,1]-g[j,1]) + (f[j,2]-g[j,2])*(f[j,2]-g[j,2])
-            k = self.n_pts-j-1
-            dist_flipped += (f[k,0]-g[j,0])*(f[k,0]-g[j,0]) + (f[k,1]-g[j,1])*(f[k,1]-g[j,1]) + (f[k,2]-g[j,2])*(f[k,2]-g[j,2])
-        if dist_direct <= dist_flipped:
-            out_flipped[0] = 0
-            return dist_direct/self.n_pts
-        else:
-            out_flipped[0] = 1
-            return dist_flipped/self.n_pts
-
-
-    cdef double closest_centroid(self, double[:,::1] streamline, float[:,:,::1] centroids, int n_clusters, float thr, int* out_labels, int* out_flipped) nogil:
-        """Calculate the distance between a streamline and a set of centroids"""
-        cdef:
-            size_t i, j, k
-            double dx, dy, dz
-            double dist_direct, dist_flipped
-            double dist_min_all = self.n_pts * thr
-            int labels = n_clusters, flipped = 0
-
-        for i in range(n_clusters):
-            dist_direct = 0
-            dist_flipped = 0
-            for j in range(self.n_pts):
-                dx = streamline[j,0]-<double>centroids[i,j,0]
-                dy = streamline[j,1]-<double>centroids[i,j,1]
-                dz = streamline[j,2]-<double>centroids[i,j,2]
-                dist_direct += dx*dx + dy*dy + dz*dz
-                k = self.n_pts-j-1
-                dx = streamline[k,0]-<double>centroids[i,j,0]
-                dy = streamline[k,1]-<double>centroids[i,j,1]
-                dz = streamline[k,2]-<double>centroids[i,j,2]
-                dist_flipped += dx*dx + dy*dy + dz*dz
-                if dist_direct >= dist_min_all and dist_flipped >= dist_min_all:
-                    break
-
-            # only update if a new minimum is found
-            if dist_direct <= dist_flipped:
-                if dist_direct < dist_min_all:
-                    dist_min_all = dist_direct
-                    flipped = 0
-                    labels = i
-            else:
-                if dist_flipped < dist_min_all:
-                    dist_min_all = dist_flipped
-                    flipped = 1
-                    labels = i
-
-        out_labels[0] = labels
-        out_flipped[0] = flipped
-        return dist_min_all
-
-
-cdef class AverageSquaredEuclideanDistanceDCT(DistanceMetric):
-    """Average Squared Euclidean Distance (ASED) between streamlines in DCT space."""
-    cdef:
-        int n_dct
-
-    def __init__( self, int n_pts, int n_dct ) :
-        if n_dct%2==1:
-            raise ValueError( f'[AverageSquaredEuclideanDistanceDCT] n_dct must be even' )
-        self.n_pts = n_pts
-        self.n_dct = n_dct
-        return
-
-    cdef double calculate(self, double[:,::1] f, double[:,::1] g, int* out_flipped) nogil:
-        """Calculate the distance between two streamlines"""
-        cdef:
-            size_t j
-            double dist_direct, dist_flipped
-            double tmp1 = 0, tmp2 = 0, tmp3 = 0
-        for j in range(0, self.n_dct, 2):
-            tmp1 += (f[j,0]-g[j,0])*(f[j,0]-g[j,0]) + (f[j,1]-g[j,1])*(f[j,1]-g[j,1]) + (f[j,2]-g[j,2])*(f[j,2]-g[j,2])
-        for j in range(1, self.n_dct, 2):
-            tmp2 += (f[j,0]-g[j,0])*(f[j,0]-g[j,0]) + (f[j,1]-g[j,1])*(f[j,1]-g[j,1]) + (f[j,2]-g[j,2])*(f[j,2]-g[j,2])
-            tmp3 += (f[j,0]+g[j,0])*(f[j,0]+g[j,0]) + (f[j,1]+g[j,1])*(f[j,1]+g[j,1]) + (f[j,2]+g[j,2])*(f[j,2]+g[j,2])
-        dist_direct  = tmp1+tmp2
-        dist_flipped = tmp1+tmp3
-        if dist_direct <= dist_flipped:
-            out_flipped[0] = 0
-            return dist_direct/self.n_pts #FIXME: use the right number of coeffs
-        else:
-            out_flipped[0] = 1
-            return dist_flipped/self.n_pts #FIXME: use the right number of coeffs
-
-
-    cdef double closest_centroid(self, double[:,::1] streamline, float[:,:,::1] centroids, int n_clusters, float thr, int* out_labels, int* out_flipped) nogil:
-        """Calculate the distance between a streamline and a set of centroids"""
-        cdef:
-            size_t i, j, k
-            double dx, dy, dz
-            double tmp1
-            double dist_direct, dist_flipped
-            double dist_min_all = self.n_pts * thr #FIXME: use the right number of coeffs
-            int labels = n_clusters, flipped = 0
-
-        for i in range(n_clusters):
-            dist_direct = 0
-            dist_flipped = 0
-            for j in range(0, self.n_dct, 2):
-                # even = [0, 2, 4, ...]
-                dx = streamline[j,0]-<double>centroids[i,j,0]
-                dy = streamline[j,1]-<double>centroids[i,j,1]
-                dz = streamline[j,2]-<double>centroids[i,j,2]
-                tmp1 = dx*dx + dy*dy + dz*dz
-                dist_direct  += tmp1
-                dist_flipped += tmp1
-                if dist_direct >= dist_min_all and dist_flipped >= dist_min_all:
-                    break
-
-                # odd = [1, 3, 5, ...]
-                k = j+1
-                dx  = streamline[k,0]-<double>centroids[i,k,0]
-                dy  = streamline[k,1]-<double>centroids[i,k,1]
-                dz  = streamline[k,2]-<double>centroids[i,k,2]
-                dist_direct  += dx*dx + dy*dy + dz*dz
-                dx = streamline[k,0]+<double>centroids[i,k,0]
-                dy = streamline[k,1]+<double>centroids[i,k,1]
-                dz = streamline[k,2]+<double>centroids[i,k,2]
-                dist_flipped += dx*dx + dy*dy + dz*dz
-                if dist_direct >= dist_min_all and dist_flipped >= dist_min_all:
-                    break
-
-            # only update if a new minimum is found
-            if dist_direct <= dist_flipped:
-                if dist_direct < dist_min_all:
-                    dist_min_all = dist_direct
-                    flipped = 0
-                    labels = i
-            else:
-                if dist_flipped < dist_min_all:
-                    dist_min_all = dist_flipped
-                    flipped = 1
-                    labels = i
-
-        out_labels[0] = labels
-        out_flipped[0] = flipped
-        return dist_min_all
 
 
 cdef class AverageEuclideanDistance(DistanceMetric):
@@ -220,14 +71,14 @@ cdef class AverageEuclideanDistance(DistanceMetric):
             return dist_flipped
 
 
-    cdef double closest_centroid(self, double[:,::1] streamline, float[:,:,::1] centroids, int n_clusters, float thr, int* out_labels, int* out_flipped) nogil:
+    cdef double closest_centroid(self, double[:,::1] streamline, float[:,:,::1] centroids, int n_clusters, float thr, int* out_label, int* out_flipped) nogil:
         """Calculate the distance between a streamline and a set of centroids"""
         cdef:
             size_t i, j, k
             double dx, dy, dz
             double dist_direct, dist_flipped
             double dist_min_all = self.n_pts * thr
-            int labels = n_clusters, flipped = 0
+            int label = n_clusters, flipped = 0
 
         for i in range(n_clusters):
             dist_direct = 0
@@ -255,14 +106,163 @@ cdef class AverageEuclideanDistance(DistanceMetric):
                 if dist_direct < dist_min_all:
                     dist_min_all = dist_direct
                     flipped = 0
-                    labels = i
+                    label = i
             else:
                 if dist_flipped < dist_min_all:
                     dist_min_all = dist_flipped
                     flipped = 1
-                    labels = i
+                    label = i
 
-        out_labels[0] = labels
+        out_label[0] = label
+        out_flipped[0] = flipped
+        return dist_min_all
+
+
+cdef class AverageSquaredEuclideanDistance(DistanceMetric):
+    """Average Squared Euclidean Distance (ASED) between streamlines."""
+
+    cdef double calculate(self, double[:,::1] f, double[:,::1] g, int* out_flipped) nogil:
+        """Calculate the distance between two streamlines"""
+        cdef:
+            size_t j, k
+            double dist_direct=0, dist_flipped=0
+        for j in range(self.n_pts):
+            dist_direct += (f[j,0]-g[j,0])*(f[j,0]-g[j,0]) + (f[j,1]-g[j,1])*(f[j,1]-g[j,1]) + (f[j,2]-g[j,2])*(f[j,2]-g[j,2])
+            k = self.n_pts-j-1
+            dist_flipped += (f[k,0]-g[j,0])*(f[k,0]-g[j,0]) + (f[k,1]-g[j,1])*(f[k,1]-g[j,1]) + (f[k,2]-g[j,2])*(f[k,2]-g[j,2])
+        if dist_direct <= dist_flipped:
+            out_flipped[0] = 0
+            return dist_direct/self.n_pts
+        else:
+            out_flipped[0] = 1
+            return dist_flipped/self.n_pts
+
+
+    cdef double closest_centroid(self, double[:,::1] streamline, float[:,:,::1] centroids, int n_clusters, float thr, int* out_label, int* out_flipped) nogil:
+        """Calculate the distance between a streamline and a set of centroids"""
+        cdef:
+            size_t i, j, k
+            double dx, dy, dz
+            double dist_direct, dist_flipped
+            double dist_min_all = self.n_pts * thr
+            int label = n_clusters, flipped = 0
+
+        for i in range(n_clusters):
+            dist_direct = 0
+            dist_flipped = 0
+            for j in range(self.n_pts):
+                dx = streamline[j,0] - <double>centroids[i,j,0]
+                dy = streamline[j,1] - <double>centroids[i,j,1]
+                dz = streamline[j,2] - <double>centroids[i,j,2]
+                dist_direct += dx*dx + dy*dy + dz*dz
+                k = self.n_pts-j-1
+                dx = streamline[k,0] - <double>centroids[i,j,0]
+                dy = streamline[k,1] - <double>centroids[i,j,1]
+                dz = streamline[k,2] - <double>centroids[i,j,2]
+                dist_flipped += dx*dx + dy*dy + dz*dz
+                if dist_direct >= dist_min_all and dist_flipped >= dist_min_all:
+                    break
+
+            # only update if a new minimum is found
+            if dist_direct <= dist_flipped:
+                if dist_direct < dist_min_all:
+                    dist_min_all = dist_direct
+                    flipped = 0
+                    label = i
+            else:
+                if dist_flipped < dist_min_all:
+                    dist_min_all = dist_flipped
+                    flipped = 1
+                    label = i
+
+        out_label[0] = label
+        out_flipped[0] = flipped
+        return dist_min_all
+
+
+cdef class AverageSquaredEuclideanDistanceDCT(DistanceMetric):
+    """Average Squared Euclidean Distance (ASED) between streamlines in DCT space."""
+    # cdef:
+    #     int n_dct
+
+    def __init__( self, int n_pts, int n_dct ) :
+        if n_dct%2==1:
+            raise ValueError( f'[AverageSquaredEuclideanDistanceDCT] n_dct must be even' )
+        self.n_pts = n_pts
+        self.n_dct = n_dct
+        return
+
+    cdef double calculate(self, double[:,::1] f, double[:,::1] g, int* out_flipped) nogil:
+        """Calculate the distance between two streamlines"""
+        cdef:
+            size_t j
+            double dist_direct, dist_flipped
+            double tmp1 = 0, tmp2 = 0, tmp3 = 0
+        for j in range(0, self.n_dct, 2):
+            tmp1 += (f[j,0]-g[j,0])*(f[j,0]-g[j,0]) + (f[j,1]-g[j,1])*(f[j,1]-g[j,1]) + (f[j,2]-g[j,2])*(f[j,2]-g[j,2])
+        for j in range(1, self.n_dct, 2):
+            tmp2 += (f[j,0]-g[j,0])*(f[j,0]-g[j,0]) + (f[j,1]-g[j,1])*(f[j,1]-g[j,1]) + (f[j,2]-g[j,2])*(f[j,2]-g[j,2])
+            tmp3 += (f[j,0]+g[j,0])*(f[j,0]+g[j,0]) + (f[j,1]+g[j,1])*(f[j,1]+g[j,1]) + (f[j,2]+g[j,2])*(f[j,2]+g[j,2])
+        dist_direct  = tmp1+tmp2
+        dist_flipped = tmp1+tmp3
+        if dist_direct <= dist_flipped:
+            out_flipped[0] = 0
+            return dist_direct/self.n_pts #FIXME: use the right number of coeffs
+        else:
+            out_flipped[0] = 1
+            return dist_flipped/self.n_pts #FIXME: use the right number of coeffs
+
+
+    cdef double closest_centroid(self, double[:,::1] streamline, float[:,:,::1] centroids, int n_clusters, float thr, int* out_label, int* out_flipped) nogil:
+        """Calculate the distance between a streamline and a set of centroids"""
+        cdef:
+            size_t i, j, k
+            double dx, dy, dz
+            double tmp1
+            double dist_direct, dist_flipped
+            double dist_min_all = self.n_pts * thr #FIXME: use the right number of coeffs
+            int label = n_clusters, flipped = 0
+
+        for i in range(n_clusters):
+            dist_direct = 0
+            dist_flipped = 0
+            for j in range(0, self.n_dct, 2):
+                # even = [0, 2, 4, ...]
+                dx = streamline[j,0]-<double>centroids[i,j,0]
+                dy = streamline[j,1]-<double>centroids[i,j,1]
+                dz = streamline[j,2]-<double>centroids[i,j,2]
+                tmp1 = dx*dx + dy*dy + dz*dz
+                dist_direct  += tmp1
+                dist_flipped += tmp1
+                if dist_direct >= dist_min_all and dist_flipped >= dist_min_all:
+                    break
+
+                # odd = [1, 3, 5, ...]
+                k = j+1
+                dx  = streamline[k,0]-<double>centroids[i,k,0]
+                dy  = streamline[k,1]-<double>centroids[i,k,1]
+                dz  = streamline[k,2]-<double>centroids[i,k,2]
+                dist_direct  += dx*dx + dy*dy + dz*dz
+                dx = streamline[k,0]+<double>centroids[i,k,0]
+                dy = streamline[k,1]+<double>centroids[i,k,1]
+                dz = streamline[k,2]+<double>centroids[i,k,2]
+                dist_flipped += dx*dx + dy*dy + dz*dz
+                if dist_direct >= dist_min_all and dist_flipped >= dist_min_all:
+                    break
+
+            # only update if a new minimum is found
+            if dist_direct <= dist_flipped:
+                if dist_direct < dist_min_all:
+                    dist_min_all = dist_direct
+                    flipped = 0
+                    label = i
+            else:
+                if dist_flipped < dist_min_all:
+                    dist_min_all = dist_flipped
+                    flipped = 1
+                    label = i
+
+        out_label[0] = label
         out_flipped[0] = flipped
         return dist_min_all
 
