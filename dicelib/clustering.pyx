@@ -65,10 +65,10 @@ cdef class AverageEuclideanDistance(DistanceMetric):
         # Only update if we actually found a new minimum
         if dist_direct <= dist_flipped:
             out_flipped[0] = 0
-            return dist_direct
+            return dist_direct/self.n_pts
         else:
             out_flipped[0] = 1
-            return dist_flipped
+            return dist_flipped/self.n_pts
 
 
     cdef double closest_centroid(self, double[:,::1] streamline, float[:,:,::1] centroids, int n_clusters, float thr, int* out_label, int* out_flipped) nogil:
@@ -207,10 +207,10 @@ cdef class AverageSquaredEuclideanDistanceDCT(DistanceMetric):
         dist_flipped = tmp1+tmp3
         if dist_direct <= dist_flipped:
             out_flipped[0] = 0
-            return dist_direct/self.n_pts #FIXME: use the right number of coeffs
+            return dist_direct/self.n_pts
         else:
             out_flipped[0] = 1
-            return dist_flipped/self.n_pts #FIXME: use the right number of coeffs
+            return dist_flipped/self.n_pts
 
 
     cdef double closest_centroid(self, double[:,::1] streamline, float[:,:,::1] centroids, int n_clusters, float thr, int* out_label, int* out_flipped) nogil:
@@ -318,8 +318,8 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
         int [::1] medoid_idx
         int [:] cluster_size
         double [:,::1] streamline
-        double [:,::1] centroid
         double [:,::1] streamline_res
+        double [:,::1] centroid
         double [:,::1] dct_M
         int [:] labels
         int c_idx, is_flipped
@@ -355,14 +355,13 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
             logger.error( f'n_dct_coeffs must be even' )
     check_params(files=files, nums=nums, force=force)
 
-
     try:
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
         n_streamlines = int(TCK_in.header['count'])
         logger.subinfo(f'Input:', indent_lvl=1, indent_char='*')
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_lvl=2, indent_char='-')
         if metric=='ASEDdct':
-            logger.subinfo(f'Distance metric: {metric} (using {n_dct_coeffs} points/streamline)', indent_lvl=2, indent_char='-')
+            logger.subinfo(f'Distance metric: {metric} (using {n_dct_coeffs} coeffs/streamline)', indent_lvl=2, indent_char='-')
         else:
             logger.subinfo(f'Distance metric: {metric} (using {n_points} points/streamline)', indent_lvl=2, indent_char='-')
         logger.subinfo(f'Distance threshold: {thr}', indent_lvl=2, indent_char='-')
@@ -438,7 +437,7 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
                     n1 = cluster_size[c_idx]
                     n2 = 1.0 / (n1 + 1.0)
                     if is_flipped==False:
-                        for j in range(n_pts):
+                        for j in range(streamline.shape[0]):
                             centroids[c_idx,j,0] = (n1 * <double>centroids[c_idx,j,0] + streamline[j,0]) * n2
                             centroids[c_idx,j,1] = (n1 * <double>centroids[c_idx,j,1] + streamline[j,1]) * n2
                             centroids[c_idx,j,2] = (n1 * <double>centroids[c_idx,j,2] + streamline[j,2]) * n2
@@ -478,7 +477,14 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
         TCK_in.close()
         logger.subinfo(f"Number of clusters: {n_clusters}", indent_char='-', indent_lvl=2)
 
-        # save clustered tractogram to file
+        # save labels of clusters each input streamline belongs to
+        if out_labels_filename is not None:
+            if out_labels_filename.endswith('.txt'):
+                np.savetxt(out_labels_filename, labels, fmt='%d')
+            else:
+                np.save(out_labels_filename, labels, allow_pickle=False)
+
+        # save the centroids/medoids of the identified clusters
         if ret_centroids==True:
             # save the centroid computed by the algorithm (with n_pts points)
             logger.subinfo(f"Saving centroids:", indent_char='*', indent_lvl=1, with_progress=True)
@@ -515,7 +521,7 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
                         centroid[j,1] = centroids[c_idx,j,1]
                         centroid[j,2] = centroids[c_idx,j,2]
 
-                    d = distance.calculate(streamline, streamline_res, &is_flipped)
+                    d = distance.calculate(streamline, centroid, &is_flipped)
                     if d<closest_streamline_distance[c_idx] or fabs(d-closest_streamline_distance[c_idx]) < 1e-6: #FIXME: remove the second check
                         closest_streamline_distance[c_idx] = d
                         medoid_idx[c_idx] = i
@@ -538,13 +544,6 @@ cpdef cluster( str tractogram_filename, float thr, str out_tractogram_filename,
             TCK_in.close()
             if c_idx != n_clusters:
                 logger.error( f'Written only {c_idx} streamlines to file (<{n_clusters})' )
-
-            if out_labels_filename is not None:
-                tmp = medoid_idx_indices[labels].astype(dtype=np.uint32)
-                if out_labels_filename.endswith('.txt'):
-                    np.savetxt(out_labels_filename, tmp, fmt='%d')
-                else:
-                    np.save(out_labels_filename, tmp, allow_pickle=False)
 
     except Exception as e:
         if os.path.isfile( out_tractogram_filename ):
