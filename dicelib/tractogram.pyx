@@ -1271,8 +1271,8 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
         What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
     t0 = time()
-    logger.info('Sorting streamlines in tractogram')
     set_verbose('tractogram', verbose)
+    logger.info('Sorting streamlines in tractogram')
 
     # check input files
     files = [
@@ -1389,8 +1389,8 @@ def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_g
         What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
     t0 = time()
-    logger.info('Shuffling streamlines in tractogram')
     set_verbose('tractogram', verbose)
+    logger.info('Shuffling streamlines in tractogram')
 
     # check input files
     files = [
@@ -2229,8 +2229,8 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     force : boolean, default=False
         Force overwriting of the output files.
     """
-    set_verbose('tractogram', verbose)
     t0 = time()
+    set_verbose('tractogram', verbose)
 
     files = [
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
@@ -2303,6 +2303,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     force : boolean, default=False
         Force overwriting of the output files
     """
+    t0 = time()
     set_verbose('tractogram', verbose)
 
     files = [
@@ -2318,7 +2319,6 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
         Num(name='blur_gauss_min', value=blur_gauss_min, min_=0.0)
     ]
     check_params(files=files, nums=nums, force=force)
-    t0 = time()
     logger.info('Creating replicas of each streamline in the tractogram')
 
     TCK_in = LazyTractogram( input_tractogram, mode='r' )
