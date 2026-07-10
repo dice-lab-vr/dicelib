@@ -26,7 +26,8 @@ def get_extensions():
         name=f'{package_name}.tractogram',
         sources=[f'{package_name}/tractogram.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11', '-g0'],
+        extra_compile_args=['-w', '-std=c++11', '-g0', '-fopenmp'],
+        extra_link_args=['-fopenmp'],
         language='c++'
     )
     clustering = Extension(

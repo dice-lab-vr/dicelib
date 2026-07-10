@@ -478,6 +478,35 @@ def tdi():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
+def recognize():
+    '''Entry point for the tractogram.recognize_streamlines function'''
+    from dicelib.tractogram import recognize_streamlines
+    summary, desc, notes = get_argparse_info_from_docstring( recognize_streamlines.__doc__ )
+    args = [
+        [['tractogram'], {'help': desc['tractogram_filename']}],
+        [['bundle'], {'help': desc['bundle_filename']}],
+        [['thr'], {'type': float, 'help': desc['thr']}],
+        [['out_tractogram'], {'help': desc['out_tractogram_filename']}],
+        [['--n_sub', '-s'], {'type': int, 'default': 12, 'help': desc['n_sub']}],
+        [['--n_dct', '-d'], {'type': int, 'default': 6, 'help': desc['n_dct']}],
+        [['--n_threads', '-n'], {'type': int, 'default': 0, 'help': desc['n_threads']}]
+    ]
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        recognize_streamlines(
+            tractogram_filename=options.tractogram,
+            bundle_filename=options.bundle,
+            out_tractogram_filename=options.out_tractogram,
+            thr=options.thr,
+            n_sub=options.n_sub,
+            n_dct=options.n_dct,
+            n_threads=options.n_threads,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
 # def recompute_indices():
 #     '''Entry point for the tractogram.recompute_indices function'''
 #     from dicelib.tractogram import recompute_indices

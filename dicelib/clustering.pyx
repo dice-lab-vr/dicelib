@@ -220,7 +220,7 @@ cdef class AverageSquaredEuclideanDistanceDCT(DistanceMetric):
             double dx, dy, dz
             double tmp1
             double dist_direct, dist_flipped
-            double dist_min_all = self.n_pts * thr #FIXME: use the right number of coeffs
+            double dist_min_all = self.n_pts * thr
             int label = n_clusters, flipped = 0
 
         for i in range(n_clusters):
