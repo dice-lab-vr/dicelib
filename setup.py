@@ -2,12 +2,12 @@ from setuptools import setup, Extension, Command
 from setuptools.command.build_ext import build_ext
 from numpy import get_include
 from shutil import rmtree
+import os, sys, subprocess
 
-# name of the package
 package_name = 'dicelib'
 
 
-def get_extensions():
+def get_extensions(extra_compile_args, extra_link_args):
     image = Extension(
         name=f'{package_name}.image',
         sources=[f'{package_name}/image.pyx'],
@@ -26,8 +26,8 @@ def get_extensions():
         name=f'{package_name}.tractogram',
         sources=[f'{package_name}/tractogram.pyx'],
         include_dirs=[get_include()],
-        extra_compile_args=['-w', '-std=c++11', '-g0', '-fopenmp'],
-        extra_link_args=['-fopenmp'],
+        extra_compile_args=['-w', '-std=c++11', '-g0']+extra_compile_args,
+        extra_link_args=extra_link_args,
         language='c++'
     )
     clustering = Extension(
@@ -50,7 +50,6 @@ def get_extensions():
         extra_compile_args=['-w', '-std=c++11', '-g0'],
         language='c++',
     )
-
     return [image, streamline, tractogram, clustering, connectivity, tsf]
 
 
@@ -88,10 +87,37 @@ class CleanCommand(Command):
     def run(self):
         rmtree('./build', ignore_errors=True)
 
+# Check for OPENMP support
+OPENMP_compile_args = []
+OPENMP_link_args = []
+if sys.platform.startswith("win"):
+    compiler = "cl"
+    flags = ["/openmp", "/Fe:NUL", "/TC", "-"]
+    OPENMP_compile_args = ["/openmp"]
+    OPENMP_link_args = []
+else:
+    compiler = os.environ.get("CC", "gcc")
+    flags = ["-fopenmp", "-o", "/dev/null", "-x", "c", "-"]
+    OPENMP_compile_args = ["-fopenmp"]
+    OPENMP_link_args = ["-fopenmp"]
+
+try:
+    result = subprocess.run(
+        [compiler] + flags,
+        input="#include <omp.h>\nint main(void) { return omp_get_num_threads(); }",
+        text=True, capture_output=True, timeout=5
+    )
+    if result.returncode != 0:
+        OPENMP_compile_args = []
+        OPENMP_link_args = []
+except Exception:
+    OPENMP_compile_args = []
+    OPENMP_link_args = []
+
 setup(
     cmdclass={
         'build_ext': CustomBuildExtCommand,
         'clean': CleanCommand
     },
-    ext_modules=get_extensions()
+    ext_modules=get_extensions(OPENMP_compile_args, OPENMP_link_args)
 )
