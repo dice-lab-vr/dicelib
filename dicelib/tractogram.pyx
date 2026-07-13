@@ -2,7 +2,7 @@
 cimport cython
 import warnings
 warnings.filterwarnings('ignore', module='dipy')
-from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round, floor, acos
+from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round, floor, acos, fmin
 from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc, free
 from libcpp cimport bool as cbool
@@ -2811,25 +2811,40 @@ cdef inline unsigned char _is_within_distance(const float[:,:,::1] streamlines, 
         float dx, dy, dz, tmp1
         float dist_direct, dist_flipped
         float thr_scaled = thr * n_pts_full
-        unsigned char is_far
 
     for i in range(n_str_bundle):
-        dist_direct = 0
-        dist_flipped = 0
-        is_far = 0
-        for j in range(0, n_dct, 2):
-            # even = [0, 2, 4, ...]
+        # ---- explicit first iteration ----
+        dx = streamlines[idx,0,0] - haystack[i,0,0]
+        dy = streamlines[idx,0,1] - haystack[i,0,1]
+        dz = streamlines[idx,0,2] - haystack[i,0,2]
+        dist_direct = dist_flipped = dx*dx + dy*dy + dz*dz
+        if dist_direct > thr_scaled:
+            continue # too far, process next streamline
+
+        # odd = 1
+        dx  = streamlines[idx,1,0] - haystack[i,1,0]
+        dy  = streamlines[idx,1,1] - haystack[i,1,1]
+        dz  = streamlines[idx,1,2] - haystack[i,1,2]
+        dist_direct += dx*dx + dy*dy + dz*dz
+        dx = streamlines[idx,1,0] + haystack[i,1,0]
+        dy = streamlines[idx,1,1] + haystack[i,1,1]
+        dz = streamlines[idx,1,2] + haystack[i,1,2]
+        dist_flipped += dx*dx + dy*dy + dz*dz
+        if fmin(dist_direct, dist_flipped) > thr_scaled:
+            continue # too far, process next streamline
+
+        for j in range(2, n_dct, 2):
+            # even = [2, 4, 6, ...]
             dx = streamlines[idx,j,0] - haystack[i,j,0]
             dy = streamlines[idx,j,1] - haystack[i,j,1]
             dz = streamlines[idx,j,2] - haystack[i,j,2]
             tmp1 = dx*dx + dy*dy + dz*dz
             dist_direct  += tmp1
             dist_flipped += tmp1
-            if dist_direct > thr_scaled and dist_flipped > thr_scaled:
-                is_far = 1 # no need to go on with distance calculations
-                break
+            if fmin(dist_direct, dist_flipped) > thr_scaled:
+                break # too far, process next streamline
 
-            # odd = [1, 3, 5, ...]
+            # odd = [3, 5, 7, ...]
             k = j+1
             dx  = streamlines[idx,k,0] - haystack[i,k,0]
             dy  = streamlines[idx,k,1] - haystack[i,k,1]
@@ -2839,13 +2854,13 @@ cdef inline unsigned char _is_within_distance(const float[:,:,::1] streamlines, 
             dy = streamlines[idx,k,1] + haystack[i,k,1]
             dz = streamlines[idx,k,2] + haystack[i,k,2]
             dist_flipped += dx*dx + dy*dy + dz*dz
-            if dist_direct > thr_scaled and dist_flipped > thr_scaled:
-                is_far = 1 # no need to go on with distance calculations
-                break
+            if fmin(dist_direct, dist_flipped) > thr_scaled:
+                break # too far, process next streamline
 
-        if dist_direct <= thr_scaled or dist_flipped <= thr_scaled:
-            return 1
-    return 0
+        if fmin(dist_direct, dist_flipped) <= thr_scaled:
+            return 1 # streamline is close enough to one of the streamlines in the haystack
+
+    return 0 # streamline is not close enough to any of the streamlines in the haystack
 
 
 cpdef recognize_streamlines( tractogram_filename: str, bundle_filenames: list[str], out_folder: str="output", thr: float=36.0, n_sub: int=12, n_dct: int=6, suffix: str="", n_threads: int=None, force: bool=False, verbose: int=3 ):
@@ -2859,7 +2874,7 @@ cpdef recognize_streamlines( tractogram_filename: str, bundle_filenames: list[st
         List of filenames (.tck) of the tractograms containing the streamlines
         to compare to; wildcard characters are allowed, e.g. "folder/*.tck"
     thr : float
-        Maximum ASED iustance for a streamline to be recognized.
+        Maximum ASED distance for a streamline to be recognized.
     out_folder : str
         Path to the folder that will contain the recognied streamlines.
     n_sub : int, default=12
@@ -2966,7 +2981,7 @@ cpdef recognize_streamlines( tractogram_filename: str, bundle_filenames: list[st
                 logger.debug(f"Searching")
                 is_found = np.empty(n_streamlines, dtype=np.uint8)
                 tt = time()
-                for i in prange(n_streamlines, nogil=True, schedule='dynamic', chunksize=64, num_threads=_n_threads):
+                for i in prange(n_streamlines, nogil=True, schedule='dynamic', chunksize=32, num_threads=_n_threads):
                     is_found[i] = _is_within_distance(streamlines, i, streamlines_bundle, _thr, _n_sub)
                 logger.debug(f'  - {np.count_nonzero(is_found)} streamlines recognized')
                 logger.debug(f'  - Bundle search time = {time()-tt:.3f}s')
