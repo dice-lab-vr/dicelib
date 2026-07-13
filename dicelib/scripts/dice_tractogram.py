@@ -484,22 +484,24 @@ def recognize():
     summary, desc, notes = get_argparse_info_from_docstring( recognize_streamlines.__doc__ )
     args = [
         [['tractogram'], {'help': desc['tractogram_filename']}],
-        [['bundle'], {'help': desc['bundle_filename']}],
+        [['bundles'], {'type': str, 'nargs': '+', 'help': desc['bundle_filenames']}],
         [['thr'], {'type': float, 'help': desc['thr']}],
-        [['out_tractogram'], {'help': desc['out_tractogram_filename']}],
+        [['out_folder'], {'help': desc['out_folder']}],
         [['--n_sub', '-s'], {'type': int, 'default': 12, 'help': desc['n_sub']}],
         [['--n_dct', '-d'], {'type': int, 'default': 6, 'help': desc['n_dct']}],
+        [['--suffix'], {'type': str, 'default': '', 'help': desc['suffix']}],
         [['--n_threads', '-n'], {'type': int, 'default': 0, 'help': desc['n_threads']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
         recognize_streamlines(
             tractogram_filename=options.tractogram,
-            bundle_filename=options.bundle,
-            out_tractogram_filename=options.out_tractogram,
+            bundle_filenames=options.bundles,
+            out_folder=options.out_folder,
             thr=options.thr,
             n_sub=options.n_sub,
             n_dct=options.n_dct,
+            suffix=options.suffix,
             n_threads=options.n_threads,
             force=options.force,
             verbose=options.verbose

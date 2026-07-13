@@ -2803,70 +2803,71 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cdef inline bint _is_within_distance(const float[:,::1] needle, const float[:,:,::1] haystack, float thr, int n_pts_full) noexcept nogil:
+cdef inline unsigned char _is_within_distance(const float[:,:,::1] streamlines, int idx, const float[:,:,::1] haystack, float thr, int n_pts_full) noexcept nogil:
     cdef:
         Py_ssize_t i, j, k
-        Py_ssize_t n_dct = needle.shape[0]
-        Py_ssize_t n_clusters = haystack.shape[0]
+        Py_ssize_t n_dct = streamlines.shape[1]
+        Py_ssize_t n_str_bundle = haystack.shape[0]
         float dx, dy, dz, tmp1
         float dist_direct, dist_flipped
         float thr_scaled = thr * n_pts_full
-        bint is_far
+        unsigned char is_far
 
-    for i in range(n_clusters):
+    for i in range(n_str_bundle):
         dist_direct = 0
         dist_flipped = 0
         is_far = 0
         for j in range(0, n_dct, 2):
             # even = [0, 2, 4, ...]
-            dx = needle[j,0] - haystack[i,j,0]
-            dy = needle[j,1] - haystack[i,j,1]
-            dz = needle[j,2] - haystack[i,j,2]
+            dx = streamlines[idx,j,0] - haystack[i,j,0]
+            dy = streamlines[idx,j,1] - haystack[i,j,1]
+            dz = streamlines[idx,j,2] - haystack[i,j,2]
             tmp1 = dx*dx + dy*dy + dz*dz
             dist_direct  += tmp1
             dist_flipped += tmp1
             if dist_direct > thr_scaled and dist_flipped > thr_scaled:
-                is_far = 1 # no need to go on with distance calculatation
+                is_far = 1 # no need to go on with distance calculations
                 break
 
             # odd = [1, 3, 5, ...]
             k = j+1
-            dx  = needle[k,0] - haystack[i,k,0]
-            dy  = needle[k,1] - haystack[i,k,1]
-            dz  = needle[k,2] - haystack[i,k,2]
+            dx  = streamlines[idx,k,0] - haystack[i,k,0]
+            dy  = streamlines[idx,k,1] - haystack[i,k,1]
+            dz  = streamlines[idx,k,2] - haystack[i,k,2]
             dist_direct  += dx*dx + dy*dy + dz*dz
-            dx = needle[k,0] + haystack[i,k,0]
-            dy = needle[k,1] + haystack[i,k,1]
-            dz = needle[k,2] + haystack[i,k,2]
+            dx = streamlines[idx,k,0] + haystack[i,k,0]
+            dy = streamlines[idx,k,1] + haystack[i,k,1]
+            dz = streamlines[idx,k,2] + haystack[i,k,2]
             dist_flipped += dx*dx + dy*dy + dz*dz
             if dist_direct > thr_scaled and dist_flipped > thr_scaled:
-                is_far = 1 # no need to go on with distance calculatation
+                is_far = 1 # no need to go on with distance calculations
                 break
 
-        if is_far==0 and ( dist_direct <= thr_scaled or dist_flipped <= thr_scaled ):
+        if dist_direct <= thr_scaled or dist_flipped <= thr_scaled:
             return 1
     return 0
 
 
-cpdef recognize_streamlines( tractogram_filename: str, bundle_filename: str, out_tractogram_filename: str, thr: float=36.0, n_sub: int=12, n_dct: int=6, n_threads: int=None, force: bool=False, verbose: int=3 ):
+cpdef recognize_streamlines( tractogram_filename: str, bundle_filenames: list[str], out_folder: str="output", thr: float=36.0, n_sub: int=12, n_dct: int=6, suffix: str="", n_threads: int=None, force: bool=False, verbose: int=3 ):
     """Search and recognize streamlines of a tractogram that are close (up to a given threshold) to those of a second tractogram.
 
     Parameters
     ----------
     tractogram_filename : str
         Path to the file (.tck) containing the streamlines to process.
-    bundle_filename : str
-        Path to the file (.tck) containing the streamlines to compare to.
+    bundle_filenames : str
+        List of filenames (.tck) of the tractograms containing the streamlines
+        to compare to; wildchars are allowed, e.g. "folder/*.tck"
     thr : float
         Maximum ASED iustance for a streamline to be recognized.
-    out_tractogram_filename : str
-        Path to the file (.tck) that will containing the recognized streamlines.
-        --- Path to the file (.txt, .npy) that will contain the boolean array to
-        --- identify whether an input streamline was recognized or not.
+    out_folder : str
+        Path to the folder that will contain the recognied streamlines.
     n_sub : int, default=12
         Number of points for streamline resampling.
     n_dct : int, default=6
         Number of DCT coefficients for calculating distances.
+    suffix : string, optional
+        String to append to the filename of the recognied bundle(s).
     n_threads : int, optional
         How many threads to use for parallel computations;
         if not specfied, all available cores will be used.
@@ -2881,15 +2882,15 @@ cpdef recognize_streamlines( tractogram_filename: str, bundle_filename: str, out
         A bollean value for each input streamline: 1=recognized, 0=otherwise.
     """
     cdef:
-        size_t i, j
-        unsigned char [:] is_found
+        size_t i, j, k, l
+        unsigned char [::1] is_found
         LazyTractogram TCK_in = None, TCK_out = None
         int n_streamlines, n_streamlines_bundle, _n_threads, _n_sub
         float _thr
+        double acc
         float [:, :, ::1] streamlines
         float [:, :, ::1] streamlines_bundle
         double [:, ::1] streamline_sub
-        double [:, ::1] streamline_dct
         double [:, ::1] dct_M
         float [::1] lengths = np.empty(3000, dtype=np.float32)
 
@@ -2898,81 +2899,92 @@ cpdef recognize_streamlines( tractogram_filename: str, bundle_filename: str, out
     logger.info('Searching for similar streamlines')
 
     files = [File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck'])]
-    files.append(File(name='bundle_filename', type_='input', path=bundle_filename, ext=['.tck']))
-    files.append(File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext=['.tck']))
+    files = [File(name=f'bundle_filenames_{i}', type_='input', path=f, ext='.tck') for i, f in enumerate(bundle_filenames)]
+    dirs = [Dir(name='out_folder', path=out_folder)]
     nums = [
         Num(name='thr', value=thr, min_=0.1),
         Num(name='n_sub', value=n_sub, min_=2),
         Num(name='n_dct', value=n_dct, min_=2, max_=n_sub),
         Num(name='n_threads', value=n_threads, min_=0),
     ]
-    check_params(files=files, nums=nums, force=force)
+    check_params(files=files, dirs=dirs, nums=nums, force=force)
     _n_threads = n_threads if n_threads is not None else 0
     _n_sub = n_sub
     _thr = thr
 
+    if not os.path.exists(out_folder):
+        os.makedirs(out_folder)
+
     try:
         streamline_sub = np.empty((n_sub,3), dtype=np.float64)
-        streamline_dct = np.empty((n_dct,3), dtype=np.float64)
         dct_M = dct( np.eye(n_sub), axis=0, norm="ortho" )[:n_dct,:]
 
         # load and convert streamlines of tractogram
-        logger.subinfo(f"Loading tractogram:", indent_char='*', indent_lvl=1, with_progress=True)
+        tt = time()
+        logger.subinfo(f"Loading tractogram:", indent_char='*', indent_lvl=1)
         TCK_in = LazyTractogram(tractogram_filename, mode='r')
         n_streamlines = int(TCK_in.header['count'])
         streamlines = np.empty((n_streamlines, n_dct, 3), dtype=np.float32)
-        with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=False, subinfo=True) as pbar:
-            for i in range(n_streamlines):
-                TCK_in.read_streamline()
-                set_number_of_points_f64(TCK_in.streamline, TCK_in.n_pts, streamline_sub, n_sub, lengths)
-                np.dot( dct_M, streamline_sub, out=np.asarray(streamline_dct) )
-                for j in range(n_dct):
-                    streamlines[i,j,0] = <float>streamline_dct[j,0]
-                    streamlines[i,j,1] = <float>streamline_dct[j,1]
-                    streamlines[i,j,2] = <float>streamline_dct[j,2]
-                pbar.update()
+        for i in range(n_streamlines):
+            TCK_in.read_streamline()
+            set_number_of_points_f64(TCK_in.streamline, TCK_in.n_pts, streamline_sub, n_sub, lengths)
+            for j in range(n_dct):
+                for k in range(3):
+                    acc = 0.0
+                    for l in range(n_sub):
+                        acc = acc + dct_M[j, l] * streamline_sub[l, k]
+                    streamlines[i,j,k] = acc
         TCK_in.close()
         logger.subinfo(f'{n_streamlines} streamlines loaded', indent_lvl=2, indent_char='-')
+        logger.debug( f'Tractogram load/resample time = {time()-tt:.3f}s' )
 
-        # load and convert streamlines of bundle
-        TCK_in = LazyTractogram(bundle_filename, mode='r')
-        logger.subinfo(f"Loading bundle:", indent_char='*', indent_lvl=1, with_progress=True)
-        n_streamlines_bundle = int(TCK_in.header['count'])
-        streamlines_bundle = np.empty((n_streamlines_bundle, n_dct, 3), dtype=np.float32)
-        with ProgressBar(total=n_streamlines_bundle, disable=verbose<3, hide_on_exit=False, subinfo=True) as pbar:
-            for i in range(n_streamlines_bundle):
-                TCK_in.read_streamline()
-                set_number_of_points_f64(TCK_in.streamline, TCK_in.n_pts, streamline_sub, n_sub, lengths)
-                np.dot( dct_M, streamline_sub, out=np.asarray(streamline_dct) )
-                for j in range(n_dct):
-                    streamlines_bundle[i,j,0] = <float>streamline_dct[j,0]
-                    streamlines_bundle[i,j,1] = <float>streamline_dct[j,1]
-                    streamlines_bundle[i,j,2] = <float>streamline_dct[j,2]
+        # load and convert streamlines of each bundle
+        logger.subinfo(f'Searching streamlines in bundles:', indent_char='*', indent_lvl=1, with_progress=True)
+        with ProgressBar(total=len(bundle_filenames), disable=verbose<3, hide_on_exit=False, subinfo=True) as pbar:
+            for bundle_filename in bundle_filenames:
+                tt = time()
+                logger.debug(f'Loading "{bundle_filename}"')
+                TCK_in = LazyTractogram(bundle_filename, mode='r')
+                n_streamlines_bundle = int(TCK_in.header['count'])
+                streamlines_bundle = np.empty((n_streamlines_bundle, n_dct, 3), dtype=np.float32)
+                for i in range(n_streamlines_bundle):
+                    TCK_in.read_streamline()
+                    set_number_of_points_f64(TCK_in.streamline, TCK_in.n_pts, streamline_sub, n_sub, lengths)
+                    for j in range(n_dct):
+                        for k in range(3):
+                            acc = 0.0
+                            for l in range(n_sub):
+                                acc = acc + dct_M[j, l] * streamline_sub[l, k]
+                            streamlines_bundle[i,j,k] = acc
+                TCK_in.close()
+                logger.debug(f'  - {n_streamlines_bundle} streamlines loaded')
+                logger.debug(f'  - Load/resample time = {time()-tt:.3f}s')
+
+                # streamline search
+                logger.debug(f"Searching")
+                is_found = np.empty(n_streamlines, dtype=np.uint8)
+                tt = time()
+                for i in prange(n_streamlines, nogil=True, schedule='dynamic', chunksize=64, num_threads=_n_threads):
+                    is_found[i] = _is_within_distance(streamlines, i, streamlines_bundle, _thr, _n_sub)
+                logger.debug(f'  - {np.count_nonzero(is_found)} streamlines recognized')
+                logger.debug(f'  - Bundle search time = {time()-tt:.3f}s')
+
+                # saving output tractogram
+                logger.debug(f"Saving recognized bundle")
+                TCK_in = LazyTractogram(tractogram_filename, mode='r')
+                out_tractogram_filename = os.path.splitext(os.path.basename(bundle_filename))[0]
+                out_tractogram_filename = os.path.join(out_folder, out_tractogram_filename+f'__thr={thr:.1f}'+suffix+'.tck')
+                TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
+                count = 0
+                for i in range(n_streamlines):
+                    TCK_in.read_streamline()
+                    if is_found[i]:
+                        TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
+                        count += 1
+                TCK_out.close(write_eof=True, count=count)
+                TCK_in.close()
+
                 pbar.update()
-        TCK_in.close()
-        logger.subinfo(f'{n_streamlines_bundle} streamlines loaded', indent_lvl=2, indent_char='-')
-
-        # streamline search
-        logger.subinfo(f"Searching:", indent_char='*', indent_lvl=1, with_progress=False)
-        is_found = np.zeros( n_streamlines, dtype=np.uint8)
-        for i in prange(n_streamlines, nogil=True, schedule='dynamic', num_threads=_n_threads):
-            is_found[i] = _is_within_distance(streamlines[i, :, :], streamlines_bundle, _thr, _n_sub)
-        logger.subinfo(f'{np.count_nonzero(is_found)} streamlines recognized', indent_lvl=2, indent_char='-')
-
-        # saving output tractogram
-        logger.subinfo(f"Saving recognized bundle:", indent_char='*', indent_lvl=1, with_progress=True)
-        TCK_in = LazyTractogram(tractogram_filename, mode='r')
-        TCK_out = LazyTractogram(out_tractogram_filename, mode='w', header=TCK_in.header)
-        count = 0
-        with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=False, subinfo=True) as pbar:
-            for i in range(n_streamlines):
-                TCK_in.read_streamline()
-                if is_found[i]:
-                    TCK_out.write_streamline( TCK_in.streamline, TCK_in.n_pts )
-                    count += 1
-            pbar.update()
-        TCK_out.close(write_eof=True, count=count)
-        TCK_in.close()
 
     except Exception as e:
         logger.error( e.__str__() if e.__str__() else 'A generic error has occurred' )
