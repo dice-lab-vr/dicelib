@@ -2857,7 +2857,7 @@ cpdef recognize_streamlines( tractogram_filename: str, bundle_filenames: list[st
         Path to the file (.tck) containing the streamlines to process.
     bundle_filenames : str
         List of filenames (.tck) of the tractograms containing the streamlines
-        to compare to; wildchars are allowed, e.g. "folder/*.tck"
+        to compare to; wildcard characters are allowed, e.g. "folder/*.tck"
     thr : float
         Maximum ASED iustance for a streamline to be recognized.
     out_folder : str
@@ -2921,25 +2921,27 @@ cpdef recognize_streamlines( tractogram_filename: str, bundle_filenames: list[st
 
         # load and convert streamlines of tractogram
         tt = time()
-        logger.subinfo(f"Loading tractogram:", indent_char='*', indent_lvl=1)
+        logger.subinfo(f"Loading tractogram:", indent_char='*', indent_lvl=1, with_progress=True)
         TCK_in = LazyTractogram(tractogram_filename, mode='r')
         n_streamlines = int(TCK_in.header['count'])
         streamlines = np.empty((n_streamlines, n_dct, 3), dtype=np.float32)
-        for i in range(n_streamlines):
-            TCK_in.read_streamline()
-            set_number_of_points_f64(TCK_in.streamline, TCK_in.n_pts, streamline_sub, n_sub, lengths)
-            for j in range(n_dct):
-                for k in range(3):
-                    acc = 0.0
-                    for l in range(n_sub):
-                        acc = acc + dct_M[j, l] * streamline_sub[l, k]
-                    streamlines[i,j,k] = acc
+        with ProgressBar(total=n_streamlines, disable=verbose<3, hide_on_exit=False, subinfo=True) as pbar:
+            for i in range(n_streamlines):
+                TCK_in.read_streamline()
+                set_number_of_points_f64(TCK_in.streamline, TCK_in.n_pts, streamline_sub, n_sub, lengths)
+                for j in range(n_dct):
+                    for k in range(3):
+                        acc = 0.0
+                        for l in range(n_sub):
+                            acc = acc + dct_M[j, l] * streamline_sub[l, k]
+                        streamlines[i,j,k] = acc
+                pbar.update()
         TCK_in.close()
         logger.subinfo(f'{n_streamlines} streamlines loaded', indent_lvl=2, indent_char='-')
         logger.debug( f'Tractogram load/resample time = {time()-tt:.3f}s' )
 
         # load and convert streamlines of each bundle
-        logger.subinfo(f'Searching streamlines in bundles:', indent_char='*', indent_lvl=1, with_progress=True)
+        logger.subinfo(f'Searching streamlines in {len(bundle_filenames)} bundle(s):', indent_char='*', indent_lvl=1, with_progress=True)
         with ProgressBar(total=len(bundle_filenames), disable=verbose<3, hide_on_exit=False, subinfo=True) as pbar:
             for bundle_filename in bundle_filenames:
                 tt = time()
