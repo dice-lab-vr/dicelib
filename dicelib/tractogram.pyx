@@ -2803,64 +2803,64 @@ cpdef compute_tdi( tractogram_filename: str, ref_image_filename: str, out_map_fi
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cdef inline unsigned char _is_within_distance(const float[:,:,::1] streamlines, int idx, const float[:,:,::1] haystack, float thr, int n_pts_full) noexcept nogil:
+cdef inline unsigned char _is_within_distance(const float[:,:,::1] streamlines, int idx, const float[:,:,::1] streamlines_bundle, float thr, int n_pts_full) noexcept nogil:
     cdef:
         Py_ssize_t i, j, k
         Py_ssize_t n_dct = streamlines.shape[1]
-        Py_ssize_t n_str_bundle = haystack.shape[0]
+        Py_ssize_t n_str_bundle = streamlines_bundle.shape[0]
         float dx, dy, dz, tmp1
         float dist_direct, dist_flipped
         float thr_scaled = thr * n_pts_full
 
     for i in range(n_str_bundle):
         # ---- explicit first iteration ----
-        dx = streamlines[idx,0,0] - haystack[i,0,0]
-        dy = streamlines[idx,0,1] - haystack[i,0,1]
-        dz = streamlines[idx,0,2] - haystack[i,0,2]
+        dx = streamlines[idx,0,0] - streamlines_bundle[i,0,0]
+        dy = streamlines[idx,0,1] - streamlines_bundle[i,0,1]
+        dz = streamlines[idx,0,2] - streamlines_bundle[i,0,2]
         dist_direct = dist_flipped = dx*dx + dy*dy + dz*dz
         if dist_direct > thr_scaled:
             continue # too far, process next streamline
 
         # odd = 1
-        dx  = streamlines[idx,1,0] - haystack[i,1,0]
-        dy  = streamlines[idx,1,1] - haystack[i,1,1]
-        dz  = streamlines[idx,1,2] - haystack[i,1,2]
+        dx  = streamlines[idx,1,0] - streamlines_bundle[i,1,0]
+        dy  = streamlines[idx,1,1] - streamlines_bundle[i,1,1]
+        dz  = streamlines[idx,1,2] - streamlines_bundle[i,1,2]
         dist_direct += dx*dx + dy*dy + dz*dz
-        dx = streamlines[idx,1,0] + haystack[i,1,0]
-        dy = streamlines[idx,1,1] + haystack[i,1,1]
-        dz = streamlines[idx,1,2] + haystack[i,1,2]
+        dx = streamlines[idx,1,0] + streamlines_bundle[i,1,0]
+        dy = streamlines[idx,1,1] + streamlines_bundle[i,1,1]
+        dz = streamlines[idx,1,2] + streamlines_bundle[i,1,2]
         dist_flipped += dx*dx + dy*dy + dz*dz
         if fmin(dist_direct, dist_flipped) > thr_scaled:
             continue # too far, process next streamline
 
         for j in range(2, n_dct, 2):
             # even = [2, 4, 6, ...]
-            dx = streamlines[idx,j,0] - haystack[i,j,0]
-            dy = streamlines[idx,j,1] - haystack[i,j,1]
-            dz = streamlines[idx,j,2] - haystack[i,j,2]
+            dx = streamlines[idx,j,0] - streamlines_bundle[i,j,0]
+            dy = streamlines[idx,j,1] - streamlines_bundle[i,j,1]
+            dz = streamlines[idx,j,2] - streamlines_bundle[i,j,2]
             tmp1 = dx*dx + dy*dy + dz*dz
             dist_direct  += tmp1
             dist_flipped += tmp1
-            if fmin(dist_direct, dist_flipped) > thr_scaled:
-                break # too far, process next streamline
+            # if fmin(dist_direct, dist_flipped) > thr_scaled:
+                # break # too far, process next streamline
 
             # odd = [3, 5, 7, ...]
             k = j+1
-            dx  = streamlines[idx,k,0] - haystack[i,k,0]
-            dy  = streamlines[idx,k,1] - haystack[i,k,1]
-            dz  = streamlines[idx,k,2] - haystack[i,k,2]
+            dx  = streamlines[idx,k,0] - streamlines_bundle[i,k,0]
+            dy  = streamlines[idx,k,1] - streamlines_bundle[i,k,1]
+            dz  = streamlines[idx,k,2] - streamlines_bundle[i,k,2]
             dist_direct  += dx*dx + dy*dy + dz*dz
-            dx = streamlines[idx,k,0] + haystack[i,k,0]
-            dy = streamlines[idx,k,1] + haystack[i,k,1]
-            dz = streamlines[idx,k,2] + haystack[i,k,2]
+            dx = streamlines[idx,k,0] + streamlines_bundle[i,k,0]
+            dy = streamlines[idx,k,1] + streamlines_bundle[i,k,1]
+            dz = streamlines[idx,k,2] + streamlines_bundle[i,k,2]
             dist_flipped += dx*dx + dy*dy + dz*dz
-            if fmin(dist_direct, dist_flipped) > thr_scaled:
-                break # too far, process next streamline
+            # if fmin(dist_direct, dist_flipped) > thr_scaled:
+                # break # too far, process next streamline
 
         if fmin(dist_direct, dist_flipped) <= thr_scaled:
-            return 1 # streamline is close enough to one of the streamlines in the haystack
+            return 1 # streamline is close enough to one of the streamlines in the bundle
 
-    return 0 # streamline is not close enough to any of the streamlines in the haystack
+    return 0 # streamline is not close enough to any of the streamlines in the bundle
 
 
 cpdef recognize_streamlines( tractogram_filename: str, bundle_filenames: list[str], out_folder: str="output", thr: float=36.0, n_sub: int=12, n_dct: int=6, suffix: str="", n_threads: int=None, force: bool=False, verbose: int=3 ):
@@ -2915,8 +2915,8 @@ cpdef recognize_streamlines( tractogram_filename: str, bundle_filenames: list[st
 
     files = [File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck'])]
     files = [File(name=f'bundle_filenames_{i}', type_='input', path=f, ext='.tck') for i, f in enumerate(bundle_filenames)]
-    dirs = [Dir(name='out_folder', path=out_folder)]
-    nums = [
+    dirs  = [Dir(name='out_folder', path=out_folder)]
+    nums  = [
         Num(name='thr', value=thr, min_=0.1),
         Num(name='n_sub', value=n_sub, min_=2),
         Num(name='n_dct', value=n_dct, min_=2, max_=n_sub),
@@ -2981,7 +2981,7 @@ cpdef recognize_streamlines( tractogram_filename: str, bundle_filenames: list[st
                 logger.debug(f"Searching")
                 is_found = np.empty(n_streamlines, dtype=np.uint8)
                 tt = time()
-                for i in prange(n_streamlines, nogil=True, schedule='dynamic', chunksize=32, num_threads=_n_threads):
+                for i in prange(n_streamlines, nogil=True, schedule='static', chunksize=10000, num_threads=_n_threads):
                     is_found[i] = _is_within_distance(streamlines, i, streamlines_bundle, _thr, _n_sub)
                 logger.debug(f'  - {np.count_nonzero(is_found)} streamlines recognized')
                 logger.debug(f'  - Bundle search time = {time()-tt:.3f}s')
