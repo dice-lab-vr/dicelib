@@ -29,45 +29,32 @@ def assign():
 
 
 def cluster():
-    '''Entry point for the clustering.run_clustering function'''
-    from dicelib.clustering import run_clustering
-    summary, desc, notes = get_argparse_info_from_docstring( run_clustering.__doc__ )
+    '''Entry point for the clustering.cluster function'''
+    from dicelib.clustering import cluster
+    summary, desc, notes = get_argparse_info_from_docstring( cluster.__doc__ )
     args = [
         [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
         [['thr'], {'type': float, 'help': desc['thr']}],
         [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
-        [['--metric', '-m'], {'type': str, 'choices': ['EDavg', 'EDmax'], 'default': 'EDavg', 'help': desc['metric']}],
-        [['--n_pts', '-n'], {'type': int, 'default': 12, 'help': desc['n_pts']}],
-        [['--atlas', '-a'], {'type': str, 'help': desc['atlas']}],
-        [['--atlas_thr', '-d'], {'type': float, 'default': 2.0, 'help': desc['atlas_thr']}],
-        [['--save_clust_idx', '-s'], {'action': 'store_true', 'help': desc['save_clust_idx']}],
-        [['--scalars', '-wi'], {'type': str, 'default': None, 'help': desc['scalars_filename']}],
-        [['--out_scalars', '-wo'], {'type': str, 'default': None, 'help': desc['out_scalars_filename']}],
-        [['--scalars_stat', '-ws'], {'type': str, 'choices': ['sum','mean','median','min','max'], 'default': 'sum', 'help': desc['scalars_stat']}],
-        [['--tmp_folder', '-tmp'], {'type': str, 'default': 'tmp_cluster', 'help': desc['tmp_folder']}],
-        [['--keep_tmp', '-k'], {'action': 'store_true', 'help': desc['keep_tmp']}],
-        [['--n_threads'], {'type': int, 'help': desc['n_threads']}],
-        [['--max_open_files'], {'type': int, 'default': None, 'help': desc['max_open']}],
-        [['--max_bytes'], {'type': int, 'default': 0, 'help': desc['max_bytes']}]
+        [['--metric', '-m'], {'type': str, 'choices': ['AED','ASED','ASEDdct'], 'default': 'AED', 'help': desc['metric']}],
+        [['--n_points', '-n'], {'type': int, 'default': 12, 'help': desc['n_points']}],
+        [['--n_dct_coeffs', '-d'], {'type': int, 'default': 12, 'help': desc['n_dct_coeffs']}],
+        [['--ret_centroids', '-rc'], {'action': 'store_true', 'help': desc['ret_centroids']}],
+        [['--out_labels', '-l'], {'type': str, 'help': desc['out_labels_filename']}],
+        [['--chunk_size', '-c'], {'type': int, 'default': 10000, 'help': desc['chunk_size']}],
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
     try:
-        run_clustering(
+        cluster(
             tractogram_filename=options.tractogram,
             thr=options.thr,
             out_tractogram_filename=options.out_tractogram,
             metric=options.metric,
-            n_pts=options.n_pts,
-            atlas=options.atlas,
-            atlas_thr=options.atlas_thr,
-            save_clust_idx=options.save_clust_idx,
-            scalars_filename=options.scalars,
-            scalars_stat=options.scalars_stat,
-            out_scalars_filename=options.out_scalars,
-            tmp_folder=options.tmp_folder,
-            keep_tmp=options.keep_tmp,
-            n_threads=options.n_threads,
-            max_open=options.max_open_files,
+            n_points=options.n_points,
+            n_dct_coeffs=options.n_dct_coeffs,
+            ret_centroids=options.ret_centroids,
+            out_labels_filename=options.out_labels,
+            chunk_size=options.chunk_size,
             force=options.force,
             verbose=options.verbose
         )
@@ -490,6 +477,37 @@ def tdi():
     except Exception as e:
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
+
+def recognize():
+    '''Entry point for the tractogram.recognize_streamlines function'''
+    from dicelib.tractogram import recognize_streamlines
+    summary, desc, notes = get_argparse_info_from_docstring( recognize_streamlines.__doc__ )
+    args = [
+        [['tractogram'], {'help': desc['tractogram_filename']}],
+        [['bundles'], {'type': str, 'nargs': '+', 'help': desc['bundle_filenames']}],
+        [['thr'], {'type': float, 'help': desc['thr']}],
+        [['out_folder'], {'help': desc['out_folder']}],
+        [['--n_sub', '-s'], {'type': int, 'default': 12, 'help': desc['n_sub']}],
+        [['--n_dct', '-d'], {'type': int, 'default': 6, 'help': desc['n_dct']}],
+        [['--suffix'], {'type': str, 'default': '', 'help': desc['suffix']}],
+        [['--n_threads', '-n'], {'type': int, 'default': 0, 'help': desc['n_threads']}]
+    ]
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        recognize_streamlines(
+            tractogram_filename=options.tractogram,
+            bundle_filenames=options.bundles,
+            out_folder=options.out_folder,
+            thr=options.thr,
+            n_sub=options.n_sub,
+            n_dct=options.n_dct,
+            suffix=options.suffix,
+            n_threads=options.n_threads,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 # def recompute_indices():
 #     '''Entry point for the tractogram.recompute_indices function'''

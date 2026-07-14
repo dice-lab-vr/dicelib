@@ -116,7 +116,7 @@ def check_params(files: Optional[List[File]]=None, dirs: Optional[List[Dir]]=Non
 
 def format_time(seconds):
     if seconds < 60:
-        return f'{int(seconds):02d}s'
+        return f'{seconds:.3f}s'
     elif seconds >= 60 and seconds < 3600:
         minutes, seconds = divmod(seconds, 60)
         minutes, seconds = int(minutes), int(seconds)
