@@ -439,7 +439,7 @@ def compute_lengths( tractogram_filename: str, out_scalars_filename: str=None, f
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
-    return streamline_length
+    return lengths
 
 
 def info( tractogram_filename: str, max_field_length: int=None, compute_lengths: bool=False, verbose: int=3 ):
