@@ -2423,7 +2423,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', percentile: int=5, lobes_filename: str=None, trim: float=0.05, force: bool=False, verbose: int=3 ):
+cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', percentile: int=5, lobes_filename: str=None, lobes_use_affine: bool=True, trim: float=0.05, force: bool=False, verbose: int=3 ):
     """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
 
     The file containing the spherical functions should follow the MrTrix3 conventions
@@ -2450,6 +2450,8 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     lobes_filename : string, optional
         Path to the file (.nii, .nii.gz) containing the peaks that identify the lobes of the spherical functions, which
         will be used to normalize the local coherence by the value of the corresponding lobe.
+    lobes_use_affine : boolean, default=True
+        Whether to rotate the peaks according to the affine matrix.
     trim : float, default=0.05
         Percentage of segments to skip at each extremity.
         Note: if 'stat' is set to 'all', only the segments that are not trimmed will be saved in the output file and the
@@ -2482,10 +2484,11 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     cdef float [:] coherence_tsf = np.empty(10000, dtype=np.float32)
     cdef int [:] peaks_idx
     cdef double [:,::1] affine_inv
+    cdef double [:,::1] affine_inv_lobes
     cdef LazyTractogram TCK_in = None
     cdef TrackScalarFile TSF_out = None
     cdef int ox, oy, o, o2, trim_offset, n
-    cdef int vx, vy, vz, i, j, k, n_peaks=0, peaks_found
+    cdef int vx, vy, vz, i, j, k, l, n_peaks=0, peaks_found
     cdef float sf_val1, sf_val2
     cdef float *ptr1, *ptr2
 
@@ -2530,22 +2533,25 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         if not lmax.is_integer() :
             logger.error( f'The number of coefficients ({n_sh_coeff}) is not compatible with any SH basis' )
         lmax = int(lmax)
-        affine_inv  = np.linalg.inv(niiSF.affine)
+        affine_inv = np.linalg.inv(niiSF.affine)
         logger.subinfo(f'Spherical functions order: {lmax:.0f}', indent_char='*', indent_lvl=1)
 
         # construct the SH basis to sample the spherical function
         # (using the 500 directions/hash table used internally by COMMIT/AMICO)
         logger.debug( 'Computing SH basis' )
-        dirs  = amico.lut.load_directions( 500 )
-        logger.debug( f'directions: {dirs.shape[0]}x{dirs.shape[1]}'  )
+        dirs = amico.lut.load_directions(500).astype(np.float32)
+        # apply affine without translation to the directions
+        for i in range(dirs.shape[0]):
+            apply_xform_to_point(dirs[i], affine_inv, dirs[i], apply_translation=False)
+        logger.debug( f'directions: {dirs.shape[0]}x{dirs.shape[1]}' )
         htable = amico.lut.load_precomputed_hash_table( 500 )
-        logger.debug( f'hash table: {htable.shape[0]}x1 [min={np.min(htable)}, max={np.max(htable)}]'  )
+        logger.debug( f'hash table: {htable.shape[0]}x1 [min={np.min(htable)}, max={np.max(htable)}]' )
         theta = np.zeros(dirs.shape[0])
         phi = np.zeros(dirs.shape[0])
         for i in range(theta.size):
+            dirs[i,:] /= np.linalg.norm(dirs[i,:]) # normalize for later computation
             phi[i] = atan2(dirs[i,1], dirs[i,0])
             theta[i] = atan2(sqrt(dirs[i,0]*dirs[i,0]+dirs[i,1]*dirs[i,1]), dirs[i,2])
-            dirs[i,:] /= np.linalg.norm(dirs[i,:]) # normalize for later computation
         tmp, _, _ = real_sh_tournier(lmax, theta, phi, legacy=False)
         sh_basis = np.asarray(tmp, dtype=np.float32)
         del theta, phi, tmp
@@ -2562,6 +2568,20 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             if niiPEAKS.shape[3] % 3:
                 logger.error( 'PEAKS dataset must have 3*k volumes' )
             n_peaks = niiPEAKS.shape[3]/3
+            # apply affine without translation to the directions of the lobes TODO: add progress bar
+            if lobes_use_affine:
+                affine_inv_lobes = np.linalg.inv(niiPEAKS.affine)
+                for i in range(niiPEAKS_img.shape[0]):
+                    for j in range(niiPEAKS_img.shape[1]):
+                        for k in range(niiPEAKS_img.shape[2]):
+                            for l in range(n_peaks):
+                                p1 = niiPEAKS_img[i,j,k,l*3:l*3+3]
+                                if np.isnan(p1[0]) or np.isnan(p1[1]) or np.isnan(p1[2]):
+                                    continue
+                                apply_xform_to_point(niiPEAKS_img[i,j,k,l*3:l*3+3], affine_inv_lobes, p1, apply_translation=False)
+                                niiPEAKS_img[i,j,k,l*3] = p1[0]/np.linalg.norm(p1)
+                                niiPEAKS_img[i,j,k,l*3+1] = p1[1]/np.linalg.norm(p1)
+                                niiPEAKS_img[i,j,k,l*3+2] = p1[2]/np.linalg.norm(p1)
             dirs_angles_voxel = np.zeros(n_peaks, dtype=np.float32)
             logger.debug( 'Computing angles between 500 directions' )
             for i in range(500):

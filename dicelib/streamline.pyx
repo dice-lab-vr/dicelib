@@ -25,7 +25,7 @@ cdef extern from "streamline_utils.hpp":
     ) nogil
 
 
-cdef void apply_xform_to_point(float[:] in_P, double[:,::1] M, float[:] out_P) noexcept nogil:
+cdef void apply_xform_to_point(float[:] in_P, double[:,::1] M, float[:] out_P, bool apply_translation=True) noexcept nogil:
     """Apply a trasformation to a point.
 
     Parameters
@@ -37,9 +37,14 @@ cdef void apply_xform_to_point(float[:] in_P, double[:,::1] M, float[:] out_P) n
     out_P : 3x1 float array
         The point after trasformation.
     """
-    out_P[0] = <float>(in_P[0]*M[0,0] + in_P[1]*M[0,1] + in_P[2]*M[0,2] + M[0,3])
-    out_P[1] = <float>(in_P[0]*M[1,0] + in_P[1]*M[1,1] + in_P[2]*M[1,2] + M[1,3])
-    out_P[2] = <float>(in_P[0]*M[2,0] + in_P[1]*M[2,1] + in_P[2]*M[2,2] + M[2,3])
+    if apply_translation:
+        out_P[0] = <float>(in_P[0]*M[0,0] + in_P[1]*M[0,1] + in_P[2]*M[0,2] + M[0,3])
+        out_P[1] = <float>(in_P[0]*M[1,0] + in_P[1]*M[1,1] + in_P[2]*M[1,2] + M[1,3])
+        out_P[2] = <float>(in_P[0]*M[2,0] + in_P[1]*M[2,1] + in_P[2]*M[2,2] + M[2,3])
+    else:
+        out_P[0] = <float>(in_P[0]*M[0,0] + in_P[1]*M[0,1] + in_P[2]*M[0,2])
+        out_P[1] = <float>(in_P[0]*M[1,0] + in_P[1]*M[1,1] + in_P[2]*M[1,2])
+        out_P[2] = <float>(in_P[0]*M[2,0] + in_P[1]*M[2,1] + in_P[2]*M[2,2])
 
 
 cpdef length( float [:,:] streamline, int n=0 ):
