@@ -2423,7 +2423,7 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', percentile: int=5, lobes_filename: str=None, lobes_use_affine: bool=True, trim: float=0.05, force: bool=False, verbose: int=3 ):
+cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', percentile: int=5, lobes_filename: str=None, lobes_use_affine: bool=False, trim: float=0.05, force: bool=False, verbose: int=3 ):
     """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
 
     The file containing the spherical functions should follow the MrTrix3 conventions
@@ -2446,12 +2446,12 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         to the average coherence of the segments centered on that point. For the first and last points,
         the weight is computed using only the following or preceding segment, respectively.
     percentile : int, default=5
-        ????
+        Percentile to use when 'stat' is set to 'percentile'.
     lobes_filename : string, optional
         Path to the file (.nii, .nii.gz) containing the peaks that identify the lobes of the spherical functions, which
         will be used to normalize the local coherence by the value of the corresponding lobe.
-    lobes_use_affine : boolean, default=True
-        Whether to rotate the peaks according to the affine matrix.
+    lobes_use_affine : boolean, default=False
+        Whether to rotate the peaks according to the affine matrix when normalizing the coherence.
     trim : float, default=0.05
         Percentage of segments to skip at each extremity.
         Note: if 'stat' is set to 'all', only the segments that are not trimmed will be saved in the output file and the
@@ -2570,18 +2570,21 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             n_peaks = niiPEAKS.shape[3]/3
             # apply affine without translation to the directions of the lobes TODO: add progress bar
             if lobes_use_affine:
-                affine_inv_lobes = np.linalg.inv(niiPEAKS.affine)
-                for i in range(niiPEAKS_img.shape[0]):
-                    for j in range(niiPEAKS_img.shape[1]):
-                        for k in range(niiPEAKS_img.shape[2]):
-                            for l in range(n_peaks):
-                                p1 = niiPEAKS_img[i,j,k,l*3:l*3+3]
-                                if np.isnan(p1[0]) or np.isnan(p1[1]) or np.isnan(p1[2]):
-                                    continue
-                                apply_xform_to_point(niiPEAKS_img[i,j,k,l*3:l*3+3], affine_inv_lobes, p1, apply_translation=False)
-                                niiPEAKS_img[i,j,k,l*3] = p1[0]/np.linalg.norm(p1)
-                                niiPEAKS_img[i,j,k,l*3+1] = p1[1]/np.linalg.norm(p1)
-                                niiPEAKS_img[i,j,k,l*3+2] = p1[2]/np.linalg.norm(p1)
+                log_list_affine = []
+                ret_subinfo = logger.subinfo('Rotating lobes according to the affine matrix', indent_char='-', indent_lvl=2, with_progress=verbose>2)
+                with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo, log_list=log_list_affine):
+                    affine_inv_lobes = np.linalg.inv(niiPEAKS.affine)
+                    for i in range(niiPEAKS_img.shape[0]):
+                        for j in range(niiPEAKS_img.shape[1]):
+                            for k in range(niiPEAKS_img.shape[2]):
+                                for l in range(n_peaks):
+                                    p1 = niiPEAKS_img[i,j,k,l*3:l*3+3]
+                                    if np.isnan(p1[0]) or np.isnan(p1[1]) or np.isnan(p1[2]):
+                                        continue
+                                    apply_xform_to_point(niiPEAKS_img[i,j,k,l*3:l*3+3], affine_inv_lobes, p1, apply_translation=False)
+                                    niiPEAKS_img[i,j,k,l*3] = p1[0]/np.linalg.norm(p1)
+                                    niiPEAKS_img[i,j,k,l*3+1] = p1[1]/np.linalg.norm(p1)
+                                    niiPEAKS_img[i,j,k,l*3+2] = p1[2]/np.linalg.norm(p1)
             dirs_angles_voxel = np.zeros(n_peaks, dtype=np.float32)
             logger.debug( 'Computing angles between 500 directions' )
             for i in range(500):

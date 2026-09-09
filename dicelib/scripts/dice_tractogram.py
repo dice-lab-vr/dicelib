@@ -86,6 +86,7 @@ def coherence():
         [['--stat'], {'choices': ['mean','min','percentile','max','all'], 'default': 'min', 'help': desc['stat']}],
         [['--percentile', '-p'], {'type': int, 'default': 5, 'help': desc['percentile']}],
         [['--normalize', '-n'], {'type': str, 'default': None, 'help': desc['lobes_filename']}],
+        [['--lobes_use_affine', '-r'], {'action': 'store_true', 'help': desc['lobes_use_affine']}],
         [['--trim', '-t'], {'type': float, 'default': 0.05, 'help': desc['trim']}]
     ]
     options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
@@ -97,6 +98,7 @@ def coherence():
             stat=options.stat,
             percentile=options.percentile,
             lobes_filename=options.normalize,
+            lobes_use_affine=options.lobes_use_affine,
             trim=options.trim,
             force=options.force,
             verbose=options.verbose
