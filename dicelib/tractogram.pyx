@@ -2476,6 +2476,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     cdef short [:] htable
     cdef float [:,:,:,::1] niiSF_img
     cdef float [:,:,:,::1] niiPEAKS_img
+    cdef int   [:,:,::1] niiPEAKS_img_rot
     cdef float [:,::1] sh_basis
     cdef float [:,::1] dirs_angles = np.zeros((500,500), dtype=np.float32)
     cdef float [:] dirs_angles_voxel
@@ -2568,23 +2569,13 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             if niiPEAKS.shape[3] % 3:
                 logger.error( 'PEAKS dataset must have 3*k volumes' )
             n_peaks = niiPEAKS.shape[3]/3
-            # apply affine without translation to the directions of the lobes TODO: add progress bar
+            # apply affine without translation to the directions of the lobes
             if lobes_use_affine:
-                log_list_affine = []
-                ret_subinfo = logger.subinfo('Rotating lobes according to the affine matrix', indent_char='-', indent_lvl=2, with_progress=verbose>2)
-                with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo, log_list=log_list_affine):
-                    affine_inv_lobes = np.linalg.inv(niiPEAKS.affine)
-                    for i in range(niiPEAKS_img.shape[0]):
-                        for j in range(niiPEAKS_img.shape[1]):
-                            for k in range(niiPEAKS_img.shape[2]):
-                                for l in range(n_peaks):
-                                    p1 = niiPEAKS_img[i,j,k,l*3:l*3+3]
-                                    if np.isnan(p1[0]) or np.isnan(p1[1]) or np.isnan(p1[2]):
-                                        continue
-                                    apply_xform_to_point(niiPEAKS_img[i,j,k,l*3:l*3+3], affine_inv_lobes, p1, apply_translation=False)
-                                    niiPEAKS_img[i,j,k,l*3] = p1[0]/np.linalg.norm(p1)
-                                    niiPEAKS_img[i,j,k,l*3+1] = p1[1]/np.linalg.norm(p1)
-                                    niiPEAKS_img[i,j,k,l*3+2] = p1[2]/np.linalg.norm(p1)
+                logger.subinfo('Rotating lobes according to their affine matrix before normalization', indent_char='-', indent_lvl=2)
+                niiPEAKS_img_rot = np.zeros([niiPEAKS_img.shape[0], niiPEAKS_img.shape[1], niiPEAKS_img.shape[2]], dtype=np.int32) # keep track of which voxels have been rotated
+                if np.any(niiPEAKS.affine != niiSF.affine):
+                    logger.error('The affine of the lobes is different from the one of the spherical functions')
+                affine_inv_lobes = np.linalg.inv(niiPEAKS.affine)
             dirs_angles_voxel = np.zeros(n_peaks, dtype=np.float32)
             logger.debug( 'Computing angles between 500 directions' )
             for i in range(500):
@@ -2651,6 +2642,18 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
 
                         # normalize by corresponding lobe
                         if n_peaks > 0:
+                            # check if the lobes in the current voxel have alredy been rotated
+                            if lobes_use_affine and not niiPEAKS_img_rot[vx,vy,vz]:
+                                for l in range(n_peaks):
+                                    p1 = niiPEAKS_img[vx,vy,vz,l*3:l*3+3]
+                                    if np.isnan(p1[0]):# or np.isnan(p1[1]) or np.isnan(p1[2]):
+                                        continue
+                                    apply_xform_to_point(niiPEAKS_img[vx,vy,vz,l*3:l*3+3], affine_inv_lobes, p1, apply_translation=False)
+                                    # normalize the rotated lobe
+                                    niiPEAKS_img[vx,vy,vz,l*3] = p1[0]/np.linalg.norm(p1)
+                                    niiPEAKS_img[vx,vy,vz,l*3+1] = p1[1]/np.linalg.norm(p1)
+                                    niiPEAKS_img[vx,vy,vz,l*3+2] = p1[2]/np.linalg.norm(p1)
+                                    niiPEAKS_img_rot[vx,vy,vz] = True
                             ptr2 = &niiPEAKS_img[vx,vy,vz,0]
                             peaks_found = 0
                             for k in range(n_peaks):
