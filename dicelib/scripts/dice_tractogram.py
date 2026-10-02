@@ -158,6 +158,8 @@ def generateReplicas():
         [['--blur_gauss_min', '-min'], {'type': float, 'default': 0.1, 'help': desc['blur_gauss_min']}],
         [['--blur_apply_to', '-apply'], {'type': list, 'help': desc['blur_apply_to']}],
         [['--blur_n_replicas', '-num'], {'type': int, 'help': desc['blur_n_replicas']}],
+        [['--scalars', '-s'], {'type': str, 'help': desc['scalars_filename']}],
+        [['--out_scalars', '-os'], {'type': str, 'help': desc['out_scalars_filename']}],
         [['--save_scaling'], {'action': 'store_true', 'help': desc['save_scaling']}],
         [['--jitter', '-j'], {'action': 'store_true', 'help': desc['jitter']}],
         [['--jitter_boundary', '-jb'], {'type': float, 'help': desc['jitter_boundary']}],
@@ -177,6 +179,8 @@ def generateReplicas():
             jitter=options.jitter,
             jitter_boundary=options.jitter_boundary,
             jitter_seed=options.jitter_seed,
+            scalars_filename=options.scalars,
+            out_scalars_filename=options.out_scalars,
             force=options.force,
             verbose=options.verbose
         )

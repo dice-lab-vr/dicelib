@@ -2275,7 +2275,7 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, blur_core_extent: float=0.0, blur_gauss_extent: float=0.0, blur_spacing: float=0.25, blur_gauss_min: float=0.1, blur_apply_to=None, blur_n_replicas: int=None, save_scaling: bool=False, jitter: bool=False, jitter_boundary: float=None, jitter_seed: int=None, verbose: int=3, force: bool=False ):
+cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, blur_core_extent: float=0.0, blur_gauss_extent: float=0.0, blur_spacing: float=0.25, blur_gauss_min: float=0.1, blur_apply_to=None, blur_n_replicas: int=None, save_scaling: bool=False, jitter: bool=False, jitter_boundary: float=None, jitter_seed: int=None, scalars_filename: str=None, out_scalars_filename: str=None, verbose: int=3, force: bool=False ):
     """Save replicas of the input tractogram by applying a Gaussian blur.
 
     The blur parameters (core_extent, gauss_extent and n_replicas) are intended for the radius of the tubular structure representing the blurred streamlines.
@@ -2307,6 +2307,10 @@ cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, 
         If jitter is True, this parameter controls the jittering extent of the replicas in mm.
     jitter_seed : int, optional
         If jitter is True, this parameter controls the seed of the random number generator used for jittering, otherwise a random seed will be used.
+    scalars_filename : str, optional
+        Path to the file (.txt, .npy) containing one scalar for each input streamline.
+    out_scalars_filename : str, optional
+        Path to the file (.txt, .npy) that will contain the replicas scalars. The scalar value for each input streamline will be divided among its replicas according to their scaling factors. 
     verbose : int, default=3
         What information to print, must be in [0...4] as defined in ui.set_verbose()
     force : boolean, default=False
@@ -2317,9 +2321,17 @@ cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, 
     files = [
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck')
     ]
-
     if out_tractogram_filename is not None:
         files.append( File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck') )
+    if scalars_filename is not None:
+        files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.txt', '.npy']))
+        scalars_in_ext = os.path.splitext(scalars_filename)[1]
+        if out_scalars_filename is not None:
+            scalars_out_ext = os.path.splitext(out_scalars_filename)[1]
+            files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy']))
+        else:
+            logger.error('\'out_scalars_filename\' parameter must be specified if \'scalars_filename\' is specified')
+
     nums = [
         Num(name='blur_core_extent', value=blur_core_extent, min_=0.0),
         Num(name='blur_gauss_extent', value=blur_gauss_extent, min_=0.0),
@@ -2340,6 +2352,14 @@ cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, 
     n_streamlines = int( TCK_in.header['count'] )
     logger.subinfo(f'Input tractogram: {tractogram_filename}', indent_char='*', indent_lvl=1)
     logger.subinfo(f'number of streamlines: {n_streamlines}', indent_lvl=2, indent_char='-')
+
+    if scalars_filename is not None:
+        if scalars_in_ext == '.npy':
+            scalars = np.load(scalars_filename, allow_pickle=False).astype(np.float32)
+        else:
+            scalars = np.loadtxt(scalars_filename, dtype=np.float32)
+        if scalars.size != n_streamlines:
+            logger.error('"scalars_filename" must have one value per streamline')
 
     TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
     n_written = 0
@@ -2441,9 +2461,20 @@ cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, 
 
     if save_scaling:
         wei_file = out_tractogram_filename.replace('.tck', '_scaling_factor.txt')
-        logger.subinfo(f'Saving weights: {wei_file}', indent_char='*', indent_lvl=2)
+        logger.subinfo(f'Saving scaling factors: {wei_file}', indent_char='*', indent_lvl=2)
         all_wei = np.tile( blurWeights, n_streamlines )
         np.savetxt( wei_file, all_wei )
+
+    # save the scalars
+    if scalars_filename is not None:
+        logger.subinfo(f'Saving scalar values: {out_scalars_filename}', indent_char='*', indent_lvl=2)
+        # compute the scalar values of the replicas using x_repl_i = x_orig / sum(blurWeights) * blurWeights_i
+        sum_weights = np.sum(blurWeights)
+        scalars_replicas = np.repeat(scalars, nReplicas) / sum_weights * np.tile(blurWeights, n_streamlines) # TODO: check if this is correct
+        if scalars_out_ext == '.npy':
+            np.save(out_scalars_filename, scalars_replicas, allow_pickle=False)
+        else:
+            np.savetxt(out_scalars_filename, scalars_replicas, fmt='%.6e')
 
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
