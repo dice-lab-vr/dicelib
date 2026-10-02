@@ -145,6 +145,45 @@ def filter():
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
 
+def generateReplicas():
+    '''Entry point for the tractogram.generate_replicas function'''
+    from dicelib.tractogram import generate_replicas
+    summary, desc, notes = get_argparse_info_from_docstring( generate_replicas.__doc__  )
+    args = [
+        [['tractogram'], {'type': str, 'help': desc['tractogram_filename']}],
+        [['out_tractogram'], {'type': str, 'help': desc['out_tractogram_filename']}],
+        [['--blur_core_extent', '-core'], {'type': float, 'default': 0.0, 'help': desc['blur_core_extent']}],
+        [['--blur_gauss_extent', '-gauss'], {'type': float, 'default': 0.0, 'help': desc['blur_gauss_extent']}],
+        [['--blur_spacing', '-space'], {'type': float, 'default': 0.25, 'help': desc['blur_spacing']}],
+        [['--blur_gauss_min', '-min'], {'type': float, 'default': 0.1, 'help': desc['blur_gauss_min']}],
+        [['--blur_apply_to', '-apply'], {'type': list, 'help': desc['blur_apply_to']}],
+        [['--blur_n_replicas', '-num'], {'type': int, 'help': desc['blur_n_replicas']}],
+        [['--save_scaling'], {'action': 'store_true', 'help': desc['save_scaling']}],
+        [['--jitter', '-j'], {'action': 'store_true', 'help': desc['jitter']}],
+        [['--jitter_boundary', '-jb'], {'type': float, 'help': desc['jitter_boundary']}],
+        [['--jitter_seed', '-js'], {'type': int, 'help': desc['jitter_seed']}]
+    ]
+    options = setup_parser(summary, args, epilog=notes, add_force=True, add_verbose=True)
+    try:
+        generate_replicas(
+            tractogram_filename=options.tractogram,
+            out_tractogram_filename=options.out_tractogram,
+            blur_core_extent=options.blur_core_extent,
+            blur_gauss_extent=options.blur_gauss_extent,
+            blur_spacing=options.blur_spacing,
+            blur_gauss_min=options.blur_gauss_min,
+            blur_n_replicas=options.blur_n_replicas,
+            save_scaling=options.save_scaling,
+            jitter=options.jitter,
+            jitter_boundary=options.jitter_boundary,
+            jitter_seed=options.jitter_seed,
+            force=options.force,
+            verbose=options.verbose
+        )
+    except Exception as e:
+        logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
+
+
 def info():
     '''Entry point for the tractogram.info function'''
     from dicelib.tractogram import info

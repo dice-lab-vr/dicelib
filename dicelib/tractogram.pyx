@@ -2275,38 +2275,38 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, blur_apply_to=None, blur_n_replicas: int=None, save_weights: bool=False, jitter: bool=False, jitter_boundary: float=0.1, jitter_seed: int=None, verbose: int=3, force: bool=False ):
+cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, blur_core_extent: float=0.0, blur_gauss_extent: float=0.0, blur_spacing: float=0.25, blur_gauss_min: float=0.1, blur_apply_to=None, blur_n_replicas: int=None, save_scaling: bool=False, jitter: bool=False, jitter_boundary: float=None, jitter_seed: int=None, verbose: int=3, force: bool=False ):
     """Save replicas of the input tractogram by applying a Gaussian blur.
 
     The blur parameters (core_extent, gauss_extent and n_replicas) are intended for the radius of the tubular structure representing the blurred streamlines.
 
     Parameters
     ----------
-    input_tractogram : str
+    tractogram_filename : str
         Path to the file (.tck) containing the streamlines to process.
-    output_tractogram : str
+    out_tractogram_filename : str
         Path to the file where to store the output tractogram.
-    blur_core_extent: float
+    blur_core_extent : float, default=0.0
         Extent of the core inside which the segments have equal contribution to the central one used by COMMITblur.
-    blur_gauss_extent: float
+    blur_gauss_extent : float, default=0.0
         Extent of the gaussian damping at the border used by COMMITblur.
-    blur_spacing : float
+    blur_spacing : float, default=0.25
         To obtain the blur effect, streamlines are duplicated and organized in a cartesian grid;
-        this parameter controls the spacing of the grid in mm (defaut : 0.25).
-    blur_gauss_min: float
-        Minimum value of the Gaussian to consider when computing the sigma (default : 0.1).
-    blur_apply_to: array of bool
-        For each input streamline, decide whether blur is applied or not to it (default : None, meaning apply to all).
-    blur_n_replicas : int
-        If specified, the spacing of the replicas is adapted to obtain this number of replicas along one direction (default : None, meaning use the spacing).
-    save_weights : boolean
-        Save the scaling factors of the replicas in the output tractogram (default : False).
-    jitter : boolean
-        Jitter the replicas in the output tractogram (default : False).
-    jitter_boundary : float
-        If jitter is True, this parameter controls the jittering extent of the replicas in mm (default : 0.1).
-    jitter_seed : int
-        If jitter is True, this parameter controls the seed of the random number generator used for jittering (default : None, meaning use a random seed).
+        this parameter controls the spacing of the grid in mm.
+    blur_gauss_min : float, default=0.1
+        Minimum value of the Gaussian to consider when computing the sigma.
+    blur_apply_to : array of bool, optional
+        For each input streamline, decide whether blur is applied or not to it. If not specified, all input streamlines will be blurred.
+    blur_n_replicas : int, optional
+        If specified, the spacing of the replicas is adapted to obtain this number of replicas along one direction, otherwise the provided spacing will be used.
+    save_scaling : boolean, default=False
+        Save the scaling factors of the replicas in the output tractogram. If True, the scaling factors will be saved in a .txt file with the same name as the output tractogram but with a '_scaling_factor.txt' suffix.
+    jitter : boolean, default=False
+        Jitter the replicas in the output tractogram.
+    jitter_boundary : float, optional
+        If jitter is True, this parameter controls the jittering extent of the replicas in mm.
+    jitter_seed : int, optional
+        If jitter is True, this parameter controls the seed of the random number generator used for jittering, otherwise a random seed will be used.
     verbose : int, default=3
         What information to print, must be in [0...4] as defined in ui.set_verbose()
     force : boolean, default=False
@@ -2315,11 +2315,11 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     set_verbose('tractogram', verbose)
 
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck')
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck')
     ]
 
-    if output_tractogram is not None:
-        files.append( File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck') )
+    if out_tractogram_filename is not None:
+        files.append( File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck') )
     nums = [
         Num(name='blur_core_extent', value=blur_core_extent, min_=0.0),
         Num(name='blur_gauss_extent', value=blur_gauss_extent, min_=0.0),
@@ -2336,12 +2336,12 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     t0 = time()
     logger.info('Creating replicas of each streamline in the tractogram')
 
-    TCK_in = LazyTractogram( input_tractogram, mode='r' )
+    TCK_in = LazyTractogram( tractogram_filename, mode='r' )
     n_streamlines = int( TCK_in.header['count'] )
-    logger.subinfo(f'Input tractogram: {input_tractogram}', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'Input tractogram: {tractogram_filename}', indent_char='*', indent_lvl=1)
     logger.subinfo(f'number of streamlines: {n_streamlines}', indent_lvl=2, indent_char='-')
 
-    TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+    TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
     n_written = 0
 
     ####### code from trk2dictionary.pyx #######
@@ -2436,11 +2436,11 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     TCK_in.close()
     TCK_out.close( write_eof=True, count=n_written )
 
-    logger.subinfo(f'Output tractogram: {output_tractogram}', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'Output tractogram: {out_tractogram_filename}', indent_char='*', indent_lvl=1)
     logger.subinfo(f'number of streamlines: {n_written}', indent_lvl=2, indent_char='-')
 
-    if save_weights:
-        wei_file = output_tractogram.replace('.tck', '_weights.txt')
+    if save_scaling:
+        wei_file = out_tractogram_filename.replace('.tck', '_scaling_factor.txt')
         logger.subinfo(f'Saving weights: {wei_file}', indent_char='*', indent_lvl=2)
         all_wei = np.tile( blurWeights, n_streamlines )
         np.savetxt( wei_file, all_wei )
