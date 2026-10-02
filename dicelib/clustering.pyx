@@ -950,7 +950,7 @@ def run_clustering( tractogram_filename: str, thr: float, out_tractogram_filenam
         TCK_in.close()
 
     if save_clust_idx:
-        np.savetxt(f'{out_tractogram_filename[:len(out_tractogram_filename)-4]}_clust_idx.txt', ret_clust_idx, fmt='%d')
+        np.savetxt(f'{out_tractogram_filename[:len(out_tractogram_filename)-4]}_clust_idx.txt', ret_clust_idx, fmt='%d') # TODO handle nan for unassigned streamlines
 
     t1 = time.time()
     logger.subinfo(f"Number of output centroids: {TCK_out_size}", indent_char='*', indent_lvl=1)

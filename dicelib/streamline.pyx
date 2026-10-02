@@ -247,7 +247,7 @@ cpdef float [:,::1] create_replicas( float [:,::1] in_pts, double [:] blurRho, d
 
     return out_pts_m
 
-cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nReplicas, double [:] blurRho, double [:] blurAngle, double [:] blurWeights, bool blurApply):
+cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nReplicas, double [:] blurRho, double [:] blurAngle, double [:] blurWeights, bool blurApply ):
     """ Generate the replicas of an entire streamline given the grid coordinates.
 
     Parameters
@@ -288,7 +288,7 @@ cpdef create_streamline_replicas( float [:,::1] in_str, int n_pts_str, int nRepl
     cdef float [::1] str_replicas = np.ascontiguousarray(np.zeros( (nReplicas*n_pts_str*3), dtype=np.float32 ))
     cdef float [::1] n_pt_replicas = np.ascontiguousarray(np.zeros( (nReplicas), dtype=np.float32 ))
 
-    create_replicas_streamline( &in_str[0,0], n_pts_str, &str_replicas[0], &n_pt_replicas[0], nReplicas, &blurRho[0], &blurAngle[0], &blurWeights[0], blurApply)
+    create_replicas_streamline( &in_str[0,0], n_pts_str, &str_replicas[0], &n_pt_replicas[0], nReplicas, &blurRho[0], &blurAngle[0], &blurWeights[0], blurApply )
     str_replicas_reshape = np.reshape( str_replicas[:nReplicas*n_pts_str*3].copy(), (nReplicas, n_pts_str, 3) ).astype(np.float32)
 
     return str_replicas_reshape, n_pt_replicas

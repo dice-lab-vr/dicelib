@@ -1344,7 +1344,7 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
             join(list_all, out_tractogram_filename, verbose=1, log_list=log_list_join)
     set_verbose('tractogram', verbose)
     if os.path.isfile(f'{tmp_folder}/bundles/unassigned.tck'):
-        logger.warning('Some streamlines of the input tractogram are \'non-connecting\'')
+        logger.warning('Some streamlines of the input tractogram are \'non-connecting\'') # TODO: say how many streamlines are non-connecting and how many are in the input/output tractograms, and maybe add option to save the non-connecting streamlines in a separate file
 
     # remove temporary folder/files
     if not keep_tmp:
@@ -2275,8 +2275,10 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, blur_apply_to=None, save_weights: bool=False, verbose: int=3, force: bool=False ):
+cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, blur_apply_to=None, blur_n_replicas: int=None, save_weights: bool=False, jitter: bool=False, jitter_boundary: float=0.1, jitter_seed: int=None, verbose: int=3, force: bool=False ):
     """Save replicas of the input tractogram by applying a Gaussian blur.
+
+    The blur parameters (core_extent, gauss_extent and n_replicas) are intended for the radius of the tubular structure representing the blurred streamlines.
 
     Parameters
     ----------
@@ -2295,8 +2297,16 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
         Minimum value of the Gaussian to consider when computing the sigma (default : 0.1).
     blur_apply_to: array of bool
         For each input streamline, decide whether blur is applied or not to it (default : None, meaning apply to all).
+    blur_n_replicas : int
+        If specified, the spacing of the replicas is adapted to obtain this number of replicas along one direction (default : None, meaning use the spacing).
     save_weights : boolean
-        Save the weights of the replicas in the output tractogram (default : False). # TODO: check this output
+        Save the scaling factors of the replicas in the output tractogram (default : False).
+    jitter : boolean
+        Jitter the replicas in the output tractogram (default : False).
+    jitter_boundary : float
+        If jitter is True, this parameter controls the jittering extent of the replicas in mm (default : 0.1).
+    jitter_seed : int
+        If jitter is True, this parameter controls the seed of the random number generator used for jittering (default : None, meaning use a random seed).
     verbose : int, default=3
         What information to print, must be in [0...4] as defined in ui.set_verbose()
     force : boolean, default=False
@@ -2316,6 +2326,12 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
         Num(name='blur_spacing', value=blur_spacing, min_=0.0),
         Num(name='blur_gauss_min', value=blur_gauss_min, min_=0.0)
     ]
+    if blur_n_replicas is not None:
+        nums.append(Num(name='blur_n_replicas', value=blur_n_replicas, min_=2))
+    if jitter:
+        nums.append(Num(name='jitter_boundary', value=jitter_boundary, min_=0.0))
+        if jitter_seed is not None:
+            nums.append(Num(name='jitter_seed', value=jitter_seed, min_=0))
     check_params(files=files, nums=nums, force=force)
     t0 = time()
     logger.info('Creating replicas of each streamline in the tractogram')
@@ -2356,12 +2372,22 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
         blurAngle = np.array( [0.0], np.double )
         blurWeights = np.array( [1], np.double )
     else:
+        if blur_n_replicas is not None:
+            # adapt the spacing to obtain the specified number of replicas along one direction
+            blur_spacing = (blur_core_extent+blur_gauss_extent+1e-6) / (blur_n_replicas-1)
+            logger.subinfo(f'Blur spacing adapted to {blur_spacing:.3f} mm to obtain {blur_n_replicas} replicas along one direction', indent_lvl=2, indent_char='-')
         tmp = np.arange(0,blur_core_extent+blur_gauss_extent+1e-6,blur_spacing)
         tmp = np.concatenate( (tmp,-tmp[1:][::-1]) )
         x, y = np.meshgrid( tmp, tmp )
         r = np.sqrt( x*x + y*y )
         idx = (r <= blur_core_extent+blur_gauss_extent)
         blurRho = r[idx]
+        # add jitter
+        if jitter:
+            if jitter_seed is not None:
+                np.random.seed(jitter_seed)
+            x += np.random.uniform(-jitter_boundary, jitter_boundary, size=x.shape)
+            y += np.random.uniform(-jitter_boundary, jitter_boundary, size=y.shape)
         blurAngle = np.arctan2(y,x)[idx]
         nReplicas = blurRho.size
 
