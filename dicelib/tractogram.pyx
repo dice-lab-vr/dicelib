@@ -725,9 +725,10 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
     assignments_filename : str
         Path to the file (.txt, .npy) containing the streamlines' assignments (two numbers/row).
     out_folder : str, default="bundles"
-        Output folder for the splitted tractograms.
+        Output folder for the splitted tractograms. 
+        The files will be named according to the two regions they connected, using the format "[r1]-[r2].tck".
     prefix : str, optional
-        Text to be prepended to the filenames of the output tractograms.
+        Text to be prepended to the filenames of the output tractograms, e.g., "bundle_" will result in "bundle_[r1]-[r2].tck".
     regions : list of integers, optional
         Only streamlines connecting the provided region(s) will be extracted.
         If not specified, all bundles will be extracted (along with all unassigned streamlines).
@@ -736,7 +737,7 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         If a list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.
     scalars_filename : str, optional
         Path to the file (.txt, .npy) containing one scalar for each input streamline (one row/streamline).
-        One individual file will be created for each splitted tractogram, using a common prefix.
+        One individual file will be created in the output folder for each splitted tractogram, using the specified prefix and the same extension as the input scalars file.
         If not specified, the streamlines' scalars will not be splitted.
     max_open : int, optional
         Maximum number of concurrent files that can be opened.
