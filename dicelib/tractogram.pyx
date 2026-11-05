@@ -2481,6 +2481,65 @@ cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, 
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
+def my_real_sh_tournier(sh_order_max, theta, phi):
+    """Compute the real, symmetric (even-order only) spherical harmonic
+    (Tournier07 / MRtrix3) basis.
+    Uses the normalized MRtrix3 definition (equivalent to DIPY's
+    ``legacy=False``) restricted to even orders (equivalent to DIPY's
+    ``full_basis=False``)
+
+    Parameters
+    ----------
+    sh_order_max : int
+        Maximum order (l) of the spherical harmonic basis. Must be an
+        even integer >= 0.
+    theta : array_like [0, pi]
+        Polar (colatitudinal) coordinate(s).
+    phi : array_like [0, 2*pi]
+        Azimuthal (longitudinal) coordinate(s).
+
+    Returns
+    -------
+    real_sh : ndarray
+        Real harmonics sampled at ``theta``/``phi``, shape (n_points, ncoef).
+    m_values : ndarray of int
+        Phase factor (m) of each harmonic.
+    l_values : ndarray of int
+        Order (l) of each harmonic.
+    """
+    import scipy.special as sps
+
+    if sh_order_max % 2 != 0:
+        raise ValueError("sh_order_max must be an even integer >= 0")
+
+    # --- build (m, l) index lists (even orders only) ---
+    l_range = np.arange(0, sh_order_max + 1, 2, dtype=int)
+    ncoef = int((sh_order_max + 2) * (sh_order_max + 1) // 2)
+
+    l_values = np.repeat(l_range, l_range * 2 + 1)
+    m_values = np.empty(ncoef, "int")
+    offset = 0
+    for ii in l_range:
+        m_values[offset : offset + 2 * ii + 1] = np.arange(-ii, ii + 1)
+        offset += 2 * ii + 1
+
+    # --- reshape sample points for broadcasting ---
+    phi = np.reshape(phi, [-1, 1])
+    theta = np.reshape(theta, [-1, 1])
+
+    # --- complex spherical harmonics at |m| (Tournier basis uses |m|) ---
+    abs_m = np.abs(m_values).astype(int)
+    try: # use sph_harm_y if available (scipy >= 1.15.0)
+        sh = sps.sph_harm_y(l_values.astype(int), abs_m, theta, phi).astype(complex)
+    except AttributeError:
+        sh = sps.sph_harm(abs_m, l_values.astype(int), phi, theta).astype(complex)
+
+    # --- real (m>=0) / imaginary (m<0) part, normalized ---
+    real_sh = np.where(m_values < 0, sh.imag, sh.real)
+    real_sh = real_sh * np.where(m_values == 0, 1.0, np.sqrt(2))
+
+    return real_sh, m_values, l_values
+
 cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', percentile: int=5, lobes_filename: str=None, lobes_use_affine: bool=False, trim: float=0.05, force: bool=False, verbose: int=3 ):
     """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
 
@@ -2525,8 +2584,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         The estimate coherence weights for all input streamlines.
     """
     import amico.lut
-    from dipy.reconst.shm import real_sh_tournier
-    #TODO: remove DIPY dependency (currently, required for only 1 function)
     cdef float [::1] w = np.empty(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
     cdef float [:] p1 = np.empty(3, dtype=np.float32)
     cdef float [:] p2 = np.empty(3, dtype=np.float32)
@@ -2611,7 +2668,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             dirs[i,:] /= np.linalg.norm(dirs[i,:]) # normalize for later computation
             phi[i] = atan2(dirs[i,1], dirs[i,0])
             theta[i] = atan2(sqrt(dirs[i,0]*dirs[i,0]+dirs[i,1]*dirs[i,1]), dirs[i,2])
-        tmp, _, _ = real_sh_tournier(lmax, theta, phi, legacy=False)
+        tmp, _, _ = my_real_sh_tournier(lmax, theta, phi)
         sh_basis = np.asarray(tmp, dtype=np.float32)
         del theta, phi, tmp
 
