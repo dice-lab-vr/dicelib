@@ -1270,8 +1270,8 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
         What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
     t0 = time()
-    logger.info('Sorting streamlines in tractogram')
     set_verbose('tractogram', verbose)
+    logger.info('Sorting streamlines in tractogram')
 
     # check input files
     files = [
@@ -1388,8 +1388,8 @@ def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_g
         What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
     t0 = time()
-    logger.info('Shuffling streamlines in tractogram')
     set_verbose('tractogram', verbose)
+    logger.info('Shuffling streamlines in tractogram')
 
     # check input files
     files = [
@@ -2228,8 +2228,9 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     force : boolean, default=False
         Force overwriting of the output files.
     """
-    set_verbose('tractogram', verbose)
     t0 = time()
+    set_verbose('tractogram', verbose)
+    logger.info('Resampling')
 
     files = [
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
@@ -2241,7 +2242,6 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     cdef float [::1] lengths = np.empty( 3000, dtype=np.float32 )
     cdef float [:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
 
-    logger.info('Resampling')
     TCK_in = LazyTractogram( tractogram_filename, mode='r' )
     n_streamlines = int( TCK_in.header['count'] )
     logger.subinfo(f'Input tractogram: {tractogram_filename}', indent_char='*', indent_lvl=1)
@@ -2316,7 +2316,9 @@ cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, 
     force : boolean, default=False
         Force overwriting of the output files
     """
+    t0 = time()
     set_verbose('tractogram', verbose)
+    logger.info('Creating replicas of each streamline in the tractogram')
 
     files = [
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck')
@@ -2345,8 +2347,6 @@ cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, 
         if jitter_seed is not None:
             nums.append(Num(name='jitter_seed', value=jitter_seed, min_=0))
     check_params(files=files, nums=nums, force=force)
-    t0 = time()
-    logger.info('Creating replicas of each streamline in the tractogram')
 
     TCK_in = LazyTractogram( tractogram_filename, mode='r' )
     n_streamlines = int( TCK_in.header['count'] )
