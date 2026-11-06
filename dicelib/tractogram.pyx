@@ -1,7 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 cimport cython
 import warnings
-warnings.filterwarnings('ignore', module='dipy')
 from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round, floor, acos
 from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc, free

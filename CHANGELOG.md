@@ -3,7 +3,11 @@
 
 ## `v1.3.1`<br>_2026-07-02_
 ### 🐛Fixed
-- Coherence computation to match MRtrix3 SH basis definition
+- Coherence computation to match MRtrix3 SH basis definition (avoiding DIPY dependency)
+- Minor bugs
+
+### ✨Added
+- Entry point for blurred streamlines' replicas generation (`dice_tractogram_generateReplicas` script)
 
 ---
 ---
@@ -14,9 +18,9 @@
 - Minor bugs
 
 ### ✨Added
-- Computation of the coherence of streamline with the underlying FOD  (`dice_tractogram_coherence` script)
-- Computation of TDI maps  (`dice_tractogram_tdi` script)
-- Streamline smoothing with Savitzky–Golay filter
+- Computation of the coherence of streamline with the underlying FOD (`dice_tractogram_coherence` script)
+- Computation of TDI maps (`dice_tractogram_tdi` script)
+- Streamline smoothing with Savitzky–Golay filter (`dice_tractogram_smoothPoly` script)
 - Support for handling additional TSF files when joining and filtering tractograms
 
 ### 🛠️Changed
