@@ -841,6 +841,8 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
+        if n_streamlines==0:
+            logger.error('The tractogram is empty')
         logger.subinfo(f'Output folder: "{out_folder}"', indent_char='*', indent_lvl=1)
 
         # open the assignments
@@ -911,6 +913,9 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
                 SCALARS_out_idx[key] = 0
 
         logger.debug(f'Created {len(TCK_outs)} empty files for output tractograms')
+        if len(TCK_outs)==0:
+            # logger.error('No output files were created, check the input assignments and regions')
+            raise RuntimeError('No output files were created, check the input assignments and regions')
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
@@ -995,35 +1000,39 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
 
     except Exception as e:
         if os.path.isdir(out_folder):
-            for key in TCK_outs.keys():
-                pref_key = f'{prefix}{key}'
-                basename = os.path.join(out_folder,pref_key)
-                if os.path.isfile(basename+'.tck'):
-                    os.remove(basename+'.tck')
-                in_scalars_ext = os.path.splitext(scalars_filename)[1]
-                if scalars_filename is not None and os.path.isfile(basename+in_scalars_ext):
-                    os.remove(basename+in_scalars_ext)
+            if len(TCK_outs)==0:
+                shutil.rmtree(out_folder)
+            else:
+                for key in TCK_outs.keys():
+                    pref_key = f'{prefix}{key}'
+                    basename = os.path.join(out_folder,pref_key)
+                    if os.path.isfile(basename+'.tck'):
+                        os.remove(basename+'.tck')
+                    in_scalars_ext = os.path.splitext(scalars_filename)[1]
+                    if scalars_filename is not None and os.path.isfile(basename+in_scalars_ext):
+                        os.remove(basename+in_scalars_ext)
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
         logger.debug('Closing files')
-        with ProgressBar(total=len(TCK_outs), disable=verbose < 3, hide_on_exit=True, subinfo=False) as pbar:
-            if TCK_in is not None:
-                TCK_in.close()
-            for key in TCK_outs.keys():
-                if key=='unassigned':
-                    pref_key = 'unassigned'
-                else:
-                    pref_key = f'{prefix}{key}'
-                f = os.path.join(out_folder,f'{pref_key}.tck')
-                if not os.path.isfile(f):
-                    continue
-                if TCK_outs[key] is not None:
-                    TCK_outs[key].close( write_eof=False )
-                # Update 'count' and write EOF marker
-                tmp = LazyTractogram( f, mode='a' )
-                tmp.close( write_eof=True, count=TCK_outs_size[key] )
-                pbar.update()
+        if TCK_in is not None:
+            TCK_in.close()
+        if len(TCK_outs)>0:
+            with ProgressBar(total=len(TCK_outs), disable=verbose < 3, hide_on_exit=True, subinfo=False) as pbar:
+                for key in TCK_outs.keys():
+                    if key=='unassigned':
+                        pref_key = 'unassigned'
+                    else:
+                        pref_key = f'{prefix}{key}'
+                    f = os.path.join(out_folder,f'{pref_key}.tck')
+                    if not os.path.isfile(f):
+                        continue
+                    if TCK_outs[key] is not None:
+                        TCK_outs[key].close( write_eof=False )
+                    # Update 'count' and write EOF marker
+                    tmp = LazyTractogram( f, mode='a' )
+                    tmp.close( write_eof=True, count=TCK_outs_size[key] )
+                    pbar.update()
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
