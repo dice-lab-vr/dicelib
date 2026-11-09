@@ -929,7 +929,7 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
                     skip = True
                     for r in labels:
                         if isinstance(r, int):
-                            if (assignments[i,0]==r):
+                            if (assignments[i,0]==r or assignments[i,1]==r):
                                 skip = False
                                 break
                         elif isinstance(r, list):
@@ -937,6 +937,8 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
                                 skip = False
                                 break
                     if skip:
+                        continue
+                    if assignments[i,0]==0 or assignments[i,1]==0:
                         continue
 
                     key = f'{assignments[i,0]}-{assignments[i,1]}'
