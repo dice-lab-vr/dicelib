@@ -213,7 +213,7 @@ cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start
         float [:] p = np.zeros(3, dtype=np.float32)
         float [:,::1] grid
         cdef int[:] count_neighbours
-        size_t i
+        size_t i = 0
 
     # compute the grid of voxels to check
     grid = compute_grid(thr)
