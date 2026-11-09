@@ -1000,9 +1000,7 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
 
     except Exception as e:
         if os.path.isdir(out_folder):
-            if len(TCK_outs)==0:
-                shutil.rmtree(out_folder)
-            else:
+            if len(TCK_outs)>0:
                 for key in TCK_outs.keys():
                     pref_key = f'{prefix}{key}'
                     basename = os.path.join(out_folder,pref_key)
