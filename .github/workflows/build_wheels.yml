@@ -1,10 +1,12 @@
 name: Build wheels
 run-name: Build wheels - ${{ github.sha }}
+
 on:
   push:
     branches:
       - 'master'
       - 'release/**'
+
 jobs:
   build_windows_wheels:
     strategy:
@@ -25,7 +27,7 @@ jobs:
           CIBW_PLATFORM: windows
           CIBW_BUILD: ${{ matrix.py }}-${{ matrix.arch[1] }}
           CIBW_ARCHS_WINDOWS: ${{ matrix.arch[0] }}
-      
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -40,56 +42,55 @@ jobs:
           [
             {
               py: cp38,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-14]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-15-intel]
             },
             {
               py: cp39,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-14]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-15-intel]
             },
             {
               py: cp310,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-14]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-15-intel]
             },
             {
               py: cp311,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-14]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-15-intel]
             },
             {
               py: cp312,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-14]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-15-intel]
             },
             {
               py: cp313,
-              arch: [x86_64, macosx_x86_64, 12.0, macos-14]
+              arch: [x86_64, macosx_x86_64, 12.0, macos-15-intel]
             },
             {
               py: cp38,
-              arch: [arm64, macosx_arm64, 12.0, macos-14]
+              arch: [arm64, macosx_arm64, 12.0, macos-15]
             },
             {
               py: cp39,
-              arch: [arm64, macosx_arm64, 12.0, macos-14]
+              arch: [arm64, macosx_arm64, 12.0, macos-15]
             },
             {
               py: cp310,
-              arch: [arm64, macosx_arm64, 12.0, macos-14]
+              arch: [arm64, macosx_arm64, 12.0, macos-15]
             },
             {
               py: cp311,
-              arch: [arm64, macosx_arm64, 12.0, macos-14]
+              arch: [arm64, macosx_arm64, 12.0, macos-15]
             },
             {
               py: cp312,
-              arch: [arm64, macosx_arm64, 12.0, macos-14]
+              arch: [arm64, macosx_arm64, 12.0, macos-15]
             },
             {
               py: cp313,
-              arch: [arm64, macosx_arm64, 12.0, macos-14]
+              arch: [arm64, macosx_arm64, 12.0, macos-15]
             }
           ]
     name: ${{ matrix.config.py }}-${{ matrix.config.arch[1] }}
     runs-on: ${{ matrix.config.arch[3] }}
-    if: 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -120,18 +121,13 @@ jobs:
       matrix:
         py: [cp38, cp39, cp310, cp311, cp312, cp313]
         arch:
-          - [x86_64, manylinux_x86_64, amd64]
-          - [aarch64, manylinux_aarch64, arm64]
+          - [x86_64, manylinux_x86_64, ubuntu-24.04]
+          - [aarch64, manylinux_aarch64, ubuntu-24.04-arm]
     name: ${{ matrix.py }}-${{ matrix.arch[1] }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch[2] }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3.0.0
-        with:
-          platforms: ${{ matrix.arch[2] }}
 
       - name: Build wheel ${{ matrix.py }}-${{ matrix.arch[1] }}
         uses: pypa/cibuildwheel@v2.22.0
