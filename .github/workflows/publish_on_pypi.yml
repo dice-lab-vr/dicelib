@@ -12,13 +12,25 @@ jobs:
       name: pypi
       url: https://pypi.org/project/dmri-dicelib
     permissions:
+      actions: read
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
     steps:
+      - name: Find wheel build run
+        id: wheel-build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build_wheels.yml/runs?head_sha=${GITHUB_SHA}&per_page=100" --jq '.workflow_runs | map(select(.event == "push" and .status == "completed" and .conclusion == "success")) | first | .id // empty')"
+          if [[ -z "$run_id" ]]; then
+            echo "No successful wheel build found for commit ${GITHUB_SHA}." >&2
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          github-token: ${{ secrets.GH_PAT }}
-          run-id: ${{ secrets.WHEELS_ARTIFACTS_RUN_ID }}
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.wheel-build.outputs.run_id }}
           path: dist
           merge-multiple: true
 
@@ -37,13 +49,25 @@ jobs:
       name: testpypi
       url: https://test.pypi.org/project/dmri-dicelib
     permissions:
+      actions: read
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
     steps:
+      - name: Find wheel build run
+        id: wheel-build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build_wheels.yml/runs?head_sha=${GITHUB_SHA}&per_page=100" --jq '.workflow_runs | map(select(.event == "push" and .status == "completed" and .conclusion == "success")) | first | .id // empty')"
+          if [[ -z "$run_id" ]]; then
+            echo "No successful wheel build found for commit ${GITHUB_SHA}." >&2
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          github-token: ${{ secrets.GH_PAT }}
-          run-id: ${{ secrets.WHEELS_ARTIFACTS_RUN_ID }}
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.wheel-build.outputs.run_id }}
           path: dist
           merge-multiple: true
 
