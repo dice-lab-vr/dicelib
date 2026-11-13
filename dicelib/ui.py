@@ -1070,6 +1070,8 @@ class ProgressBar:
                         if self.multithread_progress is not None:
                             self._progress = np.sum(self.multithread_progress)
                         print(f"\r{fg_green}|{'━' * int(self.ncols * self._progress / self.total)}{'━' * (self.ncols - int(self.ncols * self._progress / self.total))}| [{100 * self._progress / self.total:.1f}%]{reset}")
+        else:
+            print('', flush=True)
 
     def update(self):
         self._progress += 1

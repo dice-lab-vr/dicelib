@@ -1,15 +1,26 @@
 # Change Log
 ### All notable changes to `DICElib` will be documented in this file.
 
+## `v1.3.1`<br>_2026-07-02_
+### 🐛Fixed
+- Coherence computation to match MRtrix3 SH basis definition (avoiding DIPY dependency)
+- Minor bugs
+
+### ✨Added
+- Entry point for blurred streamlines' replicas generation (`dice_tractogram_generateReplicas` script)
+
+---
+---
+
 ## `v1.3.0`<br>_2026-01-14_
 ### 🐛Fixed
 - Conversion from streamline space to voxel space
 - Minor bugs
 
 ### ✨Added
-- Computation of the coherence of streamline with the underlying FOD  (`dice_tractogram_coherence` script)
-- Computation of TDI maps  (`dice_tractogram_tdi` script)
-- Streamline smoothing with Savitzky–Golay filter
+- Computation of the coherence of streamline with the underlying FOD (`dice_tractogram_coherence` script)
+- Computation of TDI maps (`dice_tractogram_tdi` script)
+- Streamline smoothing with Savitzky–Golay filter (`dice_tractogram_smoothPoly` script)
 - Support for handling additional TSF files when joining and filtering tractograms
 
 ### 🛠️Changed

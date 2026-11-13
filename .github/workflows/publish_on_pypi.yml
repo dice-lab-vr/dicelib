@@ -15,24 +15,38 @@ jobs:
       actions: read
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
     steps:
-      - name: Find wheel build run
-        id: wheel-build
+      - name: Find wheel build for release commit
+        id: wheels
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build_wheels.yml/runs?head_sha=${GITHUB_SHA}&per_page=100" --jq '.workflow_runs | map(select(.event == "push" and .status == "completed" and .conclusion == "success")) | first | .id // empty')"
-          if [[ -z "$run_id" ]]; then
-            echo "No successful wheel build found for commit ${GITHUB_SHA}." >&2
+          run_id=$(gh api --paginate --slurp \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/build_wheels.yml/runs?event=push&status=success&head_sha=${GITHUB_SHA}&per_page=100" \
+            | jq -r 'map(.workflow_runs[]) | sort_by(.created_at) | last | .id // empty')
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful wheel build found for release commit $GITHUB_SHA"
             exit 1
           fi
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
-          run-id: ${{ steps.wheel-build.outputs.run_id }}
+          run-id: ${{ steps.wheels.outputs.run_id }}
           path: dist
           merge-multiple: true
+
+      - name: Check distribution artifacts
+        run: |
+          test -n "$(find dist -name '*.whl' -print -quit)" || {
+            echo "::error::No wheels found"
+            exit 1
+          }
+          test -n "$(find dist -name '*.tar.gz' -print -quit)" || {
+            echo "::error::No source distribution found"
+            exit 1
+          }
 
       - name: Publish on PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -52,24 +66,38 @@ jobs:
       actions: read
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
     steps:
-      - name: Find wheel build run
-        id: wheel-build
+      - name: Find wheel build for release commit
+        id: wheels
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build_wheels.yml/runs?head_sha=${GITHUB_SHA}&per_page=100" --jq '.workflow_runs | map(select(.event == "push" and .status == "completed" and .conclusion == "success")) | first | .id // empty')"
-          if [[ -z "$run_id" ]]; then
-            echo "No successful wheel build found for commit ${GITHUB_SHA}." >&2
+          run_id=$(gh api --paginate --slurp \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/build_wheels.yml/runs?event=push&status=success&head_sha=${GITHUB_SHA}&per_page=100" \
+            | jq -r 'map(.workflow_runs[]) | sort_by(.created_at) | last | .id // empty')
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful wheel build found for release commit $GITHUB_SHA"
             exit 1
           fi
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
-          run-id: ${{ steps.wheel-build.outputs.run_id }}
+          run-id: ${{ steps.wheels.outputs.run_id }}
           path: dist
           merge-multiple: true
+
+      - name: Check distribution artifacts
+        run: |
+          test -n "$(find dist -name '*.whl' -print -quit)" || {
+            echo "::error::No wheels found"
+            exit 1
+          }
+          test -n "$(find dist -name '*.tar.gz' -print -quit)" || {
+            echo "::error::No source distribution found"
+            exit 1
+          }
 
       - name: Publish on PyPI Test
         uses: pypa/gh-action-pypi-publish@release/v1

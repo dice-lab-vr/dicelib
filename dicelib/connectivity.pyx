@@ -213,7 +213,7 @@ cpdef _assign( input_tractogram: str, int[:] pbar_array, int id_chunk, int start
         float [:] p = np.zeros(3, dtype=np.float32)
         float [:,::1] grid
         cdef int[:] count_neighbours
-        size_t i
+        size_t i = 0
 
     # compute the grid of voxels to check
     grid = compute_grid(thr)
@@ -542,29 +542,33 @@ def build_connectome( assignments_filename: str, out_connectome_filename: str, w
     ]
     if weights_filename is not None:
         files.append(File(name='weights_filename', type_='input', path=weights_filename, ext=['.txt', '.npy']))
-    if os.path.isfile(assignments_filename):
+    if os.path.isfile(assignments_filename) and not force:
         files.append(File(name='assignments_filename', type_='input', path=assignments_filename, ext=['.txt', '.npy']))
-    else:
-        # check input tractogram and atlas
-        if tractogram_filename is None:
-            logger.error(f'Tractogram file not provided. Required if the assignments does not exist.')
-        if atlas_filename is None:
-            logger.error(f'Atlas file not provided. Required if the assignments does not exist.')
-        files.extend([
-            File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck']),
-            File(name='atlas_filename', type_='input', path=atlas_filename, ext=['.nii', '.nii.gz'])
-        ])
+    else: # assignments file does not exist or force is true
+        if os.path.isfile(assignments_filename) and (tractogram_filename is None and atlas_filename is None):
+            # check if tractogram/atlas are provided to recompute the assignments, otherwise use the existing assignments file
+            logger.warning(f'Assignments file already exists, but the tractogram and atlas are not provided to recompute the assignments. Be sure that the provided assignments file is correct, since it will be used as-is.')
+        else:
+            # check input tractogram and atlas
+            if tractogram_filename is None:
+                logger.error(f'Tractogram file not provided. Required if the assignments does not exist or if force is True.')
+            if atlas_filename is None:
+                logger.error(f'Atlas file not provided. Required if the assignments does not exist or if force is True.')
+            files.extend([
+                File(name='tractogram_filename', type_='input', path=tractogram_filename, ext=['.tck']),
+                File(name='atlas_filename', type_='input', path=atlas_filename, ext=['.nii', '.nii.gz'])
+            ])
 
-        # logger.info('No assignments file found. Computing assignments')
-        logger.subinfo(f'Input tractogram: \'{tractogram_filename}\'', indent_char='*', indent_lvl=1)
-        logger.subinfo(f'Input atlas: \'{atlas_filename}\'', indent_char='*', indent_lvl=1)
+            # logger.info('No assignments file found. Computing assignments')
+            logger.subinfo(f'Input tractogram: \'{tractogram_filename}\'', indent_char='*', indent_lvl=1)
+            logger.subinfo(f'Input atlas: \'{atlas_filename}\'', indent_char='*', indent_lvl=1)
 
-        # compute assignments
-        log_list2 = []
-        ret_subinfo2 = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
-        with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo2, log_list=log_list2) as pbar:
-            assign(tractogram_filename, atlas_filename, assignments_filename, distance, verbose=1, n_threads=n_threads, log_list=log_list2)
-        set_verbose('connectivity', verbose)
+            # compute assignments
+            log_list2 = []
+            ret_subinfo2 = logger.subinfo('Computing assignments', indent_lvl=1, indent_char='*', with_progress=verbose>2)
+            with ProgressBar(disable=verbose < 3, hide_on_exit=True, subinfo=ret_subinfo2, log_list=log_list2) as pbar:
+                assign(tractogram_filename, atlas_filename, assignments_filename, distance, verbose=1, force=True, n_threads=n_threads, log_list=log_list2)
+            set_verbose('connectivity', verbose)
 
     check_params(files=files, force=force)
 
