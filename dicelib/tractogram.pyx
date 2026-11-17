@@ -1,7 +1,6 @@
 # cython: language_level=3, c_string_type=str, c_string_encoding=ascii, boundscheck=False, wraparound=False, profile=False, nonecheck=False, cdivision=True, initializedcheck=False, binding=False
 cimport cython
 import warnings
-warnings.filterwarnings('ignore', module='dipy')
 from libc.math cimport isinf, isnan, NAN, sqrt, atan2, M_PI, round, floor, acos
 from libc.stdio cimport fclose, fgets, fopen, fread, fseek, fwrite, SEEK_CUR, SEEK_END, SEEK_SET
 from libc.stdlib cimport malloc, free
@@ -439,7 +438,7 @@ def compute_lengths( tractogram_filename: str, out_scalars_filename: str=None, f
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
-    return streamline_length
+    return lengths
 
 
 def info( tractogram_filename: str, max_field_length: int=None, compute_lengths: bool=False, verbose: int=3 ):
@@ -725,9 +724,10 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
     assignments_filename : str
         Path to the file (.txt, .npy) containing the streamlines' assignments (two numbers/row).
     out_folder : str, default="bundles"
-        Output folder for the splitted tractograms.
+        Output folder for the splitted tractograms. 
+        The files will be named according to the two regions they connected, using the format "[r1]-[r2].tck".
     prefix : str, optional
-        Text to be prepended to the filenames of the output tractograms.
+        Text to be prepended to the filenames of the output tractograms, e.g., "bundle_" will result in "bundle_[r1]-[r2].tck".
     regions : list of integers, optional
         Only streamlines connecting the provided region(s) will be extracted.
         If not specified, all bundles will be extracted (along with all unassigned streamlines).
@@ -736,7 +736,7 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         If a list of regions is provided using the format "r1, r2, ...", all the possible bundles connecting one of these regions will be extracted.
     scalars_filename : str, optional
         Path to the file (.txt, .npy) containing one scalar for each input streamline (one row/streamline).
-        One individual file will be created for each splitted tractogram, using a common prefix.
+        One individual file will be created in the output folder for each splitted tractogram, using the specified prefix and the same extension as the input scalars file.
         If not specified, the streamlines' scalars will not be splitted.
     max_open : int, optional
         Maximum number of concurrent files that can be opened.
@@ -841,6 +841,8 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
         TCK_in = LazyTractogram( tractogram_filename, mode='r' )
         n_streamlines = int( TCK_in.header['count'] )
         logger.subinfo(f'Number of streamlines: {n_streamlines}', indent_char='*', indent_lvl=1)
+        if n_streamlines==0:
+            logger.error('The tractogram is empty')
         logger.subinfo(f'Output folder: "{out_folder}"', indent_char='*', indent_lvl=1)
 
         # open the assignments
@@ -911,6 +913,9 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
                 SCALARS_out_idx[key] = 0
 
         logger.debug(f'Created {len(TCK_outs)} empty files for output tractograms')
+        if len(TCK_outs)==0:
+            # logger.error('No output files were created, check the input assignments and regions')
+            raise RuntimeError('No output files were created, check the input assignments and regions')
 
         #----  iterate over input streamlines  -----
         n_file_open = 0
@@ -924,7 +929,7 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
                     skip = True
                     for r in labels:
                         if isinstance(r, int):
-                            if (assignments[i,0]==r):
+                            if (assignments[i,0]==r or assignments[i,1]==r):
                                 skip = False
                                 break
                         elif isinstance(r, list):
@@ -932,6 +937,8 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
                                 skip = False
                                 break
                     if skip:
+                        continue
+                    if assignments[i,0]==0 or assignments[i,1]==0:
                         continue
 
                     key = f'{assignments[i,0]}-{assignments[i,1]}'
@@ -995,35 +1002,37 @@ def split( tractogram_filename: str, assignments_filename: str, out_folder: str=
 
     except Exception as e:
         if os.path.isdir(out_folder):
-            for key in TCK_outs.keys():
-                pref_key = f'{prefix}{key}'
-                basename = os.path.join(out_folder,pref_key)
-                if os.path.isfile(basename+'.tck'):
-                    os.remove(basename+'.tck')
-                in_scalars_ext = os.path.splitext(scalars_filename)[1]
-                if scalars_filename is not None and os.path.isfile(basename+in_scalars_ext):
-                    os.remove(basename+in_scalars_ext)
+            if len(TCK_outs)>0:
+                for key in TCK_outs.keys():
+                    pref_key = f'{prefix}{key}'
+                    basename = os.path.join(out_folder,pref_key)
+                    if os.path.isfile(basename+'.tck'):
+                        os.remove(basename+'.tck')
+                    in_scalars_ext = os.path.splitext(scalars_filename)[1]
+                    if scalars_filename is not None and os.path.isfile(basename+in_scalars_ext):
+                        os.remove(basename+in_scalars_ext)
         logger.error(e.__str__() if e.__str__() else 'A generic error has occurred')
 
     finally:
         logger.debug('Closing files')
-        with ProgressBar(total=len(TCK_outs), disable=verbose < 3, hide_on_exit=True, subinfo=False) as pbar:
-            if TCK_in is not None:
-                TCK_in.close()
-            for key in TCK_outs.keys():
-                if key=='unassigned':
-                    pref_key = 'unassigned'
-                else:
-                    pref_key = f'{prefix}{key}'
-                f = os.path.join(out_folder,f'{pref_key}.tck')
-                if not os.path.isfile(f):
-                    continue
-                if TCK_outs[key] is not None:
-                    TCK_outs[key].close( write_eof=False )
-                # Update 'count' and write EOF marker
-                tmp = LazyTractogram( f, mode='a' )
-                tmp.close( write_eof=True, count=TCK_outs_size[key] )
-                pbar.update()
+        if TCK_in is not None:
+            TCK_in.close()
+        if len(TCK_outs)>0:
+            with ProgressBar(total=len(TCK_outs), disable=verbose < 3, hide_on_exit=True, subinfo=False) as pbar:
+                for key in TCK_outs.keys():
+                    if key=='unassigned':
+                        pref_key = 'unassigned'
+                    else:
+                        pref_key = f'{prefix}{key}'
+                    f = os.path.join(out_folder,f'{pref_key}.tck')
+                    if not os.path.isfile(f):
+                        continue
+                    if TCK_outs[key] is not None:
+                        TCK_outs[key].close( write_eof=False )
+                    # Update 'count' and write EOF marker
+                    tmp = LazyTractogram( f, mode='a' )
+                    tmp.close( write_eof=True, count=TCK_outs_size[key] )
+                    pbar.update()
         t1 = time()
         logger.info( f'[ {format_time(t1 - t0)} ]' )
 
@@ -1270,8 +1279,8 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
         What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
     t0 = time()
-    logger.info('Sorting streamlines in tractogram')
     set_verbose('tractogram', verbose)
+    logger.info('Sorting streamlines in tractogram')
 
     # check input files
     files = [
@@ -1344,7 +1353,7 @@ def sort(tractogram_filename: str, atlas_filename: str, out_tractogram_filename:
             join(list_all, out_tractogram_filename, verbose=1, log_list=log_list_join)
     set_verbose('tractogram', verbose)
     if os.path.isfile(f'{tmp_folder}/bundles/unassigned.tck'):
-        logger.warning('Some streamlines of the input tractogram are \'non-connecting\'')
+        logger.warning('Some streamlines of the input tractogram are \'non-connecting\'') # TODO: say how many streamlines are non-connecting and how many are in the input/output tractograms, and maybe add option to save the non-connecting streamlines in a separate file
 
     # remove temporary folder/files
     if not keep_tmp:
@@ -1388,8 +1397,8 @@ def shuffle(tractogram_filename: str, out_tractogram_filename: str=None, n_tmp_g
         What information to print, must be in [0...4] as defined in ui.set_verbose().
     """
     t0 = time()
-    logger.info('Shuffling streamlines in tractogram')
     set_verbose('tractogram', verbose)
+    logger.info('Shuffling streamlines in tractogram')
 
     # check input files
     files = [
@@ -2228,8 +2237,9 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     force : boolean, default=False
         Force overwriting of the output files.
     """
-    set_verbose('tractogram', verbose)
     t0 = time()
+    set_verbose('tractogram', verbose)
+    logger.info('Resampling')
 
     files = [
         File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck'),
@@ -2241,7 +2251,6 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     cdef float [::1] lengths = np.empty( 3000, dtype=np.float32 )
     cdef float [:,::1] s0 = np.empty( (n_pts, 3), dtype=np.float32 )
 
-    logger.info('Resampling')
     TCK_in = LazyTractogram( tractogram_filename, mode='r' )
     n_streamlines = int( TCK_in.header['count'] )
     logger.subinfo(f'Input tractogram: {tractogram_filename}', indent_char='*', indent_lvl=1)
@@ -2275,57 +2284,93 @@ cpdef resample( tractogram_filename: str, out_tractogram_filename: str, n_pts: i
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_extent: float, blur_gauss_extent: float, blur_spacing: float=0.25, blur_gauss_min: float=0.1, blur_apply_to=None, save_weights: bool=False, verbose: int=3, force: bool=False ):
+cpdef generate_replicas(tractogram_filename: str, out_tractogram_filename: str, blur_core_extent: float=0.0, blur_gauss_extent: float=0.0, blur_spacing: float=0.25, blur_gauss_min: float=0.1, blur_apply_to=None, blur_n_replicas: int=None, save_scaling: bool=False, jitter: bool=False, jitter_boundary: float=None, jitter_seed: int=None, scalars_filename: str=None, out_scalars_filename: str=None, verbose: int=3, force: bool=False ):
     """Save replicas of the input tractogram by applying a Gaussian blur.
+
+    The blur parameters (core_extent, gauss_extent and n_replicas) are intended for the radius of the tubular structure representing the blurred streamlines.
 
     Parameters
     ----------
-    input_tractogram : str
+    tractogram_filename : str
         Path to the file (.tck) containing the streamlines to process.
-    output_tractogram : str
+    out_tractogram_filename : str
         Path to the file where to store the output tractogram.
-    blur_core_extent: float
+    blur_core_extent : float, default=0.0
         Extent of the core inside which the segments have equal contribution to the central one used by COMMITblur.
-    blur_gauss_extent: float
+    blur_gauss_extent : float, default=0.0
         Extent of the gaussian damping at the border used by COMMITblur.
-    blur_spacing : float
+    blur_spacing : float, default=0.25
         To obtain the blur effect, streamlines are duplicated and organized in a cartesian grid;
-        this parameter controls the spacing of the grid in mm (defaut : 0.25).
-    blur_gauss_min: float
-        Minimum value of the Gaussian to consider when computing the sigma (default : 0.1).
-    blur_apply_to: array of bool
-        For each input streamline, decide whether blur is applied or not to it (default : None, meaning apply to all).
-    save_weights : boolean
-        Save the weights of the replicas in the output tractogram (default : False). # TODO: check this output
+        this parameter controls the spacing of the grid in mm.
+    blur_gauss_min : float, default=0.1
+        Minimum value of the Gaussian to consider when computing the sigma.
+    blur_apply_to : array of bool, optional
+        For each input streamline, decide whether blur is applied or not to it. If not specified, all input streamlines will be blurred.
+    blur_n_replicas : int, optional
+        If specified, the spacing of the replicas is adapted to obtain this number of replicas along one direction, otherwise the provided spacing will be used.
+    save_scaling : boolean, default=False
+        Save the scaling factors of the replicas in the output tractogram. If True, the scaling factors will be saved in a .txt file with the same name as the output tractogram but with a '_scaling_factor.txt' suffix.
+    jitter : boolean, default=False
+        Jitter the replicas in the output tractogram.
+    jitter_boundary : float, optional
+        If jitter is True, this parameter controls the jittering extent of the replicas in mm.
+    jitter_seed : int, optional
+        If jitter is True, this parameter controls the seed of the random number generator used for jittering, otherwise a random seed will be used.
+    scalars_filename : str, optional
+        Path to the file (.txt, .npy) containing one scalar for each input streamline.
+    out_scalars_filename : str, optional
+        Path to the file (.txt, .npy) that will contain the replicas scalars. The scalar value for each input streamline will be divided among its replicas according to their scaling factors. 
     verbose : int, default=3
         What information to print, must be in [0...4] as defined in ui.set_verbose()
     force : boolean, default=False
         Force overwriting of the output files
     """
+    t0 = time()
     set_verbose('tractogram', verbose)
+    logger.info('Creating replicas of each streamline in the tractogram')
 
     files = [
-        File(name='input_tractogram', type_='input', path=input_tractogram, ext='.tck')
+        File(name='tractogram_filename', type_='input', path=tractogram_filename, ext='.tck')
     ]
+    if out_tractogram_filename is not None:
+        files.append( File(name='out_tractogram_filename', type_='output', path=out_tractogram_filename, ext='.tck') )
+    if scalars_filename is not None:
+        files.append(File(name='scalars_filename', type_='input', path=scalars_filename, ext=['.txt', '.npy']))
+        scalars_in_ext = os.path.splitext(scalars_filename)[1]
+        if out_scalars_filename is not None:
+            scalars_out_ext = os.path.splitext(out_scalars_filename)[1]
+            files.append(File(name='out_scalars_filename', type_='output', path=out_scalars_filename, ext=['.txt', '.npy']))
+        else:
+            logger.error('\'out_scalars_filename\' parameter must be specified if \'scalars_filename\' is specified')
 
-    if output_tractogram is not None:
-        files.append( File(name='output_tractogram', type_='output', path=output_tractogram, ext='.tck') )
     nums = [
         Num(name='blur_core_extent', value=blur_core_extent, min_=0.0),
         Num(name='blur_gauss_extent', value=blur_gauss_extent, min_=0.0),
         Num(name='blur_spacing', value=blur_spacing, min_=0.0),
         Num(name='blur_gauss_min', value=blur_gauss_min, min_=0.0)
     ]
+    if blur_n_replicas is not None:
+        nums.append(Num(name='blur_n_replicas', value=blur_n_replicas, min_=2))
+    if jitter:
+        nums.append(Num(name='jitter_boundary', value=jitter_boundary, min_=0.0))
+        if jitter_seed is not None:
+            nums.append(Num(name='jitter_seed', value=jitter_seed, min_=0))
     check_params(files=files, nums=nums, force=force)
-    t0 = time()
-    logger.info('Creating replicas of each streamline in the tractogram')
 
-    TCK_in = LazyTractogram( input_tractogram, mode='r' )
+    TCK_in = LazyTractogram( tractogram_filename, mode='r' )
     n_streamlines = int( TCK_in.header['count'] )
-    logger.subinfo(f'Input tractogram: {input_tractogram}', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'Input tractogram: {tractogram_filename}', indent_char='*', indent_lvl=1)
     logger.subinfo(f'number of streamlines: {n_streamlines}', indent_lvl=2, indent_char='-')
 
-    TCK_out = LazyTractogram( output_tractogram, mode='w', header=TCK_in.header )
+    if scalars_filename is not None:
+        if scalars_in_ext == '.npy':
+            scalars = np.load(scalars_filename, allow_pickle=False).astype(np.float32)
+        else:
+            scalars = np.loadtxt(scalars_filename, dtype=np.float32)
+        if scalars.size != n_streamlines:
+            logger.error('"scalars_filename" must have one value per streamline')
+
+    TCK_out = LazyTractogram( out_tractogram_filename, mode='w', header=TCK_in.header )
     n_written = 0
 
     ####### code from trk2dictionary.pyx #######
@@ -2356,12 +2401,22 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
         blurAngle = np.array( [0.0], np.double )
         blurWeights = np.array( [1], np.double )
     else:
+        if blur_n_replicas is not None:
+            # adapt the spacing to obtain the specified number of replicas along one direction
+            blur_spacing = (blur_core_extent+blur_gauss_extent+1e-6) / (blur_n_replicas-1)
+            logger.subinfo(f'Blur spacing adapted to {blur_spacing:.3f} mm to obtain {blur_n_replicas} replicas along one direction', indent_lvl=2, indent_char='-')
         tmp = np.arange(0,blur_core_extent+blur_gauss_extent+1e-6,blur_spacing)
         tmp = np.concatenate( (tmp,-tmp[1:][::-1]) )
         x, y = np.meshgrid( tmp, tmp )
         r = np.sqrt( x*x + y*y )
         idx = (r <= blur_core_extent+blur_gauss_extent)
         blurRho = r[idx]
+        # add jitter
+        if jitter:
+            if jitter_seed is not None:
+                np.random.seed(jitter_seed)
+            x += np.random.uniform(-jitter_boundary, jitter_boundary, size=x.shape)
+            y += np.random.uniform(-jitter_boundary, jitter_boundary, size=y.shape)
         blurAngle = np.arctan2(y,x)[idx]
         nReplicas = blurRho.size
 
@@ -2410,20 +2465,90 @@ cpdef save_replicas(input_tractogram: str, output_tractogram: str, blur_core_ext
     TCK_in.close()
     TCK_out.close( write_eof=True, count=n_written )
 
-    logger.subinfo(f'Output tractogram: {output_tractogram}', indent_char='*', indent_lvl=1)
+    logger.subinfo(f'Output tractogram: {out_tractogram_filename}', indent_char='*', indent_lvl=1)
     logger.subinfo(f'number of streamlines: {n_written}', indent_lvl=2, indent_char='-')
 
-    if save_weights:
-        wei_file = output_tractogram.replace('.tck', '_weights.txt')
-        logger.subinfo(f'Saving weights: {wei_file}', indent_char='*', indent_lvl=2)
+    if save_scaling:
+        wei_file = out_tractogram_filename.replace('.tck', '_scaling_factor.txt')
+        logger.subinfo(f'Saving scaling factors: {wei_file}', indent_char='*', indent_lvl=2)
         all_wei = np.tile( blurWeights, n_streamlines )
         np.savetxt( wei_file, all_wei )
+
+    # save the scalars
+    if scalars_filename is not None:
+        logger.subinfo(f'Saving scalar values: {out_scalars_filename}', indent_char='*', indent_lvl=2)
+        # compute the scalar values of the replicas using x_repl_i = x_orig / sum(blurWeights) * blurWeights_i
+        sum_weights = np.sum(blurWeights)
+        scalars_replicas = np.repeat(scalars, nReplicas) / sum_weights * np.tile(blurWeights, n_streamlines) # TODO: check if this is correct
+        if scalars_out_ext == '.npy':
+            np.save(out_scalars_filename, scalars_replicas, allow_pickle=False)
+        else:
+            np.savetxt(out_scalars_filename, scalars_replicas, fmt='%.6e')
 
     t1 = time()
     logger.info( f'[ {format_time(t1 - t0)} ]' )
 
 
-cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', percentile: int=5, lobes_filename: str=None, trim: float=0.05, force: bool=False, verbose: int=3 ):
+def my_real_sh_tournier(sh_order_max, theta, phi):
+    """Compute the real, symmetric (even-order only) spherical harmonic
+    (Tournier07 / MRtrix3) basis.
+    Uses the normalized MRtrix3 definition (equivalent to DIPY's
+    ``legacy=False``) restricted to even orders (equivalent to DIPY's
+    ``full_basis=False``)
+
+    Parameters
+    ----------
+    sh_order_max : int
+        Maximum order (l) of the spherical harmonic basis. Must be an
+        even integer >= 0.
+    theta : array_like [0, pi]
+        Polar (colatitudinal) coordinate(s).
+    phi : array_like [0, 2*pi]
+        Azimuthal (longitudinal) coordinate(s).
+
+    Returns
+    -------
+    real_sh : ndarray
+        Real harmonics sampled at ``theta``/``phi``, shape (n_points, ncoef).
+    m_values : ndarray of int
+        Phase factor (m) of each harmonic.
+    l_values : ndarray of int
+        Order (l) of each harmonic.
+    """
+    import scipy.special as sps
+
+    if sh_order_max % 2 != 0:
+        raise ValueError("sh_order_max must be an even integer >= 0")
+
+    # --- build (m, l) index lists (even orders only) ---
+    l_range = np.arange(0, sh_order_max + 1, 2, dtype=int)
+    ncoef = int((sh_order_max + 2) * (sh_order_max + 1) // 2)
+
+    l_values = np.repeat(l_range, l_range * 2 + 1)
+    m_values = np.empty(ncoef, "int")
+    offset = 0
+    for ii in l_range:
+        m_values[offset : offset + 2 * ii + 1] = np.arange(-ii, ii + 1)
+        offset += 2 * ii + 1
+
+    # --- reshape sample points for broadcasting ---
+    phi = np.reshape(phi, [-1, 1])
+    theta = np.reshape(theta, [-1, 1])
+
+    # --- complex spherical harmonics at |m| (Tournier basis uses |m|) ---
+    abs_m = np.abs(m_values).astype(int)
+    try: # use sph_harm_y if available (scipy >= 1.15.0)
+        sh = sps.sph_harm_y(l_values.astype(int), abs_m, theta, phi).astype(complex)
+    except AttributeError:
+        sh = sps.sph_harm(abs_m, l_values.astype(int), phi, theta).astype(complex)
+
+    # --- real (m>=0) / imaginary (m<0) part, normalized ---
+    real_sh = np.where(m_values < 0, sh.imag, sh.real)
+    real_sh = real_sh * np.where(m_values == 0, 1.0, np.sqrt(2))
+
+    return real_sh, m_values, l_values
+
+cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_weights_filename: str=None, stat: str='min', percentile: int=5, lobes_filename: str=None, lobes_use_affine: bool=False, trim: float=0.05, force: bool=False, verbose: int=3 ):
     """Compute the coherence of streamlines with a voxelwise spherical function (e.g. FOD).
 
     The file containing the spherical functions should follow the MrTrix3 conventions
@@ -2446,10 +2571,12 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         to the average coherence of the segments centered on that point. For the first and last points,
         the weight is computed using only the following or preceding segment, respectively.
     percentile : int, default=5
-        ????
+        Percentile to use when 'stat' is set to 'percentile'.
     lobes_filename : string, optional
         Path to the file (.nii, .nii.gz) containing the peaks that identify the lobes of the spherical functions, which
         will be used to normalize the local coherence by the value of the corresponding lobe.
+    lobes_use_affine : boolean, default=False
+        Whether to rotate the peaks according to the affine matrix when normalizing the coherence.
     trim : float, default=0.05
         Percentage of segments to skip at each extremity.
         Note: if 'stat' is set to 'all', only the segments that are not trimmed will be saved in the output file and the
@@ -2465,8 +2592,6 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         The estimate coherence weights for all input streamlines.
     """
     import amico.lut
-    from dipy.reconst.shm import real_sh_tournier
-    #TODO: remove DIPY dependency (currently, required for only 1 function)
     cdef float [::1] w = np.empty(10000, dtype=np.float32) #NOTE: assume max length of a streamline = 10000
     cdef float [:] p1 = np.empty(3, dtype=np.float32)
     cdef float [:] p2 = np.empty(3, dtype=np.float32)
@@ -2474,6 +2599,7 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     cdef short [:] htable
     cdef float [:,:,:,::1] niiSF_img
     cdef float [:,:,:,::1] niiPEAKS_img
+    cdef int   [:,:,::1] niiPEAKS_img_rot
     cdef float [:,::1] sh_basis
     cdef float [:,::1] dirs_angles = np.zeros((500,500), dtype=np.float32)
     cdef float [:] dirs_angles_voxel
@@ -2482,10 +2608,11 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
     cdef float [:] coherence_tsf = np.empty(10000, dtype=np.float32)
     cdef int [:] peaks_idx
     cdef double [:,::1] affine_inv
+    cdef double [:,::1] affine_inv_lobes
     cdef LazyTractogram TCK_in = None
     cdef TrackScalarFile TSF_out = None
     cdef int ox, oy, o, o2, trim_offset, n
-    cdef int vx, vy, vz, i, j, k, n_peaks=0, peaks_found
+    cdef int vx, vy, vz, i, j, k, l, n_peaks=0, peaks_found
     cdef float sf_val1, sf_val2
     cdef float *ptr1, *ptr2
 
@@ -2530,23 +2657,26 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
         if not lmax.is_integer() :
             logger.error( f'The number of coefficients ({n_sh_coeff}) is not compatible with any SH basis' )
         lmax = int(lmax)
-        affine_inv  = np.linalg.inv(niiSF.affine)
+        affine_inv = np.linalg.inv(niiSF.affine)
         logger.subinfo(f'Spherical functions order: {lmax:.0f}', indent_char='*', indent_lvl=1)
 
         # construct the SH basis to sample the spherical function
         # (using the 500 directions/hash table used internally by COMMIT/AMICO)
         logger.debug( 'Computing SH basis' )
-        dirs  = amico.lut.load_directions( 500 )
-        logger.debug( f'directions: {dirs.shape[0]}x{dirs.shape[1]}'  )
+        dirs = amico.lut.load_directions(500).astype(np.float32)
+        # apply affine without translation to the directions
+        for i in range(dirs.shape[0]):
+            apply_xform_to_point(dirs[i], affine_inv, dirs[i], apply_translation=False)
+        logger.debug( f'directions: {dirs.shape[0]}x{dirs.shape[1]}' )
         htable = amico.lut.load_precomputed_hash_table( 500 )
-        logger.debug( f'hash table: {htable.shape[0]}x1 [min={np.min(htable)}, max={np.max(htable)}]'  )
+        logger.debug( f'hash table: {htable.shape[0]}x1 [min={np.min(htable)}, max={np.max(htable)}]' )
         theta = np.zeros(dirs.shape[0])
         phi = np.zeros(dirs.shape[0])
         for i in range(theta.size):
+            dirs[i,:] /= np.linalg.norm(dirs[i,:]) # normalize for later computation
             phi[i] = atan2(dirs[i,1], dirs[i,0])
             theta[i] = atan2(sqrt(dirs[i,0]*dirs[i,0]+dirs[i,1]*dirs[i,1]), dirs[i,2])
-            dirs[i,:] /= np.linalg.norm(dirs[i,:]) # normalize for later computation
-        tmp, _, _ = real_sh_tournier(lmax, theta, phi)
+        tmp, _, _ = my_real_sh_tournier(lmax, theta, phi)
         sh_basis = np.asarray(tmp, dtype=np.float32)
         del theta, phi, tmp
 
@@ -2562,6 +2692,13 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
             if niiPEAKS.shape[3] % 3:
                 logger.error( 'PEAKS dataset must have 3*k volumes' )
             n_peaks = niiPEAKS.shape[3]/3
+            # apply affine without translation to the directions of the lobes
+            if lobes_use_affine:
+                logger.subinfo('Rotating lobes according to their affine matrix before normalization', indent_char='-', indent_lvl=2)
+                niiPEAKS_img_rot = np.zeros([niiPEAKS_img.shape[0], niiPEAKS_img.shape[1], niiPEAKS_img.shape[2]], dtype=np.int32) # keep track of which voxels have been rotated
+                if np.any(niiPEAKS.affine != niiSF.affine):
+                    logger.error('The affine of the lobes is different from the one of the spherical functions')
+                affine_inv_lobes = np.linalg.inv(niiPEAKS.affine)
             dirs_angles_voxel = np.zeros(n_peaks, dtype=np.float32)
             logger.debug( 'Computing angles between 500 directions' )
             for i in range(500):
@@ -2628,6 +2765,18 @@ cpdef compute_coherence( tractogram_filename: str, sph_func_filename: str, out_w
 
                         # normalize by corresponding lobe
                         if n_peaks > 0:
+                            # check if the lobes in the current voxel have alredy been rotated
+                            if lobes_use_affine and not niiPEAKS_img_rot[vx,vy,vz]:
+                                for l in range(n_peaks):
+                                    p1 = niiPEAKS_img[vx,vy,vz,l*3:l*3+3]
+                                    if np.isnan(p1[0]):# or np.isnan(p1[1]) or np.isnan(p1[2]):
+                                        continue
+                                    apply_xform_to_point(niiPEAKS_img[vx,vy,vz,l*3:l*3+3], affine_inv_lobes, p1, apply_translation=False)
+                                    # normalize the rotated lobe
+                                    niiPEAKS_img[vx,vy,vz,l*3] = p1[0]/np.linalg.norm(p1)
+                                    niiPEAKS_img[vx,vy,vz,l*3+1] = p1[1]/np.linalg.norm(p1)
+                                    niiPEAKS_img[vx,vy,vz,l*3+2] = p1[2]/np.linalg.norm(p1)
+                                    niiPEAKS_img_rot[vx,vy,vz] = True
                             ptr2 = &niiPEAKS_img[vx,vy,vz,0]
                             peaks_found = 0
                             for k in range(n_peaks):
