@@ -4,10 +4,13 @@
 ## `v1.3.1`<br>_2026-07-02_
 ### 🐛Fixed
 - Coherence computation to match MRtrix3 SH basis definition (avoiding DIPY dependency)
-- Minor bugs
+- Minor bugs (in split, coherence, lengths, replicas, connectome, and logger functions)
 
 ### ✨Added
 - Entry point for blurred streamlines' replicas generation (`dice_tractogram_generateReplicas` script)
+
+### 🛠️Changed
+- Automatic actions' specifics
 
 ---
 ---
